@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: MyCourse Backend API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+paths:
+  /health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: OK
+  /api/v1/auth/register:
+    post:
+      summary: Register user
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad request
+        "500":
+          description: Server error
+  /api/v1/auth/login:
+    post:
+      summary: Login user
+      responses:
+        "200":
+          description: Success
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+  /api/v1/users/me:
+    get:
+      summary: Get profile
+      responses:
+        "200":
+          description: Success
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+  /api/v1/courses:
+    get:
+      summary: List courses
+      responses:
+        "200":
+          description: Success
+    post:
+      summary: Create course
+      responses:
+        "201":
+          description: Created
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+  /api/v1/courses/{id}:
+    get:
+      summary: Get course details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+        "404":
+          description: Not found
+  /api/v1/courses/{id}/lessons:
+    get:
+      summary: Get lessons by course
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+        "403":
+          description: Forbidden
+  /api/v1/enrollments:
+    post:
+      summary: Enroll course
+      responses:
+        "201":
+          description: Created
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden

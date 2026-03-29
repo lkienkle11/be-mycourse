@@ -9,6 +9,7 @@ import (
 	"mycourse-io-be/config"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/setting"
+	supabasepkg "mycourse-io-be/pkg/supabase"
 	"mycourse-io-be/queues"
 )
 
@@ -18,7 +19,15 @@ func main() {
 	}
 
 	if err := models.Setup(); err != nil {
-		log.Fatalf("setup database failed: %v", err)
+		log.Fatalf("setup postgres ([database]) failed: %v", err)
+	}
+
+	if err := supabasepkg.SetupDatabase(); err != nil {
+		log.Fatalf("setup supabase postgres (DBURL) failed: %v", err)
+	}
+
+	if err := supabasepkg.Setup(); err != nil {
+		log.Printf("supabase HTTP client is not initialized: %v", err)
 	}
 
 	cache_clients.SetupRedis()

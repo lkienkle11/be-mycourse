@@ -4,8 +4,11 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 
 ## Quick Start
 
-1. Ensure PostgreSQL and Redis are running.
-2. Update credentials in `config/app.ini`.
+1. Ensure Redis is running.
+2. Copy `.env.example` to `.env`, set `STAGE` if needed, and fill Supabase keys used in `config/app.yaml` or `config/app-<STAGE>.yaml`:
+   - `supabase.url` placeholders → `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_DB_URL` (pooler or direct)
 3. Run:
 
 ```bash
@@ -28,6 +31,6 @@ curl http://localhost:8080/api/v1/health
 - `models/`, `models/migrations/`: persistence layer skeleton.
 - `cache_clients/`: Redis client bootstrap.
 - `queues/`: async layer placeholder (RabbitMQ intentionally excluded).
-- `pkg/setting`: INI config loader with stage-based file resolution.
-- `config/`: `app.ini` + per-stage config files and bootstrap seeds.
+- `pkg/setting`: YAML config with per-stage files and `.env` map substitution.
+- `config/`: `app.yaml` + `app-<STAGE>.yaml` and env examples.
 - `tracing/`, `runtime/`: observability and runtime placeholders.

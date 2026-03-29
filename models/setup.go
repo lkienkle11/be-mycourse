@@ -1,7 +1,8 @@
 package models
 
 import (
-	"fmt"
+	"database/sql"
+	"errors"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -12,16 +13,10 @@ import (
 var DB *gorm.DB
 
 func Setup() error {
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
-		setting.DatabaseSetting.Host,
-		setting.DatabaseSetting.Port,
-		setting.DatabaseSetting.User,
-		setting.DatabaseSetting.Password,
-		setting.DatabaseSetting.Name,
-		setting.DatabaseSetting.SSLMode,
-		setting.DatabaseSetting.TimeZone,
-	)
+	dsn := setting.DatabaseSetting.PostgresDSN()
+	if dsn == "" {
+		return errors.New("missing [database] DSN: set URL or Host+Name (and User as needed); Supabase Postgres uses [supabase].DBURL separately")
+	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -29,6 +24,14 @@ func Setup() error {
 	}
 	DB = db
 	return nil
+}
+
+// StdDB returns the shared PostgreSQL pool used by GORM, for database/sql raw queries.
+func StdDB() (*sql.DB, error) {
+	if DB == nil {
+		return nil, errors.New("database not initialized")
+	}
+	return DB.DB()
 }
 
 func MigrateDatabase() error {

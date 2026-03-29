@@ -1,0 +1,31 @@
+# Mặc định khi không đặt STAGE và không chạy TEST=true.
+# .env + (không có .env.<stage>). Placeholder ${VAR} lấy từ map .env rồi os.Getenv.
+server:
+  run_mode: "${SERVER_RUN_MODE}"
+  host: "${SERVER_HOST}"
+  port: "${SERVER_PORT}"
+
+database:
+  url: "${DATABASE_URL}"
+  host: "${DB_HOST}"
+  port: "${DB_PORT}"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  name: "${DB_NAME}"
+  ssl_mode: "${DB_SSLMODE}"
+
+app:
+  jwt_secret: "${JWT_SECRET}"
+  api_key: "${API_KEY}"
+
+redis:
+  addr: "${REDIS_ADDR}"
+  password: "${REDIS_PASSWORD}"
+  db: 0
+
+supabase:
+  project_ref: "${SUPABASE_PROJECT_REF}"
+  url: "${SUPABASE_URL}"
+  anon_key: "${SUPABASE_ANON_KEY}"
+  service_role_key: "${SUPABASE_SERVICE_ROLE_KEY}"
+  db_url: "${SUPABASE_DB_URL}"

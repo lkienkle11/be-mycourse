@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Agent skills (npx skills add supabase/agent-skills, etc.)
+.agents/skills/
+.claude/skills/
+.windsurf/skills/
+.cursor/mcp.json

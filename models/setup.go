@@ -1,12 +1,16 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	appmigrations "mycourse-io-be/migrations"
+	"mycourse-io-be/pkg/dbmigrate"
 	"mycourse-io-be/pkg/setting"
 )
 
@@ -17,6 +21,8 @@ func Setup() error {
 	if dsn == "" {
 		return errors.New("missing [database] DSN: set URL or Host+Name (and User as needed); Supabase Postgres uses [supabase].DBURL separately")
 	}
+
+	fmt.Printf("dsn database: %s\n", dsn)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -35,5 +41,12 @@ func StdDB() (*sql.DB, error) {
 }
 
 func MigrateDatabase() error {
-	return nil
+	if DB == nil {
+		return errors.New("database not initialized")
+	}
+	dsn := setting.DatabaseSetting.PostgresDSN()
+	if dsn == "" {
+		return errors.New("missing [database] DSN")
+	}
+	return dbmigrate.Up(context.Background(), dsn, appmigrations.Files, ".")
 }

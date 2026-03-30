@@ -11,6 +11,7 @@ import (
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
 	"mycourse-io-be/queues"
+	"mycourse-io-be/services"
 )
 
 func main() {
@@ -21,6 +22,7 @@ func main() {
 	if err := models.Setup(); err != nil {
 		log.Fatalf("setup postgres ([database]) failed: %v", err)
 	}
+	services.SetRBACDB(models.DB)
 
 	if err := supabasepkg.SetupDatabase(); err != nil {
 		log.Fatalf("setup supabase postgres (DBURL) failed: %v", err)
@@ -36,6 +38,7 @@ func main() {
 		if err := models.MigrateDatabase(); err != nil {
 			log.Fatalf("migrate database failed: %v", err)
 		}
+		log.Println("sql migrations applied (see migrations/*.up.sql)")
 	}
 
 	config.InitSystem()

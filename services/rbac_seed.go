@@ -1,0 +1,44 @@
+package services
+
+import (
+	"gorm.io/gorm"
+
+	"mycourse-io-be/models"
+)
+
+// defaultPermissionSeeds are created on seed if missing.
+var defaultPermissionSeeds = []struct {
+	Code        string
+	Description string
+}{
+	{"rbac.manage", "Manage roles, permissions, and user-role assignments"},
+	{"profile.read", "Read own profile"},
+}
+
+// SeedRBACDefaults creates baseline permissions and an admin role with rbac.manage.
+func SeedRBACDefaults() error {
+	db, err := rbacOrErr()
+	if err != nil {
+		return err
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, s := range defaultPermissionSeeds {
+			p := models.Permission{Code: s.Code, Description: s.Description}
+			if err := tx.Where("code = ?", s.Code).FirstOrCreate(&p).Error; err != nil {
+				return err
+			}
+		}
+		var manage models.Permission
+		if err := tx.Where("code = ?", "rbac.manage").First(&manage).Error; err != nil {
+			return err
+		}
+		admin := models.Role{Name: "admin", Description: "Full RBAC administration"}
+		if err := tx.Where("name = ?", "admin").FirstOrCreate(&admin).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&admin).Association("Permissions").Replace([]models.Permission{manage}); err != nil {
+			return err
+		}
+		return rebuildRoleClosure(tx)
+	})
+}

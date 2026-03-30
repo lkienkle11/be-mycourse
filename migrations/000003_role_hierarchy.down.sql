@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS role_closure;
+
+ALTER TABLE roles DROP COLUMN IF EXISTS parent_id;

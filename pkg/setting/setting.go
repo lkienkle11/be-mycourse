@@ -13,8 +13,15 @@ import (
 )
 
 type App struct {
-	JWTSecret string
-	ApiKey    string
+	JWTSecret             string
+	ApiKey                string
+	PublicAPIExceptions   []PublicAPIExceptionEntry
+}
+
+// PublicAPIExceptionEntry is loaded from app YAML (app.public_api_exceptions).
+type PublicAPIExceptionEntry struct {
+	Method string
+	Path   string
 }
 
 type Server struct {
@@ -82,8 +89,14 @@ type yamlDatabase struct {
 }
 
 type yamlApp struct {
-	JWTSecret string `yaml:"jwt_secret"`
-	ApiKey    string `yaml:"api_key"`
+	JWTSecret             string                   `yaml:"jwt_secret"`
+	ApiKey                string                   `yaml:"api_key"`
+	PublicAPIExceptions   []yamlPublicAPIException `yaml:"public_api_exceptions"`
+}
+
+type yamlPublicAPIException struct {
+	Method string `yaml:"method"`
+	Path   string `yaml:"path"`
 }
 
 type yamlRedis struct {
@@ -202,6 +215,10 @@ func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
 
 	c.App.JWTSecret = expand(c.App.JWTSecret)
 	c.App.ApiKey = expand(c.App.ApiKey)
+	for i := range c.App.PublicAPIExceptions {
+		c.App.PublicAPIExceptions[i].Method = expand(c.App.PublicAPIExceptions[i].Method)
+		c.App.PublicAPIExceptions[i].Path = expand(c.App.PublicAPIExceptions[i].Path)
+	}
 
 	c.Redis.Addr = expand(c.Redis.Addr)
 	c.Redis.Password = expand(c.Redis.Password)
@@ -252,6 +269,18 @@ func applyYAMLToGlobals(c *yamlConfig) {
 		AppSetting.JWTSecret = "change-me"
 	}
 	AppSetting.ApiKey = c.App.ApiKey
+
+	if len(c.App.PublicAPIExceptions) > 0 {
+		AppSetting.PublicAPIExceptions = make([]PublicAPIExceptionEntry, 0, len(c.App.PublicAPIExceptions))
+		for _, e := range c.App.PublicAPIExceptions {
+			AppSetting.PublicAPIExceptions = append(AppSetting.PublicAPIExceptions, PublicAPIExceptionEntry{
+				Method: strings.TrimSpace(e.Method),
+				Path:   strings.TrimSpace(e.Path),
+			})
+		}
+	} else {
+		AppSetting.PublicAPIExceptions = nil
+	}
 
 	if strings.TrimSpace(c.Redis.Addr) != "" {
 		RedisSetting.Addr = c.Redis.Addr

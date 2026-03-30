@@ -17,6 +17,11 @@ database:
 app:
   jwt_secret: "${JWT_SECRET}"
   api_key: "${API_KEY}"
+  # Bổ sung route public (bỏ JWT / skip permission). Trùng method+path với code → code thắng.
+  # public_api_exceptions:
+  #   - method: GET
+  #     path: /api/v1/ping
+  public_api_exceptions: []
 
 redis:
   addr: "${REDIS_ADDR}"

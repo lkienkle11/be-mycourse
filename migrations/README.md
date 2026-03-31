@@ -38,6 +38,7 @@ Chạy thủ công nội dung file `*_down.sql` trên Postgres (theo thứ tự 
 
 `000002_rbac_seed.up.sql` tạo permission `rbac.manage`, `profile.read`, role `admin` và gán quyền (idempotent với `ON CONFLICT`).
 
-## Role cha–con và `role_closure`
+## RBAC phẳng (role–permission–user)
 
-`000003_role_hierarchy.up.sql` thêm `roles.parent_id` và bảng `role_closure` (bảng bao đóng tuyến tính). Sau khi chạy migration này, `PermissionCodesForUser` kế thừa quyền từ tổ tiên role qua một câu SQL phẳng (không đệ quy trong app). Chạy `MIGRATE=1` sau khi pull để áp dụng.
+- `000001` tạo `permissions`, `roles`, `role_permissions`, `user_roles`, `user_permissions` (quyền gán thẳng cho user, bổ sung cho quyền từ role).
+- `000003_rbac_flat.up.sql` và (nếu DB cũ đã từng có hierarchy) `000004_rbac_remove_hierarchy_if_present.up.sql` gỡ `role_closure` / `roles.parent_id` nếu còn sót. Không còn kế thừa role cha–con; quyền hiệu lực = hợp của quyền từ các role + `user_permissions`.

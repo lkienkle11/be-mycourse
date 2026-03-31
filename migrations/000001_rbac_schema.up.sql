@@ -31,3 +31,12 @@ CREATE TABLE IF NOT EXISTS user_roles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles (user_id);
+
+-- Direct permission grants (supplement role-based permissions).
+CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id VARCHAR(128) NOT NULL,
+    permission_id BIGINT NOT NULL REFERENCES permissions (id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, permission_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_permissions_user ON user_permissions (user_id);

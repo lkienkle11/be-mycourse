@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -22,7 +21,7 @@ func Setup() error {
 		return errors.New("missing [database] DSN: set URL or Host+Name (and User as needed); Supabase Postgres uses [supabase].DBURL separately")
 	}
 
-	fmt.Printf("dsn database: %s\n", dsn)
+	// fmt.Printf("dsn database: %s\n", dsn)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {

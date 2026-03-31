@@ -23,7 +23,7 @@ func SeedRBACDefaults() error {
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, s := range defaultPermissionSeeds {
-			p := models.Permission{Code: s.Code, Description: s.Description}
+			p := models.Permission{Code: s.Code, CodeCheck: s.Code, Description: s.Description}
 			if err := tx.Where("code = ?", s.Code).FirstOrCreate(&p).Error; err != nil {
 				return err
 			}
@@ -36,9 +36,6 @@ func SeedRBACDefaults() error {
 		if err := tx.Where("name = ?", "admin").FirstOrCreate(&admin).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&admin).Association("Permissions").Replace([]models.Permission{manage}); err != nil {
-			return err
-		}
-		return rebuildRoleClosure(tx)
+		return tx.Model(&admin).Association("Permissions").Replace([]models.Permission{manage})
 	})
 }

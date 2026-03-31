@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -14,12 +15,18 @@ import (
 // Native RBAC SQL (named value params :name via sqlnamed.Postgres; table names from dbschema in init).
 const (
 	rbacSQLPermissionCodesForUserTmpl = `
-SELECT DISTINCT p.code
-FROM %s ur
-INNER JOIN %s rc ON rc.descendant_id = ur.role_id
-INNER JOIN %s rp ON rp.role_id = rc.ancestor_id
-INNER JOIN %s p ON p.id = rp.permission_id
-WHERE ur.user_id = :user_id
+SELECT DISTINCT cc FROM (
+  SELECT p.code_check AS cc
+  FROM %s ur
+  INNER JOIN %s rp ON rp.role_id = ur.role_id
+  INNER JOIN %s p ON p.id = rp.permission_id
+  WHERE ur.user_id = :user_id
+  UNION
+  SELECT p.code_check
+  FROM %s up
+  INNER JOIN %s p ON p.id = up.permission_id
+  WHERE up.user_id = :user_id
+) AS _
 `
 	rbacSQLDeleteRolePermissionsByPermissionIDTmpl = `
 DELETE FROM %s WHERE permission_id = :permission_id
@@ -27,23 +34,29 @@ DELETE FROM %s WHERE permission_id = :permission_id
 	rbacSQLDeleteRolePermissionsByRoleIDTmpl = `
 DELETE FROM %s WHERE role_id = :role_id
 `
+	rbacSQLDeleteUserPermissionsByPermissionIDTmpl = `
+DELETE FROM %s WHERE permission_id = :permission_id
+`
 )
 
 var (
 	rbacSQLPermissionCodesForUser              string
 	rbacSQLDeleteRolePermissionsByPermissionID string
 	rbacSQLDeleteRolePermissionsByRoleID       string
+	rbacSQLDeleteUserPermissionsByPermissionID   string
 )
 
 func init() {
 	rbacSQLPermissionCodesForUser = fmt.Sprintf(rbacSQLPermissionCodesForUserTmpl,
 		dbschema.RBAC.UserRoles(),
-		dbschema.RBAC.RoleClosure(),
 		dbschema.RBAC.RolePermissions(),
+		dbschema.RBAC.Permissions(),
+		dbschema.RBAC.UserPermissions(),
 		dbschema.RBAC.Permissions(),
 	)
 	rbacSQLDeleteRolePermissionsByPermissionID = fmt.Sprintf(rbacSQLDeleteRolePermissionsByPermissionIDTmpl, dbschema.RBAC.RolePermissions())
 	rbacSQLDeleteRolePermissionsByRoleID = fmt.Sprintf(rbacSQLDeleteRolePermissionsByRoleIDTmpl, dbschema.RBAC.RolePermissions())
+	rbacSQLDeleteUserPermissionsByPermissionID = fmt.Sprintf(rbacSQLDeleteUserPermissionsByPermissionIDTmpl, dbschema.RBAC.UserPermissions())
 }
 
 var rbacDB *gorm.DB
@@ -59,9 +72,8 @@ func rbacOrErr() (*gorm.DB, error) {
 	return rbacDB, nil
 }
 
-// PermissionCodesForUser returns distinct permission codes for the user.
-// Uses role_closure so each assigned role inherits permissions from all ancestors in one flat SQL query:
-// no recursion, no stack in application code; work is O(1) in tree depth (fixed join count, single round-trip).
+// PermissionCodesForUser returns distinct permission code_check values from the user's roles (role_permissions)
+// plus any direct user_permissions grants. Use catalog field strings with RequirePermission (e.g. constants.CodeCourse.Read).
 func PermissionCodesForUser(userID string) (map[string]struct{}, error) {
 	db, err := rbacOrErr()
 	if err != nil {
@@ -85,17 +97,18 @@ func PermissionCodesForUser(userID string) (map[string]struct{}, error) {
 	return out, nil
 }
 
-func UserHasAllPermissions(userID string, required []string) (bool, string, error) {
-	if len(required) == 0 {
+// UserHasAllPermissions checks code_check strings (e.g. constants.CodeProfileRead.CourseRead).
+func UserHasAllPermissions(userID string, requiredCodeChecks []string) (bool, string, error) {
+	if len(requiredCodeChecks) == 0 {
 		return true, "", nil
 	}
 	set, err := PermissionCodesForUser(userID)
 	if err != nil {
 		return false, "", err
 	}
-	for _, code := range required {
-		if _, ok := set[code]; !ok {
-			return false, code, nil
+	for _, cc := range requiredCodeChecks {
+		if _, ok := set[cc]; !ok {
+			return false, cc, nil
 		}
 	}
 	return true, "", nil
@@ -115,7 +128,7 @@ func ListPermissions() ([]models.Permission, error) {
 	return rows, nil
 }
 
-func CreatePermission(code, description string) (*models.Permission, error) {
+func CreatePermission(code, description string, codeCheck *string) (*models.Permission, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -123,14 +136,18 @@ func CreatePermission(code, description string) (*models.Permission, error) {
 	if code == "" {
 		return nil, errors.New("permission code required")
 	}
-	p := models.Permission{Code: code, Description: description}
+	cc := code
+	if codeCheck != nil && strings.TrimSpace(*codeCheck) != "" {
+		cc = strings.TrimSpace(*codeCheck)
+	}
+	p := models.Permission{Code: code, CodeCheck: cc, Description: description}
 	if err := db.Create(&p).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-func UpdatePermission(id uint, code *string, description *string) (*models.Permission, error) {
+func UpdatePermission(id uint, code *string, codeCheck *string, description *string) (*models.Permission, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -141,6 +158,11 @@ func UpdatePermission(id uint, code *string, description *string) (*models.Permi
 	}
 	if code != nil && *code != "" {
 		p.Code = *code
+	}
+	if codeCheck != nil {
+		if strings.TrimSpace(*codeCheck) != "" {
+			p.CodeCheck = strings.TrimSpace(*codeCheck)
+		}
 	}
 	if description != nil {
 		p.Description = *description
@@ -164,13 +186,20 @@ func DeletePermission(id uint) error {
 		if err := tx.Exec(q, args...).Error; err != nil {
 			return err
 		}
+		q2, args2, err := sqlnamed.Postgres(rbacSQLDeleteUserPermissionsByPermissionID, map[string]interface{}{"permission_id": id})
+		if err != nil {
+			return err
+		}
+		if err := tx.Exec(q2, args2...).Error; err != nil {
+			return err
+		}
 		return tx.Delete(&models.Permission{}, id).Error
 	})
 }
 
 // --- Roles ---
 
-func ListRoles(withPerms, withParent, withChildren bool) ([]models.Role, error) {
+func ListRoles(withPerms bool) ([]models.Role, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -179,12 +208,6 @@ func ListRoles(withPerms, withParent, withChildren bool) ([]models.Role, error) 
 	if withPerms {
 		q = q.Preload("Permissions")
 	}
-	if withParent {
-		q = q.Preload("Parent")
-	}
-	if withChildren {
-		q = q.Preload("Children")
-	}
 	var rows []models.Role
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
@@ -192,7 +215,7 @@ func ListRoles(withPerms, withParent, withChildren bool) ([]models.Role, error) 
 	return rows, nil
 }
 
-func GetRole(id uint, withPerms, withParent, withChildren bool) (*models.Role, error) {
+func GetRole(id uint, withPerms bool) (*models.Role, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -201,12 +224,6 @@ func GetRole(id uint, withPerms, withParent, withChildren bool) (*models.Role, e
 	if withPerms {
 		q = q.Preload("Permissions")
 	}
-	if withParent {
-		q = q.Preload("Parent")
-	}
-	if withChildren {
-		q = q.Preload("Children")
-	}
 	var r models.Role
 	if err := q.First(&r, id).Error; err != nil {
 		return nil, err
@@ -214,7 +231,7 @@ func GetRole(id uint, withPerms, withParent, withChildren bool) (*models.Role, e
 	return &r, nil
 }
 
-func CreateRole(name, description string, parentID *uint) (*models.Role, error) {
+func CreateRole(name, description string) (*models.Role, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -222,74 +239,32 @@ func CreateRole(name, description string, parentID *uint) (*models.Role, error) 
 	if name == "" {
 		return nil, errors.New("role name required")
 	}
-	var out models.Role
-	err = db.Transaction(func(tx *gorm.DB) error {
-		if parentID != nil {
-			if err := assertParentExists(tx, *parentID); err != nil {
-				return err
-			}
-		}
-		out = models.Role{Name: name, Description: description, ParentID: parentID}
-		if err := tx.Create(&out).Error; err != nil {
-			return err
-		}
-		return insertClosureForNewRole(tx, out.ID, parentID)
-	})
-	if err != nil {
+	out := models.Role{Name: name, Description: description}
+	if err := db.Create(&out).Error; err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// UpdateRole updates fields; if removeParent is true, parent is cleared (parentID ignored).
-// If parentID is non-nil and removeParent is false, parent is set (must not create a cycle).
-func UpdateRole(id uint, name *string, description *string, parentID *uint, removeParent bool) (*models.Role, error) {
-	if removeParent && parentID != nil {
-		return nil, errors.New("cannot set both parent_id and remove_parent")
-	}
+func UpdateRole(id uint, name *string, description *string) (*models.Role, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
 	}
-	err = db.Transaction(func(tx *gorm.DB) error {
-		var r models.Role
-		if err := tx.First(&r, id).Error; err != nil {
-			return err
-		}
-		if name != nil && *name != "" {
-			r.Name = *name
-		}
-		if description != nil {
-			r.Description = *description
-		}
-		parentTouched := removeParent || parentID != nil
-		if removeParent {
-			r.ParentID = nil
-		} else if parentID != nil {
-			cycle, err := wouldCreateRoleCycle(tx, id, *parentID)
-			if err != nil {
-				return err
-			}
-			if cycle {
-				return fmt.Errorf("would create cycle: parent %d is under role %d", *parentID, id)
-			}
-			if err := assertParentExists(tx, *parentID); err != nil {
-				return err
-			}
-			r.ParentID = parentID
-		}
-		if err := tx.Save(&r).Error; err != nil {
-			return err
-		}
-		if parentTouched {
-			return rebuildRoleClosure(tx)
-		}
-		return nil
-	})
-	if err != nil {
+	var r models.Role
+	if err := db.First(&r, id).Error; err != nil {
 		return nil, err
 	}
-	return GetRole(id, true, true, true)
+	if name != nil && *name != "" {
+		r.Name = *name
+	}
+	if description != nil {
+		r.Description = *description
+	}
+	if err := db.Save(&r).Error; err != nil {
+		return nil, err
+	}
+	return GetRole(id, true)
 }
 
 func DeleteRole(id uint) error {
@@ -308,10 +283,7 @@ func DeleteRole(id uint) error {
 		if err := tx.Exec(q, args...).Error; err != nil {
 			return err
 		}
-		if err := tx.Delete(&models.Role{}, id).Error; err != nil {
-			return err
-		}
-		return rebuildRoleClosure(tx)
+		return tx.Delete(&models.Role{}, id).Error
 	})
 }
 
@@ -337,7 +309,7 @@ func SetRolePermissions(roleID uint, codes []string) (*models.Role, error) {
 	if err := db.Model(&role).Association("Permissions").Replace(perms); err != nil {
 		return nil, err
 	}
-	return GetRole(roleID, true, true, true)
+	return GetRole(roleID, true)
 }
 
 // --- User roles ---
@@ -386,4 +358,67 @@ func RemoveUserRole(userID string, roleID uint) error {
 		return err
 	}
 	return db.Where("user_id = ? AND role_id = ?", userID, roleID).Delete(&models.UserRole{}).Error
+}
+
+// --- User direct permissions (supplement role permissions) ---
+
+func ListUserDirectPermissions(userID string) ([]models.Permission, error) {
+	db, err := rbacOrErr()
+	if err != nil {
+		return nil, err
+	}
+	if userID == "" {
+		return nil, errors.New("empty user id")
+	}
+	var ups []models.UserPermission
+	if err := db.Preload("Permission").Where("user_id = ?", userID).Find(&ups).Error; err != nil {
+		return nil, err
+	}
+	out := make([]models.Permission, 0, len(ups))
+	for _, up := range ups {
+		out = append(out, up.Permission)
+	}
+	return out, nil
+}
+
+func AssignUserPermission(userID string, permissionID uint) error {
+	db, err := rbacOrErr()
+	if err != nil {
+		return err
+	}
+	if userID == "" {
+		return errors.New("empty user id")
+	}
+	var n int64
+	if err := db.Model(&models.Permission{}).Where("id = ?", permissionID).Count(&n).Error; err != nil {
+		return err
+	}
+	if n == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	row := models.UserPermission{UserID: userID, PermissionID: permissionID}
+	return db.FirstOrCreate(&row, models.UserPermission{UserID: userID, PermissionID: permissionID}).Error
+}
+
+func AssignUserPermissionByCode(userID, code string) error {
+	db, err := rbacOrErr()
+	if err != nil {
+		return err
+	}
+	if userID == "" || code == "" {
+		return errors.New("user id and permission code required")
+	}
+	var p models.Permission
+	if err := db.Where("code = ?", code).First(&p).Error; err != nil {
+		return err
+	}
+	return AssignUserPermission(userID, p.ID)
+}
+
+func RemoveUserPermission(userID string, permissionID uint) error {
+	db, err := rbacOrErr()
+	if err != nil {
+		return err
+	}
+	return db.Where("user_id = ? AND permission_id = ?", userID, permissionID).Delete(&models.UserPermission{}).Error
 }

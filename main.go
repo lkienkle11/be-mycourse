@@ -1,5 +1,7 @@
 package main
 
+//go:generate go run ./cmd/syncpermissions
+
 import (
 	"log"
 	"os"

@@ -2,25 +2,24 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	rateLimitMaxPerWindow = 60
-	rateWindow            = time.Minute
-)
-
-type ipBucket struct {
-	windowStart int64 // unix seconds, aligned to rateWindow
+type rateBucket struct {
+	windowStart int64 // unix seconds, aligned to window of windowSec
+	windowSec   int64
 	count       int
 }
 
 var (
-	rateMu      sync.Mutex
-	rateBuckets = make(map[string]*ipBucket)
+	rateMu       sync.Mutex
+	rateBuckets  = make(map[string]*rateBucket) // key: limiter instance + "|" + client IP
+	nextLimiterID uint64
 )
 
 func init() {
@@ -33,29 +32,45 @@ func init() {
 }
 
 func cleanupRateBuckets() {
-	cutoff := time.Now().Add(-3 * rateWindow).Unix()
+	now := time.Now().Unix()
 	rateMu.Lock()
 	defer rateMu.Unlock()
 	for k, b := range rateBuckets {
-		if b.windowStart < cutoff {
+		if now-b.windowStart > 2*b.windowSec {
 			delete(rateBuckets, k)
 		}
 	}
 }
 
-// RateLimitLocal allows at most 60 requests per client IP per calendar-aligned minute bucket.
-// State is kept in process memory only (not Redis/DB).
-func RateLimitLocal() gin.HandlerFunc {
-	windowSec := int64(rateWindow.Seconds())
+// RateLimitLocal limits each client IP to at most attempts requests per rolling calendar-aligned
+// window of minutes minutes. State is in-process only (global map). Each call returns an
+// independent limiter instance (separate counters even when attempts/minutes match), so e.g.
+// routerAuthen and routerNotAuthen can use different quotas for the same IP.
+//
+// attempts < 1 or minutes < 1 produces a no-op middleware.
+func RateLimitLocal(attempts, minutes int) gin.HandlerFunc {
+	if attempts < 1 || minutes < 1 {
+		return func(c *gin.Context) { c.Next() }
+	}
+
+	windowSec := int64(minutes) * 60
+	id := atomic.AddUint64(&nextLimiterID, 1)
+	keyPrefix := strconv.FormatUint(id, 10) + "|"
+
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
+		key := keyPrefix + ip
 		now := time.Now().Unix()
 		windowStart := now - (now % windowSec)
 
 		rateMu.Lock()
-		b := rateBuckets[ip]
+		b := rateBuckets[key]
 		if b == nil || b.windowStart != windowStart {
-			rateBuckets[ip] = &ipBucket{windowStart: windowStart, count: 1}
+			rateBuckets[key] = &rateBucket{
+				windowStart: windowStart,
+				windowSec:   windowSec,
+				count:       1,
+			}
 			rateMu.Unlock()
 			c.Next()
 			return
@@ -64,11 +79,12 @@ func RateLimitLocal() gin.HandlerFunc {
 		n := b.count
 		rateMu.Unlock()
 
-		if n > rateLimitMaxPerWindow {
+		if n > attempts {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"message":    "rate limit exceeded",
-				"limit":      rateLimitMaxPerWindow,
-				"window_sec": int(windowSec),
+				"message":   "rate limit exceeded",
+				"attempts":  attempts,
+				"minutes":   minutes,
+				"window_sec": windowSec,
 			})
 			return
 		}

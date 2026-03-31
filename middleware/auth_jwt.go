@@ -6,35 +6,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/api/exceptions"
 	"mycourse-io-be/pkg/setting"
 	"mycourse-io-be/pkg/token"
 )
 
 const (
-	ContextUserID   = "user_id"
-	ContextJWTRole  = "jwt_role"
-	ContextSkipAuth = "skip_auth_public" // set when request matches public API exception
+	ContextUserID  = "user_id"
+	ContextJWTRole = "jwt_role"
 )
 
 // AuthJWT validates Authorization: Bearer <JWT> and sets user_id (and jwt_role) on the context.
 func AuthJWT() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !requireJWT(c) {
-			return
-		}
-		c.Next()
-	}
-}
-
-// AuthJWTUnlessPublic skips JWT when the request matches the public allowlist (no token, no user_id).
-func AuthJWTUnlessPublic(rules []exceptions.Endpoint) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if exceptions.Match(c.Request.Method, c.Request.URL.Path, rules) {
-			c.Set(ContextSkipAuth, true)
-			c.Next()
-			return
-		}
 		if !requireJWT(c) {
 			return
 		}

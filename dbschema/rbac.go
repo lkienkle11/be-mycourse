@@ -6,7 +6,7 @@ const (
 	rbacRoles             = "roles"
 	rbacRolePermissions   = "role_permissions"
 	rbacUserRoles         = "user_roles"
-	rbacRoleClosure       = "role_closure"
+	rbacUserPermissions   = "user_permissions"
 )
 
 // RBAC exposes table names for authorization / role models and raw SQL.
@@ -19,4 +19,4 @@ func (rbacNS) Permissions() string      { return rbacPermissions }
 func (rbacNS) Roles() string            { return rbacRoles }
 func (rbacNS) RolePermissions() string  { return rbacRolePermissions }
 func (rbacNS) UserRoles() string        { return rbacUserRoles }
-func (rbacNS) RoleClosure() string      { return rbacRoleClosure }
+func (rbacNS) UserPermissions() string  { return rbacUserPermissions }

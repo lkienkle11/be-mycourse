@@ -5,7 +5,6 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/api/exceptions"
 	apiV1 "mycourse-io-be/api/v1"
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/httperr"
@@ -19,18 +18,22 @@ func InitRouter() *gin.Engine {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	apiRoot := router.Group("/api")
-	apiRoot.Use(middleware.RateLimitLocal())
 
 	v1 := apiRoot.Group("/v1")
-	v1.Use(
-		middleware.BeforeInterceptor(),
-		middleware.AuthJWTUnlessPublic(exceptions.PublicEndpoints()),
-	)
-	apiV1.RegisterPublicRoutes(v1)
-	apiV1.RegisterRoutes(v1)
+	v1.Use(middleware.BeforeInterceptor())
+
+	// Authenticated v1 routes first (stricter subtree). Permission checks (RequirePermission + constants)
+	// attach per-route or per-group on routerAuthen when you wire them.
+	routerAuthen := v1.Group("")
+	routerAuthen.Use(middleware.RateLimitLocal(120, 1), middleware.AuthJWT())
+	apiV1.RegisterAuthenRoutes(routerAuthen)
+
+	routerNotAuthen := v1.Group("")
+	routerNotAuthen.Use(middleware.RateLimitLocal(60, 1))
+	apiV1.RegisterNotAuthenRoutes(routerNotAuthen)
 
 	internalV1 := apiRoot.Group("/internal-v1")
-	internalV1.Use(middleware.BeforeInterceptor(), middleware.RequireInternalAPIKey())
+	internalV1.Use(middleware.RateLimitLocal(60, 1), middleware.BeforeInterceptor(), middleware.RequireInternalAPIKey())
 	apiV1.RegisterInternalRoutes(internalV1)
 
 	return router

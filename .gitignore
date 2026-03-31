@@ -3,6 +3,8 @@
 !.env.example
 !.env.*.example
 
+*.exe
+
 # Agent skills (npx skills add supabase/agent-skills, etc.)
 .agents/skills/
 .claude/skills/

@@ -74,13 +74,13 @@ func rbacOrErr() (*gorm.DB, error) {
 
 // PermissionCodesForUser returns distinct permission code_check values from the user's roles (role_permissions)
 // plus any direct user_permissions grants. Use catalog field strings with RequirePermission (e.g. constants.CodeCourse.Read).
-func PermissionCodesForUser(userID string) (map[string]struct{}, error) {
+func PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
 	}
-	if userID == "" {
-		return nil, errors.New("empty user id")
+	if userID == 0 {
+		return nil, errors.New("invalid user id")
 	}
 	var codes []string
 	q, args, err := sqlnamed.Postgres(rbacSQLPermissionCodesForUser, map[string]interface{}{"user_id": userID})
@@ -98,7 +98,7 @@ func PermissionCodesForUser(userID string) (map[string]struct{}, error) {
 }
 
 // UserHasAllPermissions checks code_check strings (e.g. constants.CodeProfileRead.CourseRead).
-func UserHasAllPermissions(userID string, requiredCodeChecks []string) (bool, string, error) {
+func UserHasAllPermissions(userID uint, requiredCodeChecks []string) (bool, string, error) {
 	if len(requiredCodeChecks) == 0 {
 		return true, "", nil
 	}
@@ -116,16 +116,73 @@ func UserHasAllPermissions(userID string, requiredCodeChecks []string) (bool, st
 
 // --- Permissions CRUD ---
 
-func ListPermissions() ([]models.Permission, error) {
+// allowedPermissionSortCols maps client-supplied sort_by values to safe SQL column names.
+// Only columns in this map are accepted — anything else falls back to the default ("code").
+var allowedPermissionSortCols = map[string]string{
+	"id":          "id",
+	"code":        "code",
+	"description": "description",
+	"created_at":  "created_at",
+}
+
+// allowedPermissionSearchCols maps client-supplied search_by values to safe SQL column names.
+var allowedPermissionSearchCols = map[string]string{
+	"code":        "code",
+	"description": "description",
+}
+
+// ListPermissionsParams carries the validated filter values from the handler.
+type ListPermissionsParams struct {
+	Offset     int
+	Limit      int
+	SortBy     string
+	SortOrder  string // "asc" | "desc"
+	SearchBy   string
+	SearchData string
+}
+
+// ListPermissions returns a filtered, sorted, paginated page of permissions and the total
+// count of matching rows (before pagination).
+func ListPermissions(p ListPermissionsParams) ([]models.Permission, int64, error) {
 	db, err := rbacOrErr()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+
+	q := db.Model(&models.Permission{})
+
+	// Apply search predicate when both search_by and search_data are present.
+	if p.SearchBy != "" && p.SearchData != "" {
+		if col, ok := allowedPermissionSearchCols[p.SearchBy]; ok {
+			q = q.Where(col+" ILIKE ?", "%"+p.SearchData+"%")
+		}
+	}
+
+	// Count total matching rows (without LIMIT/OFFSET).
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Build ORDER BY — default to "code ASC" when sort_by is absent or not whitelisted.
+	orderCol := "code"
+	if col, ok := allowedPermissionSortCols[p.SortBy]; ok {
+		orderCol = col
+	}
+	orderDir := "ASC"
+	if p.SortOrder == "desc" {
+		orderDir = "DESC"
+	}
+
 	var rows []models.Permission
-	if err := db.Order("code").Find(&rows).Error; err != nil {
-		return nil, err
+	if err := q.Order(orderCol + " " + orderDir).
+		Offset(p.Offset).
+		Limit(p.Limit).
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
 	}
-	return rows, nil
+
+	return rows, total, nil
 }
 
 func CreatePermission(code, description string, codeCheck *string) (*models.Permission, error) {
@@ -314,7 +371,7 @@ func SetRolePermissions(roleID uint, codes []string) (*models.Role, error) {
 
 // --- User roles ---
 
-func ListUserRoles(userID string) ([]models.Role, error) {
+func ListUserRoles(userID uint) ([]models.Role, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -333,13 +390,13 @@ func ListUserRoles(userID string) ([]models.Role, error) {
 	return roles, nil
 }
 
-func AssignUserRole(userID string, roleID uint) error {
+func AssignUserRole(userID uint, roleID uint) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
 	}
-	if userID == "" {
-		return errors.New("empty user id")
+	if userID == 0 {
+		return errors.New("invalid user id")
 	}
 	var n int64
 	if err := db.Model(&models.Role{}).Where("id = ?", roleID).Count(&n).Error; err != nil {
@@ -352,7 +409,7 @@ func AssignUserRole(userID string, roleID uint) error {
 	return db.FirstOrCreate(&ur, models.UserRole{UserID: userID, RoleID: roleID}).Error
 }
 
-func RemoveUserRole(userID string, roleID uint) error {
+func RemoveUserRole(userID uint, roleID uint) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
@@ -362,13 +419,13 @@ func RemoveUserRole(userID string, roleID uint) error {
 
 // --- User direct permissions (supplement role permissions) ---
 
-func ListUserDirectPermissions(userID string) ([]models.Permission, error) {
+func ListUserDirectPermissions(userID uint) ([]models.Permission, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
 	}
-	if userID == "" {
-		return nil, errors.New("empty user id")
+	if userID == 0 {
+		return nil, errors.New("invalid user id")
 	}
 	var ups []models.UserPermission
 	if err := db.Preload("Permission").Where("user_id = ?", userID).Find(&ups).Error; err != nil {
@@ -381,13 +438,13 @@ func ListUserDirectPermissions(userID string) ([]models.Permission, error) {
 	return out, nil
 }
 
-func AssignUserPermission(userID string, permissionID uint) error {
+func AssignUserPermission(userID uint, permissionID uint) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
 	}
-	if userID == "" {
-		return errors.New("empty user id")
+	if userID == 0 {
+		return errors.New("invalid user id")
 	}
 	var n int64
 	if err := db.Model(&models.Permission{}).Where("id = ?", permissionID).Count(&n).Error; err != nil {
@@ -400,12 +457,12 @@ func AssignUserPermission(userID string, permissionID uint) error {
 	return db.FirstOrCreate(&row, models.UserPermission{UserID: userID, PermissionID: permissionID}).Error
 }
 
-func AssignUserPermissionByCode(userID, code string) error {
+func AssignUserPermissionByCode(userID uint, code string) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
 	}
-	if userID == "" || code == "" {
+	if userID == 0 || code == "" {
 		return errors.New("user id and permission code required")
 	}
 	var p models.Permission
@@ -415,7 +472,7 @@ func AssignUserPermissionByCode(userID, code string) error {
 	return AssignUserPermission(userID, p.ID)
 }
 
-func RemoveUserPermission(userID string, permissionID uint) error {
+func RemoveUserPermission(userID uint, permissionID uint) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err

@@ -1,4 +1,4 @@
--- Stable human/API key stays in `code`; fast-moving check strings for middleware live in `code_check` (also unique).
+-- Stable human/API key stays in `code`. Fast-moving check strings for middleware live in `code_check` (also unique).
 
 ALTER TABLE permissions ADD COLUMN IF NOT EXISTS code_check VARCHAR(128);
 

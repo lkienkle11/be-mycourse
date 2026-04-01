@@ -30,17 +30,17 @@ type Role struct {
 
 func (Role) TableName() string { return dbschema.RBAC.Roles() }
 
-// UserRole binds an external user id (e.g. Supabase/JWT sub) to a role.
+// UserRole binds a user (users.id) to a role.
 type UserRole struct {
-	UserID string `gorm:"size:128;primaryKey;index:idx_user_roles_user" json:"user_id"`
-	RoleID uint   `gorm:"primaryKey" json:"role_id"`
+	UserID uint `gorm:"primaryKey;index:idx_user_roles_user" json:"user_id"`
+	RoleID uint `gorm:"primaryKey" json:"role_id"`
 }
 
 func (UserRole) TableName() string { return dbschema.RBAC.UserRoles() }
 
-// UserPermission binds a user to an extra permission (in addition to permissions implied by their roles).
+// UserPermission binds a user (users.id) to an extra permission (in addition to permissions implied by their roles).
 type UserPermission struct {
-	UserID       string `gorm:"size:128;primaryKey;index:idx_user_permissions_user" json:"user_id"`
+	UserID       uint `gorm:"primaryKey;index:idx_user_permissions_user" json:"user_id"`
 	PermissionID uint   `gorm:"primaryKey" json:"permission_id"`
 	Permission   Permission `gorm:"foreignKey:PermissionID" json:"permission,omitempty"`
 }

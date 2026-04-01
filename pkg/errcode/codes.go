@@ -4,8 +4,10 @@ package errcode
 
 // Application error codes (numeric), in addition to HTTP status on the response line.
 // Default / fallback: Unknown (9999) → DefaultMessage returns "Unknown Error".
+// Use Success (0) for all successful responses.
 
 const (
+	Success = 0    // operation completed successfully
 	Unknown = 9999
 
 	// Transport / parsing (1xxx)
@@ -22,6 +24,14 @@ const (
 	NotFound        = 3004
 	Conflict        = 3005
 	TooManyRequests = 3006
+
+	// Auth (4xxx)
+	EmailAlreadyExists  = 4001
+	InvalidCredentials  = 4002
+	WeakPassword        = 4003
+	EmailNotConfirmed   = 4004
+	UserDisabled        = 4005
+	InvalidConfirmToken = 4006
 
 	// Server (9xxx)
 	InternalError = 9001

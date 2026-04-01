@@ -22,6 +22,13 @@ var defaultMessages = map[int]string{
 	Conflict:        "Conflict",
 	TooManyRequests: "Too many requests",
 
+	EmailAlreadyExists:  "Email address is already registered",
+	InvalidCredentials:  "Invalid email or password",
+	WeakPassword:        "Password must be at least 8 characters and contain uppercase, lowercase, and special characters",
+	EmailNotConfirmed:   "Please confirm your email address before logging in",
+	UserDisabled:        "Your account has been disabled",
+	InvalidConfirmToken: "Invalid or expired confirmation token",
+
 	InternalError: "Internal server error",
 	Panic:         "Internal server error",
 }

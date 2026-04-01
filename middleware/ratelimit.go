@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"mycourse-io-be/pkg/errcode"
+	"mycourse-io-be/pkg/response"
 )
 
 type rateBucket struct {
@@ -17,8 +20,8 @@ type rateBucket struct {
 }
 
 var (
-	rateMu       sync.Mutex
-	rateBuckets  = make(map[string]*rateBucket) // key: limiter instance + "|" + client IP
+	rateMu        sync.Mutex
+	rateBuckets   = make(map[string]*rateBucket) // key: limiter instance + "|" + client IP
 	nextLimiterID uint64
 )
 
@@ -80,12 +83,7 @@ func RateLimitLocal(attempts, minutes int) gin.HandlerFunc {
 		rateMu.Unlock()
 
 		if n > attempts {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"message":   "rate limit exceeded",
-				"attempts":  attempts,
-				"minutes":   minutes,
-				"window_sec": windowSec,
-			})
+			response.AbortFail(c, http.StatusTooManyRequests, errcode.TooManyRequests, errcode.DefaultMessage(errcode.TooManyRequests), nil)
 			return
 		}
 		c.Next()

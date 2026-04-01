@@ -10,6 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	"mycourse-io-be/pkg/errcode"
+	appresponse "mycourse-io-be/pkg/response"
 	appvalidate "mycourse-io-be/pkg/validate"
 )
 
@@ -36,7 +37,7 @@ func Recovery() gin.HandlerFunc {
 		if c.Writer.Written() {
 			return
 		}
-		writeErrorBody(c, http.StatusInternalServerError, errcode.Panic, errcode.DefaultMessage(errcode.Panic), nil, nil)
+		writeErrorBody(c, http.StatusInternalServerError, errcode.Panic, errcode.DefaultMessage(errcode.Panic), nil)
 	})
 }
 
@@ -48,14 +49,14 @@ func respondError(c *gin.Context, err error) {
 	var syn *json.SyntaxError
 	var typ *json.UnmarshalTypeError
 	if errors.As(err, &syn) || errors.As(err, &typ) {
-		writeErrorBody(c, http.StatusBadRequest, errcode.InvalidJSON, errcode.DefaultMessage(errcode.InvalidJSON), nil, nil)
+		writeErrorBody(c, http.StatusBadRequest, errcode.InvalidJSON, errcode.DefaultMessage(errcode.InvalidJSON), nil)
 		return
 	}
 
 	var ve validator.ValidationErrors
 	if errors.As(err, &ve) {
 		details := appvalidate.FlattenErrors(ve)
-		writeErrorBody(c, http.StatusBadRequest, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), nil, gin.H{"details": details})
+		writeErrorBody(c, http.StatusBadRequest, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), gin.H{"details": details})
 		return
 	}
 
@@ -68,11 +69,7 @@ func respondError(c *gin.Context, err error) {
 		if msg == "" {
 			msg = errcode.DefaultMessage(appCode)
 		}
-		var extra gin.H
-		if he.Err != nil && gin.Mode() == gin.DebugMode {
-			extra = gin.H{"cause": he.Err.Error()}
-		}
-		writeErrorBody(c, he.Status, appCode, msg, errorKeyPtr(he.Code), extra)
+		writeErrorBody(c, he.Status, appCode, msg, nil)
 		return
 	}
 
@@ -80,27 +77,15 @@ func respondError(c *gin.Context, err error) {
 	if gin.Mode() == gin.DebugMode {
 		msg = err.Error()
 	}
-	writeErrorBody(c, http.StatusInternalServerError, errcode.Unknown, msg, nil, nil)
+	writeErrorBody(c, http.StatusInternalServerError, errcode.Unknown, msg, nil)
 }
 
-func errorKeyPtr(key string) *string {
-	if key == "" {
-		return nil
-	}
-	return &key
-}
-
-// writeErrorBody sets JSON: error_code, message, optional error_key, merges extra.
-func writeErrorBody(c *gin.Context, httpStatus, appCode int, message string, errorKey *string, extra gin.H) {
-	body := gin.H{
-		"error_code": appCode,
-		"message":    message,
-	}
-	if errorKey != nil {
-		body["error_key"] = *errorKey
-	}
-	for k, v := range extra {
-		body[k] = v
-	}
-	c.AbortWithStatusJSON(httpStatus, body)
+// writeErrorBody writes the unified error envelope: { code, message, data }.
+// data is nil for most errors; pass a gin.H for errors that carry extra context (e.g. validation details).
+func writeErrorBody(c *gin.Context, httpStatus, appCode int, message string, data any) {
+	c.AbortWithStatusJSON(httpStatus, appresponse.Response{
+		Code:    appCode,
+		Message: message,
+		Data:    data,
+	})
 }

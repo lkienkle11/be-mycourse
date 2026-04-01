@@ -18,6 +18,8 @@ app:
   jwt_secret: "${JWT_SECRET}"
   api_key: "${API_KEY}"
   app_base_url: "${APP_BASE_URL}"
+  cors:
+    allowed_origins: "${CORS_ALLOWED_ORIGINS}"
 
 brevo:
   api_key: "${BREVO_API_KEY}"

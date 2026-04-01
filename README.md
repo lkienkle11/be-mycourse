@@ -5,10 +5,12 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 ## Quick Start
 
 1. Ensure Redis is running.
-2. Copy `.env.example` to `.env`, set `STAGE` if needed, and fill Supabase keys used in `config/app.yaml` or `config/app-<STAGE>.yaml`:
+2. Copy `.env.example` to `.env`, set `STAGE` if needed, and fill the keys used in `config/app.yaml` or `config/app-<STAGE>.yaml`:
    - `supabase.url` placeholders → `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `SUPABASE_DB_URL` (pooler or direct)
+   - `APP_BASE_URL` — public base URL of this server, used in outgoing emails (no trailing slash), e.g. `https://api.mycourse.io`
+   - `CORS_ALLOWED_ORIGINS` — comma-separated list of allowed frontend origins, e.g. `http://localhost:3000,https://mycourse.io`
 3. Run:
 
 ```bash
@@ -21,6 +23,27 @@ go run .
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
+
+---
+
+## CORS
+
+CORS is configured via the `CORS_ALLOWED_ORIGINS` environment variable — a **comma-separated list** of allowed origins.
+
+```env
+# .env (local / dev)
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174
+
+# .env.staging / .env.prod
+CORS_ALLOWED_ORIGINS=https://mycourse.io,https://www.mycourse.io
+```
+
+The value is read by `pkg/setting` at startup, split on `,`, trimmed, and passed to `github.com/gin-contrib/cors`.
+If the variable is empty or unset, it falls back to `http://localhost:3000`.
+
+Allowed methods: `GET POST PUT PATCH DELETE OPTIONS`  
+Allowed headers: `Origin Content-Type Authorization X-API-Key`  
+Credentials: enabled (`AllowCredentials: true`)
 
 ---
 

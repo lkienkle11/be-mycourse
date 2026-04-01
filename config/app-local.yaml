@@ -16,6 +16,14 @@ database:
 app:
   jwt_secret: "${JWT_SECRET}"
   api_key: "${API_KEY}"
+  app_base_url: "${APP_BASE_URL}"
+  cors:
+    allowed_origins: "${CORS_ALLOWED_ORIGINS}"
+
+brevo:
+  api_key: "${BREVO_API_KEY}"
+  sender_email: "${BREVO_SENDER_EMAIL}"
+  sender_name: "${BREVO_SENDER_NAME}"
 
 redis:
   addr: "${REDIS_ADDR}"

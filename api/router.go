@@ -8,13 +8,19 @@ import (
 	apiV1 "mycourse-io-be/api/v1"
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/pkg/setting"
 )
 
 func InitRouter() *gin.Engine {
 	router := gin.New()
 	router.Use(httperr.Middleware())
 	router.Use(httperr.Recovery())
-	router.Use(cors.Default())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     setting.AppSetting.CorsAllowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key"},
+		AllowCredentials: true,
+	}))
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	apiRoot := router.Group("/api")

@@ -13,9 +13,10 @@ import (
 )
 
 type App struct {
-	JWTSecret  string
-	ApiKey     string
-	AppBaseURL string
+	JWTSecret          string
+	ApiKey             string
+	AppBaseURL         string
+	CorsAllowedOrigins []string
 }
 
 type Brevo struct {
@@ -90,10 +91,15 @@ type yamlDatabase struct {
 	SSLMode  string `yaml:"ssl_mode"`
 }
 
+type yamlCors struct {
+	AllowedOrigins string `yaml:"allowed_origins"`
+}
+
 type yamlApp struct {
-	JWTSecret  string `yaml:"jwt_secret"`
-	ApiKey     string `yaml:"api_key"`
-	AppBaseURL string `yaml:"app_base_url"`
+	JWTSecret  string   `yaml:"jwt_secret"`
+	ApiKey     string   `yaml:"api_key"`
+	AppBaseURL string   `yaml:"app_base_url"`
+	Cors       yamlCors `yaml:"cors"`
 }
 
 type yamlBrevo struct {
@@ -229,6 +235,7 @@ func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
 	c.Supabase.DBURL = expand(c.Supabase.DBURL)
 
 	c.App.AppBaseURL = expand(c.App.AppBaseURL)
+	c.App.Cors.AllowedOrigins = expand(c.App.Cors.AllowedOrigins)
 	c.Brevo.APIKey = expand(c.Brevo.APIKey)
 	c.Brevo.SenderEmail = expand(c.Brevo.SenderEmail)
 	c.Brevo.SenderName = expand(c.Brevo.SenderName)
@@ -274,6 +281,19 @@ func applyYAMLToGlobals(c *yamlConfig) {
 	}
 	AppSetting.ApiKey = c.App.ApiKey
 	AppSetting.AppBaseURL = strings.TrimRight(strings.TrimSpace(c.App.AppBaseURL), "/")
+	rawOrigins := strings.TrimSpace(c.App.Cors.AllowedOrigins)
+	if rawOrigins != "" {
+		parts := strings.Split(rawOrigins, ",")
+		origins := make([]string, 0, len(parts))
+		for _, o := range parts {
+			if o = strings.TrimSpace(o); o != "" {
+				origins = append(origins, o)
+			}
+		}
+		AppSetting.CorsAllowedOrigins = origins
+	} else {
+		AppSetting.CorsAllowedOrigins = []string{"http://localhost:3000"}
+	}
 
 	BrevoSetting.APIKey = c.Brevo.APIKey
 	BrevoSetting.SenderEmail = c.Brevo.SenderEmail

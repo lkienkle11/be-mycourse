@@ -10,7 +10,9 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/services"
 )
 
@@ -27,12 +29,37 @@ func parseUintParam(c *gin.Context, name string) (uint, bool) {
 }
 
 func listPermissionsInternal(c *gin.Context) {
-	rows, err := services.ListPermissions()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+	var q dto.PermissionFilter
+	if err := c.ShouldBindQuery(&q); err != nil {
+		response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": rows})
+
+	rows, total, err := services.ListPermissions(services.ListPermissionsParams{
+		Offset:     q.GetOffset(),
+		Limit:      q.GetPerPage(),
+		SortBy:     q.SortBy,
+		SortOrder:  q.GetSortOrder(),
+		SearchBy:   q.SearchBy,
+		SearchData: q.SearchData,
+	})
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
+		return
+	}
+
+	perPage := q.GetPerPage()
+	totalPages := int((total + int64(perPage) - 1) / int64(perPage))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	response.OKPaginated(c, "ok", rows, response.PageInfo{
+		Page:       q.GetPage(),
+		PerPage:    perPage,
+		TotalPages: totalPages,
+		TotalItems: int(total),
+	})
 }
 
 func createPermissionInternal(c *gin.Context) {
@@ -43,16 +70,16 @@ func createPermissionInternal(c *gin.Context) {
 	}
 	p, err := services.CreatePermission(body.Code, body.Description, body.CodeCheck)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusCreated, p)
+	response.Created(c, "created", p)
 }
 
 func updatePermissionInternal(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
 	}
 	var body dto.UpdatePermissionRequest
@@ -63,55 +90,55 @@ func updatePermissionInternal(c *gin.Context) {
 	p, err := services.UpdatePermission(id, body.Code, body.CodeCheck, body.Description)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "not found"})
+			response.Fail(c, http.StatusNotFound, errcode.NotFound, "not found", nil)
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	response.OK(c, "updated", p)
 }
 
 func deletePermissionInternal(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
 	}
 	if err := services.DeletePermission(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	response.OK(c, "deleted", nil)
 }
 
 func listRolesInternal(c *gin.Context) {
 	with := c.Query("with_permissions") == "1" || c.Query("with_permissions") == "true"
 	rows, err := services.ListRoles(with)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": rows})
+	response.OK(c, "ok", rows)
 }
 
 func getRoleInternal(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
 	}
 	with := c.Query("with_permissions") == "1" || c.Query("with_permissions") == "true"
 	r, err := services.GetRole(id, with)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "not found"})
+			response.Fail(c, http.StatusNotFound, errcode.NotFound, "not found", nil)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, r)
+	response.OK(c, "ok", r)
 }
 
 func createRoleInternal(c *gin.Context) {
@@ -122,16 +149,16 @@ func createRoleInternal(c *gin.Context) {
 	}
 	r, err := services.CreateRole(body.Name, body.Description)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusCreated, r)
+	response.Created(c, "created", r)
 }
 
 func updateRoleInternal(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
 	}
 	var body dto.UpdateRoleRequest
@@ -142,19 +169,19 @@ func updateRoleInternal(c *gin.Context) {
 	r, err := services.UpdateRole(id, body.Name, body.Description)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "not found"})
+			response.Fail(c, http.StatusNotFound, errcode.NotFound, "not found", nil)
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, r)
+	response.OK(c, "updated", r)
 }
 
 func setRolePermissionsInternal(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
 	}
 	var body dto.SetRolePermissionsRequest
@@ -165,51 +192,51 @@ func setRolePermissionsInternal(c *gin.Context) {
 	r, err := services.SetRolePermissions(id, body.PermissionCodes)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "role not found"})
+			response.Fail(c, http.StatusNotFound, errcode.NotFound, "role not found", nil)
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, r)
+	response.OK(c, "updated", r)
 }
 
 func deleteRoleInternal(c *gin.Context) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
 	}
 	if err := services.DeleteRole(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	response.OK(c, "deleted", nil)
 }
 
 func listUserRolesInternal(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing user id"})
+	userID, ok := parseUintParam(c, "userId")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
 	rows, err := services.ListUserRoles(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": rows})
+	response.OK(c, "ok", rows)
 }
 
 func listUserPermissionsInternal(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing user id"})
+	userID, ok := parseUintParam(c, "userId")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
 	set, err := services.PermissionCodesForUser(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
 	list := make([]string, 0, len(set))
@@ -217,13 +244,13 @@ func listUserPermissionsInternal(c *gin.Context) {
 		list = append(list, code)
 	}
 	sort.Strings(list)
-	c.JSON(http.StatusOK, gin.H{"permissions": list})
+	response.OK(c, "ok", list)
 }
 
 func assignUserRoleInternal(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing user id"})
+	userID, ok := parseUintParam(c, "userId")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
 	var body dto.AssignUserRoleRequest
@@ -233,51 +260,51 @@ func assignUserRoleInternal(c *gin.Context) {
 	}
 	if err := services.AssignUserRole(userID, body.RoleID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "role not found"})
+			response.Fail(c, http.StatusNotFound, errcode.NotFound, "role not found", nil)
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	response.OK(c, "assigned", nil)
 }
 
 func removeUserRoleInternal(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing user id"})
+	userID, ok := parseUintParam(c, "userId")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
 	roleID, ok := parseUintParam(c, "roleId")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid role id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid role id", nil)
 		return
 	}
 	if err := services.RemoveUserRole(userID, roleID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	response.OK(c, "removed", nil)
 }
 
 func listUserDirectPermissionsInternal(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing user id"})
+	userID, ok := parseUintParam(c, "userId")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
 	rows, err := services.ListUserDirectPermissions(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": rows})
+	response.OK(c, "ok", rows)
 }
 
 func assignUserPermissionInternal(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing user id"})
+	userID, ok := parseUintParam(c, "userId")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
 	var body dto.AssignUserPermissionRequest
@@ -289,41 +316,41 @@ func assignUserPermissionInternal(c *gin.Context) {
 	switch {
 	case body.PermissionID != nil:
 		if *body.PermissionID == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid permission id"})
+			response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 			return
 		}
 		err = services.AssignUserPermission(userID, *body.PermissionID)
 	case body.Code != "":
 		err = services.AssignUserPermissionByCode(userID, body.Code)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"message": "permission_id or permission_code required"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "permission_id or permission_code required", nil)
 		return
 	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "permission not found"})
+			response.Fail(c, http.StatusNotFound, errcode.NotFound, "permission not found", nil)
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	response.OK(c, "assigned", nil)
 }
 
 func removeUserPermissionInternal(c *gin.Context) {
-	userID := c.Param("userId")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "missing user id"})
+	userID, ok := parseUintParam(c, "userId")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
 	permissionID, ok := parseUintParam(c, "permissionId")
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid permission id"})
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 		return
 	}
 	if err := services.RemoveUserPermission(userID, permissionID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	response.OK(c, "removed", nil)
 }

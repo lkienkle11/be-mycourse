@@ -13,8 +13,15 @@ import (
 )
 
 type App struct {
-	JWTSecret string
-	ApiKey    string
+	JWTSecret  string
+	ApiKey     string
+	AppBaseURL string
+}
+
+type Brevo struct {
+	APIKey      string
+	SenderEmail string
+	SenderName  string
 }
 
 type Server struct {
@@ -55,6 +62,7 @@ var (
 	DatabaseSetting = &Database{}
 	RedisSetting    = &Redis{}
 	SupabaseSetting = &Supabase{}
+	BrevoSetting    = &Brevo{}
 )
 
 type yamlConfig struct {
@@ -63,6 +71,7 @@ type yamlConfig struct {
 	App      yamlApp      `yaml:"app"`
 	Redis    yamlRedis    `yaml:"redis"`
 	Supabase yamlSupabase `yaml:"supabase"`
+	Brevo    yamlBrevo    `yaml:"brevo"`
 }
 
 type yamlServer struct {
@@ -82,8 +91,15 @@ type yamlDatabase struct {
 }
 
 type yamlApp struct {
-	JWTSecret string `yaml:"jwt_secret"`
-	ApiKey    string `yaml:"api_key"`
+	JWTSecret  string `yaml:"jwt_secret"`
+	ApiKey     string `yaml:"api_key"`
+	AppBaseURL string `yaml:"app_base_url"`
+}
+
+type yamlBrevo struct {
+	APIKey      string `yaml:"api_key"`
+	SenderEmail string `yaml:"sender_email"`
+	SenderName  string `yaml:"sender_name"`
 }
 
 type yamlRedis struct {
@@ -211,6 +227,11 @@ func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
 	c.Supabase.AnonKey = expand(c.Supabase.AnonKey)
 	c.Supabase.ServiceRoleKey = expand(c.Supabase.ServiceRoleKey)
 	c.Supabase.DBURL = expand(c.Supabase.DBURL)
+
+	c.App.AppBaseURL = expand(c.App.AppBaseURL)
+	c.Brevo.APIKey = expand(c.Brevo.APIKey)
+	c.Brevo.SenderEmail = expand(c.Brevo.SenderEmail)
+	c.Brevo.SenderName = expand(c.Brevo.SenderName)
 }
 
 func applyYAMLToGlobals(c *yamlConfig) {
@@ -252,6 +273,15 @@ func applyYAMLToGlobals(c *yamlConfig) {
 		AppSetting.JWTSecret = "change-me"
 	}
 	AppSetting.ApiKey = c.App.ApiKey
+	AppSetting.AppBaseURL = strings.TrimRight(strings.TrimSpace(c.App.AppBaseURL), "/")
+
+	BrevoSetting.APIKey = c.Brevo.APIKey
+	BrevoSetting.SenderEmail = c.Brevo.SenderEmail
+	if strings.TrimSpace(c.Brevo.SenderName) != "" {
+		BrevoSetting.SenderName = c.Brevo.SenderName
+	} else {
+		BrevoSetting.SenderName = "MyCourse"
+	}
 
 	if strings.TrimSpace(c.Redis.Addr) != "" {
 		RedisSetting.Addr = c.Redis.Addr

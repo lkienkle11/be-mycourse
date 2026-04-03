@@ -9,8 +9,9 @@ type RegisterRequest struct {
 
 // LoginRequest is the request body for POST /api/v1/auth/login.
 type LoginRequest struct {
-	Email    string `json:"email"    binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email      string `json:"email"       binding:"required,email"`
+	Password   string `json:"password"    binding:"required"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 // MeResponse is the response body for GET /api/v1/me.

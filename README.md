@@ -163,6 +163,8 @@ For validation errors, `data` may contain field-level details:
 | `4004`| `EmailNotConfirmed`  | Email address has not been confirmed yet       |
 | `4005`| `UserDisabled`       | Account has been disabled                      |
 | `4006`| `InvalidConfirmToken`| Invalid or expired confirmation token          |
+| `4007`| `InvalidSession`     | Session string unknown, missing, or UUID mismatch |
+| `4008`| `RefreshTokenExpired`| Session has expired — re-login required        |
 | `9001`| `InternalError`      | Internal server error                          |
 | `9998`| `Panic`              | Unhandled panic (internal server error)        |
 | `9999`| `Unknown`            | Unknown error                                  |

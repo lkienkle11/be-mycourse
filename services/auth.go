@@ -19,8 +19,9 @@ import (
 
 // Auth token lifetimes — exported so the HTTP layer can derive cookie MaxAge from the same value.
 const (
-	AccessTokenTTL  = 15 * time.Minute
-	RefreshTokenTTL = 30 * 24 * time.Hour
+	AccessTokenTTL       = 15 * time.Minute
+	RefreshTokenTTL      = 30 * 24 * time.Hour // default / non-remember-me initial TTL
+	RememberMeRefreshTTL = 14 * 24 * time.Hour // remember-me: renewed to this on every rotation
 )
 
 // Sentinel errors returned by auth functions.
@@ -32,7 +33,21 @@ var (
 	ErrUserDisabled        = errors.New("user account is disabled")
 	ErrInvalidConfirmToken = errors.New("invalid or expired confirmation token")
 	ErrUserNotFound        = errors.New("user not found")
+	ErrInvalidSession      = errors.New("invalid session")
+	ErrRefreshTokenExpired = errors.New("refresh token expired")
 )
+
+// TokenPairResult carries all token issuance output needed by the HTTP layer.
+type TokenPairResult struct {
+	AccessToken  string
+	RefreshToken string
+	// SessionStr is the 128-char hex string that identifies this session.
+	// It is delivered to the client via the session_id HttpOnly cookie.
+	SessionStr string
+	// RefreshTTL is the lifetime of the newly issued refresh token.
+	// The HTTP layer uses this to compute the correct cookie MaxAge.
+	RefreshTTL time.Duration
+}
 
 // Register creates a new user and sends a confirmation email.
 // Returns ErrEmailAlreadyExists when the email is already taken.
@@ -80,68 +95,181 @@ func Register(email, password, displayName string) error {
 	return brevo.SendConfirmationEmail(email, displayName, confirmURL)
 }
 
-// Login validates credentials and returns a signed access + refresh token pair.
-func Login(email, password string) (accessToken, refreshToken string, err error) {
+// Login validates credentials and returns a signed token pair plus a session string.
+// rememberMe controls whether subsequent token rotations extend the refresh TTL (14 days)
+// or preserve the remaining lifetime of the previous token.
+func Login(email, password string, rememberMe bool) (TokenPairResult, error) {
 	var user models.User
 	if dbErr := models.DB.Where("email = ?", email).First(&user).Error; dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
-			return "", "", ErrInvalidCredentials
+			return TokenPairResult{}, ErrInvalidCredentials
 		}
-		return "", "", dbErr
+		return TokenPairResult{}, dbErr
 	}
 
 	if user.IsDisable {
-		return "", "", ErrUserDisabled
+		return TokenPairResult{}, ErrUserDisabled
 	}
 	if !user.EmailConfirmed {
-		return "", "", ErrEmailNotConfirmed
+		return TokenPairResult{}, ErrEmailNotConfirmed
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.HashPassword), []byte(password)) != nil {
-		return "", "", ErrInvalidCredentials
+		return TokenPairResult{}, ErrInvalidCredentials
 	}
 
-	return issueTokenPair(user)
+	refreshTTL := RefreshTokenTTL
+	if rememberMe {
+		refreshTTL = RememberMeRefreshTTL
+	}
+	return issueTokenPair(user, rememberMe, refreshTTL)
 }
 
 // ConfirmEmail marks the user's email as confirmed and returns a token pair.
-func ConfirmEmail(confirmToken string) (accessToken, refreshToken string, err error) {
+// remember_me is always false for email-confirmation sessions.
+func ConfirmEmail(confirmToken string) (TokenPairResult, error) {
 	var user models.User
 	if dbErr := models.DB.Where("confirmation_token = ?", confirmToken).First(&user).Error; dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
-			return "", "", ErrInvalidConfirmToken
+			return TokenPairResult{}, ErrInvalidConfirmToken
 		}
-		return "", "", dbErr
+		return TokenPairResult{}, dbErr
 	}
 
 	updates := map[string]interface{}{
-		"email_confirmed":   true,
+		"email_confirmed":    true,
 		"confirmation_token": nil,
 	}
 	if dbErr := models.DB.Model(&user).Updates(updates).Error; dbErr != nil {
-		return "", "", dbErr
+		return TokenPairResult{}, dbErr
 	}
 	user.EmailConfirmed = true
 
-	return issueTokenPair(user)
+	return issueTokenPair(user, false, RefreshTokenTTL)
 }
 
-// issueTokenPair builds the access + refresh token pair for the given user.
-func issueTokenPair(user models.User) (accessToken, refreshToken string, err error) {
-	perms, permErr := userPermissionSlice(user.ID)
-	if permErr != nil {
-		return "", "", permErr
+// RefreshSession rotates the token pair for an existing session identified by sessionStr.
+// It parses the refresh token (ignoring JWT expiry — the DB record is authoritative),
+// verifies the session entry, then issues fresh access + refresh tokens while keeping
+// the same session string (the client's session_id cookie value is unchanged).
+//
+// TTL rules on rotation:
+//   - remember_me=true  → new refresh TTL is always RememberMeRefreshTTL (14 days from now)
+//   - remember_me=false → new refresh TTL equals the remaining lifetime of the old token
+func RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error) {
+	secret := setting.AppSetting.JWTSecret
+
+	refreshClaims, err := token.ParseRefreshIgnoreExpiry(secret, refreshTokenStr)
+	if err != nil {
+		return TokenPairResult{}, ErrInvalidSession
 	}
 
-	secret := setting.AppSetting.JWTSecret
+	var user models.User
+	if dbErr := models.DB.First(&user, refreshClaims.UserID).Error; dbErr != nil {
+		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
+			return TokenPairResult{}, ErrUserNotFound
+		}
+		return TokenPairResult{}, dbErr
+	}
+
+	if user.IsDisable {
+		return TokenPairResult{}, ErrUserDisabled
+	}
+
+	entry, ok := user.RefreshTokenSession[sessionStr]
+	if !ok || entry.RefreshTokenUUID != refreshClaims.UUID {
+		return TokenPairResult{}, ErrInvalidSession
+	}
+
+	if time.Now().After(entry.RefreshTokenExpired) {
+		return TokenPairResult{}, ErrRefreshTokenExpired
+	}
+
+	var newRefreshTTL time.Duration
+	if entry.RememberMe {
+		newRefreshTTL = RememberMeRefreshTTL
+	} else {
+		newRefreshTTL = time.Until(entry.RefreshTokenExpired)
+		if newRefreshTTL <= 0 {
+			return TokenPairResult{}, ErrRefreshTokenExpired
+		}
+	}
+
+	// Build new tokens — reuse the SAME session string so the client cookie is unchanged.
+	newUUID := uuid.New().String()
+
+	perms, permErr := userPermissionSlice(user.ID)
+	if permErr != nil {
+		return TokenPairResult{}, permErr
+	}
+
 	at, err := token.GenerateAccess(secret, user.ID, user.UserCode, user.Email, user.DisplayName, user.CreatedAt, perms, AccessTokenTTL)
 	if err != nil {
-		return "", "", err
+		return TokenPairResult{}, err
 	}
-	rt, err := token.GenerateRefresh(secret, user.ID, RefreshTokenTTL)
+	rt, err := token.GenerateRefresh(secret, user.ID, newUUID, newRefreshTTL)
 	if err != nil {
-		return "", "", err
+		return TokenPairResult{}, err
 	}
-	return at, rt, nil
+
+	// Update the existing entry in-place (same key → session count unchanged).
+	updatedEntry := models.RefreshSessionEntry{
+		RefreshTokenUUID:    newUUID,
+		RememberMe:          entry.RememberMe,
+		RefreshTokenExpired: time.Now().Add(newRefreshTTL),
+	}
+	if saveErr := models.SaveRefreshSession(user.ID, sessionStr, updatedEntry); saveErr != nil {
+		return TokenPairResult{}, saveErr
+	}
+
+	return TokenPairResult{
+		AccessToken:  at,
+		RefreshToken: rt,
+		SessionStr:   sessionStr, // unchanged — client cookie stays the same
+		RefreshTTL:   newRefreshTTL,
+	}, nil
+}
+
+// issueTokenPair generates a new session string, access token and refresh token for the
+// given user, persists the session entry in the DB, and returns a TokenPairResult.
+func issueTokenPair(user models.User, rememberMe bool, refreshTTL time.Duration) (TokenPairResult, error) {
+	secret := setting.AppSetting.JWTSecret
+
+	sessionStr, err := token.GenerateSessionString(secret)
+	if err != nil {
+		return TokenPairResult{}, err
+	}
+
+	sessionUUID := uuid.New().String()
+
+	perms, permErr := userPermissionSlice(user.ID)
+	if permErr != nil {
+		return TokenPairResult{}, permErr
+	}
+
+	at, err := token.GenerateAccess(secret, user.ID, user.UserCode, user.Email, user.DisplayName, user.CreatedAt, perms, AccessTokenTTL)
+	if err != nil {
+		return TokenPairResult{}, err
+	}
+	rt, err := token.GenerateRefresh(secret, user.ID, sessionUUID, refreshTTL)
+	if err != nil {
+		return TokenPairResult{}, err
+	}
+
+	entry := models.RefreshSessionEntry{
+		RefreshTokenUUID:    sessionUUID,
+		RememberMe:          rememberMe,
+		RefreshTokenExpired: time.Now().Add(refreshTTL),
+	}
+	if saveErr := models.AddRefreshSession(user.ID, sessionStr, entry); saveErr != nil {
+		return TokenPairResult{}, saveErr
+	}
+
+	return TokenPairResult{
+		AccessToken:  at,
+		RefreshToken: rt,
+		SessionStr:   sessionStr,
+		RefreshTTL:   refreshTTL,
+	}, nil
 }
 
 // userPermissionSlice returns a sorted slice of code_check strings for the user (via roles + direct grants).

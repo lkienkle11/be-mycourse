@@ -32,6 +32,8 @@ const (
 	EmailNotConfirmed   = 4004
 	UserDisabled        = 4005
 	InvalidConfirmToken = 4006
+	InvalidSession      = 4007
+	RefreshTokenExpired = 4008
 
 	// Server (9xxx)
 	InternalError = 9001

@@ -28,6 +28,8 @@ var defaultMessages = map[int]string{
 	EmailNotConfirmed:   "Please confirm your email address before logging in",
 	UserDisabled:        "Your account has been disabled",
 	InvalidConfirmToken: "Invalid or expired confirmation token",
+	InvalidSession:      "Invalid or missing session",
+	RefreshTokenExpired: "Session has expired, please log in again",
 
 	InternalError: "Internal server error",
 	Panic:         "Internal server error",

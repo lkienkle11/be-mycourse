@@ -62,7 +62,10 @@ func login(c *gin.Context) {
 	}
 
 	setAuthCookies(c, result)
-	response.OK(c, "login_success", nil)
+	response.OK(c, "login_success", gin.H{
+		"access_token":  result.AccessToken,
+		"refresh_token": result.RefreshToken,
+	})
 }
 
 // GET /api/v1/auth/confirm?token=<token>
@@ -85,13 +88,16 @@ func confirmEmail(c *gin.Context) {
 	}
 
 	setAuthCookies(c, result)
-	response.OK(c, "email_confirmed", nil)
+	response.OK(c, "email_confirmed", gin.H{
+		"access_token":  result.AccessToken,
+		"refresh_token": result.RefreshToken,
+	})
 }
 
 // setAuthCookies writes the access token, refresh token, and session_id as HttpOnly cookies.
 // Cookie MaxAge for the refresh token and session_id is derived from result.RefreshTTL so
 // remember-me vs non-remember-me sessions get the correct expiry on the client side.
-// Tokens are NOT included in the JSON response body.
+// Tokens are also returned in the JSON response body for clients that need them directly.
 func setAuthCookies(c *gin.Context, result services.TokenPairResult) {
 	secure := setting.ServerSetting.RunMode == "release"
 	refreshMaxAge := int(result.RefreshTTL.Seconds())

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
+	authcache "mycourse-io-be/services/cache"
 	"mycourse-io-be/pkg/brevo"
 	"mycourse-io-be/pkg/setting"
 	"mycourse-io-be/pkg/token"
@@ -96,13 +98,36 @@ func Register(email, password, displayName string) error {
 	return brevo.SendConfirmationEmail(email, displayName, confirmURL)
 }
 
+// loadUserForLogin loads the user by email, using a short-lived Redis email→id mapping when valid to skip the unique-email query.
+func loadUserForLogin(ctx context.Context, email, normEmail string) (models.User, error) {
+	if uid, ok := authcache.GetCachedLoginUserID(ctx, normEmail); ok {
+		var u models.User
+		if err := models.DB.First(&u, uid).Error; err == nil && authcache.NormalizeLoginEmail(u.Email) == normEmail {
+			return u, nil
+		}
+	}
+	var user models.User
+	if err := models.DB.Where("email = ?", email).First(&user).Error; err != nil {
+		return models.User{}, err
+	}
+	authcache.SetCachedLoginUserID(ctx, normEmail, user.ID)
+	return user, nil
+}
+
 // Login validates credentials and returns a signed token pair plus a session string.
 // rememberMe controls whether subsequent token rotations extend the refresh TTL (14 days)
 // or preserve the remaining lifetime of the previous token.
 func Login(email, password string, rememberMe bool) (TokenPairResult, error) {
-	var user models.User
-	if dbErr := models.DB.Where("email = ?", email).First(&user).Error; dbErr != nil {
+	ctx := context.Background()
+	normEmail := authcache.NormalizeLoginEmail(email)
+	if authcache.LoginInvalidCached(ctx, normEmail) {
+		return TokenPairResult{}, ErrInvalidCredentials
+	}
+
+	user, dbErr := loadUserForLogin(ctx, email, normEmail)
+	if dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
+			authcache.SetLoginInvalidCache(ctx, normEmail)
 			return TokenPairResult{}, ErrInvalidCredentials
 		}
 		return TokenPairResult{}, dbErr
@@ -115,6 +140,7 @@ func Login(email, password string, rememberMe bool) (TokenPairResult, error) {
 		return TokenPairResult{}, ErrEmailNotConfirmed
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.HashPassword), []byte(password)) != nil {
+		authcache.SetLoginInvalidCache(ctx, normEmail)
 		return TokenPairResult{}, ErrInvalidCredentials
 	}
 
@@ -122,7 +148,15 @@ func Login(email, password string, rememberMe bool) (TokenPairResult, error) {
 	if rememberMe {
 		refreshTTL = RememberMeRefreshTTL
 	}
-	return issueTokenPair(user, rememberMe, refreshTTL)
+	result, err := issueTokenPair(user, rememberMe, refreshTTL)
+	if err != nil {
+		return TokenPairResult{}, err
+	}
+	authcache.DelLoginInvalidCache(ctx, normEmail)
+	if me, berr := buildMeResponseFromUser(user); berr == nil {
+		authcache.SetCachedUserMe(ctx, me)
+	}
+	return result, nil
 }
 
 // ConfirmEmail marks the user's email as confirmed and returns a token pair.
@@ -298,22 +332,12 @@ func userPermissionSlice(userID uint) ([]string, error) {
 	return out, nil
 }
 
-// GetMe returns essential (non-sensitive) profile info for the given user along
-// with their current permission codes.
-func GetMe(userID uint) (*dto.MeResponse, error) {
-	var user models.User
-	if err := models.DB.First(&user, userID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrUserNotFound
-		}
-		return nil, err
-	}
-
-	perms, err := userPermissionSlice(userID)
+// buildMeResponseFromUser builds the same payload as GET /api/v1/me (used for DB reads and Redis cache).
+func buildMeResponseFromUser(user models.User) (*dto.MeResponse, error) {
+	perms, err := userPermissionSlice(user.ID)
 	if err != nil {
 		return nil, err
 	}
-
 	return &dto.MeResponse{
 		UserID:         user.ID,
 		UserCode:       user.UserCode,
@@ -325,6 +349,30 @@ func GetMe(userID uint) (*dto.MeResponse, error) {
 		CreatedAt:      user.CreatedAt.Unix(),
 		Permissions:    perms,
 	}, nil
+}
+
+// GetMe returns essential (non-sensitive) profile info for the given user along
+// with their current permission codes.
+func GetMe(userID uint) (*dto.MeResponse, error) {
+	ctx := context.Background()
+	if me, ok := authcache.GetCachedUserMe(ctx, userID); ok {
+		return me, nil
+	}
+
+	var user models.User
+	if err := models.DB.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	me, err := buildMeResponseFromUser(user)
+	if err != nil {
+		return nil, err
+	}
+	authcache.SetCachedUserMe(ctx, me)
+	return me, nil
 }
 
 // isStrongPassword enforces:

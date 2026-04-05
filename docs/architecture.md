@@ -21,6 +21,8 @@ Client request path:
 5. `Repository` executes persistence operations.
 6. Database returns data back through the same chain.
 
+**Redis:** Login and `GET /api/v1/me` delegate cache reads/writes to `services/cache` (1 minute TTL for the `/me` JSON payload and for invalid-login keys — see `docs/modules/auth.md`). If Redis is unreachable, operations degrade to Postgres-only (helpers no-op on errors).
+
 ## Dependency Injection
 
 - `cmd/api/main.go` is the composition root.

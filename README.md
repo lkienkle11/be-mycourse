@@ -307,9 +307,9 @@ func listUsers(c *gin.Context) {
 - `main.go`: startup flow (settings, db, cache, migrate, bootstrap, queue, router).
 - `api/`: router, route groups (`public`, `api/v1`, `api/internal-v1`), API config.
 - `middleware/`: request interceptor for auth/permission/tenant hooks.
-- `services/`, `dto/`: business layer skeleton. `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
+- `services/`, `services/cache/`, `dto/`: business layer; `services/cache` holds Redis helpers (e.g. auth `/me` + login invalid cache). `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
 - `models/`, `models/migrations/`: persistence layer skeleton.
-- `cache_clients/`: Redis client bootstrap.
+- `cache_clients/`: Redis client bootstrap (used for auth profile + login negative cache — see `docs/modules/auth.md`).
 - `queues/`: async layer placeholder (RabbitMQ intentionally excluded).
 - `pkg/response`: **unified API response envelope** — use this in all handlers.
 - `pkg/errcode`: numeric application error codes and their default messages.

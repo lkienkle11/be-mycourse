@@ -11,6 +11,12 @@ import (
 
 var Redis *redis.Client
 
+// RedisAvailable reports whether SetupRedis constructed a client (Redis is non-nil).
+// Commands may still fail if the server is down or unreachable.
+func RedisAvailable() bool {
+	return Redis != nil
+}
+
 func SetupRedis() {
 	Redis = redis.NewClient(&redis.Options{
 		Addr:     setting.RedisSetting.Addr,

@@ -9,10 +9,11 @@ import (
 // defaultPermissionSeeds are created on seed if missing.
 var defaultPermissionSeeds = []struct {
 	Code        string
+	CodeCheck   string
 	Description string
 }{
-	{"rbac.manage", "Manage roles, permissions, and user-role assignments"},
-	{"profile.read", "Read own profile"},
+	{"rbac.manage", "rbac:manage", "Manage roles, permissions, and user-role assignments"},
+	{"profile.course.read", "profile:course:read", "Read own profile"},
 }
 
 // SeedRBACDefaults creates baseline permissions and an admin role with rbac.manage.
@@ -23,7 +24,7 @@ func SeedRBACDefaults() error {
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, s := range defaultPermissionSeeds {
-			p := models.Permission{Code: s.Code, CodeCheck: s.Code, Description: s.Description}
+			p := models.Permission{Code: s.Code, CodeCheck: s.CodeCheck, Description: s.Description}
 			if err := tx.Where("code = ?", s.Code).FirstOrCreate(&p).Error; err != nil {
 				return err
 			}

@@ -1,7 +1,7 @@
-DELETE FROM role_permissions
-WHERE role_id IN (SELECT id FROM roles WHERE name = 'admin')
-  AND permission_id IN (SELECT id FROM permissions WHERE code = 'rbac.manage');
+-- Removes seeded RBAC rows. Also clears user role assignments (user_roles / user_permissions).
 
-DELETE FROM roles WHERE name = 'admin';
-
-DELETE FROM permissions WHERE code IN ('rbac.manage', 'profile.read');
+DELETE FROM user_roles;
+DELETE FROM user_permissions;
+DELETE FROM role_permissions;
+DELETE FROM roles;
+DELETE FROM permissions;

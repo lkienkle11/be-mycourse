@@ -17,34 +17,34 @@ type codeRbacT struct {
 }
 
 // CodeRbac rbac.* checks (e.g. CodeRbac.Manage).
-var CodeRbac = codeRbacT{Manage: "rbac_manage"}
+var CodeRbac = codeRbacT{Manage: "rbac:manage"}
 
 type codeProfileReadT struct {
-	CourseRead  string `perm:"profile.read"`
-	CourseWrite string `perm:"profile.course_write"`
+	CourseRead  string `perm:"profile.course.read"`
+	CourseWrite string `perm:"profile.course.write"`
 }
 
 // CodeProfileRead profile-related checks (e.g. CodeProfileRead.CourseRead).
 var CodeProfileRead = codeProfileReadT{
-	CourseRead:  "profile_read",
-	CourseWrite: "profile_read_course_write",
+	CourseRead:  "profile:course:read",
+	CourseWrite: "profile:course:write",
 }
 
 type codeCourseT struct {
-	Read   string `perm:"course_read"`
-	Write  string `perm:"course_write"`
-	Delete string `perm:"course_delete"`
-	Update string `perm:"course_update"`
-	Create string `perm:"course_create"`
+	Read   string `perm:"course.read"`
+	Write  string `perm:"course.write"`
+	Delete string `perm:"course.delete"`
+	Update string `perm:"course.update"`
+	Create string `perm:"course.create"`
 }
 
 // CodeCourse course.* checks (e.g. CodeCourse.Read).
 var CodeCourse = codeCourseT{
-	Read:   "course_read",
-	Write:  "course_write",
-	Delete: "course_delete",
-	Update: "course_update",
-	Create: "course_create",
+	Read:   "course:read",
+	Write:  "course:write",
+	Delete: "course:delete",
+	Update: "course:update",
+	Create: "course:create",
 }
 
 

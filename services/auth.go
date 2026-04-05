@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
+	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/brevo"
@@ -139,10 +140,21 @@ func ConfirmEmail(confirmToken string) (TokenPairResult, error) {
 		"email_confirmed":    true,
 		"confirmation_token": nil,
 	}
-	if dbErr := models.DB.Model(&user).Updates(updates).Error; dbErr != nil {
+	if dbErr := models.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&user).Updates(updates).Error; err != nil {
+			return err
+		}
+		var learner models.Role
+		if err := tx.Where("name = ?", constants.Role.Learner).First(&learner).Error; err != nil {
+			return err
+		}
+		ur := models.UserRole{UserID: user.ID, RoleID: learner.ID}
+		return tx.FirstOrCreate(&ur, models.UserRole{UserID: user.ID, RoleID: learner.ID}).Error
+	}); dbErr != nil {
 		return TokenPairResult{}, dbErr
 	}
 	user.EmailConfirmed = true
+	user.ConfirmationToken = nil
 
 	return issueTokenPair(user, false, RefreshTokenTTL)
 }

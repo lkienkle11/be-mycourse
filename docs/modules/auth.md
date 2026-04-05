@@ -7,7 +7,7 @@ Three HttpOnly cookies are issued on every successful login or email confirmatio
 
 | Cookie | Contents | TTL |
 |---|---|---|
-| `access_token` | Signed HS256 JWT with user identity + permissions | 15 minutes |
+| `access_token` | Signed HS256 JWT with user identity + `permissions` claim (`code_check` strings, colon-separated — see `docs/database.md`) | 15 minutes |
 | `refresh_token` | Signed HS256 JWT with `user_id` + `uuid` (session correlator) | 30 days (non-remember-me) / 14 days (remember-me) |
 | `session_id` | 128-char hex string — identifies the device session in the DB | same as `refresh_token` |
 
@@ -65,7 +65,8 @@ Validates credentials and issues a full token set.
 
 ### `GET /api/v1/auth/confirm?token=<token>`
 
-Confirms the user's email and immediately issues a token set (so the user is logged in after confirmation).
+Confirms the user's email and immediately issues a token set (so the user is logged in after confirmation).  
+On success the user is assigned the **`learner`** role (`constants.Role.Learner`) if not already present — requires RBAC seed migration `000002_rbac_seed` so that role exists.
 
 `remember_me` is always `false` for email-confirmation sessions.
 
@@ -169,6 +170,7 @@ The `session_id` cookie value is **unchanged** across rotations. Only `access_to
 
 | Concern | Location |
 |---|---|
+| Permission catalog (`code` vs `code_check`) | `constants/permissions.go`, `cmd/syncpermissions` |
 | Token generation (access, refresh, session string) | `pkg/token/jwt.go` |
 | Login / ConfirmEmail / RefreshSession business logic | `services/auth.go` |
 | Session entry persistence (`AddRefreshSession`, `SaveRefreshSession`) | `models/user.go` |
@@ -176,7 +178,7 @@ The `session_id` cookie value is **unchanged** across rotations. Only `access_to
 | Transparent refresh middleware | `middleware/auth_jwt.go` — `tryTokenRefreshFromCookie` |
 | Session limit constant (`MaxActiveSessions = 5`) | `models/user.go` |
 | Token TTL constants | `services/auth.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` |
-| DB migration | `migrations/000010_users_refresh_token_session.up.sql` |
+| DB schema / sessions column | `migrations/000001_schema.up.sql` |
 
 ---
 

@@ -3,6 +3,18 @@
 All tables are managed via **golang-migrate** with embedded SQL files in `migrations/`.  
 Run `MIGRATE=1 go run .` to apply pending migrations (see `migrations/README.md`).
 
+## Mục nội dung
+
+- [Bảng `users`](#users)
+- [Bảng `permissions`](#permissions)
+- [Bảng `roles`](#roles)
+- [Bảng `role_permissions`](#role_permissions)
+- [Bảng `user_roles`](#user_roles)
+- [Bảng `user_permissions`](#user_permissions)
+- [Effective Permissions](#effective-permissions)
+- [Migration history](#migration-history)
+- [Xóa toàn bộ bảng (thủ công)](#xoa-toan-bo-bang-thu-cong)
+
 ---
 
 ## `users`
@@ -45,7 +57,7 @@ A JSONB map where each key is a **128-char hex session string** and each value i
 - Writes that change the entry count run inside a **transaction** (`models.AddRefreshSession`).
 - In-place rotation (same key, new UUID + expiry) uses a lockless `jsonb_set` update (`models.SaveRefreshSession`).
 
-Migrations: `000007` (table creation) · `000010` (adds `refresh_token_session` column).
+Schema và cột `refresh_token_session` nằm trong migration `000001_schema` (xem `migrations/README.md`).
 
 ---
 
@@ -56,23 +68,27 @@ RBAC permission definitions (flat — no hierarchy).
 | Column | Type | Description |
 |---|---|---|
 | `id` | `BIGSERIAL` PK | |
-| `name` | `VARCHAR(255)` UNIQUE NOT NULL | Human-readable name |
-| `code_check` | `VARCHAR(255)` UNIQUE NOT NULL | Machine-readable code embedded in JWT permissions array |
+| `code` | `VARCHAR(128)` UNIQUE NOT NULL | Stable catalog key (dot-separated, e.g. `course.read`) — matches `perm` tags in `constants/permissions.go` |
+| `code_check` | `VARCHAR(128)` UNIQUE NOT NULL | Runtime check string embedded in the JWT `permissions` array (colon-separated, e.g. `course:read`) — what `middleware.RequirePermission` compares |
 | `description` | `TEXT` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
+
+**Convention:** `code` uses **dots**; `code_check` uses **colons** (same logical segments). `cmd/syncpermissions` upserts from `constants.AllPermissionEntries()`.
 
 ---
 
 ## `roles`
 
-Named role definitions.
+Named role definitions. Application constants live in `constants/roles.go` (`admin`, `creator`, `teacher`, `learner`).
 
 | Column | Type | Description |
 |---|---|---|
 | `id` | `BIGSERIAL` PK | |
-| `name` | `VARCHAR(255)` UNIQUE NOT NULL | |
+| `name` | `VARCHAR(64)` UNIQUE NOT NULL | |
 | `description` | `TEXT` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
+
+**Default permission sets** (seed trong `000002_rbac_seed.up.sql`): `learner` — `profile.course.read`, `course.read`; `teacher` — thêm `profile.course.write`, `course.write`, `course.update`; `creator` — thêm `course.create`, `course.delete`; `admin` — toàn bộ permission (gồm `rbac.manage`).
 
 ---
 
@@ -112,7 +128,7 @@ Direct permission grants (supplement role-based permissions).
 ## Effective Permissions
 
 A user's effective permissions = **union** of permissions from all assigned roles **plus** direct `user_permissions` grants.  
-They are resolved at login time, embedded in the access token's `permissions` array, and checked by `middleware.RequirePermission`.
+They are resolved at login time, embedded in the access token's `permissions` array as **`code_check`** strings (colon form, e.g. `course:read`), and checked by `middleware.RequirePermission` against the same values from `constants/permissions.go`.
 
 ---
 
@@ -120,13 +136,27 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 
 | Version | File | Description |
 |---|---|---|
-| 000001 | `rbac_schema` | Create `permissions`, `roles`, `role_permissions`, `user_roles`, `user_permissions` |
-| 000002 | `rbac_seed` | Seed `rbac.manage`, `profile.read` permissions + `admin` role |
-| 000003 | `rbac_flat` | Remove role hierarchy |
-| 000004 | `rbac_remove_hierarchy_if_present` | Drop `role_closure` / `roles.parent_id` if present |
-| 000005 | `permissions_code_check` | Add `code_check` column to `permissions` |
-| 000006 | `admin_role_profile_read` | Grant `profile.read` to admin role |
-| 000007 | `users_table` | Create `users` table |
-| 000008 | `seed_all_permissions` | Seed full permission set |
-| 000009 | `rbac_user_id_fk` | Add FK constraints from RBAC tables to `users(id)` |
-| 000010 | `users_refresh_token_session` | Add `refresh_token_session JSONB` column to `users` |
+| 000001 | `schema` | Create `permissions` (with `code_check`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions` with `BIGINT` user FKs |
+| 000002 | `rbac_seed` | Full permission catalog, roles `admin` / `creator` / `teacher` / `learner`, and `role_permissions` matrix |
+
+Chi tiết và lưu ý reset DB khi đổi chuỗi migration: `migrations/README.md`.
+
+---
+
+<a id="xoa-toan-bo-bang-thu-cong"></a>
+
+## Xóa toàn bộ bảng (thủ công)
+
+Để **xóa hết** các bảng do migration hiện tại tạo ra (ví dụ reset môi trường dev), chạy các lệnh **đúng thứ tự** sau trên Postgres. Thứ tự phụ thuộc khóa ngoại: bảng con (junction / migrate metadata) trước, bảng cha sau — nếu đảo thứ tự sẽ lỗi FK.
+
+```sql
+DROP TABLE public.schema_migrations;
+DROP TABLE public.role_permissions;
+DROP TABLE public.user_permissions;
+DROP TABLE public.user_roles;
+DROP TABLE public.roles;
+DROP TABLE public.permissions;
+DROP TABLE public.users;
+```
+
+**Lưu ý bảo trì:** Khi thêm **bảng mới** trong migration, cập nhật lại mục này: chèn `DROP TABLE public.<tên_bảng>;` ở vị trí thích hợp (thường là **trước** mọi bảng mà nó tham chiếu tới). Giữ `schema_migrations` ở **đầu** danh sách như trên là hợp lý vì bảng đó không bị bảng khác FK tới.

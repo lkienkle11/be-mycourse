@@ -61,6 +61,23 @@ Validates credentials and issues a full token set.
 **Success:** `200 OK` — `login_success` + three auth cookies  
 **Errors:** `4002` InvalidCredentials · `4004` EmailNotConfirmed · `4005` UserDisabled
 
+**Redis** — package `mycourse-io-be/services/cache` (`auth_user.go`).
+
+- **`mycourse:user:me:{user_id}`** — JSON `dto.MeResponse`, TTL **1 minute**. Set on successful login and on `GET /me` miss; used to serve `/me` without Postgres when fresh.
+- **`mycourse:auth:login:invalid:{normalized_email}`** — negative cache for **`4002` InvalidCredentials** (unknown email **or** wrong password). TTL **1 minute**. While present, login returns `4002` without hitting Postgres. Removed on successful login. (`normalized_email` = trim + lower-case.)
+- **`mycourse:auth:login:user_by_email:{normalized_email}`** — stores the internal numeric `user_id` after Postgres has successfully resolved the email. TTL **30 seconds** (`LoginEmailUserIDTTL`). Subsequent logins within the window load the row by primary key and re-check that the stored email still matches the normalized login email; password verification always runs. Reduces repeated `WHERE email = ?` lookups for the same address (e.g. typos on password).
+- **`4004` / `4005` are not negative-cached** so the API keeps distinct error semantics (account exists but unconfirmed or disabled).
+
+---
+
+### `GET /api/v1/me`
+
+Returns the current user profile and effective permission codes (`code_check` strings), same shape as `dto.MeResponse`.
+
+**Redis:** If `mycourse:user:me:{user_id}` exists and unmarshals to a payload whose `user_id` matches, the handler returns it and skips the DB. On miss, the service loads the user, computes permissions, sets the same key with TTL **1 minute**, then responds.
+
+Profile and permissions may therefore lag writes by up to one minute.
+
 ---
 
 ### `GET /api/v1/auth/confirm?token=<token>`
@@ -173,6 +190,9 @@ The `session_id` cookie value is **unchanged** across rotations. Only `access_to
 | Permission catalog (`code` vs `code_check`) | `constants/permissions.go`, `cmd/syncpermissions` |
 | Token generation (access, refresh, session string) | `pkg/token/jwt.go` |
 | Login / ConfirmEmail / RefreshSession business logic | `services/auth.go` |
+| Shared Redis client + `RedisAvailable()` guard | `cache_clients/redis.go` |
+| Redis keys + TTL for `/me`, login invalid + email→user_id | `services/cache/auth_user.go` — `UserMeTTL`, `LoginEmailUserIDTTL`, `GetCachedLoginUserID`, `SetCachedLoginUserID`, … |
+| `GET /api/v1/me` handler | `api/v1/me.go` — `getMe` |
 | Session entry persistence (`AddRefreshSession`, `SaveRefreshSession`) | `models/user.go` |
 | Cookie issuance | `api/v1/auth.go` — `setAuthCookies` |
 | Transparent refresh middleware | `middleware/auth_jwt.go` — `tryTokenRefreshFromCookie` |
@@ -184,6 +204,7 @@ The `session_id` cookie value is **unchanged** across rotations. Only `access_to
 
 ## Constraints
 
+- Cached `/me` data (and permissions embedded in that payload) can be stale for up to **1 minute** relative to Postgres / RBAC grants.
 - A single account is limited to **5 concurrent sessions**; the oldest-expiring session is evicted when the limit is reached.
 - `remember_me` is always stored as `false` for sessions created via email confirmation.
 - Transparent refresh only occurs for **cookie-sourced** tokens; `Authorization: Bearer` tokens are never auto-refreshed.

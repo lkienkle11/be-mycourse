@@ -11,3 +11,6 @@
 .windsurf/skills/
 .cursor/mcp.json
 .gitnexus
+
+.bin/
+bin/

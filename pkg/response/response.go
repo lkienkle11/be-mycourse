@@ -90,7 +90,7 @@ func applyOptions(c *gin.Context, opts []Options) {
 // Options are accepted for consistency but rarely needed on the health endpoint.
 func Health(c *gin.Context, opts ...Options) {
 	applyOptions(c, opts)
-	c.JSON(http.StatusOK, HealthResponse{Code: 0, Message: "ok", Status: "okk"})
+	c.JSON(http.StatusOK, HealthResponse{Code: 0, Message: "ok", Status: "ok"})
 }
 
 // OK writes HTTP 200 with code=0.

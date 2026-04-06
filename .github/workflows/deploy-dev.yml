@@ -53,6 +53,11 @@ jobs:
       - name: Add Server to known_hosts
         run: ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
+      - name: Ensure target directory exists
+        run: |
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "mkdir -p ${{ secrets.DEPLOY_PATH }}/bin"
+
       - name: Deploy Binary to Server via Rsync
         run: |
           rsync -avz --chmod=755 ./mycourse-io-be \
@@ -61,7 +66,7 @@ jobs:
       - name: Reload PM2 on Server
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH }} && \
+            (pm2 reload mycourse-api || pm2 start /var/www/ecosystem.config.cjs) && \
             git stash -u && \
             git checkout master && \
-            git pull && \
-            (pm2 reload mycourse-api || pm2 start /var/www/ecosystem.config.cjs)"
+            git pull"

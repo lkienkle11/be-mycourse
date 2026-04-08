@@ -65,6 +65,7 @@ func login(c *gin.Context) {
 	response.OK(c, "login_success", gin.H{
 		"access_token":  result.AccessToken,
 		"refresh_token": result.RefreshToken,
+		"session_id":    result.SessionStr,
 	})
 }
 
@@ -91,23 +92,60 @@ func confirmEmail(c *gin.Context) {
 	response.OK(c, "email_confirmed", gin.H{
 		"access_token":  result.AccessToken,
 		"refresh_token": result.RefreshToken,
+		"session_id":    result.SessionStr,
 	})
 }
 
-// setAuthCookies writes the access token, refresh token, and session_id as HttpOnly cookies.
-// Cookie MaxAge for the refresh token and session_id is derived from result.RefreshTTL so
-// remember-me vs non-remember-me sessions get the correct expiry on the client side.
-// Tokens are also returned in the JSON response body for clients that need them directly.
+// POST /api/v1/auth/refresh
+//
+// Rotates the token pair using the refresh token and session ID supplied via
+// X-Refresh-Token and X-Session-Id request headers.  On success it returns a
+// new access token, a new refresh token, and the (unchanged) session ID in the
+// JSON body so the client can update its stored credentials.
+func refreshToken(c *gin.Context) {
+	refreshTokenStr := c.GetHeader("X-Refresh-Token")
+	sessionStr := c.GetHeader("X-Session-Id")
+
+	if refreshTokenStr == "" || sessionStr == "" {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "missing X-Refresh-Token or X-Session-Id header", nil)
+		return
+	}
+
+	result, err := services.RefreshSession(sessionStr, refreshTokenStr)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRefreshTokenExpired):
+			response.Fail(c, http.StatusUnauthorized, errcode.RefreshTokenExpired, errcode.DefaultMessage(errcode.RefreshTokenExpired), nil)
+		case errors.Is(err, services.ErrInvalidSession), errors.Is(err, services.ErrUserNotFound):
+			response.Fail(c, http.StatusUnauthorized, errcode.InvalidSession, errcode.DefaultMessage(errcode.InvalidSession), nil)
+		case errors.Is(err, services.ErrUserDisabled):
+			response.Fail(c, http.StatusForbidden, errcode.UserDisabled, errcode.DefaultMessage(errcode.UserDisabled), nil)
+		default:
+			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
+		}
+		return
+	}
+
+	response.OK(c, "token_refreshed", gin.H{
+		"access_token":  result.AccessToken,
+		"refresh_token": result.RefreshToken,
+		"session_id":    result.SessionStr,
+	})
+}
+
+// setAuthCookies writes access_token, refresh_token, and session_id as non-HttpOnly
+// SameSite=Lax cookies so the client-side JavaScript layer can read them and attach
+// them to requests as Authorization / X-Refresh-Token / X-Session-Id headers.
 func setAuthCookies(c *gin.Context, result services.TokenPairResult) {
 	secure := setting.ServerSetting.RunMode == "release"
 	refreshMaxAge := int(result.RefreshTTL.Seconds())
 
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("access_token", result.AccessToken, accessTokenMaxAge, "/", "", secure, true)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("access_token", result.AccessToken, accessTokenMaxAge, "/", "", secure, false)
 
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("refresh_token", result.RefreshToken, refreshMaxAge, "/", "", secure, true)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("refresh_token", result.RefreshToken, refreshMaxAge, "/", "", secure, false)
 
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("session_id", result.SessionStr, refreshMaxAge, "/", "", secure, true)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("session_id", result.SessionStr, refreshMaxAge, "/", "", secure, false)
 }

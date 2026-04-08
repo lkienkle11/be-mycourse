@@ -18,6 +18,7 @@ func RegisterNotAuthenRoutes(rg *gin.RouterGroup) {
 	auth.POST("/register", register)
 	auth.POST("/login", login)
 	auth.GET("/confirm", confirmEmail)
+	auth.POST("/refresh", refreshToken)
 }
 
 // RegisterAuthenRoutes mounts /api/v1 routes that require a valid Bearer JWT (user_id in context).

@@ -18,7 +18,8 @@ func InitRouter() *gin.Engine {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     setting.AppSetting.CorsAllowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key", "X-Refresh-Token", "X-Session-Id"},
+		ExposeHeaders:    []string{"X-Token-Expired"},
 		AllowCredentials: true,
 	}))
 	router.Use(gzip.Gzip(gzip.DefaultCompression))

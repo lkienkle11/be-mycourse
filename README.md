@@ -42,8 +42,16 @@ The value is read by `pkg/setting` at startup, split on `,`, trimmed, and passed
 If the variable is empty or unset, it falls back to `http://localhost:3000`.
 
 Allowed methods: `GET POST PUT PATCH DELETE OPTIONS`  
-Allowed headers: `Origin Content-Type Authorization X-API-Key`  
+Allowed headers: `Origin Content-Type Authorization X-API-Key X-Refresh-Token X-Session-Id`  
+Exposed headers: `X-Token-Expired`  
 Credentials: enabled (`AllowCredentials: true`)
+
+| Custom header | Direction | Purpose |
+|---|---|---|
+| `Authorization` | request | Bearer access token for all protected endpoints |
+| `X-Refresh-Token` | request | Refresh JWT sent to `POST /api/v1/auth/refresh` |
+| `X-Session-Id` | request | Session ID sent to `POST /api/v1/auth/refresh` |
+| `X-Token-Expired` | response | `"true"` when a 401 is caused by an expired access token (signals client to refresh rather than re-login) |
 
 ---
 

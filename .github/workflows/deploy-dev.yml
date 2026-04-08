@@ -25,14 +25,14 @@ jobs:
       - name: Build Go Binary
         run: |
           go mod download
-          go build -trimpath -ldflags="-s -w" -o mycourse-io-be .
+          go build -trimpath -ldflags="-s -w" -o mycourse-io-be-dev .
 
       - name: Upload Binary Artifact
         # Đưa file vừa build lên không gian lưu trữ tạm của GitHub
         uses: actions/upload-artifact@v4
         with:
           name: backend-binary
-          path: mycourse-io-be
+          path: mycourse-io-be-dev
           retention-days: 1 # Chỉ lưu trữ file này trong 1 ngày để đỡ tốn dung lượng GitHub
 
   deploy:
@@ -60,13 +60,13 @@ jobs:
 
       - name: Deploy Binary to Server via Rsync
         run: |
-          rsync -avz --chmod=755 ./mycourse-io-be \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/bin/mycourse-io-be"
+          rsync -avz --chmod=755 ./mycourse-io-be-dev \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/bin/mycourse-io-be-dev"
 
       - name: Reload PM2 on Server
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH }} && \
-            (pm2 reload mycourse-api || pm2 start /var/www/ecosystem.config.cjs) && \
+            (pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev) && \
             git stash -u && \
             git checkout master && \
             git pull"

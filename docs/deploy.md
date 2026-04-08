@@ -176,16 +176,39 @@ In `.env` for local Redis: `REDIS_ADDR=127.0.0.1:6379` (and `REDIS_PASSWORD` if 
 
 ### Step 9 — Create deploy paths and place application code
 
-Example layout:
+**Actual server layout (as used in `ecosystem.config.cjs` and CI):**
 
 ```text
-/opt/mycourse/be
-/opt/mycourse/fe
+/var/www/be-mycourse/        ← backend root (cwd for all PM2 app entries)
+  bin/
+    mycourse-io-be-dev       ← dev binary (rsync'd by CI)
+    mycourse-io-be-staging   ← staging binary
+    mycourse-io-be-prod      ← production binary
+  .env                       ← dev environment variables
+  .env.staging               ← staging environment variables
+  .env.prod                  ← production environment variables
+  ecosystem.config.cjs       ← PM2 multi-environment config
+  config/                    ← app.yaml + stage overrides
+  migrations/                ← SQL migration files
 ```
 
-1. Create the user/directory policy your org uses (dedicated `deploy` user recommended).
-2. Clone or copy the repositories (or rely on CI to `rsync` artifacts later).
-3. Ensure the backend path will contain `go.mod`, `config/`, and a `bin/` output directory.
+```bash
+# Create the directory structure on the server:
+sudo mkdir -p /var/www/be-mycourse/bin
+sudo chown -R "$USER":"$USER" /var/www/be-mycourse
+
+# Clone (or rsync) the backend source — migrations, config, ecosystem file:
+cd /var/www/be-mycourse
+git clone https://github.com/your-org/mycourse.git .
+# Or: git clone ... && cp -r mycourse/be/* /var/www/be-mycourse/
+```
+
+The `bin/` subdirectory is **created automatically** by the CI workflow via:
+```bash
+mkdir -p ${{ secrets.DEPLOY_PATH }}/bin
+```
+
+For the **frontend**, a separate path applies (see `fe/docs/deploy.md`). Frontend does not use `/var/www/be-mycourse`.
 
 ---
 
@@ -213,11 +236,25 @@ Set at least:
 
 ### Step 11 — Build the backend binary
 
+Binary names follow the environment convention used in `ecosystem.config.cjs`:
+
+| Environment | Binary name | PM2 process name |
+|-------------|-------------|-----------------|
+| Dev (master) | `mycourse-io-be-dev` | `mycourse-api-dev` |
+| Staging | `mycourse-io-be-staging` | `mycourse-api-staging` |
+| Production | `mycourse-io-be-prod` | `mycourse-api-prod` |
+
+**For a manual dev build on the server:**
+
 ```bash
-cd /opt/mycourse/be
+cd /var/www/be-mycourse
 go mod download
-go build -o bin/mycourse-io-be -trimpath -ldflags="-s -w" .
+go build -trimpath -ldflags="-s -w" -o bin/mycourse-io-be-dev .
 ```
+
+**CI builds** (see Appendix C) produce the binary in the GitHub Actions runner and `rsync` it directly to `DEPLOY_PATH/bin/`. You do **not** need Go installed on the server if you always deploy via CI.
+
+> **Go version:** The project requires **Go 1.25.0** (match `go.mod` and the `go-version` in `.github/workflows/deploy-dev.yml`).
 
 ---
 
@@ -324,44 +361,86 @@ Both `server { ... 443 ... }` blocks should reference the **same** `ssl_certific
 
 ---
 
-### Step 16 — Run the API and web app under PM2
+### Step 16 — Run the API under PM2
 
-Example `ecosystem.config.cjs` on the server:
+The actual `ecosystem.config.cjs` (at `/var/www/be-mycourse/ecosystem.config.cjs`) manages **three environments** from one file using PM2's `env_file` feature:
 
 ```javascript
+// /var/www/be-mycourse/ecosystem.config.cjs
 module.exports = {
   apps: [
     {
-      name: 'mycourse-api',
-      cwd: '/opt/mycourse/be',
-      script: './bin/mycourse-io-be',
+      name: 'mycourse-api-dev',
+      cwd: '/var/www/be-mycourse',
+      script: './bin/mycourse-io-be-dev',
       instances: 1,
       autorestart: true,
-      max_memory_restart: '512M',
-      env: { STAGE: 'prod' },
-      env_file: '/opt/mycourse/be/.env',
+      max_memory_restart: '1024M',
+      env: {},
+      env_file: '/var/www/be-mycourse/.env',
     },
     {
-      name: 'mycourse-web',
-      cwd: '/opt/mycourse/fe',
-      script: 'npm',
-      args: 'run start',
+      name: 'mycourse-api-staging',
+      cwd: '/var/www/be-mycourse',
+      script: './bin/mycourse-io-be-staging',
       instances: 1,
       autorestart: true,
-      env: { NODE_ENV: 'production', PORT: 3000 },
+      max_memory_restart: '1024M',
+      env: { STAGE: 'staging' },
+      env_file: '/var/www/be-mycourse/.env.staging',
+    },
+    {
+      name: 'mycourse-api-prod',
+      cwd: '/var/www/be-mycourse',
+      script: './bin/mycourse-io-be-prod',
+      instances: 1,
+      autorestart: true,
+      max_memory_restart: '1024M',
+      env: { STAGE: 'prod' },
+      env_file: '/var/www/be-mycourse/.env.prod',
     },
   ],
 };
 ```
 
+**Key details:**
+
+| Field | Value | Notes |
+|-------|-------|-------|
+| `cwd` | `/var/www/be-mycourse` | All three apps share the same working directory |
+| `script` | `./bin/mycourse-io-be-{env}` | Binary in the `bin/` subdirectory |
+| `env_file` | Absolute path to `.env`, `.env.staging`, `.env.prod` | Loaded by PM2 v5+ at startup |
+| `max_memory_restart` | `1024M` | Process is restarted if it exceeds 1 GB RAM |
+| `env.STAGE` | `staging` / `prod` | Inline env overrides merged on top of `env_file` |
+
+**Starting and persisting:**
+
 ```bash
+# Start only the dev process (typical after CI deploy):
+pm2 start ecosystem.config.cjs --only mycourse-api-dev
+
+# Or start all three environments:
 pm2 start ecosystem.config.cjs
+
+# Check status:
+pm2 list
+pm2 logs mycourse-api-dev --lines 50
+
+# Persist across reboots:
 pm2 save
 ```
 
-If your PM2 version does not support `env_file`, use **systemd** with `EnvironmentFile=` for secrets instead.
+**Reload (zero-downtime) after a binary update:**
 
-**Order note:** Start the Go API **after** `.env` points at reachable Postgres/Redis (**cloud or local**, Step 8), then rely on Nginx—Nginx only proxies to `127.0.0.1:8080`.
+```bash
+pm2 reload mycourse-api-dev
+# If the process does not exist yet, start it:
+pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev
+```
+
+> **`env_file` requires PM2 v5+.** Run `pm2 --version` to verify. If you use an older PM2, inline the variables directly into the `env` block or use a systemd `EnvironmentFile=`.
+
+**Order note:** Ensure `.env` (or the relevant stage file) points at reachable Postgres/Redis before starting the process. The API binds to `127.0.0.1:8080` (or as configured by `SERVER_HOST`/`SERVER_PORT`) — Nginx proxies `api.yourdomain.net` to that port.
 
 ---
 
@@ -427,181 +506,167 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ---
 
-## Appendix C — CI/CD with GitHub Actions (after manual deploy works)
+## Appendix C — CI/CD with GitHub Actions
 
-GitLab uses **GitLab CI** (`.gitlab-ci.yml`); the **same job split** applies—one concern per job, not one giant script.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to `master`, builds the Go binary in CI (no Go installation needed on the server), and deploys via `rsync` + PM2 reload.
 
-### C.1 — Prepare the server for CI deploy (ordered)
+### C.1 — Required GitHub Secrets
 
-1. Create a **deploy** SSH key pair; add the **public** key to `~/.ssh/authorized_keys` on the server.
-2. Store the **private** key and connection details as GitHub **Secrets**: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, `DEPLOY_PATH`.
-3. Ensure `DEPLOY_PATH` contains `be/bin/` and that PM2 can reload `mycourse-api`.
+Set these in **Settings → Secrets and variables → Actions** on your GitHub repository:
 
-### C.2 — Pipeline principles
+| Secret | Description | Example |
+|--------|-------------|---------|
+| `SSH_PRIVATE_KEY` | Private key whose public half is in `~/.ssh/authorized_keys` on the server | PEM-format RSA/Ed25519 private key |
+| `SSH_HOST` | Server IP address or hostname | `203.0.113.42` |
+| `SSH_USER` | SSH login user | `ubuntu` / `deploy` |
+| `DEPLOY_PATH` | Absolute path to the backend root on the server | `/var/www/be-mycourse` |
 
-- **Lint/test/build** run on `ubuntu-latest`—the VPS does not need Go/Node for those steps if you ship binaries from CI.
-- **Deploy** is its own job with `needs:` on successful build; it only **uploads artifacts** and **restarts** the process.
-- **Migrate** stays a **separate** job (protected environment / manual approval). The current binary with `MIGRATE=1` still starts HTTP; maintain a server script such as `be/scripts/apply_migrations.sh` (stop PM2 → migrate → start) or add a dedicated migrate command later.
+> **Setup:** Generate a deploy key pair (`ssh-keygen -t ed25519 -C "ci-deploy"`). Add the **public key** to `~/.ssh/authorized_keys` on the VPS. Add the **private key** as the `SSH_PRIVATE_KEY` secret.
 
-### C.3 — Example workflow (one job per task)
+### C.2 — Actual workflow: `deploy-dev.yml`
 
-Place under `.github/workflows/deploy.yml` (adjust paths for a monorepo vs. `be`-only repo):
+File: `.github/workflows/deploy-dev.yml`
+
+**Trigger:** push to `master`.  
+**Concurrency:** `cancel-in-progress: true` — a second push while the first is deploying cancels the in-flight run.  
+**Job structure:** 2 sequential jobs — `build` → `deploy`.
 
 ```yaml
-name: CI/CD
+name: Deploy Backend to VPS (2 Jobs) Test deploy in Master Branch
 
 on:
   push:
-    branches: [main]
+    branches:
+      - master
 
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  prepare:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Show git ref and short SHA
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+          cache: true   # caches Go module downloads
+
+      - name: Build Go Binary
         run: |
-          echo "REF=${{ github.ref_name }}"
-          echo "SHA=${{ github.sha }}"
-          git rev-parse --short HEAD
+          go mod download
+          go build -trimpath -ldflags="-s -w" -o mycourse-io-be-dev .
 
-  lint-backend:
-    runs-on: ubuntu-latest
-    needs: [prepare]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: be/go.mod
-          cache-dependency-path: be/go.sum
-      - name: Go fmt check
-        working-directory: be
-        run: test -z "$(gofmt -l .)"
-
-  test-backend:
-    runs-on: ubuntu-latest
-    needs: [lint-backend]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: be/go.mod
-          cache-dependency-path: be/go.sum
-      - name: Download modules
-        working-directory: be
-        run: go mod download
-      - name: Run tests
-        working-directory: be
-        run: go test ./... -count=1 -short
-
-  build-backend:
-    runs-on: ubuntu-latest
-    needs: [test-backend]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: be/go.mod
-          cache-dependency-path: be/go.sum
-      - name: Build Linux binary
-        working-directory: be
-        run: go build -trimpath -ldflags="-s -w" -o ../mycourse-io-be .
-      - name: Upload binary artifact
+      - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mycourse-io-be
-          path: mycourse-io-be
+          name: backend-binary
+          path: mycourse-io-be-dev
+          retention-days: 1   # purged after 1 day to save GitHub storage
 
-  build-frontend:
+  deploy:
     runs-on: ubuntu-latest
-    needs: [prepare]
+    needs: build   # waits for 'build' to succeed before starting
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: fe/package-lock.json
-      - name: Install dependencies
-        working-directory: fe
-        run: npm ci
-      - name: Build Next.js
-        working-directory: fe
-        run: npm run build
-      - name: Upload frontend build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: fe-build
-          path: fe/.next
-
-  deploy-backend:
-    runs-on: ubuntu-latest
-    needs: [build-backend]
-    environment: production
-    steps:
-      - name: Download binary
+      - name: Download Binary Artifact
         uses: actions/download-artifact@v4
         with:
-          name: mycourse-io-be
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      - name: Add host to known_hosts
-        run: ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
-      - name: Rsync binary to server
-        run: |
-          rsync -avz --chmod=755 ./mycourse-io-be \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/be/bin/mycourse-io-be"
-      - name: Reload application on server
-        run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "pm2 reload mycourse-api || pm2 start ${{ secrets.DEPLOY_PATH }}/be/ecosystem.config.cjs"
+          name: backend-binary
 
-  migrate-backend:
-    runs-on: ubuntu-latest
-    needs: [deploy-backend]
-    environment: production-migrate
-    steps:
-      - uses: webfactory/ssh-agent@v0.9.0
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      - name: Add host to known_hosts
+
+      - name: Add Server to known_hosts
         run: ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
-      - name: Invoke server-side migrate script
+
+      - name: Ensure target directory exists
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "bash ${{ secrets.DEPLOY_PATH }}/be/scripts/apply_migrations.sh"
+            "mkdir -p ${{ secrets.DEPLOY_PATH }}/bin"
+
+      - name: Deploy Binary to Server via Rsync
+        run: |
+          rsync -avz --chmod=755 ./mycourse-io-be-dev \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/bin/mycourse-io-be-dev"
+
+      - name: Reload PM2 on Server
+        run: |
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH }} && \
+            (pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev) && \
+            git stash -u && \
+            git checkout master && \
+            git pull"
 ```
 
-| Job | Responsibility |
-|-----|----------------|
-| `prepare` | Checkout and record revision metadata. |
-| `lint-backend` | Format/static checks (extend with `golangci-lint` later). |
-| `test-backend` | `go test` before build/deploy. |
-| `build-backend` | Produce Linux binary artifact. |
-| `build-frontend` | Independent FE build artifact. |
-| `deploy-backend` | Rsync binary + PM2 reload only. |
-| `migrate-backend` | Controlled DB migration via your server script. |
+### C.3 — What each step does
 
-If the repository root **is** the backend, drop the `be/` prefix in `working-directory` and artifact paths.
+| Step | Details |
+|------|---------|
+| **Checkout** | Full source clone for `go build` |
+| **Setup Go** | Installs Go 1.25.0 with module cache enabled |
+| **Build** | `go build -trimpath -ldflags="-s -w"` — stripped, reproducible binary named `mycourse-io-be-dev` |
+| **Upload artifact** | Binary stored in GitHub's temporary artifact storage (1-day retention) |
+| **Download artifact** | `deploy` job fetches the binary — no source checkout needed |
+| **SSH agent** | Loads `SSH_PRIVATE_KEY` into the agent; no password prompt |
+| **known_hosts** | `ssh-keyscan` prevents interactive host-key prompt |
+| **mkdir -p** | Ensures `DEPLOY_PATH/bin/` exists on the server (idempotent) |
+| **rsync** | Transfers `mycourse-io-be-dev` → `DEPLOY_PATH/bin/`, sets `chmod 755` |
+| **PM2 reload** | Graceful reload. If the process doesn't exist yet, `pm2 start --only` starts only the dev app. After reload, the server also runs `git stash -u && git checkout master && git pull` to sync config/migration files. |
+
+### C.4 — Post-reload git pull (why?)
+
+The final SSH command also syncs the repository on the server:
+
+```bash
+git stash -u   # stash any local changes (including untracked files)
+git checkout master
+git pull
+```
+
+This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in sync with the `master` branch — so new YAML config files or SQL migrations are available without a separate manual pull.
+
+### C.5 — Pipeline principles and future extensions
+
+- **Build in CI, not on server:** The VPS does not need Go installed for normal deploys. The binary is built reproducibly in the GitHub Actions runner.
+- **`cancel-in-progress: true`:** Rapid successive pushes to `master` only deploy the latest commit, avoiding partial deploys.
+- **Migrations:** Currently not automated in CI. Recommended approach: stop PM2, run binary once with `MIGRATE=1`, restart. Add a separate `migrate` workflow with `environment: production-migrate` (requires manual approval) when you need controlled migrations.
+- **Staging / Production:** To extend CI for staging/production environments, add jobs that build `mycourse-io-be-staging` / `mycourse-io-be-prod` and reload `mycourse-api-staging` / `mycourse-api-prod` respectively — following the same `rsync` + `pm2 reload --only <name>` pattern.
+- **Frontend CI:** Handled separately — see `fe/docs/deploy.md` Appendix G.
 
 ---
 
 ## Appendix D — Key files in repo `be`
 
-| Area | Path |
-|------|------|
-| Entry | `main.go` |
-| Router | `api/router.go`, `api/v1/routes.go` |
-| Settings | `config/app.yaml`, `config/app-*.yaml`, `pkg/setting/setting.go` |
-| DB / migrate | `models/setup.go`, `migrations/*.sql` |
-| Cache | `cache_clients/redis.go`, `services/cache/` |
-| Docs | `docs/modules/auth.md`, `docs/architecture.md` |
+| Area | Path | Notes |
+|------|------|-------|
+| Entry point | `main.go` | `setting.Setup()` → DB → Redis → router → listen |
+| Router | `api/router.go`, `api/v1/routes.go` | Gin: CORS, gzip, JWT middleware, public + private routes |
+| Settings | `config/app.yaml`, `config/app-*.yaml`, `pkg/setting/setting.go` | YAML + `.env` merge via `STAGE` env var |
+| DB / migrate | `models/setup.go`, `migrations/*.sql` | Run with `MIGRATE=1`; applied on startup |
+| Cache | `cache_clients/redis.go`, `services/cache/` | Redis client; degrades gracefully if unavailable |
+| Error codes | `pkg/errcode/codes.go`, `pkg/errcode/messages.go` | Mirrors `src/types/api.ts` (ApiErrorCode) in the FE |
+| HTTP errors | `pkg/httperr/middleware.go` | Global Gin error handler |
+| CI/CD | `.github/workflows/deploy-dev.yml` | Active 2-job workflow (build → deploy on master) |
+| PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) |
+| Docs | `docs/modules/auth.md`, `docs/architecture.md` | Module-level docs |
+
+**Server paths (matching `ecosystem.config.cjs`):**
+
+| File/Dir | Server path |
+|----------|------------|
+| Backend root (`cwd`) | `/var/www/be-mycourse/` |
+| Dev binary | `/var/www/be-mycourse/bin/mycourse-io-be-dev` |
+| Staging binary | `/var/www/be-mycourse/bin/mycourse-io-be-staging` |
+| Production binary | `/var/www/be-mycourse/bin/mycourse-io-be-prod` |
+| Dev env file | `/var/www/be-mycourse/.env` |
+| Staging env file | `/var/www/be-mycourse/.env.staging` |
+| Production env file | `/var/www/be-mycourse/.env.prod` |
 
 For HTTP/router relationships, GitNexus (repo `be`) queries such as *InitRouter Gin API* surface `InitRouter`, JWT middleware, and response helpers.
 

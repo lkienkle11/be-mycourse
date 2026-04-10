@@ -56,16 +56,16 @@ jobs:
       - name: Ensure target directory exists
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "mkdir -p ${{ secrets.DEPLOY_PATH }}/bin"
+            "mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin"
 
       - name: Deploy Binary to Server via Rsync
         run: |
           rsync -avz --chmod=755 ./mycourse-io-be-dev \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/bin/mycourse-io-be-dev"
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/bin/mycourse-io-be-dev"
 
       - name: Reload PM2 on Server
         run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH }} && \
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH_DEV }} && \
             (pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev) && \
             git stash -u && \
             git checkout master && \

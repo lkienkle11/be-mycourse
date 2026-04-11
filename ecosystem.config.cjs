@@ -1,3 +1,5 @@
+// PM2 cannot natively "swap back" a broken Go binary; GitHub Actions + scripts/pm2-reload-with-binary-rollback.sh
+// handle rollback after rsync when /api/v1/health does not come up (startup failed before listen).
 module.exports = {
     apps: [
         {

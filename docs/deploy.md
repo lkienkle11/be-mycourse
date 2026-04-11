@@ -508,7 +508,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ## Appendix C — CI/CD with GitHub Actions
 
-The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to **`master`**, builds the Go binary in CI (no Go installation needed on the server), and deploys via **`rsync`** of the binary into **`${DEPLOY_PATH_DEV}/bin/`** + PM2 reload. The deploy step also runs **`git stash -u`**, **`git checkout master`**, and **`git pull`** on the server so config and migrations stay aligned.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to **`master`**, builds the Go binary in CI (no Go installation needed on the server), and deploys via **`rsync`** of the binary into **`${DEPLOY_PATH_DEV}/bin/`**. Before replacing the binary, the server keeps a copy at **`bin/mycourse-io-be-dev.prev`**. After **`pm2 reload`**, CI runs **`scripts/pm2-reload-with-binary-rollback.sh`**, which polls **`GET /api/v1/health`** until the new process has finished startup (including everything in `main.go` before `router.Run`) and is listening. If the check times out, the script restores **`mycourse-io-be-dev.prev`** over the new binary, reloads PM2 again, prints **`pm2 logs`**, and exits with a failure so GitHub Actions shows a red deploy. **`git stash -u`**, **`git checkout master`**, and **`git pull`** run only after a successful health check, so a rolled-back server keeps the previous repo tree until a fixed binary deploys successfully.
 
 ### C.1 — Required GitHub Secrets
 
@@ -572,6 +572,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build   # waits for 'build' to succeed before starting
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download Binary Artifact
         uses: actions/download-artifact@v4
         with:
@@ -588,36 +591,57 @@ jobs:
       - name: Ensure target directory exists
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin"
+            "mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin ${{ secrets.DEPLOY_PATH_DEV }}/scripts"
+
+      - name: Copy deploy rollback helper to server
+        run: |
+          scp -q scripts/pm2-reload-with-binary-rollback.sh \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh"
+
+      - name: Backup current binary on server (rollback target)
+        run: |
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "cd ${{ secrets.DEPLOY_PATH_DEV }} && test -f bin/mycourse-io-be-dev && cp bin/mycourse-io-be-dev bin/mycourse-io-be-dev.prev || true"
 
       - name: Deploy Binary to Server via Rsync
         run: |
           rsync -avz --chmod=755 ./mycourse-io-be-dev \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/bin/mycourse-io-be-dev"
 
-      - name: Reload PM2 on Server
+      - name: Reload PM2 with health gate and binary rollback
         run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH_DEV }} && \
-            (pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev) && \
-            git stash -u && \
-            git checkout master && \
-            git pull"
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "chmod +x '${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh' && \
+             cd '${{ secrets.DEPLOY_PATH_DEV }}' && \
+             DEPLOY_PATH='${{ secrets.DEPLOY_PATH_DEV }}' \
+             PM2_APP_NAME=mycourse-api-dev \
+             bash scripts/pm2-reload-with-binary-rollback.sh"
 ```
 
 ### C.3 — What each step does
 
 | Step | Details |
 |------|---------|
-| **Checkout** | Full source clone for `go build` |
+| **Checkout** | `build`: full clone for `go build`. `deploy`: clone so `scripts/pm2-reload-with-binary-rollback.sh` can be copied to the VPS. |
 | **Setup Go** | Installs Go 1.25.0 with module cache enabled |
 | **Build** | `go build -trimpath -ldflags="-s -w"` — stripped, reproducible binary named `mycourse-io-be-dev` |
 | **Upload artifact** | Binary stored in GitHub's temporary artifact storage (1-day retention) |
-| **Download artifact** | `deploy` job fetches the binary — no source checkout needed |
+| **Download artifact** | `deploy` job fetches the binary |
 | **SSH agent** | Loads `SSH_PRIVATE_KEY` into the agent; no password prompt |
 | **known_hosts** | `ssh-keyscan` prevents interactive host-key prompt |
-| **mkdir -p** | Ensures `DEPLOY_PATH_DEV/bin/` exists on the server (idempotent) |
+| **mkdir -p** | Ensures `DEPLOY_PATH_DEV/bin/` and `DEPLOY_PATH_DEV/scripts/` exist |
+| **scp rollback script** | Latest `scripts/pm2-reload-with-binary-rollback.sh` on the runner is pushed to the server (no need to `git pull` the script first). |
+| **Backup binary** | If `bin/mycourse-io-be-dev` exists, copy to `bin/mycourse-io-be-dev.prev` for rollback. |
 | **rsync** | Transfers `mycourse-io-be-dev` → `DEPLOY_PATH_DEV/bin/`, sets `chmod 755` |
-| **PM2 reload** | Graceful reload. If the process doesn't exist yet, `pm2 start --only` starts only the dev app. After reload, the server also runs `git stash -u && git checkout master && git pull` to sync config/migration files. |
+| **PM2 + health + git** | Runs the rollback script: `pm2 reload` (or `pm2 start --only` if missing), polls `GET /api/v1/health` (default `http://127.0.0.1:8080/api/v1/health`, 90s). On success: `git stash -u && git checkout master && git pull`. On failure: restore `.prev` over the binary, reload PM2, print logs, exit non-zero. |
+
+**Script environment (optional overrides on the server SSH line):**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `HEALTHCHECK_URL` | `http://127.0.0.1:8080/api/v1/health` | Must match bind address/port and API base path (`/api/v1` from Gin). |
+| `ROLLBACK_HEALTH_TIMEOUT_SEC` | `90` | How long to wait for the process to survive startup and answer HTTP 200. |
+| `BINARY_REL` | `bin/mycourse-io-be-dev` | Relative path to the binary under `DEPLOY_PATH`. |
 
 ### C.4 — Post-reload git pull (why?)
 
@@ -653,6 +677,7 @@ This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in
 | Error codes | `pkg/errcode/codes.go`, `pkg/errcode/messages.go` | Mirrors `src/types/api.ts` (ApiErrorCode) in the FE |
 | HTTP errors | `pkg/httperr/middleware.go` | Global Gin error handler |
 | CI/CD | `.github/workflows/deploy-dev.yml` | Active 2-job workflow (build → deploy on master) |
+| Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Health-gated `pm2 reload`; restores `bin/mycourse-io-be-dev.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) |
 | Docs | `docs/modules/auth.md`, `docs/architecture.md` | Module-level docs |
 

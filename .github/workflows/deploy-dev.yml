@@ -39,6 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build # Job này bắt buộc phải đợi Job 'build' chạy thành công mới bắt đầu
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download Binary Artifact
         # Tải file binary từ không gian tạm về luồng chạy hiện tại
         uses: actions/download-artifact@v4
@@ -56,17 +59,28 @@ jobs:
       - name: Ensure target directory exists
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin"
+            "mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin ${{ secrets.DEPLOY_PATH_DEV }}/scripts"
+
+      - name: Copy deploy rollback helper to server
+        run: |
+          scp -q scripts/pm2-reload-with-binary-rollback.sh \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh"
+
+      - name: Backup current binary on server (rollback target)
+        run: |
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "cd ${{ secrets.DEPLOY_PATH_DEV }} && test -f bin/mycourse-io-be-dev && cp bin/mycourse-io-be-dev bin/mycourse-io-be-dev.prev || true"
 
       - name: Deploy Binary to Server via Rsync
         run: |
           rsync -avz --chmod=755 ./mycourse-io-be-dev \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/bin/mycourse-io-be-dev"
 
-      - name: Reload PM2 on Server
+      - name: Reload PM2 with health gate and binary rollback
         run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH_DEV }} && \
-            (pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev) && \
-            git stash -u && \
-            git checkout master && \
-            git pull"
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "chmod +x '${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh' && \
+             cd '${{ secrets.DEPLOY_PATH_DEV }}' && \
+             DEPLOY_PATH='${{ secrets.DEPLOY_PATH_DEV }}' \
+             PM2_APP_NAME=mycourse-api-dev \
+             bash scripts/pm2-reload-with-binary-rollback.sh"

@@ -26,7 +26,7 @@ curl http://localhost:8080/api/v1/health
 
 ### CI deploy (`master`)
 
-Pushing to **`master`** runs `.github/workflows/deploy-dev.yml`: build the **`mycourse-io-be-dev`** binary in GitHub Actions, **`rsync`** it to **`${DEPLOY_PATH_DEV}/bin/`**, then **`pm2 reload mycourse-api-dev`** on the VPS and **`git pull`** on **`master`**. Secrets: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, **`DEPLOY_PATH_DEV`**. Full runbook: [`docs/deploy.md` — Appendix C (CI/CD)](docs/deploy.md#appendix-c--cicd-with-github-actions).
+Pushing to **`master`** runs `.github/workflows/deploy-dev.yml`: build the **`mycourse-io-be-dev`** binary in GitHub Actions, **`rsync`** it to **`${DEPLOY_PATH_DEV}/bin/`**, then run **`scripts/pm2-reload-with-binary-rollback.sh`**, which **`pm2 reload`s** **`mycourse-api-dev`**, waits for **`GET /api/v1/health`**, and **`git pull`s** only after the new process is listening; if startup fails, the previous binary is restored from **`bin/mycourse-io-be-dev.prev`** and the workflow fails. Secrets: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, **`DEPLOY_PATH_DEV`**. Full runbook: [`docs/deploy.md` — Appendix C (CI/CD)](docs/deploy.md#appendix-c--cicd-with-github-actions).
 
 ---
 

@@ -1,6 +1,6 @@
 # Deploying MyCourse (Backend + Frontend) on Ubuntu 24.04
 
-This guide walks through **server setup**, **HTTPS for two hostnames on one machine**—the **apex / `www` domain for the Next.js frontend** (e.g. `yourdomain.net`) and **`api.` for the Go API** (e.g. `api.yourdomain.net`)—plus a **GitHub Actions–style CI/CD skeleton**. Replace **`yourdomain.net`** everywhere with your real **`.net`** domain. The workflow YAML is a **template**—add the real workflow file when you are ready.
+This guide walks through **server setup**, **HTTPS for two hostnames on one machine**—the **apex / `www` domain for the Next.js frontend** (e.g. `yourdomain.net`) and **`api.` for the Go API** (e.g. `api.yourdomain.net`)—plus **CI/CD** (`.github/workflows/deploy-dev.yml` for the backend on **`master`**, and the frontend workflow in `fe/` on **`dev`**). Replace **`yourdomain.net`** everywhere with your real **`.net`** domain.
 
 The sections under **Deployment runbook** are ordered: follow **Step 1 → Step 2 → …** in sequence. Background context and CI/CD details come **after** the runbook.
 
@@ -205,7 +205,7 @@ git clone https://github.com/your-org/mycourse.git .
 
 The `bin/` subdirectory is **created automatically** by the CI workflow via:
 ```bash
-mkdir -p ${{ secrets.DEPLOY_PATH }}/bin
+mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin
 ```
 
 For the **frontend**, a separate path applies (see `fe/docs/deploy.md`). Frontend does not use `/var/www/be-mycourse`.
@@ -252,7 +252,7 @@ go mod download
 go build -trimpath -ldflags="-s -w" -o bin/mycourse-io-be-dev .
 ```
 
-**CI builds** (see Appendix C) produce the binary in the GitHub Actions runner and `rsync` it directly to `DEPLOY_PATH/bin/`. You do **not** need Go installed on the server if you always deploy via CI.
+**CI builds** (see Appendix C) produce the binary in the GitHub Actions runner and `rsync` it directly to `DEPLOY_PATH_DEV/bin/`. You do **not** need Go installed on the server if you always deploy via CI.
 
 > **Go version:** The project requires **Go 1.25.0** (match `go.mod` and the `go-version` in `.github/workflows/deploy-dev.yml`).
 
@@ -508,7 +508,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ## Appendix C — CI/CD with GitHub Actions
 
-The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to `master`, builds the Go binary in CI (no Go installation needed on the server), and deploys via `rsync` + PM2 reload.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to **`master`**, builds the Go binary in CI (no Go installation needed on the server), and deploys via **`rsync`** of the binary into **`${DEPLOY_PATH_DEV}/bin/`** + PM2 reload. The deploy step also runs **`git stash -u`**, **`git checkout master`**, and **`git pull`** on the server so config and migrations stay aligned.
 
 ### C.1 — Required GitHub Secrets
 
@@ -519,7 +519,7 @@ Set these in **Settings → Secrets and variables → Actions** on your GitHub r
 | `SSH_PRIVATE_KEY` | Private key whose public half is in `~/.ssh/authorized_keys` on the server | PEM-format RSA/Ed25519 private key |
 | `SSH_HOST` | Server IP address or hostname | `203.0.113.42` |
 | `SSH_USER` | SSH login user | `ubuntu` / `deploy` |
-| `DEPLOY_PATH` | Absolute path to the backend root on the server | `/var/www/be-mycourse` |
+| `DEPLOY_PATH_DEV` | Absolute path to the **backend** root on the server (same variable name as the frontend workflow; use a **different** path value per service) | `/var/www/be-mycourse` |
 
 > **Setup:** Generate a deploy key pair (`ssh-keygen -t ed25519 -C "ci-deploy"`). Add the **public key** to `~/.ssh/authorized_keys` on the VPS. Add the **private key** as the `SSH_PRIVATE_KEY` secret.
 
@@ -588,16 +588,16 @@ jobs:
       - name: Ensure target directory exists
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "mkdir -p ${{ secrets.DEPLOY_PATH }}/bin"
+            "mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin"
 
       - name: Deploy Binary to Server via Rsync
         run: |
           rsync -avz --chmod=755 ./mycourse-io-be-dev \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/bin/mycourse-io-be-dev"
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/bin/mycourse-io-be-dev"
 
       - name: Reload PM2 on Server
         run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH }} && \
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "cd ${{ secrets.DEPLOY_PATH_DEV }} && \
             (pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev) && \
             git stash -u && \
             git checkout master && \
@@ -615,8 +615,8 @@ jobs:
 | **Download artifact** | `deploy` job fetches the binary — no source checkout needed |
 | **SSH agent** | Loads `SSH_PRIVATE_KEY` into the agent; no password prompt |
 | **known_hosts** | `ssh-keyscan` prevents interactive host-key prompt |
-| **mkdir -p** | Ensures `DEPLOY_PATH/bin/` exists on the server (idempotent) |
-| **rsync** | Transfers `mycourse-io-be-dev` → `DEPLOY_PATH/bin/`, sets `chmod 755` |
+| **mkdir -p** | Ensures `DEPLOY_PATH_DEV/bin/` exists on the server (idempotent) |
+| **rsync** | Transfers `mycourse-io-be-dev` → `DEPLOY_PATH_DEV/bin/`, sets `chmod 755` |
 | **PM2 reload** | Graceful reload. If the process doesn't exist yet, `pm2 start --only` starts only the dev app. After reload, the server also runs `git stash -u && git checkout master && git pull` to sync config/migration files. |
 
 ### C.4 — Post-reload git pull (why?)
@@ -637,7 +637,7 @@ This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in
 - **`cancel-in-progress: true`:** Rapid successive pushes to `master` only deploy the latest commit, avoiding partial deploys.
 - **Migrations:** Currently not automated in CI. Recommended approach: stop PM2, run binary once with `MIGRATE=1`, restart. Add a separate `migrate` workflow with `environment: production-migrate` (requires manual approval) when you need controlled migrations.
 - **Staging / Production:** To extend CI for staging/production environments, add jobs that build `mycourse-io-be-staging` / `mycourse-io-be-prod` and reload `mycourse-api-staging` / `mycourse-api-prod` respectively — following the same `rsync` + `pm2 reload --only <name>` pattern.
-- **Frontend CI:** Handled separately — see `fe/docs/deploy.md` Appendix G.
+- **Frontend CI:** Separate repo/workflow — push to **`dev`**, secret **`DEPLOY_PATH_DEV`** (FE checkout path), server **`npm ci` + `npm run build`** + PM2 **`mycourse-web-dev`** — see `fe/docs/deploy.md` Appendix G.
 
 ---
 

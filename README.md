@@ -24,6 +24,10 @@ go run .
 curl http://localhost:8080/api/v1/health
 ```
 
+### CI deploy (`master`)
+
+Pushing to **`master`** runs `.github/workflows/deploy-dev.yml`: build the **`mycourse-io-be-dev`** binary in GitHub Actions, **`rsync`** it to **`${DEPLOY_PATH_DEV}/bin/`**, then **`pm2 reload mycourse-api-dev`** on the VPS and **`git pull`** on **`master`**. Secrets: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, **`DEPLOY_PATH_DEV`**. Full runbook: [`docs/deploy.md` — Appendix C (CI/CD)](docs/deploy.md#appendix-c--cicd-with-github-actions).
+
 ---
 
 ## CORS

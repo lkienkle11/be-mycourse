@@ -37,6 +37,18 @@ X-Token-Expired: true
 
 The `X-Token-Expired: true` response header is the signal to the client to call `POST /api/v1/auth/refresh` rather than treating this as a permanent auth failure.
 
+### Missing `Authorization` vs expired token
+
+`middleware.AuthJWT` (`requireJWT` in `middleware/auth_jwt.go`) distinguishes:
+
+| Situation | HTTP | `X-Token-Expired` | Typical JSON `message` |
+|-----------|------|-------------------|-------------------------|
+| No `Authorization: Bearer …`, or empty token after `Bearer` | `401` | **not set** | `missing bearer token` |
+| Access JWT present but cryptographically expired | `401` | **`true`** | `token expired` |
+| Access JWT present but invalid / malformed | `401` | not set | `invalid token` |
+
+The official contract for **“rotate tokens, then retry”** is still **`401` + `X-Token-Expired: true`**. The **MyCourse Next.js** client additionally treats **`401` with no non-empty Bearer on the request** as refresh-eligible when `refresh_token` and `session_id` cookies exist (e.g. user cleared only `access_token`). Other integrators may treat `missing bearer token` as a hard logout unless they implement the same heuristic.
+
 ---
 
 ## Endpoints

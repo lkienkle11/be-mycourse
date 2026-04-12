@@ -62,7 +62,7 @@ Credentials: enabled (`AllowCredentials: true`)
 | `Authorization` | request | Bearer access token for all protected endpoints |
 | `X-Refresh-Token` | request | Refresh JWT sent to `POST /api/v1/auth/refresh` |
 | `X-Session-Id` | request | Session ID sent to `POST /api/v1/auth/refresh` |
-| `X-Token-Expired` | response | `"true"` when a 401 is caused by an expired access token (signals client to refresh rather than re-login) |
+| `X-Token-Expired` | response | `"true"` when a 401 is caused by an **expired** access JWT (`jwt.ErrTokenExpired`). Not set for `missing bearer token` — see `docs/modules/auth.md` and `middleware/auth_jwt.go`. |
 
 ---
 

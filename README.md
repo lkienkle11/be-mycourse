@@ -2,6 +2,13 @@
 
 Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu-core`).
 
+| Doc | Contents |
+|-----|----------|
+| [`docs/architecture.md`](docs/architecture.md) | HTTP layers, directory map, `/api/v1` vs internal routes, GitNexus graph snapshot |
+| [`docs/deploy.md`](docs/deploy.md) | VPS + CI/CD runbook |
+| [`docs/database.md`](docs/database.md) | Database notes |
+| [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, …) |
+
 ## Quick Start
 
 1. Ensure Redis is running.

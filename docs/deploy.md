@@ -1,6 +1,6 @@
 # Deploying MyCourse (Backend + Frontend) on Ubuntu 24.04
 
-This guide walks through **server setup**, **HTTPS for two hostnames on one machine**—the **apex / `www` domain for the Next.js frontend** (e.g. `yourdomain.net`) and **`api.` for the Go API** (e.g. `api.yourdomain.net`)—plus **CI/CD** (`.github/workflows/deploy-dev.yml` for the backend on **`master`**, and the frontend workflow in `fe/` on **`dev`**). Replace **`yourdomain.net`** everywhere with your real **`.net`** domain.
+This guide walks through **server setup**, **HTTPS for two hostnames on one machine**—the **apex / `www` domain for the Next.js frontend** (e.g. `yourdomain.net`) and **`api.` for the Go API** (e.g. `api.yourdomain.net`)—plus **CI/CD** (`.github/workflows/deploy-dev.yml` for the backend on **`master`**, and the frontend workflow in the **Next.js repo** on **`dev`** — checkout path on the server is often `/opt/mycourse/fe` or `fe-mycourse`). Replace **`yourdomain.net`** everywhere with your real **`.net`** domain.
 
 The sections under **Deployment runbook** are ordered: follow **Step 1 → Step 2 → …** in sequence. Background context and CI/CD details come **after** the runbook.
 
@@ -208,7 +208,7 @@ The `bin/` subdirectory is **created automatically** by the CI workflow via:
 mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin
 ```
 
-For the **frontend**, a separate path applies (see `fe/docs/deploy.md`). Frontend does not use `/var/www/be-mycourse`.
+For the **frontend**, a separate path applies (see [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md) when both repos live under the same parent directory). Frontend does not use `/var/www/be-mycourse`.
 
 ---
 
@@ -661,7 +661,7 @@ This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in
 - **`cancel-in-progress: true`:** Rapid successive pushes to `master` only deploy the latest commit, avoiding partial deploys.
 - **Migrations:** Currently not automated in CI. Recommended approach: stop PM2, run binary once with `MIGRATE=1`, restart. Add a separate `migrate` workflow with `environment: production-migrate` (requires manual approval) when you need controlled migrations.
 - **Staging / Production:** To extend CI for staging/production environments, add jobs that build `mycourse-io-be-staging` / `mycourse-io-be-prod` and reload `mycourse-api-staging` / `mycourse-api-prod` respectively — following the same `rsync` + `pm2 reload --only <name>` pattern.
-- **Frontend CI:** Separate repo/workflow — push to **`dev`**, secret **`DEPLOY_PATH_DEV`** (FE checkout path), server **`npm ci` + `npm run build`** + PM2 **`mycourse-web-dev`** — see `fe/docs/deploy.md` Appendix G.
+- **Frontend CI:** Separate repo/workflow — push to **`dev`**, secret **`DEPLOY_PATH_DEV`** (FE checkout path), server **`npm ci` + `npm run build`** + PM2 **`mycourse-web-dev`** — see [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md) Appendix G.
 
 ---
 

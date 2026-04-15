@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"mycourse-io-be/internal/rbacsync"
 )
 
 const permissionSyncInterval = 12 * time.Hour
@@ -17,7 +19,7 @@ func StartAutoSyncPermissionJob(db *gorm.DB) {
 	}
 
 	runOnce := func() {
-		n, err := SyncPermissionsFromConstants(db)
+		n, err := rbacsync.SyncPermissionsFromConstants(db)
 		if err != nil {
 			log.Printf("auto-sync-permission: failed: %v", err)
 			return

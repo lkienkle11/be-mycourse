@@ -9,7 +9,7 @@ import (
 	"mycourse-io-be/api"
 	"mycourse-io-be/cache_clients"
 	"mycourse-io-be/config"
-	"mycourse-io-be/jobs"
+	"mycourse-io-be/internal/jobs"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"

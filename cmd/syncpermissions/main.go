@@ -7,7 +7,7 @@ package main
 import (
 	"log"
 
-	"mycourse-io-be/jobs"
+	"mycourse-io-be/internal/rbacsync"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/setting"
 )
@@ -21,7 +21,7 @@ func main() {
 		log.Fatalf("syncpermissions: setup postgres: %v", err)
 	}
 
-	count, err := jobs.SyncPermissionsFromConstants(models.DB)
+	count, err := rbacsync.SyncPermissionsFromConstants(models.DB)
 	if err != nil {
 		log.Fatalf("syncpermissions: %v", err)
 	}

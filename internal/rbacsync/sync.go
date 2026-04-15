@@ -1,4 +1,4 @@
-package jobs
+package rbacsync
 
 import (
 	"errors"

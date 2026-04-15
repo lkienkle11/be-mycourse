@@ -10,13 +10,13 @@ type PermissionFilter struct {
 
 type CreatePermissionRequest struct {
 	Code        string  `json:"code" binding:"required,min=1,max=128"`
-	CodeCheck   *string `json:"code_check"`
+	Action      *string `json:"action"`
 	Description string  `json:"description" binding:"omitempty,max=512"`
 }
 
 type UpdatePermissionRequest struct {
 	Code        *string `json:"code"`
-	CodeCheck   *string `json:"code_check"`
+	Action      *string `json:"action"`
 	Description *string `json:"description"`
 }
 

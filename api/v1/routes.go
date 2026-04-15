@@ -25,7 +25,7 @@ func RegisterNotAuthenRoutes(rg *gin.RouterGroup) {
 func RegisterAuthenRoutes(rg *gin.RouterGroup) {
 	rg.GET("/me", getMe)
 	rg.GET("/me/permissions",
-		middleware.RequirePermission(constants.CodeProfileRead.CourseRead),
+		middleware.RequirePermission(constants.CodeUser.Read),
 		getMyPermissions,
 	)
 }

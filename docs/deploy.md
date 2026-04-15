@@ -224,6 +224,7 @@ Set at least:
 - `SUPABASE_*`, `JWT_SECRET`, `APP_BASE_URL=https://api.yourdomain.net` (must match the public API URL).
 - `CORS_ALLOWED_ORIGINS` — comma-separated **browser origins** for the frontend, e.g. `https://yourdomain.net,https://www.yourdomain.net` (no trailing slashes).
 - `REDIS_ADDR` — **managed Redis** URL/host:port from your cloud provider, or `127.0.0.1:6379` only if you installed Redis on this host (Step 8.3). Omit or leave empty only if you accept cache falling back to DB-only behaviour.
+- `AUTO_SYNC_PERMISSION_JOB` — optional RBAC permission auto-sync toggle. Enable with one of `true`, `1`, `yes`, `y`, `on`; when enabled the sync runs once at startup, then every 12 hours.
 - `API_KEY` if you use `/api/internal-v1`.
 
 **`MIGRATE=1` behavior:** With the current `main.go`, enabling `MIGRATE=1` still runs `router.Run` after migrations (HTTP server starts). Typical approaches:

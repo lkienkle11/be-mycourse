@@ -1,15 +1,15 @@
--- Core schema: flat RBAC + users (replaces former multi-step chain).
--- permissions.code = stable dot-separated key. code_check = colon-separated JWT or RequirePermission string.
+-- Core schema + RBAC seed in one migration.
+-- permissions.code = stable dot-separated key. action = colon-separated JWT or RequirePermission string.
 
 CREATE TABLE permissions (
     id BIGSERIAL PRIMARY KEY,
     code VARCHAR(128) NOT NULL,
-    code_check VARCHAR(128) NOT NULL,
+    action VARCHAR(128) NOT NULL,
     description VARCHAR(512) NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uix_permissions_code UNIQUE (code),
-    CONSTRAINT uix_permissions_code_check UNIQUE (code_check)
+    CONSTRAINT uix_permissions_action UNIQUE (action)
 );
 
 CREATE TABLE roles (
@@ -66,3 +66,66 @@ CREATE TABLE user_permissions (
 );
 
 CREATE INDEX idx_user_permissions_user ON user_permissions (user_id);
+
+INSERT INTO permissions (code, action, description, created_at, updated_at)
+VALUES
+    ('user.create', 'user:create', '', NOW(), NOW()),
+    ('user.delete', 'user:delete', '', NOW(), NOW()),
+    ('user.read', 'user:read', '', NOW(), NOW()),
+    ('user.update', 'user:update', '', NOW(), NOW()),
+    ('course.create', 'course:create', '', NOW(), NOW()),
+    ('course.delete', 'course:delete', '', NOW(), NOW()),
+    ('course.read', 'course:read', '', NOW(), NOW()),
+    ('course.update', 'course:update', '', NOW(), NOW()),
+    ('user_admin.create', 'user_admin:create', '', NOW(), NOW()),
+    ('user_admin.delete', 'user_admin:delete', '', NOW(), NOW()),
+    ('user_admin.read', 'user_admin:read', '', NOW(), NOW()),
+    ('user_admin.update', 'user_admin:update', '', NOW(), NOW());
+
+INSERT INTO roles (name, description, created_at, updated_at)
+VALUES
+    ('sysadmin', 'System-wide administration', NOW(), NOW()),
+    ('admin', 'Business administration', NOW(), NOW()),
+    ('instructor', 'Manage and teach courses', NOW(), NOW()),
+    ('learner', 'Consume learning content', NOW(), NOW());
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'sysadmin';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.code IN (
+    'user.read',
+    'user.create',
+    'user.update',
+    'user.delete',
+    'course.read',
+    'course.create',
+    'course.update',
+    'course.delete'
+)
+WHERE r.name = 'admin';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.code IN (
+    'user.read',
+    'course.read',
+    'course.create',
+    'course.update'
+)
+WHERE r.name = 'instructor';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.code IN (
+    'user.read',
+    'course.read'
+)
+WHERE r.name = 'learner';

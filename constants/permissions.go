@@ -7,57 +7,66 @@ import (
 )
 
 // Struct tag `perm` is permissions.code in Postgres. Each field's string value is the runtime
-// check string (permissions.code_check) — use like TS: constants.CodeProfileRead.CourseRead
-// in RequirePermission(...), not a separate .CodeCheck field.
+// check string (permissions.action) — use like TS: constants.CodeUser.Read
+// in RequirePermission(...), not a separate .Action field.
 
 // --- Domain groups (add APIs by adding a string field + perm tag; register nothing else). ---
 
-type codeRbacT struct {
-	Manage string `perm:"rbac.manage"`
+type codeUserT struct {
+	Read   string `perm:"user.read"`
+	Create string `perm:"user.create"`
+	Update string `perm:"user.update"`
+	Delete string `perm:"user.delete"`
 }
 
-// CodeRbac rbac.* checks (e.g. CodeRbac.Manage).
-var CodeRbac = codeRbacT{Manage: "rbac:manage"}
-
-type codeProfileReadT struct {
-	CourseRead  string `perm:"profile.course.read"`
-	CourseWrite string `perm:"profile.course.write"`
-}
-
-// CodeProfileRead profile-related checks (e.g. CodeProfileRead.CourseRead).
-var CodeProfileRead = codeProfileReadT{
-	CourseRead:  "profile:course:read",
-	CourseWrite: "profile:course:write",
+// CodeUser user.* checks (e.g. CodeUser.Read).
+var CodeUser = codeUserT{
+	Read:   "user:read",
+	Create: "user:create",
+	Update: "user:update",
+	Delete: "user:delete",
 }
 
 type codeCourseT struct {
 	Read   string `perm:"course.read"`
-	Write  string `perm:"course.write"`
-	Delete string `perm:"course.delete"`
-	Update string `perm:"course.update"`
 	Create string `perm:"course.create"`
+	Update string `perm:"course.update"`
+	Delete string `perm:"course.delete"`
 }
 
 // CodeCourse course.* checks (e.g. CodeCourse.Read).
 var CodeCourse = codeCourseT{
 	Read:   "course:read",
-	Write:  "course:write",
-	Delete: "course:delete",
-	Update: "course:update",
 	Create: "course:create",
+	Update: "course:update",
+	Delete: "course:delete",
 }
 
+type codeUserAdminT struct {
+	Read   string `perm:"user_admin.read"`
+	Create string `perm:"user_admin.create"`
+	Update string `perm:"user_admin.update"`
+	Delete string `perm:"user_admin.delete"`
+}
+
+// CodeUserAdmin user_admin.* checks (e.g. CodeUserAdmin.Read).
+var CodeUserAdmin = codeUserAdminT{
+	Read:   "user_admin:read",
+	Create: "user_admin:create",
+	Update: "user_admin:update",
+	Delete: "user_admin:delete",
+}
 
 func allPermissionGroups() []reflect.Value {
 	return []reflect.Value{
-		reflect.ValueOf(CodeRbac),
-		reflect.ValueOf(CodeProfileRead),
+		reflect.ValueOf(CodeUser),
 		reflect.ValueOf(CodeCourse),
+		reflect.ValueOf(CodeUserAdmin),
 	}
 }
 
-func collectEntries() []struct{ Code, CodeCheck string } {
-	var out []struct{ Code, CodeCheck string }
+func collectEntries() []struct{ Code, Action string } {
+	var out []struct{ Code, Action string }
 	for _, rv := range allPermissionGroups() {
 		rt := rv.Type()
 		if rt.Kind() != reflect.Struct {
@@ -76,17 +85,17 @@ func collectEntries() []struct{ Code, CodeCheck string } {
 			if fv.Kind() != reflect.String {
 				panic(fmt.Sprintf("constants: permission field %s.%s must be string", rt.Name(), sf.Name))
 			}
-			out = append(out, struct{ Code, CodeCheck string }{
-				Code:      code,
-				CodeCheck: fv.String(),
+			out = append(out, struct{ Code, Action string }{
+				Code:   code,
+				Action: fv.String(),
 			})
 		}
 	}
 	return out
 }
 
-// AllPermissionEntries returns (Code, CodeCheck) sorted by Code for cmd/syncpermissions.
-func AllPermissionEntries() []struct{ Code, CodeCheck string } {
+// AllPermissionEntries returns (Code, Action) sorted by Code for cmd/syncpermissions.
+func AllPermissionEntries() []struct{ Code, Action string } {
 	entries := collectEntries()
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Code < entries[j].Code })
 	return entries

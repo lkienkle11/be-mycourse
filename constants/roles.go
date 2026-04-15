@@ -1,15 +1,15 @@
 package constants
 
 type roleT struct {
-	Admin   string
-	Creator string
-	Teacher string
-	Learner string
+	Sysadmin   string
+	Admin      string
+	Instructor string
+	Learner    string
 }
 
 var Role = roleT{
-	Admin:   "admin",
-	Creator: "creator",
-	Teacher: "teacher",
-	Learner: "learner",
+	Sysadmin:   "sysadmin",
+	Admin:      "admin",
+	Instructor: "instructor",
+	Learner:    "learner",
 }

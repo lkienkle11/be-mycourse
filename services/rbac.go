@@ -16,13 +16,13 @@ import (
 const (
 	rbacSQLPermissionCodesForUserTmpl = `
 SELECT DISTINCT cc FROM (
-  SELECT p.code_check AS cc
+  SELECT p.action AS cc
   FROM %s ur
   INNER JOIN %s rp ON rp.role_id = ur.role_id
   INNER JOIN %s p ON p.id = rp.permission_id
   WHERE ur.user_id = :user_id
   UNION
-  SELECT p.code_check
+  SELECT p.action
   FROM %s up
   INNER JOIN %s p ON p.id = up.permission_id
   WHERE up.user_id = :user_id
@@ -43,7 +43,7 @@ var (
 	rbacSQLPermissionCodesForUser              string
 	rbacSQLDeleteRolePermissionsByPermissionID string
 	rbacSQLDeleteRolePermissionsByRoleID       string
-	rbacSQLDeleteUserPermissionsByPermissionID   string
+	rbacSQLDeleteUserPermissionsByPermissionID string
 )
 
 func init() {
@@ -72,8 +72,8 @@ func rbacOrErr() (*gorm.DB, error) {
 	return rbacDB, nil
 }
 
-// PermissionCodesForUser returns distinct permission code_check values from the user's roles (role_permissions)
-// plus any direct user_permissions grants. Use catalog field strings with RequirePermission (e.g. constants.CodeCourse.Read).
+// PermissionCodesForUser returns distinct permission action values from the user's roles (role_permissions)
+// plus any direct user_permissions grants. Use catalog field strings with RequirePermission (e.g. constants.CodeUser.Read).
 func PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
 	db, err := rbacOrErr()
 	if err != nil {
@@ -97,18 +97,18 @@ func PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
 	return out, nil
 }
 
-// UserHasAllPermissions checks code_check strings (e.g. constants.CodeProfileRead.CourseRead).
-func UserHasAllPermissions(userID uint, requiredCodeChecks []string) (bool, string, error) {
-	if len(requiredCodeChecks) == 0 {
+// UserHasAllPermissions checks action strings (e.g. constants.CodeUser.Read).
+func UserHasAllPermissions(userID uint, requiredActions []string) (bool, string, error) {
+	if len(requiredActions) == 0 {
 		return true, "", nil
 	}
 	set, err := PermissionCodesForUser(userID)
 	if err != nil {
 		return false, "", err
 	}
-	for _, cc := range requiredCodeChecks {
-		if _, ok := set[cc]; !ok {
-			return false, cc, nil
+	for _, action := range requiredActions {
+		if _, ok := set[action]; !ok {
+			return false, action, nil
 		}
 	}
 	return true, "", nil
@@ -185,7 +185,7 @@ func ListPermissions(p ListPermissionsParams) ([]models.Permission, int64, error
 	return rows, total, nil
 }
 
-func CreatePermission(code, description string, codeCheck *string) (*models.Permission, error) {
+func CreatePermission(code, description string, action *string) (*models.Permission, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -193,18 +193,18 @@ func CreatePermission(code, description string, codeCheck *string) (*models.Perm
 	if code == "" {
 		return nil, errors.New("permission code required")
 	}
-	cc := code
-	if codeCheck != nil && strings.TrimSpace(*codeCheck) != "" {
-		cc = strings.TrimSpace(*codeCheck)
+	permissionAction := code
+	if action != nil && strings.TrimSpace(*action) != "" {
+		permissionAction = strings.TrimSpace(*action)
 	}
-	p := models.Permission{Code: code, CodeCheck: cc, Description: description}
+	p := models.Permission{Code: code, Action: permissionAction, Description: description}
 	if err := db.Create(&p).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-func UpdatePermission(id uint, code *string, codeCheck *string, description *string) (*models.Permission, error) {
+func UpdatePermission(id uint, code *string, action *string, description *string) (*models.Permission, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -216,9 +216,9 @@ func UpdatePermission(id uint, code *string, codeCheck *string, description *str
 	if code != nil && *code != "" {
 		p.Code = *code
 	}
-	if codeCheck != nil {
-		if strings.TrimSpace(*codeCheck) != "" {
-			p.CodeCheck = strings.TrimSpace(*codeCheck)
+	if action != nil {
+		if strings.TrimSpace(*action) != "" {
+			p.Action = strings.TrimSpace(*action)
 		}
 	}
 	if description != nil {

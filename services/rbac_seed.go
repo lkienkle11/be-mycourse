@@ -9,14 +9,24 @@ import (
 // defaultPermissionSeeds are created on seed if missing.
 var defaultPermissionSeeds = []struct {
 	Code        string
-	CodeCheck   string
+	Action      string
 	Description string
 }{
-	{"rbac.manage", "rbac:manage", "Manage roles, permissions, and user-role assignments"},
-	{"profile.course.read", "profile:course:read", "Read own profile"},
+	{"user.read", "user:read", ""},
+	{"user.create", "user:create", ""},
+	{"user.update", "user:update", ""},
+	{"user.delete", "user:delete", ""},
+	{"course.read", "course:read", ""},
+	{"course.create", "course:create", ""},
+	{"course.update", "course:update", ""},
+	{"course.delete", "course:delete", ""},
+	{"user_admin.read", "user_admin:read", ""},
+	{"user_admin.create", "user_admin:create", ""},
+	{"user_admin.update", "user_admin:update", ""},
+	{"user_admin.delete", "user_admin:delete", ""},
 }
 
-// SeedRBACDefaults creates baseline permissions and an admin role with rbac.manage.
+// SeedRBACDefaults creates baseline permissions and all default roles.
 func SeedRBACDefaults() error {
 	db, err := rbacOrErr()
 	if err != nil {
@@ -24,19 +34,23 @@ func SeedRBACDefaults() error {
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, s := range defaultPermissionSeeds {
-			p := models.Permission{Code: s.Code, CodeCheck: s.CodeCheck, Description: s.Description}
+			p := models.Permission{Code: s.Code, Action: s.Action, Description: s.Description}
 			if err := tx.Where("code = ?", s.Code).FirstOrCreate(&p).Error; err != nil {
 				return err
 			}
 		}
-		var manage models.Permission
-		if err := tx.Where("code = ?", "rbac.manage").First(&manage).Error; err != nil {
-			return err
+		roles := []models.Role{
+			{Name: "sysadmin", Description: "System-wide administration"},
+			{Name: "admin", Description: "Business administration"},
+			{Name: "instructor", Description: "Manage and teach courses"},
+			{Name: "learner", Description: "Consume learning content"},
 		}
-		admin := models.Role{Name: "admin", Description: "Full RBAC administration"}
-		if err := tx.Where("name = ?", "admin").FirstOrCreate(&admin).Error; err != nil {
-			return err
+		for _, role := range roles {
+			r := role
+			if err := tx.Where("name = ?", r.Name).FirstOrCreate(&r).Error; err != nil {
+				return err
+			}
 		}
-		return tx.Model(&admin).Association("Permissions").Replace([]models.Permission{manage})
+		return nil
 	})
 }

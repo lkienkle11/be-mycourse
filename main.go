@@ -9,11 +9,13 @@ import (
 	"mycourse-io-be/api"
 	"mycourse-io-be/cache_clients"
 	"mycourse-io-be/config"
+	"mycourse-io-be/jobs"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
 	"mycourse-io-be/queues"
 	"mycourse-io-be/services"
+	"mycourse-io-be/utils/envbool"
 )
 
 func main() {
@@ -44,10 +46,19 @@ func main() {
 	}
 
 	config.InitSystem()
+
+	if isAutoSyncPermissionJobEnabled() {
+		jobs.StartAutoSyncPermissionJob(models.DB)
+	}
+
 	queues.Consume()
 
 	router := api.InitRouter()
 	if err := router.Run(":" + setting.ServerSetting.Port); err != nil {
 		log.Fatalf("server run failed: %v", err)
 	}
+}
+
+func isAutoSyncPermissionJobEnabled() bool {
+	return envbool.Enabled("AUTO_SYNC_PERMISSION_JOB")
 }

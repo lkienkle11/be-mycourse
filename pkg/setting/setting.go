@@ -11,7 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 
-	"mycourse-io-be/utils/envbool"
+	"mycourse-io-be/pkg/envbool"
 )
 
 type App struct {

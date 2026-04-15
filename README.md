@@ -18,7 +18,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
    - `SUPABASE_DB_URL` (pooler or direct)
    - `APP_BASE_URL` — public base URL of this server, used in outgoing emails (no trailing slash), e.g. `https://api.mycourse.io`
    - `CORS_ALLOWED_ORIGINS` — comma-separated list of allowed frontend origins, e.g. `http://localhost:3000,https://mycourse.io`
-   - `AUTO_SYNC_PERMISSION_JOB` — set `true` to enable background permission sync every 12 hours
+   - `AUTO_SYNC_PERMISSION_JOB` — set one of `true`, `1`, `yes`, `y`, `on` to enable permission auto-sync (disabled by default)
 3. Run:
 
 ```bash
@@ -29,8 +29,9 @@ go run .
 ### Permission Sync Job (optional)
 
 - `go run ./cmd/syncpermissions` manually syncs `permissions` from `constants/permissions.go`.
-- Set `AUTO_SYNC_PERMISSION_JOB=true` to enable background auto-sync every 12 hours at server startup.
-- Job logic lives in `jobs/permission_sync.go` and `jobs/permission_sync_job.go`.
+- Set `AUTO_SYNC_PERMISSION_JOB=true` (or `1`, `yes`, `y`, `on`) to enable background auto-sync.
+- When enabled, the scheduler runs one sync immediately at startup, then repeats every 12 hours.
+- Job logic lives in `internal/rbacsync/sync.go` and `internal/jobs/permission_sync_scheduler.go`.
 
 4. Verify:
 

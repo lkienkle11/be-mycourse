@@ -342,5 +342,6 @@ func listUsers(c *gin.Context) {
 - `pkg/errcode`: numeric application error codes and their default messages.
 - `pkg/httperr`: Gin middleware for centralised error handling (panic recovery, validation).
 - `pkg/setting`: YAML config with per-stage files and `.env` map substitution.
+- `pkg/envbool`: parsing common “truthy” environment variable values (`true`, `1`, `yes`, …) for feature flags.
 - `config/`: `app.yaml` + `app-<STAGE>.yaml` and env examples.
 - `tracing/`, `runtime/`: observability and runtime placeholders.

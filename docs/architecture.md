@@ -59,14 +59,13 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `pkg/errcode` | Application error codes. |
 | `pkg/httperr` | Gin middleware for errors and panic recovery. |
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |
-| `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, … | Cross-cutting utilities. |
+| `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
 | `config/` | System bootstrap (`InitSystem`, default configs). |
 | `cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |
 | `constants/` | Role and permission codes for RBAC. |
 | `dbschema/` | RBAC-related schema helpers. |
 | `cmd/syncpermissions/` | Permission sync (`//go:generate` from `main.go`). |
-| `utils/` | Shared helpers reused across modules (e.g. env boolean parsing). |
 | `tracing/`, `runtime/` | Observability / runtime placeholders. |
 
 ---

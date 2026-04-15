@@ -14,10 +14,10 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
-	authcache "mycourse-io-be/services/cache"
 	"mycourse-io-be/pkg/brevo"
 	"mycourse-io-be/pkg/setting"
 	"mycourse-io-be/pkg/token"
+	authcache "mycourse-io-be/services/cache"
 )
 
 // Auth token lifetimes — exported so the HTTP layer can derive cookie MaxAge from the same value.
@@ -318,15 +318,15 @@ func issueTokenPair(user models.User, rememberMe bool, refreshTTL time.Duration)
 	}, nil
 }
 
-// userPermissionSlice returns a sorted slice of code_check strings for the user (via roles + direct grants).
+// userPermissionSlice returns a sorted slice of permission action strings for the user (via roles + direct grants).
 func userPermissionSlice(userID uint) ([]string, error) {
 	set, err := PermissionCodesForUser(userID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]string, 0, len(set))
-	for cc := range set {
-		out = append(out, cc)
+	for action := range set {
+		out = append(out, action)
 	}
 	sort.Strings(out)
 	return out, nil

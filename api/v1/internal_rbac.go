@@ -68,7 +68,7 @@ func createPermissionInternal(c *gin.Context) {
 		httperr.Abort(c, err)
 		return
 	}
-	p, err := services.CreatePermission(body.Code, body.Description, body.CodeCheck)
+	p, err := services.CreatePermission(body.Code, body.Description, body.Action)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
@@ -87,7 +87,7 @@ func updatePermissionInternal(c *gin.Context) {
 		httperr.Abort(c, err)
 		return
 	}
-	p, err := services.UpdatePermission(id, body.Code, body.CodeCheck, body.Description)
+	p, err := services.UpdatePermission(id, body.Code, body.Action, body.Description)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, http.StatusNotFound, errcode.NotFound, "not found", nil)

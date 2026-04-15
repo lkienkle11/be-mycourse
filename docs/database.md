@@ -69,17 +69,22 @@ RBAC permission definitions (flat — no hierarchy).
 |---|---|---|
 | `id` | `BIGSERIAL` PK | |
 | `code` | `VARCHAR(128)` UNIQUE NOT NULL | Stable catalog key (dot-separated, e.g. `course.read`) — matches `perm` tags in `constants/permissions.go` |
-| `code_check` | `VARCHAR(128)` UNIQUE NOT NULL | Runtime check string embedded in the JWT `permissions` array (colon-separated, e.g. `course:read`) — what `middleware.RequirePermission` compares |
+| `action` | `VARCHAR(128)` UNIQUE NOT NULL | Runtime check string embedded in the JWT `permissions` array (colon-separated, e.g. `course:read`) — what `middleware.RequirePermission` compares |
 | `description` | `TEXT` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-**Convention:** `code` uses **dots**; `code_check` uses **colons** (same logical segments). `cmd/syncpermissions` upserts from `constants.AllPermissionEntries()`.
+**Convention:** `code` uses **dots**; `action` uses **colons** (same logical segments). `cmd/syncpermissions` upserts from `constants.AllPermissionEntries()`.
+
+**Current 12 permissions:**
+- `user.read`, `user.create`, `user.update`, `user.delete`
+- `course.read`, `course.create`, `course.update`, `course.delete`
+- `user_admin.read`, `user_admin.create`, `user_admin.update`, `user_admin.delete`
 
 ---
 
 ## `roles`
 
-Named role definitions. Application constants live in `constants/roles.go` (`admin`, `creator`, `teacher`, `learner`).
+Named role definitions. Application constants live in `constants/roles.go` (`sysadmin`, `admin`, `instructor`, `learner`).
 
 | Column | Type | Description |
 |---|---|---|
@@ -88,7 +93,11 @@ Named role definitions. Application constants live in `constants/roles.go` (`adm
 | `description` | `TEXT` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-**Default permission sets** (seed trong `000002_rbac_seed.up.sql`): `learner` — `profile.course.read`, `course.read`; `teacher` — thêm `profile.course.write`, `course.write`, `course.update`; `creator` — thêm `course.create`, `course.delete`; `admin` — toàn bộ permission (gồm `rbac.manage`).
+**Default permission sets** (seed trong `000001_schema.up.sql`):
+- `sysadmin`: full 12 permissions
+- `admin`: `user.*` + `course.*`
+- `instructor`: `user.read`, `course.read`, `course.create`, `course.update`
+- `learner`: `user.read`, `course.read`
 
 ---
 
@@ -128,7 +137,7 @@ Direct permission grants (supplement role-based permissions).
 ## Effective Permissions
 
 A user's effective permissions = **union** of permissions from all assigned roles **plus** direct `user_permissions` grants.  
-They are resolved at login time, embedded in the access token's `permissions` array as **`code_check`** strings (colon form, e.g. `course:read`), and checked by `middleware.RequirePermission` against the same values from `constants/permissions.go`.
+They are resolved at login time, embedded in the access token's `permissions` array as **`action`** strings (colon form, e.g. `course:read`), and checked by `middleware.RequirePermission` against the same values from `constants/permissions.go`.
 
 ---
 
@@ -136,8 +145,7 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 
 | Version | File | Description |
 |---|---|---|
-| 000001 | `schema` | Create `permissions` (with `code_check`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions` with `BIGINT` user FKs |
-| 000002 | `rbac_seed` | Full permission catalog, roles `admin` / `creator` / `teacher` / `learner`, and `role_permissions` matrix |
+| 000001 | `schema` | Create `permissions` (with `action`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions`, and seed 12 permissions + 4 default roles |
 
 Chi tiết và lưu ý reset DB khi đổi chuỗi migration: `migrations/README.md`.
 

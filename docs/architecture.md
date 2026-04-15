@@ -29,7 +29,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 
 ## HTTP request path
 
-1. **`main.go`** loads settings, DB, Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, queue consumers, then **`api.InitRouter()`**.
+1. **`main.go`** loads settings, DB, Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, optional permission auto-sync job (`AUTO_SYNC_PERMISSION_JOB=true`, every 12h), queue consumers, then **`api.InitRouter()`**.
 2. **`api/router.go`** attaches global middleware: `pkg/httperr` (validation + recovery), **CORS**, **gzip**, then groups under **`/api`**.
 3. **`/api/v1`** uses `middleware.BeforeInterceptor()` on all routes, then splits into:
    - **Authenticated subtree** — `RateLimitLocal` + **`middleware.AuthJWT()`** → `api/v1.RegisterAuthenRoutes`.
@@ -50,6 +50,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `api/v1/` | Versioned handlers: `auth.go`, `me.go`, `routes.go`, `internal_rbac.go`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
 | `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. |
+| `jobs/` | Background jobs and one-off sync workers (e.g. permission sync scheduler and DB catalog sync core). |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
 | `models/` | GORM models and DB setup (`setup.go`, `repository.go`, …). |
 | `migrations/` | Versioned SQL migrations (embedded / migrate tooling). |
@@ -64,6 +65,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `constants/` | Role and permission codes for RBAC. |
 | `dbschema/` | RBAC-related schema helpers. |
 | `cmd/syncpermissions/` | Permission sync (`//go:generate` from `main.go`). |
+| `utils/` | Shared helpers reused across modules (e.g. env boolean parsing). |
 | `tracing/`, `runtime/` | Observability / runtime placeholders. |
 
 ---
@@ -94,6 +96,7 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 
 - **YAML** under `config/` (`app.yaml`, `app-<STAGE>.yaml`) with values overridden from **environment variables** (see `pkg/setting` and `.env.example`).
 - **CORS** allowed origins from `CORS_ALLOWED_ORIGINS` (comma-separated); see README for header contract with the frontend.
+- **Permission auto-sync** from constants to DB can run in background every 12 hours when `AUTO_SYNC_PERMISSION_JOB=true` (implemented in `jobs/permission_sync_job.go`).
 
 ---
 

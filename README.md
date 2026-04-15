@@ -18,12 +18,19 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
    - `SUPABASE_DB_URL` (pooler or direct)
    - `APP_BASE_URL` — public base URL of this server, used in outgoing emails (no trailing slash), e.g. `https://api.mycourse.io`
    - `CORS_ALLOWED_ORIGINS` — comma-separated list of allowed frontend origins, e.g. `http://localhost:3000,https://mycourse.io`
+   - `AUTO_SYNC_PERMISSION_JOB` — set `true` to enable background permission sync every 12 hours
 3. Run:
 
 ```bash
 go mod tidy
 go run .
 ```
+
+### Permission Sync Job (optional)
+
+- `go run ./cmd/syncpermissions` manually syncs `permissions` from `constants/permissions.go`.
+- Set `AUTO_SYNC_PERMISSION_JOB=true` to enable background auto-sync every 12 hours at server startup.
+- Job logic lives in `jobs/permission_sync.go` and `jobs/permission_sync_job.go`.
 
 4. Verify:
 

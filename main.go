@@ -11,11 +11,11 @@ import (
 	"mycourse-io-be/config"
 	"mycourse-io-be/internal/jobs"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/envbool"
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
 	"mycourse-io-be/queues"
 	"mycourse-io-be/services"
-	"mycourse-io-be/utils/envbool"
 )
 
 func main() {

@@ -124,3 +124,26 @@ SELECT r.id, p.permission_id
 FROM roles r
 INNER JOIN permissions p ON p.permission_id IN ('P1', 'P5', 'P10')
 WHERE r.name = 'learner';
+
+-- Isolated system tables (no FKs to app RBAC / users).
+-- system_app_config: exactly one logical row (id = 1). Secrets are managed out-of-band (SQL / future tooling).
+CREATE TABLE system_app_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    app_cli_system_password TEXT NOT NULL DEFAULT '',
+    app_system_env TEXT NOT NULL DEFAULT '',
+    app_token_env TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO system_app_config (id, app_cli_system_password, app_system_env, app_token_env)
+VALUES (1, '', '', '');
+
+-- Privileged system operators (credentials derived with app_system_env at write/login time).
+CREATE TABLE system_privileged_users (
+    id BIGSERIAL PRIMARY KEY,
+    username_secret TEXT NOT NULL,
+    password_secret TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX uix_system_privileged_users_username_secret ON system_privileged_users (username_secret);

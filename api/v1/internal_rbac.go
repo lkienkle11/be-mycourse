@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -26,6 +27,14 @@ func parseUintParam(c *gin.Context, name string) (uint, bool) {
 		return 0, false
 	}
 	return uint(v), true
+}
+
+func parsePermissionIDParam(c *gin.Context, name string) (string, bool) {
+	s := strings.TrimSpace(c.Param(name))
+	if s == "" || len(s) > 10 {
+		return "", false
+	}
+	return s, true
 }
 
 func listPermissionsInternal(c *gin.Context) {
@@ -68,7 +77,7 @@ func createPermissionInternal(c *gin.Context) {
 		httperr.Abort(c, err)
 		return
 	}
-	p, err := services.CreatePermission(body.Code, body.Description, body.Action)
+	p, err := services.CreatePermission(body.PermissionID, body.PermissionName, body.Description)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
@@ -77,9 +86,9 @@ func createPermissionInternal(c *gin.Context) {
 }
 
 func updatePermissionInternal(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	permissionID, ok := parsePermissionIDParam(c, "permissionId")
 	if !ok {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 		return
 	}
 	var body dto.UpdatePermissionRequest
@@ -87,7 +96,7 @@ func updatePermissionInternal(c *gin.Context) {
 		httperr.Abort(c, err)
 		return
 	}
-	p, err := services.UpdatePermission(id, body.Code, body.Action, body.Description)
+	p, err := services.UpdatePermission(permissionID, body.PermissionID, body.PermissionName, body.Description)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, http.StatusNotFound, errcode.NotFound, "not found", nil)
@@ -100,12 +109,12 @@ func updatePermissionInternal(c *gin.Context) {
 }
 
 func deletePermissionInternal(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	permissionID, ok := parsePermissionIDParam(c, "permissionId")
 	if !ok {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 		return
 	}
-	if err := services.DeletePermission(id); err != nil {
+	if err := services.DeletePermission(permissionID); err != nil {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
@@ -189,7 +198,7 @@ func setRolePermissionsInternal(c *gin.Context) {
 		httperr.Abort(c, err)
 		return
 	}
-	r, err := services.SetRolePermissions(id, body.PermissionCodes)
+	r, err := services.SetRolePermissions(id, body.PermissionIDs)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, http.StatusNotFound, errcode.NotFound, "role not found", nil)
@@ -314,16 +323,12 @@ func assignUserPermissionInternal(c *gin.Context) {
 	}
 	var err error
 	switch {
-	case body.PermissionID != nil:
-		if *body.PermissionID == 0 {
-			response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
-			return
-		}
-		err = services.AssignUserPermission(userID, *body.PermissionID)
-	case body.Code != "":
-		err = services.AssignUserPermissionByCode(userID, body.Code)
+	case body.PermissionID != nil && strings.TrimSpace(*body.PermissionID) != "":
+		err = services.AssignUserPermission(userID, strings.TrimSpace(*body.PermissionID))
+	case body.PermissionName != nil && strings.TrimSpace(*body.PermissionName) != "":
+		err = services.AssignUserPermissionByPermissionName(userID, strings.TrimSpace(*body.PermissionName))
 	default:
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "permission_id or permission_code required", nil)
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "permission_id or permission_name required", nil)
 		return
 	}
 	if err != nil {
@@ -343,7 +348,7 @@ func removeUserPermissionInternal(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
-	permissionID, ok := parseUintParam(c, "permissionId")
+	permissionID, ok := parsePermissionIDParam(c, "permissionId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 		return

@@ -17,9 +17,9 @@ import (
 const templateBaseDir = "template/html/email"
 
 var (
-	once              sync.Once
+	once               sync.Once
 	confirmAccountTmpl *template.Template
-	initErr           error
+	initErr            error
 )
 
 func loadTemplates() {

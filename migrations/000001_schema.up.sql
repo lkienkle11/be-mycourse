@@ -1,15 +1,13 @@
--- Core schema + RBAC seed in one migration.
--- permissions.code = stable dot-separated key. action = colon-separated JWT or RequirePermission string.
+-- Core schema + RBAC seed (single migration).
+-- permissions.permission_id = stable catalog PK (e.g. P1). permission_name = JWT / RequirePermission string (resource:action).
 
 CREATE TABLE permissions (
-    id BIGSERIAL PRIMARY KEY,
-    code VARCHAR(128) NOT NULL,
-    action VARCHAR(128) NOT NULL,
+    permission_id VARCHAR(10) PRIMARY KEY,
+    permission_name VARCHAR(50) NOT NULL,
     description VARCHAR(512) NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uix_permissions_code UNIQUE (code),
-    CONSTRAINT uix_permissions_action UNIQUE (action)
+    CONSTRAINT uix_permissions_permission_name UNIQUE (permission_name)
 );
 
 CREATE TABLE roles (
@@ -23,7 +21,7 @@ CREATE TABLE roles (
 
 CREATE TABLE role_permissions (
     role_id BIGINT NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
-    permission_id BIGINT NOT NULL REFERENCES permissions (id) ON DELETE CASCADE,
+    permission_id VARCHAR(10) NOT NULL REFERENCES permissions (permission_id) ON UPDATE CASCADE ON DELETE CASCADE,
     PRIMARY KEY (role_id, permission_id)
 );
 
@@ -61,26 +59,27 @@ CREATE INDEX idx_user_roles_user ON user_roles (user_id);
 
 CREATE TABLE user_permissions (
     user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    permission_id BIGINT NOT NULL REFERENCES permissions (id) ON DELETE CASCADE,
+    permission_id VARCHAR(10) NOT NULL REFERENCES permissions (permission_id) ON UPDATE CASCADE ON DELETE CASCADE,
     PRIMARY KEY (user_id, permission_id)
 );
 
 CREATE INDEX idx_user_permissions_user ON user_permissions (user_id);
 
-INSERT INTO permissions (code, action, description, created_at, updated_at)
+INSERT INTO permissions (permission_id, permission_name, description, created_at, updated_at)
 VALUES
-    ('user.create', 'user:create', '', NOW(), NOW()),
-    ('user.delete', 'user:delete', '', NOW(), NOW()),
-    ('user.read', 'user:read', '', NOW(), NOW()),
-    ('user.update', 'user:update', '', NOW(), NOW()),
-    ('course.create', 'course:create', '', NOW(), NOW()),
-    ('course.delete', 'course:delete', '', NOW(), NOW()),
-    ('course.read', 'course:read', '', NOW(), NOW()),
-    ('course.update', 'course:update', '', NOW(), NOW()),
-    ('user_admin.create', 'user_admin:create', '', NOW(), NOW()),
-    ('user_admin.delete', 'user_admin:delete', '', NOW(), NOW()),
-    ('user_admin.read', 'user_admin:read', '', NOW(), NOW()),
-    ('user_admin.update', 'user_admin:update', '', NOW(), NOW());
+    ('P1', 'profile:read', '', NOW(), NOW()),
+    ('P2', 'profile:update', '', NOW(), NOW()),
+    ('P3', 'profile:delete', '', NOW(), NOW()),
+    ('P4', 'profile:create', '', NOW(), NOW()),
+    ('P5', 'course:read', '', NOW(), NOW()),
+    ('P6', 'course:update', '', NOW(), NOW()),
+    ('P7', 'course:delete', '', NOW(), NOW()),
+    ('P8', 'course:create', '', NOW(), NOW()),
+    ('P9', 'course_instructor:read', '', NOW(), NOW()),
+    ('P10', 'user:read', '', NOW(), NOW()),
+    ('P11', 'user:update', '', NOW(), NOW()),
+    ('P12', 'user:delete', '', NOW(), NOW()),
+    ('P13', 'user:create', '', NOW(), NOW());
 
 INSERT INTO roles (name, description, created_at, updated_at)
 VALUES
@@ -90,42 +89,38 @@ VALUES
     ('learner', 'Consume learning content', NOW(), NOW());
 
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
+SELECT r.id, p.permission_id
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.name = 'sysadmin';
 
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
+SELECT r.id, p.permission_id
 FROM roles r
-INNER JOIN permissions p ON p.code IN (
-    'user.read',
-    'user.create',
-    'user.update',
-    'user.delete',
-    'course.read',
-    'course.create',
-    'course.update',
-    'course.delete'
+INNER JOIN permissions p ON p.permission_id IN (
+    'P1',
+    'P2',
+    'P3',
+    'P4',
+    'P5',
+    'P6',
+    'P7',
+    'P8',
+    'P10',
+    'P11',
+    'P12',
+    'P13'
 )
 WHERE r.name = 'admin';
 
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
+SELECT r.id, p.permission_id
 FROM roles r
-INNER JOIN permissions p ON p.code IN (
-    'user.read',
-    'course.read',
-    'course.create',
-    'course.update'
-)
+INNER JOIN permissions p ON p.permission_id IN ('P1', 'P5', 'P6', 'P7', 'P9', 'P10')
 WHERE r.name = 'instructor';
 
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
+SELECT r.id, p.permission_id
 FROM roles r
-INNER JOIN permissions p ON p.code IN (
-    'user.read',
-    'course.read'
-)
+INNER JOIN permissions p ON p.permission_id IN ('P1', 'P5', 'P10')
 WHERE r.name = 'learner';

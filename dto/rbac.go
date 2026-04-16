@@ -2,22 +2,22 @@ package dto
 
 // PermissionFilter is the query-param DTO for GET /internal-v1/rbac/permissions.
 //
-// Sortable fields : id, code, description, created_at
-// Searchable fields: code, description
+// Sortable fields : permission_id, permission_name, description, created_at
+// Searchable fields: permission_id, permission_name, description
 type PermissionFilter struct {
 	BaseFilter // required embed — provides page, per_page, sort_by, sort_order, search_by, search_data
 }
 
 type CreatePermissionRequest struct {
-	Code        string  `json:"code" binding:"required,min=1,max=128"`
-	Action      *string `json:"action"`
-	Description string  `json:"description" binding:"omitempty,max=512"`
+	PermissionID   string `json:"permission_id" binding:"required,min=1,max=10"`
+	PermissionName string `json:"permission_name" binding:"required,min=1,max=50"`
+	Description    string `json:"description" binding:"omitempty,max=512"`
 }
 
 type UpdatePermissionRequest struct {
-	Code        *string `json:"code"`
-	Action      *string `json:"action"`
-	Description *string `json:"description"`
+	PermissionID   *string `json:"permission_id" binding:"omitempty,min=1,max=10"`
+	PermissionName *string `json:"permission_name" binding:"omitempty,min=1,max=50"`
+	Description    *string `json:"description"`
 }
 
 type CreateRoleRequest struct {
@@ -31,7 +31,7 @@ type UpdateRoleRequest struct {
 }
 
 type SetRolePermissionsRequest struct {
-	PermissionCodes []string `json:"permission_codes" binding:"required"`
+	PermissionIDs []string `json:"permission_ids"`
 }
 
 type AssignUserRoleRequest struct {
@@ -39,6 +39,6 @@ type AssignUserRoleRequest struct {
 }
 
 type AssignUserPermissionRequest struct {
-	PermissionID *uint  `json:"permission_id"`
-	Code         string `json:"permission_code"`
+	PermissionID   *string `json:"permission_id" binding:"omitempty,max=10"`
+	PermissionName *string `json:"permission_name" binding:"omitempty,max=50"`
 }

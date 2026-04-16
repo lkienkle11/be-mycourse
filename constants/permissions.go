@@ -4,69 +4,70 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
+	"strings"
 )
 
-// Struct tag `perm` is permissions.code in Postgres. Each field's string value is the runtime
-// check string (permissions.action) — use like TS: constants.CodeUser.Read
-// in RequirePermission(...), not a separate .Action field.
+// allPermissionsT is the canonical catalog: struct tag perm_id = DB permissions.permission_id (PK).
+// Each field's string value = permissions.permission_name (JWT / RequirePermission), e.g. AllPermissions.UserRead.
 
-// --- Domain groups (add APIs by adding a string field + perm tag; register nothing else). ---
-
-type codeUserT struct {
-	Read   string `perm:"user.read"`
-	Create string `perm:"user.create"`
-	Update string `perm:"user.update"`
-	Delete string `perm:"user.delete"`
+type allPermissionsT struct {
+	// Profile
+	ProfileRead   string `perm_id:"P1"`
+	ProfileUpdate string `perm_id:"P2"`
+	ProfileDelete string `perm_id:"P3"`
+	ProfileCreate string `perm_id:"P4"`
+	// Course
+	CourseRead   string `perm_id:"P5"`
+	CourseUpdate string `perm_id:"P6"`
+	CourseDelete string `perm_id:"P7"`
+	CourseCreate string `perm_id:"P8"`
+	// Course Instructor
+	CourseInstructorRead string `perm_id:"P9"`
+	// User
+	UserRead   string `perm_id:"P10"`
+	UserUpdate string `perm_id:"P11"`
+	UserDelete string `perm_id:"P12"`
+	UserCreate string `perm_id:"P13"`
 }
 
-// CodeUser user.* checks (e.g. CodeUser.Read).
-var CodeUser = codeUserT{
-	Read:   "user:read",
-	Create: "user:create",
-	Update: "user:update",
-	Delete: "user:delete",
-}
-
-type codeCourseT struct {
-	Read   string `perm:"course.read"`
-	Create string `perm:"course.create"`
-	Update string `perm:"course.update"`
-	Delete string `perm:"course.delete"`
-}
-
-// CodeCourse course.* checks (e.g. CodeCourse.Read).
-var CodeCourse = codeCourseT{
-	Read:   "course:read",
-	Create: "course:create",
-	Update: "course:update",
-	Delete: "course:delete",
-}
-
-type codeUserAdminT struct {
-	Read   string `perm:"user_admin.read"`
-	Create string `perm:"user_admin.create"`
-	Update string `perm:"user_admin.update"`
-	Delete string `perm:"user_admin.delete"`
-}
-
-// CodeUserAdmin user_admin.* checks (e.g. CodeUserAdmin.Read).
-var CodeUserAdmin = codeUserAdminT{
-	Read:   "user_admin:read",
-	Create: "user_admin:create",
-	Update: "user_admin:update",
-	Delete: "user_admin:delete",
+var AllPermissions = allPermissionsT{
+	ProfileRead:          "profile:read",
+	ProfileUpdate:        "profile:update",
+	ProfileDelete:        "profile:delete",
+	ProfileCreate:        "profile:create",
+	CourseRead:           "course:read",
+	CourseUpdate:         "course:update",
+	CourseDelete:         "course:delete",
+	CourseCreate:         "course:create",
+	CourseInstructorRead: "course_instructor:read",
+	UserRead:             "user:read",
+	UserUpdate:           "user:update",
+	UserDelete:           "user:delete",
+	UserCreate:           "user:create",
 }
 
 func allPermissionGroups() []reflect.Value {
-	return []reflect.Value{
-		reflect.ValueOf(CodeUser),
-		reflect.ValueOf(CodeCourse),
-		reflect.ValueOf(CodeUserAdmin),
-	}
+	return []reflect.Value{reflect.ValueOf(AllPermissions)}
 }
 
-func collectEntries() []struct{ Code, Action string } {
-	var out []struct{ Code, Action string }
+// PermissionCatalogEntry is one row from AllPermissions for DB sync.
+type PermissionCatalogEntry struct {
+	PermissionID   string
+	PermissionName string
+}
+
+func comparePermissionID(a, b string) bool {
+	na, errA := strconv.Atoi(strings.TrimPrefix(strings.ToUpper(a), "P"))
+	nb, errB := strconv.Atoi(strings.TrimPrefix(strings.ToUpper(b), "P"))
+	if errA != nil || errB != nil {
+		return a < b
+	}
+	return na < nb
+}
+
+func collectPermissionCatalogEntries() []PermissionCatalogEntry {
+	var out []PermissionCatalogEntry
 	for _, rv := range allPermissionGroups() {
 		rt := rv.Type()
 		if rt.Kind() != reflect.Struct {
@@ -77,26 +78,28 @@ func collectEntries() []struct{ Code, Action string } {
 			if sf.PkgPath != "" {
 				continue
 			}
-			code := sf.Tag.Get("perm")
-			if code == "" {
+			permID := sf.Tag.Get("perm_id")
+			if permID == "" {
 				continue
 			}
 			fv := rv.Field(i)
 			if fv.Kind() != reflect.String {
 				panic(fmt.Sprintf("constants: permission field %s.%s must be string", rt.Name(), sf.Name))
 			}
-			out = append(out, struct{ Code, Action string }{
-				Code:   code,
-				Action: fv.String(),
+			out = append(out, PermissionCatalogEntry{
+				PermissionID:   permID,
+				PermissionName: fv.String(),
 			})
 		}
 	}
 	return out
 }
 
-// AllPermissionEntries returns (Code, Action) sorted by Code for cmd/syncpermissions.
-func AllPermissionEntries() []struct{ Code, Action string } {
-	entries := collectEntries()
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Code < entries[j].Code })
+// AllPermissionEntries returns catalog rows sorted by perm_id (P1, P2, …) for cmd/syncpermissions and rbacsync.
+func AllPermissionEntries() []PermissionCatalogEntry {
+	entries := collectPermissionCatalogEntries()
+	sort.Slice(entries, func(i, j int) bool {
+		return comparePermissionID(entries[i].PermissionID, entries[j].PermissionID)
+	})
 	return entries
 }

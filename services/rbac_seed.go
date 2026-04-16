@@ -3,39 +3,24 @@ package services
 import (
 	"gorm.io/gorm"
 
+	"mycourse-io-be/constants"
 	"mycourse-io-be/models"
 )
 
-// defaultPermissionSeeds are created on seed if missing.
-var defaultPermissionSeeds = []struct {
-	Code        string
-	Action      string
-	Description string
-}{
-	{"user.read", "user:read", ""},
-	{"user.create", "user:create", ""},
-	{"user.update", "user:update", ""},
-	{"user.delete", "user:delete", ""},
-	{"course.read", "course:read", ""},
-	{"course.create", "course:create", ""},
-	{"course.update", "course:update", ""},
-	{"course.delete", "course:delete", ""},
-	{"user_admin.read", "user_admin:read", ""},
-	{"user_admin.create", "user_admin:create", ""},
-	{"user_admin.update", "user_admin:update", ""},
-	{"user_admin.delete", "user_admin:delete", ""},
-}
-
-// SeedRBACDefaults creates baseline permissions and all default roles.
+// SeedRBACDefaults ensures catalog permissions (by permission_id) and baseline roles exist.
 func SeedRBACDefaults() error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
-		for _, s := range defaultPermissionSeeds {
-			p := models.Permission{Code: s.Code, Action: s.Action, Description: s.Description}
-			if err := tx.Where("code = ?", s.Code).FirstOrCreate(&p).Error; err != nil {
+		for _, e := range constants.AllPermissionEntries() {
+			p := models.Permission{
+				PermissionID:   e.PermissionID,
+				PermissionName: e.PermissionName,
+				Description:    "",
+			}
+			if err := tx.Where("permission_id = ?", e.PermissionID).FirstOrCreate(&p).Error; err != nil {
 				return err
 			}
 		}

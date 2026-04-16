@@ -9,7 +9,8 @@ import (
 	"mycourse-io-be/models"
 )
 
-// SyncPermissionsFromConstants upserts permissions from constants and prunes unknown DB rows.
+// SyncPermissionsFromConstants upserts rows from constants.AllPermissionEntries by permission_id:
+// updates permission_name (and leaves any extra DB permissions untouched).
 func SyncPermissionsFromConstants(db *gorm.DB) (int, error) {
 	if db == nil {
 		return 0, errors.New("nil database")
@@ -17,23 +18,18 @@ func SyncPermissionsFromConstants(db *gorm.DB) (int, error) {
 
 	entries := constants.AllPermissionEntries()
 	if len(entries) == 0 {
-		return 0, errors.New("no permission fields tagged with perm in constants")
-	}
-
-	codes := make([]string, 0, len(entries))
-	for _, e := range entries {
-		codes = append(codes, e.Code)
+		return 0, errors.New("no permission fields tagged with perm_id in constants.AllPermissions")
 	}
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		for _, e := range entries {
 			var p models.Permission
-			err := tx.Where("code = ?", e.Code).First(&p).Error
+			err := tx.Where("permission_id = ?", e.PermissionID).First(&p).Error
 			if err == gorm.ErrRecordNotFound {
 				p = models.Permission{
-					Code:        e.Code,
-					Action:      e.Action,
-					Description: "",
+					PermissionID:   e.PermissionID,
+					PermissionName: e.PermissionName,
+					Description:    "",
 				}
 				if err := tx.Create(&p).Error; err != nil {
 					return err
@@ -43,12 +39,12 @@ func SyncPermissionsFromConstants(db *gorm.DB) (int, error) {
 			if err != nil {
 				return err
 			}
-			p.Action = e.Action
+			p.PermissionName = e.PermissionName
 			if err := tx.Save(&p).Error; err != nil {
 				return err
 			}
 		}
-		return tx.Where("code NOT IN ?", codes).Delete(&models.Permission{}).Error
+		return nil
 	})
 	if err != nil {
 		return 0, err

@@ -25,7 +25,7 @@ func RegisterNotAuthenRoutes(rg *gin.RouterGroup) {
 func RegisterAuthenRoutes(rg *gin.RouterGroup) {
 	rg.GET("/me", getMe)
 	rg.GET("/me/permissions",
-		middleware.RequirePermission(constants.CodeUser.Read),
+		middleware.RequirePermission(constants.AllPermissions.UserRead),
 		getMyPermissions,
 	)
 }
@@ -34,8 +34,8 @@ func RegisterInternalRoutes(rg *gin.RouterGroup) {
 	rb := rg.Group("/rbac")
 	rb.GET("/permissions", listPermissionsInternal)
 	rb.POST("/permissions", createPermissionInternal)
-	rb.PATCH("/permissions/:id", updatePermissionInternal)
-	rb.DELETE("/permissions/:id", deletePermissionInternal)
+	rb.PATCH("/permissions/:permissionId", updatePermissionInternal)
+	rb.DELETE("/permissions/:permissionId", deletePermissionInternal)
 
 	rb.GET("/roles", listRolesInternal)
 	rb.POST("/roles", createRoleInternal)

@@ -29,13 +29,14 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 
 ## HTTP request path
 
-1. **`main.go`** loads settings, DB, Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, optional permission auto-sync job (`AUTO_SYNC_PERMISSION_JOB=true|1|yes|y|on`: run once at startup, then every 12h), optional weekly `role_permissions` rebuild (`AUTO_SYNC_ROLE_PERMISSION_JOB`), queue consumers, then **`api.InitRouter()`**.
+1. **`main.go`** loads settings, DB, optional privileged-user **CLI** when `CLI_REGISTER_NEW_SYSTEM_USER` is truthy (then exits), Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, queue consumers, then **`api.InitRouter()`**.
 2. **`api/router.go`** attaches global middleware: `pkg/httperr` (validation + recovery), **CORS**, **gzip**, then groups under **`/api`**.
-3. **`/api/v1`** uses `middleware.BeforeInterceptor()` on all routes, then splits into:
+3. **`/api/system`** — `BeforeInterceptor`, **`RateLimitSystemIP(10, 3)`** (overridable per IP via `middleware.SetSystemRateLimitOverride`), short-lived system JWT for privileged operators: login + permission / role-permission sync and in-memory 12h jobs (`api/system`, `services/system.go`, `internal/jobs/*`).
+4. **`/api/v1`** uses `middleware.BeforeInterceptor()` on all routes, then splits into:
    - **Authenticated subtree** — `RateLimitLocal` + **`middleware.AuthJWT()`** → `api/v1.RegisterAuthenRoutes`.
    - **Unauthenticated subtree** — `RateLimitLocal` only → `api/v1.RegisterNotAuthenRoutes`.
-4. **`/api/internal-v1`** — `RateLimitLocal`, `BeforeInterceptor`, **`middleware.RequireInternalAPIKey()`** → internal RBAC HTTP API (`api/v1.RegisterInternalRoutes`).
-5. **Handlers** in `api/v1/*.go` parse/bind DTOs, call **`services/*`**, and respond with **`pkg/response`** helpers (never ad-hoc `gin.H` envelopes).
+5. **`/api/internal-v1`** — `RateLimitLocal`, `BeforeInterceptor`, **`middleware.RequireInternalAPIKey()`** → internal RBAC HTTP API (`api/v1.RegisterInternalRoutes`).
+6. **Handlers** in `api/v1/*.go` parse/bind DTOs, call **`services/*`**, and respond with **`pkg/response`** helpers (never ad-hoc `gin.H` envelopes).
 
 **Redis:** Auth flows and `GET /api/v1/me` use `services/cache` (TTL-backed JSON and negative login cache — see `docs/modules/auth.md`). If Redis is unavailable, behaviour degrades to database-only where helpers no-op on errors.
 
@@ -46,11 +47,12 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | Path | Role |
 |------|------|
 | `main.go` | Process entry: settings, DB, cache, migrate flag, bootstrap, queues, router, listen on `setting.ServerSetting.Port` (default **8080**). |
-| `api/router.go` | Gin engine, global middleware, `/api/v1` and `/api/internal-v1` groups. |
+| `api/router.go` | Gin engine, global middleware, `/api/system`, `/api/v1`, `/api/internal-v1` groups. |
+| `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). |
 | `api/v1/` | Versioned handlers: `auth.go`, `me.go`, `routes.go`, `internal_rbac.go`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
 | `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. |
-| `internal/jobs/` | App-private background schedulers (e.g. permission auto-sync ticker). |
+| `internal/jobs/` | In-memory 12h RBAC sync tickers started/stopped via `/api/system` (not env-gated). |
 | `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
 | `models/` | GORM models and DB setup (`setup.go`, `repository.go`, …). |
@@ -97,8 +99,8 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 
 - **YAML** under `config/` (`app.yaml`, `app-<STAGE>.yaml`) with values overridden from **environment variables** (see `pkg/setting` and `.env.example`).
 - **CORS** allowed origins from `CORS_ALLOWED_ORIGINS` (comma-separated); see README for header contract with the frontend.
-- **Permission auto-sync** from constants to DB can run in background when `AUTO_SYNC_PERMISSION_JOB` is one of `true`, `1`, `yes`, `y`, `on` (runs once at startup, then every 12 hours; `internal/jobs/permission_sync_scheduler.go`).
-- **Role–permission matrix auto-sync** when `AUTO_SYNC_ROLE_PERMISSION_JOB` is enabled (once at startup, then every 7 days; `internal/jobs/role_permission_sync_scheduler.go`).
+- **RBAC sync from constants** — immediate runs or 12h in-memory jobs via **`/api/system`** (`create-*-sync-job`, `delete-*-sync-job`, `*-sync-now`). Secrets live in **`system_app_config`** (singleton row); privileged operators in **`system_privileged_users`**.
+- **`CLI_REGISTER_NEW_SYSTEM_USER`** — when truthy, after DB init the binary prompts for CLI app password + new privileged credentials, writes `system_privileged_users`, prints English success/failure, then exits.
 
 ---
 

@@ -10,9 +10,8 @@ import (
 	"mycourse-io-be/api"
 	"mycourse-io-be/cache_clients"
 	"mycourse-io-be/config"
-	"mycourse-io-be/internal/jobs"
+	"mycourse-io-be/internal/appcli"
 	"mycourse-io-be/models"
-	"mycourse-io-be/pkg/envbool"
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
 	"mycourse-io-be/queues"
@@ -28,6 +27,10 @@ func main() {
 		log.Fatalf("setup postgres ([database]) failed: %v", err)
 	}
 	services.SetRBACDB(models.DB)
+
+	if appcli.MaybeRunRegisterNewSystemUser(models.DB) {
+		os.Exit(0)
+	}
 
 	if err := supabasepkg.SetupDatabase(); err != nil {
 		log.Fatalf("setup supabase postgres (DBURL) failed: %v", err)
@@ -48,26 +51,10 @@ func main() {
 
 	config.InitSystem()
 
-	if isAutoSyncPermissionJobEnabled() {
-		jobs.StartAutoSyncPermissionJob(models.DB)
-	}
-
-	if isAutoSyncRolePermissionJobEnabled() {
-		jobs.StartWeeklyRolePermissionSyncJob(models.DB)
-	}
-
 	queues.Consume()
 
 	router := api.InitRouter()
 	if err := router.Run(":" + setting.ServerSetting.Port); err != nil {
 		log.Fatalf("server run failed: %v", err)
 	}
-}
-
-func isAutoSyncPermissionJobEnabled() bool {
-	return envbool.Enabled("AUTO_SYNC_PERMISSION_JOB")
-}
-
-func isAutoSyncRolePermissionJobEnabled() bool {
-	return envbool.Enabled("AUTO_SYNC_ROLE_PERMISSION_JOB")
 }

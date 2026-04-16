@@ -5,8 +5,10 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 
+	apisystem "mycourse-io-be/api/system"
 	apiV1 "mycourse-io-be/api/v1"
 	"mycourse-io-be/middleware"
+	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/httperr"
 	"mycourse-io-be/pkg/setting"
 )
@@ -25,6 +27,11 @@ func InitRouter() *gin.Engine {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	apiRoot := router.Group("/api")
+
+	system := apiRoot.Group("/system")
+	system.Use(middleware.BeforeInterceptor())
+	system.Use(middleware.RateLimitSystemIP(10, 3))
+	apisystem.RegisterRoutes(system, models.DB)
 
 	v1 := apiRoot.Group("/v1")
 	v1.Use(middleware.BeforeInterceptor())

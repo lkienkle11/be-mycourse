@@ -63,22 +63,16 @@ Schema và cột `refresh_token_session` nằm trong migration `000001_schema` (
 
 ## `permissions`
 
-RBAC permission definitions (flat — no hierarchy).
+RBAC permission definitions (flat — no hierarchy). The primary key is the **catalog id** (`permission_id`, e.g. `P1`), not a surrogate bigint.
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | `BIGSERIAL` PK | |
-| `code` | `VARCHAR(128)` UNIQUE NOT NULL | Stable catalog key (dot-separated, e.g. `course.read`) — matches `perm` tags in `constants/permissions.go` |
-| `action` | `VARCHAR(128)` UNIQUE NOT NULL | Runtime check string embedded in the JWT `permissions` array (colon-separated, e.g. `course:read`) — what `middleware.RequirePermission` compares |
-| `description` | `TEXT` | |
+| `permission_id` | `VARCHAR(10)` PK | Stable id (`P{number}`), aligned with struct tag `perm_id` on `constants.AllPermissions` |
+| `permission_name` | `VARCHAR(50)` UNIQUE NOT NULL | Runtime string in the JWT `permissions` claim and `middleware.RequirePermission` (`resource:action`, e.g. `course:read`) |
+| `description` | `VARCHAR(512)` NOT NULL DEFAULT `''` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-**Convention:** `code` uses **dots**; `action` uses **colons** (same logical segments). `cmd/syncpermissions` upserts from `constants.AllPermissionEntries()`.
-
-**Current 12 permissions:**
-- `user.read`, `user.create`, `user.update`, `user.delete`
-- `course.read`, `course.create`, `course.update`, `course.delete`
-- `user_admin.read`, `user_admin.create`, `user_admin.update`, `user_admin.delete`
+**Sync:** `cmd/syncpermissions` upserts `permission_name` (and inserts missing rows) for every entry from `constants.AllPermissionEntries()` **by `permission_id`**. Extra rows present only in the database are **left unchanged**.
 
 ---
 
@@ -93,22 +87,22 @@ Named role definitions. Application constants live in `constants/roles.go` (`sys
 | `description` | `TEXT` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-**Default permission sets** (seed trong `000001_schema.up.sql`):
-- `sysadmin`: full 12 permissions
-- `admin`: `user.*` + `course.*`
-- `instructor`: `user.read`, `course.read`, `course.create`, `course.update`
-- `learner`: `user.read`, `course.read`
+**Default permission sets** (seed trong `000001_schema.up.sql`, rebuilt from `constants/roles_permission.go` by `cmd/syncrolepermissions`):
+- `sysadmin`: `P1`–`P13` (full catalog)
+- `admin`: profile + course + user CRUD, **không** `P9` (`course_instructor:read`)
+- `instructor`: `P1`, `P5`–`P7`, `P9`, `P10`
+- `learner`: `P1`, `P5`, `P10`
 
 ---
 
 ## `role_permissions`
 
-Many-to-many: roles ↔ permissions.
+Many-to-many: roles ↔ permissions. `permission_id` here is the **string PK** on `permissions`, not a bigint.
 
 | Column | Type |
 |---|---|
-| `role_id` | `BIGINT` FK → `roles(id)` |
-| `permission_id` | `BIGINT` FK → `permissions(id)` |
+| `role_id` | `BIGINT` FK → `roles(id)` ON DELETE CASCADE |
+| `permission_id` | `VARCHAR(10)` FK → `permissions(permission_id)` ON DELETE CASCADE, ON UPDATE CASCADE |
 
 ---
 
@@ -130,14 +124,14 @@ Direct permission grants (supplement role-based permissions).
 | Column | Type |
 |---|---|
 | `user_id` | `BIGINT` FK → `users(id)` |
-| `permission_id` | `BIGINT` FK → `permissions(id)` |
+| `permission_id` | `VARCHAR(10)` FK → `permissions(permission_id)` ON DELETE CASCADE, ON UPDATE CASCADE |
 
 ---
 
 ## Effective Permissions
 
 A user's effective permissions = **union** of permissions from all assigned roles **plus** direct `user_permissions` grants.  
-They are resolved at login time, embedded in the access token's `permissions` array as **`action`** strings (colon form, e.g. `course:read`), and checked by `middleware.RequirePermission` against the same values from `constants/permissions.go`.
+They are resolved at login time, embedded in the access token's `permissions` array as **`permission_name`** strings (colon form, e.g. `course:read`), and checked by `middleware.RequirePermission` against the same values from `constants.AllPermissions`.
 
 ---
 
@@ -145,7 +139,7 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 
 | Version | File | Description |
 |---|---|---|
-| 000001 | `schema` | Create `permissions` (with `action`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions`, and seed 12 permissions + 4 default roles |
+| 000001 | `schema` | Create `permissions` (`permission_id` PK + `permission_name`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions`, and seed 13 permissions + 4 default roles + `role_permissions` matrix |
 
 Chi tiết và lưu ý reset DB khi đổi chuỗi migration: `migrations/README.md`.
 

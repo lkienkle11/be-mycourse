@@ -7,7 +7,7 @@ Three cookies are issued on every successful login or email confirmation and rot
 
 | Cookie | Contents | TTL |
 |---|---|---|
-| `access_token` | Signed HS256 JWT with user identity + `permissions` claim (`action` strings) | 15 minutes |
+| `access_token` | Signed HS256 JWT with user identity + `permissions` claim (`permission_name` strings, e.g. `user:read`) | 15 minutes |
 | `refresh_token` | Signed HS256 JWT with `user_id` + `uuid` (session correlator) | 30 days (non-remember-me) / 14 days (remember-me) |
 | `session_id` | 128-char hex string — identifies the device session in the DB | same as `refresh_token` |
 
@@ -177,7 +177,7 @@ The `session_id` value is **unchanged** across rotations. The client must update
 
 ### `GET /api/v1/me`
 
-Returns the current user profile and effective permission codes (`action` strings), same shape as `dto.MeResponse`.
+Returns the current user profile and effective permission names (colon form, same as `permissions.permission_name`), same shape as `dto.MeResponse`.
 
 Requires `Authorization: Bearer <access_token>`.
 

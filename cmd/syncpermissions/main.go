@@ -1,5 +1,5 @@
-// Command syncpermissions aligns the permissions table with all `perm:"..."` fields in constants (upsert by Code,
-// update Action, delete rows whose Code is not in the catalog). Run before release builds, e.g.:
+// Command syncpermissions upserts permissions.permission_name from constants.AllPermissions
+// for each perm_id tag (extra DB rows are left unchanged). Run before release builds, e.g.:
 //
 //	go run ./cmd/syncpermissions
 package main
@@ -26,5 +26,5 @@ func main() {
 		log.Fatalf("syncpermissions: %v", err)
 	}
 
-	log.Printf("syncpermissions: ok (%d catalog entries; DB pruned to same set of codes)", count)
+	log.Printf("syncpermissions: ok (%d catalog entries synced by permission_id)", count)
 }

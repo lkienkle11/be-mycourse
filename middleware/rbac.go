@@ -11,7 +11,7 @@ import (
 )
 
 // RequirePermission allows the request only if the authenticated user has every listed
-// permission action value (e.g. constants.CodeUser.Read).
+// permission_name value (e.g. constants.AllPermissions.UserRead).
 // Must run after AuthJWT.
 //
 // Permissions are checked from the JWT context first (no DB round-trip).

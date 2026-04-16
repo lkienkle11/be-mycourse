@@ -16,15 +16,15 @@ import (
 const (
 	rbacSQLPermissionCodesForUserTmpl = `
 SELECT DISTINCT cc FROM (
-  SELECT p.action AS cc
+  SELECT p.permission_name AS cc
   FROM %s ur
   INNER JOIN %s rp ON rp.role_id = ur.role_id
-  INNER JOIN %s p ON p.id = rp.permission_id
+  INNER JOIN %s p ON p.permission_id = rp.permission_id
   WHERE ur.user_id = :user_id
   UNION
-  SELECT p.action
+  SELECT p.permission_name
   FROM %s up
-  INNER JOIN %s p ON p.id = up.permission_id
+  INNER JOIN %s p ON p.permission_id = up.permission_id
   WHERE up.user_id = :user_id
 ) AS _
 `
@@ -72,8 +72,8 @@ func rbacOrErr() (*gorm.DB, error) {
 	return rbacDB, nil
 }
 
-// PermissionCodesForUser returns distinct permission action values from the user's roles (role_permissions)
-// plus any direct user_permissions grants. Use catalog field strings with RequirePermission (e.g. constants.CodeUser.Read).
+// PermissionCodesForUser returns distinct permission_name values from the user's roles (role_permissions)
+// plus any direct user_permissions grants. Use with RequirePermission (e.g. constants.AllPermissions.UserRead).
 func PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
 	db, err := rbacOrErr()
 	if err != nil {
@@ -97,7 +97,7 @@ func PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
 	return out, nil
 }
 
-// UserHasAllPermissions checks action strings (e.g. constants.CodeUser.Read).
+// UserHasAllPermissions checks permission_name strings (e.g. constants.AllPermissions.UserRead).
 func UserHasAllPermissions(userID uint, requiredActions []string) (bool, string, error) {
 	if len(requiredActions) == 0 {
 		return true, "", nil
@@ -116,19 +116,17 @@ func UserHasAllPermissions(userID uint, requiredActions []string) (bool, string,
 
 // --- Permissions CRUD ---
 
-// allowedPermissionSortCols maps client-supplied sort_by values to safe SQL column names.
-// Only columns in this map are accepted — anything else falls back to the default ("code").
 var allowedPermissionSortCols = map[string]string{
-	"id":          "id",
-	"code":        "code",
-	"description": "description",
-	"created_at":  "created_at",
+	"permission_id":   "permission_id",
+	"permission_name": "permission_name",
+	"description":     "description",
+	"created_at":      "created_at",
 }
 
-// allowedPermissionSearchCols maps client-supplied search_by values to safe SQL column names.
 var allowedPermissionSearchCols = map[string]string{
-	"code":        "code",
-	"description": "description",
+	"permission_id":   "permission_id",
+	"permission_name": "permission_name",
+	"description":     "description",
 }
 
 // ListPermissionsParams carries the validated filter values from the handler.
@@ -151,21 +149,18 @@ func ListPermissions(p ListPermissionsParams) ([]models.Permission, int64, error
 
 	q := db.Model(&models.Permission{})
 
-	// Apply search predicate when both search_by and search_data are present.
 	if p.SearchBy != "" && p.SearchData != "" {
 		if col, ok := allowedPermissionSearchCols[p.SearchBy]; ok {
 			q = q.Where(col+" ILIKE ?", "%"+p.SearchData+"%")
 		}
 	}
 
-	// Count total matching rows (without LIMIT/OFFSET).
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Build ORDER BY — default to "code ASC" when sort_by is absent or not whitelisted.
-	orderCol := "code"
+	orderCol := "permission_id"
 	if col, ok := allowedPermissionSortCols[p.SortBy]; ok {
 		orderCol = col
 	}
@@ -185,40 +180,70 @@ func ListPermissions(p ListPermissionsParams) ([]models.Permission, int64, error
 	return rows, total, nil
 }
 
-func CreatePermission(code, description string, action *string) (*models.Permission, error) {
+func CreatePermission(permissionID, permissionName, description string) (*models.Permission, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
 	}
-	if code == "" {
-		return nil, errors.New("permission code required")
+	permissionID = strings.TrimSpace(permissionID)
+	permissionName = strings.TrimSpace(permissionName)
+	if permissionID == "" {
+		return nil, errors.New("permission_id required")
 	}
-	permissionAction := code
-	if action != nil && strings.TrimSpace(*action) != "" {
-		permissionAction = strings.TrimSpace(*action)
+	if permissionName == "" {
+		return nil, errors.New("permission_name required")
 	}
-	p := models.Permission{Code: code, Action: permissionAction, Description: description}
+	if len(permissionID) > 10 {
+		return nil, errors.New("permission_id too long (max 10)")
+	}
+	if len(permissionName) > 50 {
+		return nil, errors.New("permission_name too long (max 50)")
+	}
+	p := models.Permission{
+		PermissionID:   permissionID,
+		PermissionName: permissionName,
+		Description:    description,
+	}
 	if err := db.Create(&p).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-func UpdatePermission(id uint, code *string, action *string, description *string) (*models.Permission, error) {
+// UpdatePermission updates a permission row. If newPermissionID is set and differs from permissionID,
+// permissions.permission_id is changed (FKs use ON UPDATE CASCADE).
+func UpdatePermission(permissionID string, newPermissionID *string, permissionName *string, description *string) (*models.Permission, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
 	}
+	permissionID = strings.TrimSpace(permissionID)
+	if permissionID == "" {
+		return nil, errors.New("permission_id required")
+	}
 	var p models.Permission
-	if err := db.First(&p, id).Error; err != nil {
+	if err := db.Where("permission_id = ?", permissionID).First(&p).Error; err != nil {
 		return nil, err
 	}
-	if code != nil && *code != "" {
-		p.Code = *code
+	if newPermissionID != nil {
+		n := strings.TrimSpace(*newPermissionID)
+		if n != "" && n != p.PermissionID {
+			if len(n) > 10 {
+				return nil, errors.New("permission_id too long (max 10)")
+			}
+			if err := db.Model(&models.Permission{}).Where("permission_id = ?", p.PermissionID).Update("permission_id", n).Error; err != nil {
+				return nil, err
+			}
+			p.PermissionID = n
+		}
 	}
-	if action != nil {
-		if strings.TrimSpace(*action) != "" {
-			p.Action = strings.TrimSpace(*action)
+	if permissionName != nil {
+		v := strings.TrimSpace(*permissionName)
+		if v != "" {
+			if len(v) > 50 {
+				return nil, errors.New("permission_name too long (max 50)")
+			}
+			p.PermissionName = v
 		}
 	}
 	if description != nil {
@@ -230,27 +255,31 @@ func UpdatePermission(id uint, code *string, action *string, description *string
 	return &p, nil
 }
 
-func DeletePermission(id uint) error {
+func DeletePermission(permissionID string) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
 	}
+	permissionID = strings.TrimSpace(permissionID)
+	if permissionID == "" {
+		return errors.New("permission_id required")
+	}
 	return db.Transaction(func(tx *gorm.DB) error {
-		q, args, err := sqlnamed.Postgres(rbacSQLDeleteRolePermissionsByPermissionID, map[string]interface{}{"permission_id": id})
+		q, args, err := sqlnamed.Postgres(rbacSQLDeleteRolePermissionsByPermissionID, map[string]interface{}{"permission_id": permissionID})
 		if err != nil {
 			return err
 		}
 		if err := tx.Exec(q, args...).Error; err != nil {
 			return err
 		}
-		q2, args2, err := sqlnamed.Postgres(rbacSQLDeleteUserPermissionsByPermissionID, map[string]interface{}{"permission_id": id})
+		q2, args2, err := sqlnamed.Postgres(rbacSQLDeleteUserPermissionsByPermissionID, map[string]interface{}{"permission_id": permissionID})
 		if err != nil {
 			return err
 		}
 		if err := tx.Exec(q2, args2...).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&models.Permission{}, id).Error
+		return tx.Where("permission_id = ?", permissionID).Delete(&models.Permission{}).Error
 	})
 }
 
@@ -344,8 +373,8 @@ func DeleteRole(id uint) error {
 	})
 }
 
-// SetRolePermissions replaces all permissions on the role using permission codes.
-func SetRolePermissions(roleID uint, codes []string) (*models.Role, error) {
+// SetRolePermissions replaces all permissions on the role using permission_id values (e.g. P1).
+func SetRolePermissions(roleID uint, permissionIDs []string) (*models.Role, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, err
@@ -354,16 +383,29 @@ func SetRolePermissions(roleID uint, codes []string) (*models.Role, error) {
 	if err := db.First(&role, roleID).Error; err != nil {
 		return nil, err
 	}
-	var perms []models.Permission
-	if len(codes) > 0 {
-		if err := db.Where("code IN ?", codes).Find(&perms).Error; err != nil {
-			return nil, err
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("role_id = ?", roleID).Delete(&models.RolePermission{}).Error; err != nil {
+			return err
 		}
-		if len(perms) != len(codes) {
-			return nil, fmt.Errorf("unknown permission codes (expected %d, found %d)", len(codes), len(perms))
+		for _, pid := range permissionIDs {
+			pid = strings.TrimSpace(pid)
+			if pid == "" {
+				continue
+			}
+			var n int64
+			if err := tx.Model(&models.Permission{}).Where("permission_id = ?", pid).Count(&n).Error; err != nil {
+				return err
+			}
+			if n == 0 {
+				return fmt.Errorf("unknown permission_id %q", pid)
+			}
+			if err := tx.Create(&models.RolePermission{RoleID: roleID, PermissionID: pid}).Error; err != nil {
+				return err
+			}
 		}
-	}
-	if err := db.Model(&role).Association("Permissions").Replace(perms); err != nil {
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	return GetRole(roleID, true)
@@ -438,7 +480,7 @@ func ListUserDirectPermissions(userID uint) ([]models.Permission, error) {
 	return out, nil
 }
 
-func AssignUserPermission(userID uint, permissionID uint) error {
+func AssignUserPermission(userID uint, permissionID string) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
@@ -446,8 +488,12 @@ func AssignUserPermission(userID uint, permissionID uint) error {
 	if userID == 0 {
 		return errors.New("invalid user id")
 	}
+	permissionID = strings.TrimSpace(permissionID)
+	if permissionID == "" {
+		return errors.New("permission_id required")
+	}
 	var n int64
-	if err := db.Model(&models.Permission{}).Where("id = ?", permissionID).Count(&n).Error; err != nil {
+	if err := db.Model(&models.Permission{}).Where("permission_id = ?", permissionID).Count(&n).Error; err != nil {
 		return err
 	}
 	if n == 0 {
@@ -457,25 +503,30 @@ func AssignUserPermission(userID uint, permissionID uint) error {
 	return db.FirstOrCreate(&row, models.UserPermission{UserID: userID, PermissionID: permissionID}).Error
 }
 
-func AssignUserPermissionByCode(userID uint, code string) error {
+// AssignUserPermissionByPermissionName resolves by permissions.permission_name (colon form).
+func AssignUserPermissionByPermissionName(userID uint, permissionName string) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
 	}
-	if userID == 0 || code == "" {
-		return errors.New("user id and permission code required")
+	if userID == 0 || strings.TrimSpace(permissionName) == "" {
+		return errors.New("user id and permission_name required")
 	}
 	var p models.Permission
-	if err := db.Where("code = ?", code).First(&p).Error; err != nil {
+	if err := db.Where("permission_name = ?", strings.TrimSpace(permissionName)).First(&p).Error; err != nil {
 		return err
 	}
-	return AssignUserPermission(userID, p.ID)
+	return AssignUserPermission(userID, p.PermissionID)
 }
 
-func RemoveUserPermission(userID uint, permissionID uint) error {
+func RemoveUserPermission(userID uint, permissionID string) error {
 	db, err := rbacOrErr()
 	if err != nil {
 		return err
+	}
+	permissionID = strings.TrimSpace(permissionID)
+	if permissionID == "" {
+		return errors.New("permission_id required")
 	}
 	return db.Where("user_id = ? AND permission_id = ?", userID, permissionID).Delete(&models.UserPermission{}).Error
 }

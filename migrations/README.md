@@ -6,13 +6,13 @@ Các file `*_up.sql` được **nhúng (embed)** vào binary (`migrations/embed.
 
 | File | Nội dung |
 |------|----------|
-| `000001_schema` | Tạo toàn bộ schema RBAC + users, dùng `permissions.action`, đồng thời seed sẵn 12 permissions + 4 roles (`sysadmin`, `admin`, `instructor`, `learner`) và ma trận `role_permissions`. |
+| `000001_schema` | Tạo toàn bộ schema RBAC + users: `permissions` với PK `permission_id` (VARCHAR) + `permission_name`, `roles`, `role_permissions` (FK `permission_id` string, ON DELETE / ON UPDATE CASCADE), `user_roles`, `user_permissions`, bảng `users` với `refresh_token_session`; seed 13 quyền (`P1`–`P13`), 4 role, ma trận `role_permissions`. |
 
-Chuỗi cũ nhiều bước (`000002` trở lên) đã bỏ để tối giản bootstrap. Với DB cũ đã chạy các version trước, nên reset DB + `schema_migrations`.
+Chuỗi cũ nhiều bước đã bỏ để tối giản bootstrap. Với DB cũ đã chạy version khác, nên reset DB + `schema_migrations`.
 
-**Xóa toàn bộ bảng bằng SQL (đúng thứ tự FK):** xem `docs/database.md` — mục **Xóa toàn bộ bảng (thủ công)** (có script `DROP TABLE` và hướng dẫn cập nhật khi thêm bảng mới).
+**Xóa toàn bộ bảng bằng SQL (đúng thứ tự FK):** xem `docs/database.md` — mục **Xóa toàn bộ bảng (thủ công)**.
 
-**Quy ước:** `permissions.code` dùng dấu chấm, `permissions.action` dùng dấu hai chấm (JWT / `RequirePermission`). Khi thêm quyền mới, cập nhật `constants/permissions.go`, tạo migration mới và chạy `go run ./cmd/syncpermissions` trên môi trường đã có dữ liệu.
+**Quy ước:** `permission_id` dạng `P{number}`; `permission_name` dạng `resource:action` (JWT / `RequirePermission`). Khi thêm quyền mới: cập nhật `constants/permissions.go`, migration nếu cần seed, rồi `go run ./cmd/syncpermissions` trên môi trường đã có dữ liệu. Ma trận role: `constants/roles_permission.go` + `go run ./cmd/syncrolepermissions`.
 
 ## Cách chạy migration với Gin / server hiện tại
 

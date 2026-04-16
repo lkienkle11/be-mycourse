@@ -1,6 +1,7 @@
 package main
 
 //go:generate go run ./cmd/syncpermissions
+//go:generate go run ./cmd/syncrolepermissions
 
 import (
 	"log"
@@ -51,6 +52,10 @@ func main() {
 		jobs.StartAutoSyncPermissionJob(models.DB)
 	}
 
+	if isAutoSyncRolePermissionJobEnabled() {
+		jobs.StartWeeklyRolePermissionSyncJob(models.DB)
+	}
+
 	queues.Consume()
 
 	router := api.InitRouter()
@@ -61,4 +66,8 @@ func main() {
 
 func isAutoSyncPermissionJobEnabled() bool {
 	return envbool.Enabled("AUTO_SYNC_PERMISSION_JOB")
+}
+
+func isAutoSyncRolePermissionJobEnabled() bool {
+	return envbool.Enabled("AUTO_SYNC_ROLE_PERMISSION_JOB")
 }

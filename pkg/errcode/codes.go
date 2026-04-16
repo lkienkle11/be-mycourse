@@ -7,7 +7,7 @@ package errcode
 // Use Success (0) for all successful responses.
 
 const (
-	Success = 0    // operation completed successfully
+	Success = 0 // operation completed successfully
 	Unknown = 9999
 
 	// Transport / parsing (1xxx)

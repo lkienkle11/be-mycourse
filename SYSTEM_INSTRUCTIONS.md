@@ -193,7 +193,37 @@ When working on backend tasks:
 
 ---
 
-## 10. Execution Flow (Mandatory)
+## 10. Temporary Sample Documentation (STRICTLY PROTECTED)
+
+- The following documentation files have been newly created and are considered **temporary resources**:
+  - `sample_chuc_nang.md`
+  - `sample_curl_api.md`
+  - `sample_modules.md`
+  - `sample_sql_full.md`
+
+- These files:
+  - May be **modified or deleted in the future** by the project owner  
+  - Contain **sample features, reference implementations, and draft materials** intended for future integration into the project  
+
+### Enforcement Rules:
+
+- The agent **MUST NOT modify, refactor, delete, or overwrite** any of these files under any circumstances  
+- The agent **MUST NOT introduce indirect changes** that could affect the integrity or content of these files  
+
+- These files must be treated as:
+  - **Read-only references (if accessed)**  
+  - **Non-authoritative sources** unless explicitly stated otherwise  
+
+### Conflict Handling:
+
+- If any task requires interaction that would alter these files:
+  - **STOP immediately**
+  - Clearly report the conflict  
+  - Do NOT attempt workarounds or partial modifications  
+
+---
+
+## 11. Execution Flow (Mandatory)
 
 1. Execute a **specific GitNexus query** related to the task  
 2. Analyze and understand GitNexus results  
@@ -209,7 +239,7 @@ When working on backend tasks:
 
 ---
 
-## 11. Failure Handling
+## 12. Failure Handling
 
 - If unable to comply with any rule:
   - Stop execution immediately  

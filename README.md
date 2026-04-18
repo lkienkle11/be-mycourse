@@ -6,8 +6,12 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 |-----|----------|
 | [`docs/architecture.md`](docs/architecture.md) | HTTP layers, directory map, `/api/v1` vs internal routes, GitNexus graph snapshot |
 | [`docs/deploy.md`](docs/deploy.md) | VPS + CI/CD runbook |
-| [`docs/database.md`](docs/database.md) | Database notes |
-| [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, …) |
+| [`docs/database.md`](docs/database.md) | Database schema, tables, migration history |
+| [`docs/requirements.md`](docs/requirements.md) | Functional & non-functional requirements for all features |
+| [`docs/sequence_diagrams.md`](docs/sequence_diagrams.md) | Mermaid sequence diagrams for every system flow |
+| [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
+| [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
+| [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, course, lesson, enrollment) |
 
 ## Quick Start
 

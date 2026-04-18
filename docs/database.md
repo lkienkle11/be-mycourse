@@ -3,17 +3,18 @@
 All tables are managed via **golang-migrate** with embedded SQL files in `migrations/`.  
 Run `MIGRATE=1 go run .` to apply pending migrations (see `migrations/README.md`).
 
-## Mục nội dung
+## Table of Contents
 
-- [Bảng `users`](#users)
-- [Bảng `permissions`](#permissions)
-- [Bảng `roles`](#roles)
-- [Bảng `role_permissions`](#role_permissions)
-- [Bảng `user_roles`](#user_roles)
-- [Bảng `user_permissions`](#user_permissions)
+- [Table `users`](#users)
+- [Table `permissions`](#permissions)
+- [Table `roles`](#roles)
+- [Table `role_permissions`](#role_permissions)
+- [Table `user_roles`](#user_roles)
+- [Table `user_permissions`](#user_permissions)
+- [System Tables](#system-tables)
 - [Effective Permissions](#effective-permissions)
-- [Migration history](#migration-history)
-- [Xóa toàn bộ bảng (thủ công)](#xoa-toan-bo-bang-thu-cong)
+- [Migration History](#migration-history)
+- [Drop All Tables (manual reset)](#drop-all-tables-manual-reset)
 
 ---
 
@@ -57,7 +58,7 @@ A JSONB map where each key is a **128-char hex session string** and each value i
 - Writes that change the entry count run inside a **transaction** (`models.AddRefreshSession`).
 - In-place rotation (same key, new UUID + expiry) uses a lockless `jsonb_set` update (`models.SaveRefreshSession`).
 
-Schema và cột `refresh_token_session` nằm trong migration `000001_schema` (xem `migrations/README.md`).
+The `refresh_token_session` column schema is defined in migration `000001_schema` (see `migrations/README.md`).
 
 ---
 
@@ -87,7 +88,7 @@ Named role definitions. Application constants live in `constants/roles.go` (`sys
 | `description` | `TEXT` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-**Default permission sets** (seed trong `000001_schema.up.sql`, rebuilt from `constants/roles_permission.go` by `cmd/syncrolepermissions`):
+**Default permission sets** (seeded in `000001_schema.up.sql`, rebuilt from `constants/roles_permission.go` by `cmd/syncrolepermissions`):
 - `sysadmin`: `P1`–`P13` (full catalog)
 - `admin`: profile + course + user CRUD, **không** `P9` (`course_instructor:read`)
 - `instructor`: `P1`, `P5`–`P7`, `P9`, `P10`
@@ -141,18 +142,47 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 |---|---|---|
 | 000001 | `schema` | Create `permissions` (`permission_id` PK + `permission_name`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions`, and seed 13 permissions + 4 default roles + `role_permissions` matrix |
 
-Chi tiết và lưu ý reset DB khi đổi chuỗi migration: `migrations/README.md`.
+For details and notes on resetting the DB when changing the migration sequence, see `migrations/README.md`.
 
 ---
 
-<a id="xoa-toan-bo-bang-thu-cong"></a>
+## System Tables
 
-## Xóa toàn bộ bảng (thủ công)
+Isolated tables with no foreign keys to the application RBAC / users tables.
 
-Để **xóa hết** các bảng do migration hiện tại tạo ra (ví dụ reset môi trường dev), chạy các lệnh **đúng thứ tự** sau trên Postgres. Thứ tự phụ thuộc khóa ngoại: bảng con (junction / migrate metadata) trước, bảng cha sau — nếu đảo thứ tự sẽ lỗi FK.
+### `system_app_config`
+
+Singleton configuration row (always `id = 1`). Secrets are managed out-of-band (SQL or tooling).
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `INTEGER` PK CHECK (id = 1) | Always 1 — singleton constraint |
+| `app_cli_system_password` | `TEXT` NOT NULL DEFAULT `''` | CLI registration password (plaintext) |
+| `app_system_env` | `TEXT` NOT NULL DEFAULT `''` | HMAC key for system credential derivation |
+| `app_token_env` | `TEXT` NOT NULL DEFAULT `''` | JWT secret for system access tokens |
+| `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
+
+### `system_privileged_users`
+
+Privileged system operators. Credentials are HMAC-derived using `app_system_env` at write and login time — raw values are never stored.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `BIGSERIAL` PK | |
+| `username_secret` | `TEXT` NOT NULL UNIQUE | HMAC-hex of username with `app_system_env` |
+| `password_secret` | `TEXT` NOT NULL | HMAC-hex of password with `app_system_env` |
+| `created_at` | `TIMESTAMPTZ` | |
+
+---
+
+## Drop All Tables (manual reset)
+
+To **drop all tables** created by the current migration (e.g. to reset a dev environment), run the following commands **in order** on Postgres. Order follows foreign key dependency: child tables (junction / migrate metadata) first, parent tables last.
 
 ```sql
 DROP TABLE public.schema_migrations;
+DROP TABLE public.system_privileged_users;
+DROP TABLE public.system_app_config;
 DROP TABLE public.role_permissions;
 DROP TABLE public.user_permissions;
 DROP TABLE public.user_roles;
@@ -161,4 +191,4 @@ DROP TABLE public.permissions;
 DROP TABLE public.users;
 ```
 
-**Lưu ý bảo trì:** Khi thêm **bảng mới** trong migration, cập nhật lại mục này: chèn `DROP TABLE public.<tên_bảng>;` ở vị trí thích hợp (thường là **trước** mọi bảng mà nó tham chiếu tới). Giữ `schema_migrations` ở **đầu** danh sách như trên là hợp lý vì bảng đó không bị bảng khác FK tới.
+**Maintenance note:** When adding a **new table** in a migration, update this list: insert `DROP TABLE public.<table_name>;` at the appropriate position (usually **before** any table it references via FK). Keep `schema_migrations` at the **top** of the list as it has no FK dependents.

@@ -110,8 +110,13 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 |----------|----------|
 | [`README.md`](../README.md) | Quick start, CORS, response format, error codes, project structure summary. |
 | [`docs/deploy.md`](deploy.md) | Full-stack VPS deploy, Nginx, PM2, CI/CD. |
-| [`docs/database.md`](database.md) | Database notes. |
+| [`docs/database.md`](database.md) | Database schema, tables, and migration history. |
+| [`docs/requirements.md`](requirements.md) | Functional & non-functional requirements for all features. |
+| [`docs/sequence_diagrams.md`](sequence_diagrams.md) | Mermaid sequence diagrams for every system flow. |
+| [`docs/return_types.md`](return_types.md) | Go service return types and full JSON response shapes per API. |
+| [`docs/curl_api.md`](curl_api.md) | Complete API reference with cURL examples and Postman scripts. |
 | [`docs/modules/auth.md`](modules/auth.md) | Auth service and cache behaviour. |
-| [`docs/modules/user.md`](modules/user.md), [`course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (extend as features land). |
+| [`docs/modules/user.md`](modules/user.md) | User profile endpoints — `GET /me`, `GET /me/permissions`. |
+| [`docs/modules/course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (planned features). |
 
 When this repository sits next to the Next.js app in a monorepo (e.g. **`mycourse-full`**), the frontend deploy runbook is at [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md).

@@ -1,5 +1,0 @@
-* Dùng gitnexus mcp hoặc cli để nắm context sâu nhất trong dự án
-* Kết hợp với đọc các tài liệu có trong dự án (dùng gitnexus mcp hoặc cli hoặc search thủ công để tìm) để nắm vững thông tin
-* Trong quá trình trước khi làm, trong khi làm, và sau khi làm, nhớ cập nhật hoặc bổ sung thêm các tài liệu mới - liên tục, đồng thời cập nhật các index và các nội dung ở trong gitnexus với analyze --force.
-* Đối với FE, nhớ kiểm tra kỹ xem có lỗi type gì không, build có bị lỗi không. Nhớ chạy format tương ứng với công cụ tích hợp sẵn trong dự án hoặc trong IDE.
-* Đối với BE , kiểm tra type và build xem có lỗi gì không.

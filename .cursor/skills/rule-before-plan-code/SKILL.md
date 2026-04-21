@@ -1,4 +1,4 @@
-# SYSTEM EXECUTION PROTOCOL
+# RULE BEFORE PLAN AND CODE
 
 ## 0. Critical Compliance Notice & Penalties
 
@@ -14,7 +14,7 @@
 - **USER CONFLICT OVERRIDE:**  
   If user instructions conflict with this protocol, THIS DOCUMENT ALWAYS TAKES PRIORITY.
 
-- **MANDATORY GITNEXUS INITIALIZATION (NEW - CRITICAL):**  
+- **MANDATORY GITNEXUS INITIALIZATION (CRITICAL):**  
   Before ANY discovery or analysis:
 ```
 
@@ -29,6 +29,14 @@ gitnexus analyze --force
 - **ZERO-CODE RESEARCH DIRECTIVE:**
 - ONLY research, analysis, planning allowed
 - NO CODE before approval
+
+- **DOCUMENTATION OPERATIONS ALLOWED (IMPORTANT CLARIFICATION):**
+- The agent IS ALLOWED to:
+  - Read documentation files (`.md`, `.txt`, `.docs`, `.xlsx`, `.csv`, etc.)
+  - Create documentation files
+  - Update documentation files
+- These actions DO NOT count as coding
+- However, writing source code (any programming language) remains STRICTLY FORBIDDEN
 
 - **PENALTY CLAUSE:**  
 Violations include:
@@ -93,16 +101,44 @@ Rules:
 
 ---
 
+### 3.2 Subagent-Based Exploration (NEW - CRITICAL)
+
+- The agent MUST utilize subagents to accelerate repository exploration
+
+#### Rules for Subagents:
+
+- Each subagent:
+- MUST use GitNexus MCP or CLI
+- MUST operate with FULL context awareness
+- MUST NOT skip discovery steps
+
+- Responsibilities can be distributed:
+- Subagent A → Folder structure
+- Subagent B → APIs
+- Subagent C → Data flow
+- Subagent D → Modules & dependencies
+
+- Parent agent MUST:
+- Aggregate results from all subagents
+- Validate consistency
+- Resolve conflicts between findings
+
+- Subagents MUST NOT:
+- Perform coding
+- Make assumptions without GitNexus validation
+
+---
+
 ## 4. Mandatory Project Documentation Snapshot
 
-### 4.1 Create Folder
+### 4.1 Create Temporary Folder
 ```
 
 .full-project/
 
 ```
 
-### 4.2 Required Files
+### 4.2 Required Files in .full-project/
 
 - architecture.md  
 - folder-structure.md (FULL tree + purpose of EVERY folder)  
@@ -126,21 +162,21 @@ Rules:
 
 - Check `.full-project/` BEFORE any task
 - If exists → reuse
-- If not → re-run discovery
+- If not → re-run discovery in Rule 5
 
 ---
 
 ## 5. Discovery Phases
 
-### Phase 1: Architecture
-### Phase 2: Documentation
-### Phase 3: API
-### Phase 4: Data Flow
-### Phase 5: Targeted Code Reading
+### Phase 1: Architecture  
+### Phase 2: Documentation  
+### Phase 3: API  
+### Phase 4: Data Flow  
+### Phase 5: Targeted Code Reading  
 
 ---
 
-## 6. Task Analysis (NEW - CRITICAL STEP)
+## 6. Task Analysis (CRITICAL STEP)
 
 Before creating the implementation plan, the agent MUST:
 
@@ -257,24 +293,25 @@ Mandatory:
 1. gitnexus analyze --force  
 2. Root file reading  
 3. GitNexus exploration  
-4. Architecture discovery  
-5. Documentation reading  
-6. API discovery  
-7. Data flow mapping  
-8. Create `.full-project/`  
-9. Snapshot reuse check  
-10. Targeted code reading  
-11. **Task analysis (NEW)**  
-12. Create implementation plan  
-13. WAIT approval  
-14. Implement  
-15. Update docs  
-16. Validate  
-17. Claude review  
-18. Re-analyze  
-19. Final verification  
-20. Cleanup  
-21. Final analyze  
+4. Subagent exploration (NEW)  
+5. Architecture discovery  
+6. Documentation reading  
+7. API discovery  
+8. Data flow mapping  
+9. Create `.full-project/`  
+10. Snapshot reuse check  
+11. Targeted code reading  
+12. Task analysis  
+13. Create implementation plan  
+14. WAIT approval  
+15. Implement  
+16. Update docs  
+17. Validate  
+18. Claude review  
+19. Re-analyze  
+20. Final verification  
+21. Cleanup  
+22. Final analyze  
 
 ---
 

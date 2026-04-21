@@ -14,7 +14,7 @@ Before any analysis or exploration:
 
   ```bash
   gitnexus analyze --force
-  ```
+````
 
 * This applies to both:
 
@@ -246,7 +246,71 @@ Ensure **100% synchronization** between:
 
 ---
 
-## 9. Only After Completion → Start Coding
+## 9. Subagent-Based Exploration Acceleration (NEW)
+
+To optimize exploration speed and scalability, the AI Agent SHOULD:
+
+### Use Subagents for Parallel Exploration
+
+* Spawn multiple **subagents** to explore different parts of the project concurrently
+* Each subagent is responsible for:
+
+  * A specific folder or module scope
+  * Independent traversal and analysis
+
+### Mandatory Rules for Subagents:
+
+Each subagent MUST:
+
+1. Execute GitNexus initialization:
+
+   ```bash
+   gitnexus analyze --force
+   ```
+
+2. Use **GitNexus MCP or CLI** for:
+
+   * Context retrieval
+   * Dependency mapping
+   * Code relationship analysis
+
+3. Follow ALL original rules defined in this document:
+
+   * Root-level awareness (if applicable to scope)
+   * Structured traversal rules (Case A, B, C)
+   * Context-first analysis (no blind reading)
+   * Deep understanding before conclusions
+
+4. Produce structured findings including:
+
+   * Folder purpose
+   * Key files and responsibilities
+   * Data flow insights
+   * Notable patterns
+
+### Coordination Rules:
+
+* The main agent MUST:
+
+  * Aggregate outputs from all subagents
+  * Resolve conflicts or inconsistencies
+  * Merge insights into `.full-project/` documentation
+
+* Subagents MUST NOT:
+
+  * Operate without GitNexus
+  * Skip exploration rules
+  * Provide shallow summaries
+
+### Objective:
+
+* Achieve **faster full-project comprehension**
+* Maintain **strict adherence to analysis quality standards**
+* Ensure **complete contextual coverage across large codebases**
+
+---
+
+## 10. Only After Completion → Start Coding
 
 The AI Agent is ONLY allowed to begin coding when:
 
@@ -255,6 +319,7 @@ The AI Agent is ONLY allowed to begin coding when:
 * ✅ Folder traversal completed
 * ✅ Full project understanding achieved
 * ✅ `.full-project/` documentation created and complete
+* ✅ Subagent exploration (if used) fully integrated
 
 ---
 
@@ -270,6 +335,7 @@ The AI Agent MUST NOT:
 * Ignore architecture or patterns
 * Skip `.full-project` documentation
 * Ignore existing documentation before starting tasks
+* Use subagents without enforcing GitNexus and full protocol compliance
 
 ---
 
@@ -280,6 +346,7 @@ Understanding precedes implementation.
 * Root files → FIRST
 * GitNexus analysis → SECOND
 * Deep exploration → REQUIRED
+* Subagent parallelization → RECOMMENDED (with strict compliance)
 * Documentation snapshot → MANDATORY
 * `.full-project` reuse → REQUIRED
 

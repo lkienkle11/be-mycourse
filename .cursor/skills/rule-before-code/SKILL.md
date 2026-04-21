@@ -119,7 +119,7 @@ The AI Agent **MUST NOT write any code** until it has a **complete understanding
 ### Required Analysis Scope:
 
 * Entire source codebase
-* Folder and module structure
+* Folder and module structure - folder-structure.md (FULL tree + purpose of EVERY folder + sub folder - summary EVERY FOLDER includes subfolder in project)  
 * Architecture patterns
 * Data flow
 * Logic/control flow

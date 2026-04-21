@@ -141,7 +141,7 @@ Rules:
 ### 4.2 Required Files in .full-project/
 
 - architecture.md  
-- folder-structure.md (FULL tree + purpose of EVERY folder)  
+- folder-structure.md (FULL tree + purpose of EVERY folder + sub folder - summary EVERY FOLDER includes subfolder in project)  
 - data-flow.md  
 - api-overview.md  
 - components.md (if exists)  

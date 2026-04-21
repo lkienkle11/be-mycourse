@@ -1,3 +1,9 @@
+---
+description: Rule before code
+globs: *
+alwaysApply: true
+---
+
 # RULE BEFORE CODE
 
 ## 🚨 Mandatory Pre-Coding Protocol for AI Agents

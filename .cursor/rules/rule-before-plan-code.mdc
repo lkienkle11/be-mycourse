@@ -1,3 +1,9 @@
+---
+description: Rule before plan or code
+globs: *
+alwaysApply: true
+---
+
 # RULE BEFORE PLAN AND CODE
 
 ## 0. Critical Compliance Notice & Penalties

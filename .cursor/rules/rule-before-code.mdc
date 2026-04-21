@@ -16,10 +16,12 @@ Before writing **any code**, the AI Agent MUST strictly follow all steps below. 
 
 Before any analysis or exploration:
 
-- The AI Agent **MUST update and reindex the project using GitNexus**.
+* The AI Agent **MUST update and reindex the project using GitNexus**.
 
   ```bash
   gitnexus analyze --force
+  ```
+
 ````
 
 * This applies to both:
@@ -218,6 +220,56 @@ After understanding the project, the AI Agent MUST:
 * `dependencies.md` → key libraries, frameworks, and relationships
 * `libraries.md` → detailed explanation of major libraries used
 
+---
+
+### 🔴 ADDITIONAL REQUIRED FILE (NEW - DO NOT MODIFY EXISTING RULES)
+
+The AI Agent MUST additionally create the following file inside `.full-project/`:
+
+* `reusable-assets.md`
+
+---
+
+### 🔴 reusable-assets.md REQUIREMENTS (NEW)
+
+This file MUST comprehensively aggregate ALL reusable elements across the project, including but not limited to:
+
+* Data types / interfaces / DTOs
+* Utility functions (helpers)
+* Shared/common functions
+* Exception classes
+* Error handling structures
+* Error codes / status codes
+* Constants
+* Validation schemas
+* Shared logic fragments
+
+---
+
+### 🔴 reusable-assets.md STRUCTURE (NEW)
+
+Each documented item MUST include:
+
+* Name  
+* Type (utility / data type / constant / exception / etc.)  
+* Exact file path  
+* Purpose  
+* Reusability scope (where/how it can be reused)  
+* Dependencies (if any)  
+
+---
+
+### 🔴 REUSABILITY DISCOVERY REQUIREMENT (NEW)
+
+During project analysis, the AI Agent MUST:
+
+* Actively identify reusable logic across modules
+* Detect duplication patterns
+* Map shared responsibilities
+* Record ALL findings into `reusable-assets.md`
+
+---
+
 ### Folder Structure Requirement (IMPORTANT):
 
 * MUST include:
@@ -274,6 +326,20 @@ Including:
 * Modify incorrect sections
 * Remove deprecated information
 * Add new relevant documentation
+
+---
+
+### 🔴 ADDITIONAL REQUIREMENT (NEW)
+
+The AI Agent MUST also:
+
+* Update `reusable-assets.md` whenever:
+
+  * New reusable utilities are created
+  * New shared data types are introduced
+  * Existing reusable logic is modified or refactored
+
+---
 
 ### Objective:
 
@@ -361,6 +427,26 @@ The AI Agent is ONLY allowed to begin coding when:
 * ✅ Full project understanding achieved
 * ✅ `.full-project/` documentation created and complete
 * ✅ Subagent exploration (if used) fully integrated
+
+---
+
+### 🔴 ADDITIONAL EXECUTION RULE (NEW)
+
+Before writing any new code, the AI Agent MUST:
+
+* Check `reusable-assets.md`
+* Determine if existing logic can be reused
+
+If reusable components exist:
+
+* MUST reuse them
+* MUST NOT duplicate logic
+
+If new reusable logic is identified:
+
+* MUST extract it into the correct module/folder
+* MUST NOT place all utilities into a single shared file
+* MUST respect project architecture when organizing shared logic
 
 ---
 

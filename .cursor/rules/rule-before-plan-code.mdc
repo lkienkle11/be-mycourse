@@ -202,7 +202,7 @@ If a `.context` folder exists in the project root, the agent MUST execute the fo
 ### 4.2 Required Files in `.full-project/`
 
 * architecture.md
-* folder-structure.md (FULL tree + purpose of EVERY folder + sub folder - summary EVERY FOLDER includes subfolder in project)  
+* folder-structure.md (FULL tree + purpose of EVERY folder + sub folder - summary EVERY FOLDER includes subfolder in project)
 * data-flow.md
 * api-overview.md
 * components.md (if exists)
@@ -214,10 +214,49 @@ If a `.context` folder exists in the project root, the agent MUST execute the fo
 * dependencies.md
 * modules.md
 
+---
+
+### 4.2.1 ADDITIONAL REQUIRED FILE (NEW)
+
+* reusable-assets.md
+
+---
+
+### 4.2.2 reusable-assets.md REQUIREMENTS (NEW)
+
+This file MUST aggregate all reusable elements across the project, including but not limited to:
+
+* Data types / interfaces / DTOs
+* Utility functions (helpers)
+* Shared/common functions
+* Exception classes
+* Error handling structures
+* Error codes / status codes
+* Constants
+* Validation schemas
+* Shared logic fragments
+
+---
+
+### 4.2.3 CONTENT STRUCTURE FOR reusable-assets.md (NEW)
+
+Each item MUST include:
+
+* Name
+* Type (util / data type / constant / exception / ...)
+* File path (exact location)
+* Purpose
+* Reusability scope
+* Dependencies (if any)
+
+---
+
 ### 4.3 Coverage Rules
 
 * MUST include ALL folders (root → deepest level)
 * MUST describe purpose of EACH folder
+
+---
 
 ### 4.4 Snapshot Reuse Rule
 
@@ -265,6 +304,28 @@ If a `.context` folder exists in the project root, the agent MUST execute the fo
 * Ensure accuracy
 * Validate assumptions
 
+---
+
+### 6.3.1 REUSABILITY CHECK (NEW)
+
+* MUST check `reusable-assets.md` before proposing any solution
+* MUST identify any existing:
+
+  * Utility functions
+  * Shared data types
+  * Error/exception handling structures
+
+---
+
+### 6.3.2 REUSE ENFORCEMENT (NEW)
+
+* If reusable logic exists:
+
+  * MUST reuse
+  * MUST NOT duplicate
+
+---
+
 ### 6.4 Define Technical Direction
 
 * Determine:
@@ -291,12 +352,29 @@ IMPLEMENTATION_PLAN_EXECUTION.md
 * Data Flow
 * Related Features
 * Task Analysis
-* Action Plan:
 
-  * Files to Add / Modify / Delete
-  * Exact paths
+---
+
+### ADDITIONAL REQUIRED SECTION (NEW)
+
+* Reusability Strategy:
+
+  * What existing assets will be reused
+  * What new reusable assets may be created
   * Justification
+
+---
+
+### Action Plan:
+
+* Files to Add / Modify / Delete
+
+* Exact paths
+
+* Justification
+
 * Estimated LoC
+
 * Logic description
 
 ---
@@ -324,10 +402,38 @@ The implementation plan has been written to IMPLEMENTATION_PLAN_EXECUTION.md. Pl
 
 ---
 
+### ADDITIONAL RULE: SHARED LOGIC EXTRACTION (NEW)
+
+When implementing:
+
+* If any function or data type is identified as reusable:
+
+  * MUST extract into appropriate shared location
+  * MUST place in the correct folder based on project structure
+
+---
+
+### STRICT PROHIBITIONS (NEW)
+
+* DO NOT centralize all utilities into a single module
+* DO NOT place shared logic in incorrect folders
+* DO NOT duplicate reusable logic across modules
+
+---
+
 ## 9. Documentation Sync
 
 * MUST update markdown files
 * NOT chat-only summaries
+
+---
+
+### ADDITIONAL REQUIREMENT (NEW)
+
+* MUST update `reusable-assets.md` whenever:
+
+  * New reusable logic is created
+  * Existing reusable logic is modified
 
 ---
 
@@ -374,6 +480,14 @@ Mandatory:
 21. Final verification
 22. Cleanup
 23. Final analyze
+
+---
+
+### ADDITIONAL FLOW STEPS (NEW)
+
+24. Aggregate reusable assets into `reusable-assets.md`
+25. Perform reusability validation before implementation
+26. Extract shared logic during implementation
 
 ---
 

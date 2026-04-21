@@ -47,6 +47,36 @@ Before using GitNexus, the agent MUST:
 
 ---
 
+## 1.1 Mandatory Context Recovery (NEW)
+
+Before proceeding to deeper exploration:
+
+### Step 1.1: Check `.context` Folder
+
+* If a `.context` folder exists in the project root:
+
+  * The AI Agent **MUST read ALL files inside the `.context` folder**
+  * This includes ALL nested files if subfolders exist
+
+### Purpose:
+
+* Recover and understand:
+
+  * Previous conversations
+  * Historical decisions
+  * Prior implementations
+  * Constraints and assumptions
+
+### Rules:
+
+* DO NOT skip any file
+* DO NOT summarize without reading
+* DO NOT proceed to next steps until ALL context is processed
+
+Failure to complete this step results in **loss of historical continuity and invalid reasoning**.
+
+---
+
 ## 2. Structured Exploration Using GitNexus
 
 After root-level reading:
@@ -119,7 +149,9 @@ The AI Agent **MUST NOT write any code** until it has a **complete understanding
 ### Required Analysis Scope:
 
 * Entire source codebase
-* Folder and module structure - folder-structure.md (FULL tree + purpose of EVERY folder + sub folder - summary EVERY FOLDER includes subfolder in project)  
+* Folder and module structure
+
+  * `folder-structure.md` (FULL tree + purpose of EVERY folder + subfolder)
 * Architecture patterns
 * Data flow
 * Logic/control flow
@@ -210,6 +242,7 @@ For ANY future task (coding, planning, debugging):
 * ❗ Perform full analysis again using:
 
   * Root exploration
+  * `.context` recovery (if exists)
   * GitNexus workflow
   * Deep folder traversal
 
@@ -277,6 +310,7 @@ Each subagent MUST:
 3. Follow ALL original rules defined in this document:
 
    * Root-level awareness (if applicable to scope)
+   * `.context` awareness (if present in assigned scope)
    * Structured traversal rules (Case A, B, C)
    * Context-first analysis (no blind reading)
    * Deep understanding before conclusions
@@ -316,6 +350,7 @@ The AI Agent is ONLY allowed to begin coding when:
 
 * ✅ GitNexus analysis completed
 * ✅ Root files fully read
+* ✅ `.context` fully processed (if exists)
 * ✅ Folder traversal completed
 * ✅ Full project understanding achieved
 * ✅ `.full-project/` documentation created and complete
@@ -329,6 +364,7 @@ The AI Agent MUST NOT:
 
 * Write code before running `gitnexus analyze --force`
 * Skip root file exploration
+* Skip `.context` reading (if exists)
 * Skip GitNexus usage
 * Randomly read files without context
 * Work with partial understanding
@@ -344,11 +380,11 @@ The AI Agent MUST NOT:
 Understanding precedes implementation.
 
 * Root files → FIRST
-* GitNexus analysis → SECOND
+* `.context` recovery → SECOND (if exists)
+* GitNexus analysis → THIRD
 * Deep exploration → REQUIRED
 * Subagent parallelization → RECOMMENDED (with strict compliance)
 * Documentation snapshot → MANDATORY
 * `.full-project` reuse → REQUIRED
 
 If the project is not fully understood, **coding is strictly forbidden**.
-

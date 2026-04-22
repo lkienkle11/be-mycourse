@@ -1,7 +1,5 @@
 ---
-description: Rule before plan or code
-globs: *
-alwaysApply: true
+alwaysApply: false
 ---
 
 # RULE BEFORE PLAN AND CODE

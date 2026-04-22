@@ -1,7 +1,5 @@
 ---
-description: Rule before code
-globs: *
-alwaysApply: true
+alwaysApply: false
 ---
 
 # RULE BEFORE CODE

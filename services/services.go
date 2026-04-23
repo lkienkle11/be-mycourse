@@ -1,13 +1,16 @@
 package services
 
-import "mycourse-io-be/models"
+import (
+	"mycourse-io-be/models"
+	"mycourse-io-be/repository"
+)
 
 type Service struct {
-	Repo *models.Repository
+	Repo *repository.Repository
 }
 
 func New() *Service {
 	return &Service{
-		Repo: models.NewRepository(),
+		Repo: repository.New(models.DB),
 	}
 }

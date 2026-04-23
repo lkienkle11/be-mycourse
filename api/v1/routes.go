@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
+	taxonomyv1 "mycourse-io-be/api/v1/taxonomy"
 	"mycourse-io-be/constants"
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/response"
@@ -28,6 +29,7 @@ func RegisterAuthenRoutes(rg *gin.RouterGroup) {
 		middleware.RequirePermission(constants.AllPermissions.UserRead),
 		getMyPermissions,
 	)
+	taxonomyv1.RegisterRoutes(rg)
 }
 
 func RegisterInternalRoutes(rg *gin.RouterGroup) {

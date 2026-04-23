@@ -1,0 +1,118 @@
+# Folder Structure (Root -> Deepest)
+
+## Full Folder Tree
+```text
+be-mycourse/
+├── .claude/
+│   └── skills/
+│       └── gitnexus/
+├── .context/
+├── .cursor/
+│   ├── rules/
+│   └── skills/
+│       └── session-context-handoff/
+├── .full-project/
+├── .github/
+│   └── workflows/
+├── .gitnexus/
+├── api/
+│   ├── system/
+│   └── v1/
+├── cache_clients/
+├── cmd/
+│   ├── syncpermissions/
+│   └── syncrolepermissions/
+├── config/
+├── constants/
+├── dbschema/
+├── docs/
+│   └── modules/
+├── docs-will-be-delete/
+├── dto/
+├── internal/
+│   ├── appcli/
+│   ├── jobs/
+│   ├── rbacsync/
+│   └── systemauth/
+├── middleware/
+├── migrations/
+├── models/
+├── pkg/
+│   ├── brevo/
+│   ├── dbmigrate/
+│   ├── envbool/
+│   ├── errcode/
+│   ├── httperr/
+│   ├── logger/
+│   ├── mailtmpl/
+│   ├── response/
+│   ├── setting/
+│   ├── sqlnamed/
+│   ├── supabase/
+│   ├── token/
+│   └── validate/
+├── queues/
+├── runtime/
+├── scripts/
+├── services/
+├── template/
+│   └── html/
+│       └── email/
+└── tracing/
+    ├── grafana/
+    └── prometheus/
+```
+
+## Purpose By Folder
+- `.claude/`: local agent skills and assistant automation assets.
+- `.context/`: session continuity artifacts (currently empty in this run).
+- `.cursor/`: workspace rules, skills, and editor agent metadata.
+- `.full-project/`: generated project discovery snapshot files.
+- `.github/`: CI/CD workflows.
+- `.gitnexus/`: GitNexus graph index artifacts.
+- `api/`: route bootstrap and HTTP entry points.
+- `api/system/`: privileged system endpoints (system login, sync-now, scheduler controls).
+- `api/v1/`: main external API handlers (auth, me, internal RBAC).
+- `cache_clients/`: Redis client setup and lifecycle.
+- `cmd/`: operational CLI commands.
+- `cmd/syncpermissions/`: permission catalog sync command.
+- `cmd/syncrolepermissions/`: role-permission sync command.
+- `config/`: stage-specific app configuration and initialization glue.
+- `constants/`: role/permission constants and mappings.
+- `dbschema/`: shared DB table-name namespace helpers.
+- `docs/`: maintained architecture/API/deploy requirements docs.
+- `docs/modules/`: module-level functional docs.
+- `docs-will-be-delete/`: temporary/deprecated planning docs (read-only inputs).
+- `dto/`: request/query/response transport contracts.
+- `internal/`: non-public operational internals.
+- `internal/appcli/`: protected CLI flow for system-user registration.
+- `internal/jobs/`: in-memory scheduler loops for periodic sync.
+- `internal/rbacsync/`: DB synchronization logic from constants.
+- `internal/systemauth/`: system access token and credential crypto primitives.
+- `middleware/`: auth/authz, API-key, system-token, rate-limit, and interceptor middleware.
+- `migrations/`: SQL migration files and embed bridge.
+- `models/`: GORM model definitions and DB setup helpers.
+- `pkg/`: reusable cross-cutting libraries.
+- `pkg/brevo/`: email provider integration wrapper.
+- `pkg/dbmigrate/`: migration runner utility.
+- `pkg/envbool/`: environment bool parsing helpers.
+- `pkg/errcode/`: app error code constants and default messages.
+- `pkg/httperr/`: centralized HTTP error middleware and typed errors.
+- `pkg/logger/`: structured logger setup.
+- `pkg/mailtmpl/`: HTML email template rendering.
+- `pkg/response/`: unified API response envelope helpers.
+- `pkg/setting/`: environment + YAML config loading.
+- `pkg/sqlnamed/`: named-parameter SQL helper.
+- `pkg/supabase/`: Supabase client setup.
+- `pkg/token/`: JWT/session token utilities.
+- `pkg/validate/`: validator helpers and error flattening.
+- `queues/`: queue consumer placeholder.
+- `runtime/`: runtime metadata structures.
+- `scripts/`: build/deploy helper scripts.
+- `services/`: core business logic and orchestration.
+- `template/`: template root folder.
+- `template/html/`: HTML template grouping.
+- `template/html/email/`: email templates.
+- `tracing/`: observability artifact container.
+- `tracing/grafana/`: Grafana placeholder/readme.
+- `tracing/prometheus/`: Prometheus placeholder/readme.

@@ -9,7 +9,7 @@
 - Purpose: Resolve effective permission names from role grants + direct grants.
 - Scope: All authorization-sensitive APIs and token issuance.
 - Dependencies: `rbacDB`, `pkg/sqlnamed`, RBAC SQL templates.
-- Current Usage: `services/auth.go`, `api/v1/me.go`, `api/v1/internal_rbac.go`, `UserHasAllPermissions`.
+- Current Usage: `services/auth.go`, `api/v1/me.go`, `api/v1/internal/rbac_handler.go`, `UserHasAllPermissions`.
 - Reuse Opportunity:
   - Reuse for all new CRUD permission checks and permission projection in future domains.
 
@@ -174,7 +174,7 @@
 ### Asset: Core taxonomy entities (pure shared types)
 - Name: `CourseLevel`, `Category`, `Tag`
 - Type: Type/Entity
-- Path: `core/entities/course_level.go`, `core/entities/category.go`, `core/entities/tag.go`
+- Path: `pkg/entities/course_level.go`, `pkg/entities/category.go`, `pkg/entities/tag.go`
 - Purpose: Share taxonomy field definitions as pure data types across layers.
 - Scope: Domain modeling and transfer structures where persistence mapping is not required.
 - Dependencies: `constants` (no dbschema and no table-name binding).

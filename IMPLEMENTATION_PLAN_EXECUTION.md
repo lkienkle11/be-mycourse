@@ -589,3 +589,102 @@
 ### Validation for this cycle
 - `go test ./...` (pass)
 - `go build ./...` (pass)
+
+## Phase Sub 01 Refactor Execution Update (2026-04-25 - core-to-pkg-entities cycle)
+
+### Task 01 - Re-discovery and impact map (completed before code edits)
+- Re-read `.context/*`, `.full-project/*`, and this execution plan file.
+- Re-ran `npx gitnexus analyze --force` before any source edits.
+- GitNexus refactor discovery focus:
+  - package path migration from `mycourse-io-be/core/entities` to `mycourse-io-be/pkg/entities`
+  - confirm `pkg/logic` remains in place (no `pkg/logic` -> `pkg/core` move)
+  - identify all remaining direct imports of `core/entities`
+- Current direct code impact map for import rewrite:
+  - `models/taxonomy_course_level.go`
+  - `models/taxonomy_category.go`
+  - `models/taxonomy_tag.go`
+  - `services/taxonomy/course_level_service.go`
+  - `services/taxonomy/category_service.go`
+  - `services/taxonomy/tag_service.go`
+- Documentation impact map (paths mentioning `core/entities`):
+  - `.full-project/reusable-assets.md`
+  - `IMPLEMENTATION_PLAN_EXECUTION.md`
+  - `.context/session_summary_2026-04-25_210429.md` (historical log, read-only snapshot)
+- Impact-risk conclusion for migration:
+  - structural import-path refactor only, no behavior changes expected
+  - `pkg/logic` stays unchanged per request
+  - remove root `core` only after all imports are migrated and build/test are green
+
+### Task 02/03 planned execution order for this cycle
+1. Create `pkg/entities` and move entity files from `core/entities` to `pkg/entities`.
+2. Rewrite all imports from `mycourse-io-be/core/entities` to `mycourse-io-be/pkg/entities`.
+3. Verify no code import of `core/entities` remains.
+4. Remove root `core` directory once migration is complete.
+5. Keep `pkg/logic` unchanged in current location.
+
+### Task 04 planned verification for this cycle
+- Run final leftover scan for `core/entities` references.
+- Run `go test ./...` and `go build ./...`.
+- Sync `.full-project/*` and `.context/*` summary docs with final state.
+
+### Task 02 - Completed implementation
+- Moved shared entity files to `pkg/entities`:
+  - `pkg/entities/course_level.go`
+  - `pkg/entities/category.go`
+  - `pkg/entities/tag.go`
+- Updated all code imports from `mycourse-io-be/core/entities` to `mycourse-io-be/pkg/entities` in:
+  - `models/taxonomy_course_level.go`
+  - `models/taxonomy_category.go`
+  - `models/taxonomy_tag.go`
+  - `services/taxonomy/course_level_service.go`
+  - `services/taxonomy/category_service.go`
+  - `services/taxonomy/tag_service.go`
+
+### Task 03 - Completed implementation
+- Kept `pkg/logic` unchanged at existing path.
+- Removed root `core` directory after successful entity migration and import rewrites.
+- Verified no remaining code imports reference `mycourse-io-be/core/entities`.
+
+### Task 04 - Verification and documentation sync (completed)
+- Updated `.full-project/reusable-assets.md` to reflect new entity paths in `pkg/entities`.
+- Final leftover scan result:
+  - no code files import `mycourse-io-be/core/entities`
+  - remaining `core/entities` mentions are historical records in context/plan docs
+- Validation commands executed after refactor:
+  - `go test ./...`
+  - `go build ./...`
+
+## Documentation Synchronization Update (2026-04-25 - post-refactor docs pass)
+
+### Scope
+- Synced canonical documentation to match current package structure after entity/cache/internal route refactors.
+
+### Updated docs
+- `README.md`
+  - corrected persistence layer wording (`models/`, `migrations/`)
+  - replaced old Redis path with `pkg/cache_clients/`
+- `docs/architecture.md`
+  - updated `api/v1` map to include `internal/*` and `taxonomy/*`
+  - replaced `cache_clients/` with `pkg/cache_clients/`
+  - updated internal RBAC source references to `api/v1/internal/rbac_handler.go` + `api/v1/internal/routes.go`
+- `docs/deploy.md`
+  - updated startup/deploy cache references to `pkg/cache_clients/redis.go`
+- `docs/requirements.md`
+  - updated FR-6 source references from `api/v1/internal_rbac.go` to `api/v1/internal/*`
+- `.full-project/folder-structure.md`
+  - removed obsolete root `cache_clients/`
+  - added/expanded `pkg/cache_clients`, `pkg/entities`, `pkg/logic`, `pkg/query`, `pkg/requestutil`
+  - updated `.context/` purpose description to reflect active session summaries
+- `.full-project/architecture.md`
+  - added `pkg/entities` as active shared-entity layer in architecture snapshot
+- `.full-project/reusable-assets.md`
+  - updated internal RBAC usage reference to `api/v1/internal/rbac_handler.go`
+
+### Verification after doc sync
+- Performed stale-reference scan in markdown docs for:
+  - `cache_clients/` (old root path)
+  - `api/v1/internal_rbac.go`
+  - `core/entities` in canonical docs
+- Result:
+  - canonical docs now point to current paths
+  - remaining old mentions are retained only in historical logs (`.context/*` and historical sections of this plan)

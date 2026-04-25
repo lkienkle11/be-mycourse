@@ -261,7 +261,7 @@
 
 ### FR-6 Internal RBAC HTTP API
 
-> **Source:** `api/v1/internal_rbac.go`, `api/v1/routes.go`, `services/rbac.go`  
+> **Source:** `api/v1/internal/rbac_handler.go`, `api/v1/internal/routes.go`, `api/v1/routes.go`, `services/rbac.go`  
 > **Auth:** `X-API-Key` header (via `middleware.RequireInternalAPIKey`)
 
 All endpoints under `/api/internal-v1/rbac/` are protected by an internal API key and intended for back-office tooling, not end-user clients.

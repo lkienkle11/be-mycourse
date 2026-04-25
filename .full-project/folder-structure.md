@@ -18,7 +18,6 @@ be-mycourse/
 ├── api/
 │   ├── system/
 │   └── v1/
-├── cache_clients/
 ├── cmd/
 │   ├── syncpermissions/
 │   └── syncrolepermissions/
@@ -39,12 +38,17 @@ be-mycourse/
 ├── models/
 ├── pkg/
 │   ├── brevo/
+│   ├── cache_clients/
 │   ├── dbmigrate/
+│   ├── entities/
 │   ├── envbool/
 │   ├── errcode/
 │   ├── httperr/
 │   ├── logger/
+│   ├── logic/
 │   ├── mailtmpl/
+│   ├── query/
+│   ├── requestutil/
 │   ├── response/
 │   ├── setting/
 │   ├── sqlnamed/
@@ -65,7 +69,7 @@ be-mycourse/
 
 ## Purpose By Folder
 - `.claude/`: local agent skills and assistant automation assets.
-- `.context/`: session continuity artifacts (currently empty in this run).
+- `.context/`: session continuity artifacts and timestamped handoff summaries.
 - `.cursor/`: workspace rules, skills, and editor agent metadata.
 - `.full-project/`: generated project discovery snapshot files.
 - `.github/`: CI/CD workflows.
@@ -73,7 +77,6 @@ be-mycourse/
 - `api/`: route bootstrap and HTTP entry points.
 - `api/system/`: privileged system endpoints (system login, sync-now, scheduler controls).
 - `api/v1/`: main external API handlers (auth, me, internal RBAC).
-- `cache_clients/`: Redis client setup and lifecycle.
 - `cmd/`: operational CLI commands.
 - `cmd/syncpermissions/`: permission catalog sync command.
 - `cmd/syncrolepermissions/`: role-permission sync command.
@@ -94,12 +97,17 @@ be-mycourse/
 - `models/`: GORM model definitions and DB setup helpers.
 - `pkg/`: reusable cross-cutting libraries.
 - `pkg/brevo/`: email provider integration wrapper.
+- `pkg/cache_clients/`: Redis client setup and lifecycle.
 - `pkg/dbmigrate/`: migration runner utility.
+- `pkg/entities/`: pure shared entity structs reused across layers.
 - `pkg/envbool/`: environment bool parsing helpers.
 - `pkg/errcode/`: app error code constants and default messages.
 - `pkg/httperr/`: centralized HTTP error middleware and typed errors.
 - `pkg/logger/`: structured logger setup.
+- `pkg/logic/`: shared domain-agnostic helper logic grouped by concern.
 - `pkg/mailtmpl/`: HTML email template rendering.
+- `pkg/query/`: reusable query/filter parsing helpers for list APIs.
+- `pkg/requestutil/`: shared HTTP request param/context helpers.
 - `pkg/response/`: unified API response envelope helpers.
 - `pkg/setting/`: environment + YAML config loading.
 - `pkg/sqlnamed/`: named-parameter SQL helper.

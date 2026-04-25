@@ -497,7 +497,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 | 1 | `main.go` | `setting.Setup()` loads YAML + `.env` (with `STAGE`). |
 | 2 | `models.Setup()` | PostgreSQL via `[database]` DSN. |
 | 3 | Supabase packages | Separate Supabase DB URL + HTTP client when configured. |
-| 4 | `cache_clients.SetupRedis()` | Redis (auth/`/me` cache—see `docs/modules/auth.md`; **optional** if using hosted Redis or accepting DB-only fallback). |
+| 4 | `pkg/cache_clients.SetupRedis()` | Redis (auth/`/me` cache—see `docs/modules/auth.md`; **optional** if using hosted Redis or accepting DB-only fallback). |
 | 5 | `MIGRATE=1` | `models.MigrateDatabase()` applies `migrations/*.up.sql`. |
 | 6 | `config.InitSystem()`, `queues.Consume()` | Bootstrap and queue placeholder. |
 | 7 | `api.InitRouter()` | Gin: CORS, gzip, `/api/v1` (JWT and public routes), `/api/internal-v1` (API key). |
@@ -675,7 +675,7 @@ This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in
 | Router | `api/router.go`, `api/v1/routes.go` | Gin: CORS, gzip, JWT middleware, public + private routes |
 | Settings | `config/app.yaml`, `config/app-*.yaml`, `pkg/setting/setting.go` | YAML + `.env` merge via `STAGE` env var |
 | DB / migrate | `models/setup.go`, `migrations/*.sql` | Run with `MIGRATE=1`; applied on startup |
-| Cache | `cache_clients/redis.go`, `services/cache/` | Redis client; degrades gracefully if unavailable |
+| Cache | `pkg/cache_clients/redis.go`, `services/cache/` | Redis client; degrades gracefully if unavailable |
 | Error codes | `pkg/errcode/codes.go`, `pkg/errcode/messages.go` | Mirrors `src/types/api.ts` (ApiErrorCode) in the FE |
 | HTTP errors | `pkg/httperr/middleware.go` | Global Gin error handler |
 | CI/CD | `.github/workflows/deploy-dev.yml` | Active 2-job workflow (build → deploy on master) |

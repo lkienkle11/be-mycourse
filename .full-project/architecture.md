@@ -9,7 +9,7 @@
 - Middleware: `middleware/` for JWT auth, API key auth, system token auth, RBAC, rate limiters.
 - Business logic: `services/` and `services/cache/`.
 - Data layer: `models/`, raw SQL helpers in `services/rbac.go`, and naming helpers in `dbschema/`.
-- Cross-cutting packages: `pkg/*` (response envelope, error codes, validation helpers, config, tokens, migration glue).
+- Cross-cutting packages: `pkg/*` (response envelope, error codes, validation helpers, config, tokens, migration glue, cache client, shared entities).
 
 ## Security Model
 - JWT access/refresh flow is implemented in `services/auth.go` and `pkg/token/`.
@@ -23,6 +23,7 @@
 
 ## Integration/Operational Boundaries
 - Redis cache is optional and wrapped by `pkg/cache_clients/redis.go` and `services/cache/auth_user.go`.
+- Shared pure domain entities currently live in `pkg/entities/*` and are embedded by taxonomy models.
 - Email side-effect uses Brevo package (`pkg/brevo`).
 - Queue subsystem is currently a placeholder (`queues/queues.go`).
 

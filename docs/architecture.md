@@ -49,13 +49,13 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `main.go` | Process entry: settings, DB, cache, migrate flag, bootstrap, queues, router, listen on `setting.ServerSetting.Port` (default **8080**). |
 | `api/router.go` | Gin engine, global middleware, `/api/system`, `/api/v1`, `/api/internal-v1` groups. |
 | `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). |
-| `api/v1/` | Versioned handlers: `auth.go`, `me.go`, `routes.go`, `internal_rbac.go`, … |
+| `api/v1/` | Versioned handlers and route modules: `auth.go`, `me.go`, `routes.go`, `taxonomy/*`, `internal/*`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
 | `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. |
 | `internal/jobs/` | In-memory 12h RBAC sync tickers started/stopped via `/api/system` (not env-gated). |
 | `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
-| `models/` | GORM models and DB setup (`setup.go`, `repository.go`, …). |
+| `models/` | GORM models and DB setup (`setup.go`, taxonomy models, …). |
 | `migrations/` | Versioned SQL migrations (embedded / migrate tooling). |
 | `pkg/response` | Unified `{ code, message, data }` (and health shape). |
 | `pkg/errcode` | Application error codes. |
@@ -63,7 +63,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |
 | `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
 | `config/` | System bootstrap (`InitSystem`, default configs). |
-| `cache_clients/` | Redis client wiring. |
+| `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |
 | `constants/` | Role names and permission catalog (`AllPermissions`, `RolePermissions`) for RBAC. |
 | `dbschema/` | RBAC-related schema helpers. |
@@ -91,7 +91,7 @@ Exact permission constants for `/me/permissions` are wired in `api/v1/routes.go`
 
 ## Internal API (`/api/internal-v1`)
 
-RBAC administration (permissions, roles, user-role and user-direct-permission assignments) is exposed under **`/api/internal-v1/rbac/...`** and protected by **`RequireInternalAPIKey`**. See `api/v1/internal_rbac.go` and `api/v1/routes.go` for the full route table.
+RBAC administration (permissions, roles, user-role and user-direct-permission assignments) is exposed under **`/api/internal-v1/rbac/...`** and protected by **`RequireInternalAPIKey`**. See `api/v1/internal/rbac_handler.go`, `api/v1/internal/routes.go`, and `api/v1/routes.go` for the full route table.
 
 ---
 

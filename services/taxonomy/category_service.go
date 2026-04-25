@@ -3,7 +3,7 @@ package taxonomy
 import (
 	"strings"
 
-	"mycourse-io-be/core/entities"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	repo "mycourse-io-be/repository/taxonomy"

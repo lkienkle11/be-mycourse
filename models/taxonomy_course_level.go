@@ -1,7 +1,7 @@
 package models
 
 import (
-	"mycourse-io-be/core/entities"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/dbschema"
 )
 

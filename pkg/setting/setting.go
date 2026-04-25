@@ -59,6 +59,23 @@ type Supabase struct {
 	DBURL          string
 }
 
+type Media struct {
+	B2KeyID              string
+	B2AppKey             string
+	B2Bucket             string
+	B2BaseURL            string
+	GcoreAPIBaseURL      string
+	GcoreAPIToken        string
+	GcoreCDNURL          string
+	BunnyStreamAPIBase   string
+	BunnyStreamAPIKey    string
+	BunnyStreamLibraryID string
+	BunnyStreamBaseURL   string
+	BunnyStorageEndpoint string
+	BunnyStoragePassword string
+	LocalFileURLSecret   string
+}
+
 var (
 	AppSetting      = &App{}
 	ServerSetting   = &Server{}
@@ -66,6 +83,7 @@ var (
 	RedisSetting    = &Redis{}
 	SupabaseSetting = &Supabase{}
 	BrevoSetting    = &Brevo{}
+	MediaSetting    = &Media{}
 )
 
 type yamlConfig struct {
@@ -75,6 +93,7 @@ type yamlConfig struct {
 	Redis    yamlRedis    `yaml:"redis"`
 	Supabase yamlSupabase `yaml:"supabase"`
 	Brevo    yamlBrevo    `yaml:"brevo"`
+	Media    yamlMedia    `yaml:"media"`
 }
 
 type yamlServer struct {
@@ -122,6 +141,23 @@ type yamlSupabase struct {
 	AnonKey        string `yaml:"anon_key"`
 	ServiceRoleKey string `yaml:"service_role_key"`
 	DBURL          string `yaml:"db_url"`
+}
+
+type yamlMedia struct {
+	B2KeyID              string `yaml:"b2_key_id"`
+	B2AppKey             string `yaml:"b2_app_key"`
+	B2Bucket             string `yaml:"b2_bucket"`
+	B2BaseURL            string `yaml:"b2_base_url"`
+	GcoreAPIBaseURL      string `yaml:"gcore_api_base_url"`
+	GcoreAPIToken        string `yaml:"gcore_api_token"`
+	GcoreCDNURL          string `yaml:"gcore_cdn_url"`
+	BunnyStreamAPIBase   string `yaml:"bunny_stream_api_base_url"`
+	BunnyStreamAPIKey    string `yaml:"bunny_stream_api_key"`
+	BunnyStreamLibraryID string `yaml:"bunny_stream_library_id"`
+	BunnyStreamBaseURL   string `yaml:"bunny_stream_base_url"`
+	BunnyStorageEndpoint string `yaml:"bunny_storage_endpoint"`
+	BunnyStoragePassword string `yaml:"bunny_storage_password"`
+	LocalFileURLSecret   string `yaml:"local_file_url_secret"`
 }
 
 // Setup reads .env then .env.<STAGE> into an in-memory map (no godotenv.Load),
@@ -241,6 +277,21 @@ func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
 	c.Brevo.APIKey = expand(c.Brevo.APIKey)
 	c.Brevo.SenderEmail = expand(c.Brevo.SenderEmail)
 	c.Brevo.SenderName = expand(c.Brevo.SenderName)
+
+	c.Media.B2KeyID = expand(c.Media.B2KeyID)
+	c.Media.B2AppKey = expand(c.Media.B2AppKey)
+	c.Media.B2Bucket = expand(c.Media.B2Bucket)
+	c.Media.B2BaseURL = expand(c.Media.B2BaseURL)
+	c.Media.GcoreAPIBaseURL = expand(c.Media.GcoreAPIBaseURL)
+	c.Media.GcoreAPIToken = expand(c.Media.GcoreAPIToken)
+	c.Media.GcoreCDNURL = expand(c.Media.GcoreCDNURL)
+	c.Media.BunnyStreamAPIBase = expand(c.Media.BunnyStreamAPIBase)
+	c.Media.BunnyStreamAPIKey = expand(c.Media.BunnyStreamAPIKey)
+	c.Media.BunnyStreamLibraryID = expand(c.Media.BunnyStreamLibraryID)
+	c.Media.BunnyStreamBaseURL = expand(c.Media.BunnyStreamBaseURL)
+	c.Media.BunnyStorageEndpoint = expand(c.Media.BunnyStorageEndpoint)
+	c.Media.BunnyStoragePassword = expand(c.Media.BunnyStoragePassword)
+	c.Media.LocalFileURLSecret = expand(c.Media.LocalFileURLSecret)
 }
 
 func applyYAMLToGlobals(c *yamlConfig) {
@@ -318,6 +369,21 @@ func applyYAMLToGlobals(c *yamlConfig) {
 	SupabaseSetting.AnonKey = c.Supabase.AnonKey
 	SupabaseSetting.ServiceRoleKey = c.Supabase.ServiceRoleKey
 	SupabaseSetting.DBURL = c.Supabase.DBURL
+
+	MediaSetting.B2KeyID = c.Media.B2KeyID
+	MediaSetting.B2AppKey = c.Media.B2AppKey
+	MediaSetting.B2Bucket = c.Media.B2Bucket
+	MediaSetting.B2BaseURL = c.Media.B2BaseURL
+	MediaSetting.GcoreAPIBaseURL = c.Media.GcoreAPIBaseURL
+	MediaSetting.GcoreAPIToken = c.Media.GcoreAPIToken
+	MediaSetting.GcoreCDNURL = c.Media.GcoreCDNURL
+	MediaSetting.BunnyStreamAPIBase = c.Media.BunnyStreamAPIBase
+	MediaSetting.BunnyStreamAPIKey = c.Media.BunnyStreamAPIKey
+	MediaSetting.BunnyStreamLibraryID = c.Media.BunnyStreamLibraryID
+	MediaSetting.BunnyStreamBaseURL = c.Media.BunnyStreamBaseURL
+	MediaSetting.BunnyStorageEndpoint = c.Media.BunnyStorageEndpoint
+	MediaSetting.BunnyStoragePassword = c.Media.BunnyStoragePassword
+	MediaSetting.LocalFileURLSecret = c.Media.LocalFileURLSecret
 }
 
 // PostgresDSN returns a libpq-compatible URL for GORM/pg drivers.

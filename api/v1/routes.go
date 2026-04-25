@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	internalv1 "mycourse-io-be/api/v1/internal"
+	mediav1 "mycourse-io-be/api/v1/media"
 	taxonomyv1 "mycourse-io-be/api/v1/taxonomy"
 	"mycourse-io-be/constants"
 	"mycourse-io-be/middleware"
@@ -31,6 +32,7 @@ func RegisterAuthenRoutes(rg *gin.RouterGroup) {
 		getMyPermissions,
 	)
 	taxonomyv1.RegisterRoutes(rg)
+	mediav1.RegisterRoutes(rg)
 }
 
 func RegisterInternalRoutes(rg *gin.RouterGroup) {

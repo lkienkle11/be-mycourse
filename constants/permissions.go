@@ -44,6 +44,11 @@ type allPermissionsT struct {
 	TagCreate string `perm_id:"P23"`
 	TagUpdate string `perm_id:"P24"`
 	TagDelete string `perm_id:"P25"`
+	// Media File
+	MediaFileRead   string `perm_id:"P26"`
+	MediaFileCreate string `perm_id:"P27"`
+	MediaFileUpdate string `perm_id:"P28"`
+	MediaFileDelete string `perm_id:"P29"`
 }
 
 var AllPermissions = allPermissionsT{
@@ -72,6 +77,10 @@ var AllPermissions = allPermissionsT{
 	TagCreate:            "tag:create",
 	TagUpdate:            "tag:update",
 	TagDelete:            "tag:delete",
+	MediaFileRead:        "media_file:read",
+	MediaFileCreate:      "media_file:create",
+	MediaFileUpdate:      "media_file:update",
+	MediaFileDelete:      "media_file:delete",
 }
 
 func allPermissionGroups() []reflect.Value {

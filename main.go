@@ -12,6 +12,7 @@ import (
 	"mycourse-io-be/internal/appcli"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/cache_clients"
+	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
 	"mycourse-io-be/queues"
@@ -41,6 +42,9 @@ func main() {
 	}
 
 	cache_clients.SetupRedis()
+	if err := pkgmedia.Setup(); err != nil {
+		log.Fatalf("setup media sdk clients failed: %v", err)
+	}
 
 	if os.Getenv("MIGRATE") == "1" {
 		if err := models.MigrateDatabase(); err != nil {

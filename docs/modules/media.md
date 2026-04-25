@@ -15,6 +15,8 @@ Media module provides a unified API surface for file and video uploads with prov
 Media does **not** persist file records in local database. Backend acts as upload gateway to third-party services.
 
 SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go`), then reused by media service flow.
+Media kind/provider normalization is implemented as shared helper assets in `pkg/logic/helper/media_resolver.go`, keeping `services/media` orchestration-only.
+Metadata raw parsing/normalization is also handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
 
 ---
 

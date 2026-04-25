@@ -16,6 +16,7 @@
 - **Media upload module** (`api/v1/media/*`, `services/media/*`, `dto/media_file.go`, `pkg/entities/file.go`):
   - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`.
   - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
+  - Uses shared resolver helpers in `pkg/logic/helper/media_resolver.go`; service layer remains orchestration-only.
   - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
   - No DB persistence for media records; backend is a stateless cloud-upload gateway.
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).

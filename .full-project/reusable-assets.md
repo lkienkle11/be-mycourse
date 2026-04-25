@@ -149,6 +149,28 @@
 - Reuse Opportunity:
   - Reuse for secure temporary download tokens in other modules.
 
+### Asset: Media kind/provider resolvers
+- Name: `ResolveMediaKind`, `ResolveMediaProvider`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/media_resolver.go`
+- Purpose: Normalize upload kind/provider with consistent fallback rules (video -> Bunny, file -> B2).
+- Scope: Media service orchestration and any future upload entrypoint requiring identical fallback behavior.
+- Dependencies: `constants/media.go`, `path/filepath`, `strings`.
+- Current Usage: `services/media/file_service.go`.
+- Reuse Opportunity:
+  - Reuse for any future media ingestion endpoints to keep provider-kind resolution behavior identical.
+
+### Asset: Media metadata parser helpers
+- Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/media_metadata.go`
+- Purpose: Parse raw metadata JSON and normalize metadata payload consistently with shared error formatting.
+- Scope: Media handlers/services and any upload endpoint accepting metadata JSON.
+- Dependencies: `encoding/json`, `fmt`, `strings`, `pkg/entities`.
+- Current Usage: `api/v1/media/file_handler.go`, `services/media/file_service.go`.
+- Reuse Opportunity:
+  - Reuse for all future endpoints that accept metadata in raw string form to avoid duplicate parsing logic in services.
+
 ### Asset: sqlnamed.Postgres
 - Name: `Postgres`
 - Type: Util/Helper

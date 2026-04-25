@@ -714,6 +714,71 @@
   - canonical docs now point to current paths
   - remaining old mentions are retained only in historical logs (`.context/*` and historical sections of this plan)
 
+## Phase Sub 02 RESET Update (2026-04-25 - resolver relocation + contract verification)
+
+### Scope completed for tasks 01->10
+- Re-ran strict reset baseline:
+  - `npx gitnexus analyze --force`
+  - `npx gitnexus status`
+  - re-read required context/doc sets: `.context/*`, `.full-project/*`, `docs/*`, `README.md`, `IMPLEMENTATION_PLAN_EXECUTION.md`.
+- Re-validated media route surface and current transport contract against code:
+  - methods kept: `GET/POST/PUT/DELETE/OPTIONS` on `/api/v1/media/files` and `/media/files/:id`, plus local decode route.
+  - no request/response/status/error contract changes introduced in this reset cycle.
+- Re-discovered media upload architecture (file branch B2/Gcore, video branch Bunny) and kept cloud-gateway stateless behavior unchanged.
+
+### Resolver relocation and service cleanup
+- Moved resolver logic out of service layer:
+  - removed `resolveKind` and `resolveProvider` from `services/media/file_service.go`
+  - added shared helpers in `pkg/logic/helper/media_resolver.go`:
+    - `ResolveMediaKind(...)`
+    - `ResolveMediaProvider(...)`
+- Updated media service call-sites to use helper resolvers.
+- Service layer remains orchestration-only; no util/helper media resolution logic remains in `services/media`.
+
+### Verification and quality gates
+- Ran full formatting/build/test gate:
+  - `gofmt -w services/media/file_service.go pkg/logic/helper/media_resolver.go`
+  - `go test ./...`
+  - `go build ./...`
+- Lint status for edited files: clean.
+- Reindexed GitNexus post-change:
+  - `npx gitnexus analyze --force`
+  - `npx gitnexus status` -> up-to-date.
+
+### Documentation sync for this reset cycle
+- Updated:
+  - `README.md`
+  - `docs/modules/media.md`
+  - `.full-project/modules.md`
+  - `.full-project/reusable-assets.md`
+  - this execution plan file
+- Added reusable-assets entry for resolver relocation (`pkg/logic/helper/media_resolver.go`).
+
+## Phase Sub 02 RESET Update (2026-04-25 - service tail cleanup)
+
+### Scope completed for reset re-run
+- Re-ran baseline for this cycle:
+  - `npx gitnexus analyze --force`
+  - `npx gitnexus status`
+- Re-validated media transport contracts and method scope remain unchanged.
+
+### Core correction requested in this cycle
+- Removed remaining non-orchestration helper functions from `services/media/file_service.go` tail:
+  - `contextBackground()`
+  - `ParseMetadataFromRaw(...)`
+- Replaced service-local context helper calls with direct `context.Background()`.
+- Relocated metadata raw parsing entrypoint to helper layer:
+  - added `helper.ParseMetadataFromRaw(...)` in `pkg/logic/helper/media_metadata.go`.
+- Updated API handler call-sites to use helper directly instead of calling service utility.
+
+### Verification
+- Executed:
+  - `gofmt -w pkg/logic/helper/media_metadata.go services/media/file_service.go api/v1/media/file_handler.go`
+  - `go test ./...`
+  - `go build ./...`
+- Lint diagnostics on touched files: clean.
+- Reindexed GitNexus post-change and verified freshness/up-to-date.
+
 ## Phase Sub 02 Execution Update (2026-04-25 - media upload domain)
 
 ### Scope completed

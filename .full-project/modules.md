@@ -5,7 +5,7 @@
   - Register/login/confirm/refresh lifecycle.
 - **User self module** (`api/v1/me.go`):
   - Profile and permission introspection for current user.
-- **RBAC admin module** (`api/v1/internal_rbac.go`, `services/rbac.go`):
+- **RBAC admin module** (`api/v1/internal/*`, `services/rbac.go`):
   - Internal CRUD for permissions/roles/user grants.
 - **System operations module** (`api/system/routes.go`, `internal/jobs`, `internal/rbacsync`):
   - Privileged login, sync-now, and scheduler management.

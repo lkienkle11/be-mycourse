@@ -494,6 +494,59 @@
 - `go test ./...` (pass)
 - `go build ./...` (pass)
 
+## Phase Sub 01 Rework Update (2026-04-25 - sync 7, remove redundant wrappers)
+
+### Task 02 + Task 03 (redefined for this cycle) - Direct util/helper usage in internal RBAC handler
+- Removed redundant local wrappers from `api/v1/internal/rbac_handler.go`:
+  - `parseUintParam(...)`
+  - `parsePermissionIDParam(...)`
+- Updated all call-sites in the same file to call shared helpers directly:
+  - `utils.ParseUintPathParam(...)`
+  - `helper.ParsePermissionIDParam(...)`
+- This keeps one source of truth and avoids thin pass-through wrappers.
+
+### Risk handling note
+- GitNexus impact before change:
+  - wrapper `parseUintParam`: CRITICAL
+  - wrapper `parsePermissionIDParam`: HIGH
+- Mitigation applied: wrapper removal only; preserved parsing behavior by direct calls to the same underlying helpers.
+
+### Task 01 + Task 04 loop for this cycle
+- Re-ran `gitnexus analyze --force`.
+- Re-ran impact checks and validated no behavior regression with test/build.
+- Synchronized `.full-project/reusable-assets.md` and this execution plan.
+
+### Validation for this cycle
+- `go test ./...` (pass)
+- `go build ./...` (pass)
+
+## Phase Sub 01 Rework Update (2026-04-25 - sync 6, param util/helper extraction)
+
+### Task 02 + Task 03 (redefined for this cycle) - Extract repeated param parsing logic
+- User-requested logic from old `api/v1/internal_rbac.go` was extracted and reused in current internal module:
+  - uint path param parser -> `pkg/logic/utils/params.go` (`ParseUintPathParam`)
+  - permission id parser -> `pkg/logic/helper/permission.go` (`ParsePermissionIDParam`)
+- Refactored internal RBAC handlers to use shared helpers:
+  - `api/v1/internal/rbac_handler.go`
+- Refactored existing shared request util to delegate to new common parser:
+  - `pkg/requestutil/params.go` now uses `utils.ParseUintPathParam`, extending reuse to taxonomy handlers.
+
+### Risk handling note
+- GitNexus impact:
+  - `parseUintParam`: CRITICAL (many direct dependents)
+  - `parsePermissionIDParam`: HIGH
+  - `pkg/requestutil.ParseUintParam`: CRITICAL
+- Mitigation applied: preserved external behavior and only replaced duplicated parsing internals with shared helpers.
+
+### Task 01 + Task 04 loop for this cycle
+- Re-ran `gitnexus analyze --force` before edits.
+- Performed impact analysis for all modified symbols.
+- Updated `.full-project/reusable-assets.md` and this plan to keep docs synchronized with code changes.
+
+### Validation for this cycle
+- `go test ./...` (pass)
+- `go build ./...` (pass)
+
 ## Phase Sub 01 Rework Update (2026-04-25 - sync 4, user-requested redo)
 
 ### Task 02 + Task 03 (redefined for this cycle) - Add `Tag` into core entity and refactor
@@ -508,5 +561,31 @@
 - Re-synced `.full-project/reusable-assets.md` and this plan after code updates.
 
 ### Validation for this redo
+- `go test ./...` (pass)
+- `go build ./...` (pass)
+
+## Phase Sub 01 Rework Update (2026-04-25 - sync 5, internal route modularization)
+
+### Task 02 + Task 03 (redefined for this cycle) - Move internal RBAC API into `api/v1/internal`
+- Moved internal RBAC handlers from monolithic `api/v1/internal_rbac.go` into:
+  - `api/v1/internal/rbac_handler.go`
+- Added internal route module:
+  - `api/v1/internal/routes.go`
+- Removed old file:
+  - `api/v1/internal_rbac.go`
+- Moved old route block (from `api/v1/routes.go` lines 35-57) into `api/v1/internal/routes.go`.
+- Kept compatibility with current router wiring by exposing a thin wrapper in `api/v1/routes.go`:
+  - `RegisterInternalRoutes(rg)` delegates to `internalv1.RegisterRoutes(rg)`.
+
+### Risk handling note
+- GitNexus impact marked `parseUintParam` as CRITICAL (many direct dependents inside internal handlers).
+- Mitigation applied: pure structural move without changing internal handler behavior/response contracts.
+
+### Task 01 + Task 04 loop for this cycle
+- Re-ran `gitnexus analyze --force`.
+- Ran impact checks before edit (`RegisterInternalRoutes`, `parseUintParam`).
+- Re-synced `.full-project` docs and this execution plan after refactor.
+
+### Validation for this cycle
 - `go test ./...` (pass)
 - `go build ./...` (pass)

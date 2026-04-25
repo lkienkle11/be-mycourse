@@ -42,7 +42,7 @@
 - Purpose: Paginated list with safe sort/search whitelist behavior.
 - Scope: Reusable blueprint for list endpoints.
 - Dependencies: `dto.BaseFilter` semantics, GORM query shaping.
-- Current Usage: `api/v1/internal_rbac.go`.
+- Current Usage: `api/v1/internal/rbac_handler.go`.
 - Reuse Opportunity:
   - Reuse its whitelist + pagination pattern for taxonomy/courses/series lists.
 
@@ -66,7 +66,7 @@
 - Purpose: Request schemas and validation tags for CRUD operations.
 - Scope: Internal admin API contracts.
 - Dependencies: Gin binding/validator tags.
-- Current Usage: `api/v1/internal_rbac.go`.
+- Current Usage: `api/v1/internal/rbac_handler.go`.
 - Reuse Opportunity:
   - Template to design new domain DTO suites with consistent validation style.
 
@@ -100,10 +100,32 @@
 - Path: `pkg/requestutil/params.go`
 - Purpose: Centralize request-context user extraction and path param integer parsing.
 - Scope: All HTTP handlers requiring authenticated user id or `:id` parsing.
-- Dependencies: `gin.Context`, `pkg/errcode`, `pkg/httperr`.
+- Dependencies: `gin.Context`, `pkg/logic/utils`.
 - Current Usage: taxonomy handlers.
 - Reuse Opportunity:
   - Reuse in all future CRUD handlers to keep transport-layer parsing behavior consistent.
+
+### Asset: Generic uint path-param parser
+- Name: `ParseUintPathParam`
+- Type: Util/Helper
+- Path: `pkg/logic/utils/params.go`
+- Purpose: Parse unsigned integer path params from `gin.Context` with one shared implementation.
+- Scope: Internal RBAC and taxonomy handlers (through direct usage or `pkg/requestutil` delegation).
+- Dependencies: `gin.Context`, `strconv`.
+- Current Usage: `api/v1/internal/rbac_handler.go` (direct calls), `pkg/requestutil/params.go`.
+- Reuse Opportunity:
+  - Reuse for all future `:id`/`:userId`/`:roleId` style path parsing to eliminate duplicate conversions.
+
+### Asset: Permission id path-param parser
+- Name: `ParsePermissionIDParam`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/permission.go`
+- Purpose: Parse and validate permission id path params (trim + max length check).
+- Scope: Internal RBAC permission handlers.
+- Dependencies: `gin.Context`, `strings`.
+- Current Usage: `api/v1/internal/rbac_handler.go` (direct calls).
+- Reuse Opportunity:
+  - Reuse for all endpoints handling permission-id route params to keep validation behavior consistent.
 
 ### Asset: Shared pagination page builder
 - Name: `BuildPage`
@@ -112,7 +134,7 @@
 - Purpose: Centralize pagination response construction (`Page`, `PerPage`, `TotalPages`, `TotalItems`) and avoid duplicated manual total-page math.
 - Scope: All paginated handlers across taxonomy/internal modules and future CRUD modules.
 - Dependencies: `pkg/response.PageInfo`.
-- Current Usage: `api/v1/taxonomy/*_handler.go`, `api/v1/internal_rbac.go`.
+- Current Usage: `api/v1/taxonomy/*_handler.go`, `api/v1/internal/rbac_handler.go`.
 - Reuse Opportunity:
   - Reuse by all list endpoints to keep pagination behavior consistent and reduce duplicated handler logic.
 

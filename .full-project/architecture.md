@@ -5,7 +5,7 @@
 - Main composition root is `main.go`, which initializes settings, database, cache, migrations, services, queue placeholder, and HTTP router.
 
 ## Runtime Layers
-- Transport: `api/`, `api/v1/`, `api/system/`.
+- Transport: `api/`, `api/v1/`, `api/v1/internal/`, `api/system/`.
 - Middleware: `middleware/` for JWT auth, API key auth, system token auth, RBAC, rate limiters.
 - Business logic: `services/` and `services/cache/`.
 - Data layer: `models/`, raw SQL helpers in `services/rbac.go`, and naming helpers in `dbschema/`.

@@ -1,4 +1,4 @@
-package taxonomy
+package helper
 
 import (
 	"strings"
@@ -6,7 +6,8 @@ import (
 	"mycourse-io-be/constants"
 )
 
-func normalizeTaxonomyStatus(raw string) constants.TaxonomyStatus {
+// NormalizeTaxonomyStatus maps free-form request strings to taxonomy status enum values.
+func NormalizeTaxonomyStatus(raw string) constants.TaxonomyStatus {
 	switch strings.ToUpper(strings.TrimSpace(raw)) {
 	case string(constants.TaxonomyStatusInactive):
 		return constants.TaxonomyStatusInactive

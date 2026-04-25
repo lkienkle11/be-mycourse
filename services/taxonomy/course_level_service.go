@@ -3,9 +3,10 @@ package taxonomy
 import (
 	"strings"
 
-	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/logic/helper"
 	repo "mycourse-io-be/repository/taxonomy"
 )
 
@@ -18,7 +19,7 @@ func CreateCourseLevel(actorID uint, req dto.CreateCourseLevelRequest) (*models.
 		CourseLevel: entities.CourseLevel{
 			Name:   strings.TrimSpace(req.Name),
 			Slug:   strings.TrimSpace(req.Slug),
-			Status: normalizeTaxonomyStatus(req.Status),
+			Status: helper.NormalizeTaxonomyStatus(req.Status),
 		},
 	}
 	if actorID > 0 {
@@ -44,7 +45,7 @@ func UpdateCourseLevel(id uint, req dto.UpdateCourseLevelRequest) (*models.Cours
 		row.Slug = strings.TrimSpace(*req.Slug)
 	}
 	if req.Status != nil && strings.TrimSpace(*req.Status) != "" {
-		row.Status = normalizeTaxonomyStatus(*req.Status)
+		row.Status = helper.NormalizeTaxonomyStatus(*req.Status)
 	}
 
 	if err := r.UpdateCourseLevel(row); err != nil {

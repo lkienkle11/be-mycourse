@@ -3,9 +3,10 @@ package taxonomy
 import (
 	"strings"
 
-	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/logic/helper"
 	repo "mycourse-io-be/repository/taxonomy"
 )
 
@@ -18,7 +19,7 @@ func CreateTag(actorID uint, req dto.CreateTagRequest) (*models.Tag, error) {
 		Tag: entities.Tag{
 			Name:   strings.TrimSpace(req.Name),
 			Slug:   strings.TrimSpace(req.Slug),
-			Status: normalizeTaxonomyStatus(req.Status),
+			Status: helper.NormalizeTaxonomyStatus(req.Status),
 		},
 	}
 	if actorID > 0 {
@@ -44,7 +45,7 @@ func UpdateTag(id uint, req dto.UpdateTagRequest) (*models.Tag, error) {
 		row.Slug = strings.TrimSpace(*req.Slug)
 	}
 	if req.Status != nil && strings.TrimSpace(*req.Status) != "" {
-		row.Status = normalizeTaxonomyStatus(*req.Status)
+		row.Status = helper.NormalizeTaxonomyStatus(*req.Status)
 	}
 
 	if err := r.UpdateTag(row); err != nil {

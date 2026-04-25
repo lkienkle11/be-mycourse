@@ -39,6 +39,16 @@
   - `POST /taxonomy/tags`
   - `PATCH /taxonomy/tags/:id`
   - `DELETE /taxonomy/tags/:id`
+- Media upload/files:
+  - `OPTIONS /media/files`
+  - `GET /media/files`
+  - `POST /media/files`
+  - `OPTIONS /media/files/:id`
+  - `GET /media/files/:id`
+  - `PUT /media/files/:id`
+  - `DELETE /media/files/:id`
+  - `OPTIONS /media/files/local/:token`
+  - `GET /media/files/local/:token`
 
 ### `/api/internal-v1/rbac`
 - Permissions CRUD: list/create/update/delete.
@@ -53,5 +63,6 @@
 
 ## Gaps vs Planned E-learning Domains
 - Taxonomy domain is now implemented in Phase 01.
+- Media upload domain is now implemented in Phase sub 02 with unified file/video API branch.
 - No course/lesson/enrollment/commerce CRUD endpoints implemented yet.
 - Planned module docs (`docs/modules/*.md`) describe intended touchpoints in `api/v1`, `services`, `dto`, `models`, `migrations`.

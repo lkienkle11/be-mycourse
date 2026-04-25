@@ -33,3 +33,9 @@
 - Services: `services/`.
 - Models and SQL migrations: `models/`, `migrations/`.
 - Authorization extension: `constants/permissions.go` + `constants/roles_permission.go` + sync commands.
+- Media upload expansion now implemented via:
+  - `api/v1/media/*` (transport)
+  - `services/media/*` (provider dispatch + upload flow logic + third-party SDK clients)
+  - `pkg/media/*` startup-initialized SDK clients (`pkg/media.Setup()` in `main.go`)
+  - `pkg/entities/file.go` + `constants/media.go` (shared descriptor + enums)
+  - stateless design (no media table/model/repository in local DB)

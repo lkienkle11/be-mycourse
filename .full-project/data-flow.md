@@ -42,6 +42,14 @@
 - Mutations normalize taxonomy status in `services/taxonomy/common.go` before repository writes.
 - Persistence targets new taxonomy tables from migration `000002_taxonomy_domain.*`.
 
+### Media Upload CRUD
+- `/api/v1/media/files*` (JWT + permission protected) -> media handlers -> media services -> provider SDK/HTTP clients.
+- Service normalizes metadata and dispatches by provider:
+  - non-video file branch: B2 origin URL + Gcore CDN URL
+  - video branch: Bunny Stream playback URL
+  - local branch: reversible signed token URL (`/media/files/local/:token`)
+- Media descriptor is returned directly in response and is not persisted in local DB.
+
 ## Persistence Boundaries
 - PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).
 - Redis optional cache (auth and me payload optimization).

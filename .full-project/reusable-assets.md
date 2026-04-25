@@ -138,6 +138,17 @@
 - Reuse Opportunity:
   - Reuse by all list endpoints to keep pagination behavior consistent and reduce duplicated handler logic.
 
+### Asset: Local media URL reversible signer
+- Name: `EncodeLocalObjectKey`, `DecodeLocalObjectKey`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/local_url_codec.go`
+- Purpose: Build reversible signed URL tokens for local provider objects.
+- Scope: Media local-provider read path and future private file links.
+- Dependencies: `crypto/hmac`, `crypto/sha256`, `encoding/base64`.
+- Current Usage: `pkg/media/clients.go`, `services/media/file_service.go`.
+- Reuse Opportunity:
+  - Reuse for secure temporary download tokens in other modules.
+
 ### Asset: sqlnamed.Postgres
 - Name: `Postgres`
 - Type: Util/Helper
@@ -181,6 +192,39 @@
 - Current Usage: `models/taxonomy_course_level.go`, `models/taxonomy_category.go`, `models/taxonomy_tag.go` as model embedding source.
 - Reuse Opportunity:
   - Extend with additional pure entities for future domains while keeping DB mapping (`TableName`) only in `models/*`.
+
+### Asset: File domain types
+- Name: `File`, `FileMetadata`
+- Type: Type/Entity
+- Path: `pkg/entities/file.go`
+- Purpose: Shared media response descriptor for stateless cloud upload API.
+- Scope: Media upload service + transport response payload.
+- Dependencies: `constants/media.go`.
+- Current Usage: `services/media/*`, `api/v1/media/*`.
+- Reuse Opportunity:
+  - Reuse for course lesson media, subtitles, and future asset libraries.
+
+### Asset: Runtime dependency guard
+- Name: `RequireInitialized`, `ErrDependencyNotConfigured`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/runtime_guard.go`
+- Purpose: Centralize runtime dependency checks (non-nil guards) with standardized error message mapped from `pkg/errcode`.
+- Scope: Services that rely on startup-initialized dependencies.
+- Dependencies: `pkg/errcode`.
+- Current Usage: `services/media/file_service.go`.
+- Reuse Opportunity:
+  - Reuse in future modules needing startup dependency guards.
+
+### Asset: Media constants
+- Name: `FileProvider`, `FileKind`, `FileStatus`
+- Type: Constant
+- Path: `constants/media.go`
+- Purpose: Centralized media enums (moved out of entity to keep entity pure).
+- Scope: Media service + handler + DTO validation contracts.
+- Dependencies: none.
+- Current Usage: `pkg/entities/file.go`, `services/media/*`, `api/v1/media/*`.
+- Reuse Opportunity:
+  - Reuse in future media-dependent modules.
 
 ## Constant / ErrorCode Assets
 

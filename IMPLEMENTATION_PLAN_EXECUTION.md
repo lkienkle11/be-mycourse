@@ -469,6 +469,31 @@
 
 ### Validation for rework
 - `go test ./...` (pass)
+
+## Phase Sub 02 Rework Update (2026-04-25 - startup SDK initialization)
+
+- Refactored media SDK initialization to app startup lifecycle:
+  - added `pkg/media/setup.go` with `Setup()` and shared `pkg/media.Cloud`.
+  - wired startup call in `main.go` right after cache setup.
+- Removed runtime lazy initialization behavior from service:
+  - `services/media/file_service.go` no longer does `sync.Once` lazy client creation.
+  - service now requires startup initialization and returns explicit error if not configured.
+- Kept media flow stateless and no-DB, while making initialization consistent with existing DB/config startup pattern.
+
+### Validation for startup-init refactor
+- `go test ./...` (pass)
+
+## Phase Sub 02 Documentation Sync Update (2026-04-25 - strict sync pass)
+
+- Re-synced canonical docs to match final media architecture:
+  - startup SDK init in `pkg/media.Setup()` (no runtime lazy constructor in service)
+  - runtime dependency check via `pkg/logic/helper/runtime_guard.go`
+  - no DB persistence for media resources
+- Updated files:
+  - `README.md`
+  - `.full-project/modules.md`
+  - `.full-project/reusable-assets.md`
+  - `docs/modules/media.md`
 - `go build ./...` (pass)
 
 ## Phase Sub 01 Rework Update (2026-04-25 - sync 3)
@@ -688,3 +713,96 @@
 - Result:
   - canonical docs now point to current paths
   - remaining old mentions are retained only in historical logs (`.context/*` and historical sections of this plan)
+
+## Phase Sub 02 Execution Update (2026-04-25 - media upload domain)
+
+### Scope completed
+- Re-ran discovery context and GitNexus index (`npx gitnexus analyze --force`) before implementation.
+- Implemented unified media upload API with methods `GET/POST/PUT/DELETE/OPTIONS` under `/api/v1/media/files`.
+- Implemented provider normalization (`FileProvider`) with values:
+  - `S3 | GCS | B2 | R2 | Bunny | Local`
+- Implemented `FileMetadata` persisted as `JSONB`.
+- Added local-provider reversible signed URL behavior and cloud direct URL behavior.
+
+### Code artifacts
+- Migration:
+  - `migrations/000003_media_domain.up.sql`
+  - `migrations/000003_media_domain.down.sql`
+- Domain and schema:
+  - `pkg/entities/file.go`
+  - `models/media_file.go`
+  - `dbschema/media_namespace.go`
+  - `dbschema/media_files.go`
+- DTO / repository / service:
+  - `dto/media_file.go`
+  - `repository/media/file_repository.go`
+  - `services/media/provider.go` (later refactored into `pkg/media/clients.go`)
+  - `services/media/file_service.go`
+- Transport:
+  - `api/v1/media/routes.go`
+  - `api/v1/media/file_handler.go`
+  - `api/v1/routes.go` (media route mount)
+- Security utility:
+  - `pkg/logic/helper/local_url_codec.go`
+- RBAC extension:
+  - `constants/permissions.go` (`P26`-`P29`)
+  - `constants/roles_permission.go` (role mapping for `P26`-`P29`)
+
+### Documentation synchronization completed
+- Updated:
+  - `README.md`
+  - `.full-project/architecture.md`
+  - `.full-project/api-overview.md`
+  - `.full-project/router.md`
+  - `.full-project/modules.md`
+  - `.full-project/data-flow.md`
+  - `.full-project/reusable-assets.md`
+  - `docs/modules/media.md` (new)
+
+### Validation
+- `go test ./...` (pass)
+- `gofmt` applied on all modified Go files.
+
+## Phase Sub 02 Rework Update (2026-04-25 - cloud-only media, no DB persistence)
+
+### Request-driven correction applied
+- Removed all media DB persistence surfaces from sub-02:
+  - removed `models/media_file.go`
+  - removed `repository/media/*`
+  - removed `dbschema/media_*`
+  - removed `migrations/000003_media_domain.*`
+- Refactored media flow to stateless cloud gateway:
+  - upload file -> push to third-party provider -> return `entities.File` response directly
+  - no create/read/update/delete media row in local database
+
+### Code structure correction
+- Moved media enums/constants out of entity:
+  - new `constants/media.go` contains `FileProvider`, `FileKind`, `FileStatus`
+- Kept `pkg/entities/file.go` as pure descriptor type only (no util/scan/value logic).
+- Moved metadata normalization/parsing to helpers:
+  - `pkg/logic/helper/media_metadata.go`
+- Moved service-local types out of provider logic file:
+  - `services/media/types.go`
+
+### Provider integrations
+- Added SDK dependencies and wired clients:
+  - B2: `github.com/Backblaze/blazer/b2`
+  - Gcore: `github.com/G-Core/gcorelabscdn-go`
+  - Bunny storage SDK package installed: `github.com/l0wl3vel/bunny-storage-go-sdk`
+- Implemented upload dispatch:
+  - non-video -> B2 upload + Gcore CDN URL
+  - video -> Bunny Stream API upload path
+  - local -> reversible signed token URL
+
+### Config and env updates
+- Added media config block in:
+  - `config/app.yaml`
+  - `config/app-local.yaml`
+  - `config/app-dev.yaml`
+  - `config/app-staging.yaml`
+  - `config/app-prod.yaml`
+  - `config/app-test.yaml`
+- Added media env keys into `.env.example` and stage example files.
+
+### Validation for rework
+- `go test ./...` (pass)

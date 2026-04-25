@@ -13,6 +13,12 @@
   - CRUD and list/filter for `course_levels`, `categories`, `tags`.
   - Uses shared list parsing helper (`pkg/query/filter_parser.go`) and shared request helpers (`pkg/requestutil/params.go`).
   - Uses permission middleware with taxonomy-specific RBAC entries (`P14`-`P25`).
+- **Media upload module** (`api/v1/media/*`, `services/media/*`, `dto/media_file.go`, `pkg/entities/file.go`):
+  - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`.
+  - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
+  - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
+  - No DB persistence for media records; backend is a stateless cloud-upload gateway.
+  - Uses permission middleware with media RBAC entries (`P26`-`P29`).
 
 ## Planned But Not Implemented (per docs/modules)
 - **Course module (phase 02+)**

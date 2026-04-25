@@ -871,3 +871,18 @@
 
 ### Validation for rework
 - `go test ./...` (pass)
+
+## Phase Sub 02 RESET Update (2026-04-25 - taxonomy status helper relocation)
+
+### Core correction
+- Taxonomy status string normalization must not live under `services/taxonomy` as a shared util file.
+- Added `helper.NormalizeTaxonomyStatus` in `pkg/logic/helper/taxonomy_status.go` (same layer pattern as media resolvers/metadata).
+- Updated `services/taxonomy/category_service.go`, `course_level_service.go`, and `tag_service.go` to call the helper.
+- Removed `services/taxonomy/common.go`.
+
+### Verification
+- `gofmt`, `go test ./...`, `go build ./...` (pass).
+- `npx gitnexus analyze --force` + `npx gitnexus status` -> up-to-date.
+
+### Documentation sync
+- Updated `.full-project/data-flow.md`, `.full-project/reusable-assets.md` (new asset + corrected media metadata usage line), and this file.

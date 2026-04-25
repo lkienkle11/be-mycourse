@@ -167,9 +167,20 @@
 - Purpose: Parse raw metadata JSON and normalize metadata payload consistently with shared error formatting.
 - Scope: Media handlers/services and any upload endpoint accepting metadata JSON.
 - Dependencies: `encoding/json`, `fmt`, `strings`, `pkg/entities`.
-- Current Usage: `api/v1/media/file_handler.go`, `services/media/file_service.go`.
+- Current Usage: `api/v1/media/file_handler.go`.
 - Reuse Opportunity:
   - Reuse for all future endpoints that accept metadata in raw string form to avoid duplicate parsing logic in services.
+
+### Asset: Taxonomy status normalization
+- Name: `NormalizeTaxonomyStatus`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/taxonomy_status.go`
+- Purpose: Map request status strings to `constants.TaxonomyStatus` with a single default-to-active rule.
+- Scope: Taxonomy create/update flows and any future domain using the same enum.
+- Dependencies: `strings`, `constants/taxonomy.go`.
+- Current Usage: `services/taxonomy/category_service.go`, `services/taxonomy/course_level_service.go`, `services/taxonomy/tag_service.go`.
+- Reuse Opportunity:
+  - Reuse whenever another module accepts taxonomy status as raw text.
 
 ### Asset: sqlnamed.Postgres
 - Name: `Postgres`

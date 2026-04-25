@@ -39,7 +39,7 @@
 ### Taxonomy CRUD
 - `/api/v1/taxonomy/*` (JWT + permission protected) -> taxonomy handlers -> taxonomy services -> taxonomy repositories.
 - List endpoints apply shared filter parsing (`pkg/query/filter_parser.go`) with whitelist sorting/search.
-- Mutations normalize taxonomy status in `services/taxonomy/common.go` before repository writes.
+- Mutations normalize taxonomy status via `helper.NormalizeTaxonomyStatus` (`pkg/logic/helper/taxonomy_status.go`) before repository writes.
 - Persistence targets new taxonomy tables from migration `000002_taxonomy_domain.*`.
 
 ### Media Upload CRUD

@@ -45,10 +45,11 @@
 ### Media Upload CRUD
 - `/api/v1/media/files*` (JWT + permission protected) -> media handlers -> media services -> provider SDK/HTTP clients.
 - Service normalizes metadata and dispatches by provider:
+  - service delegates metadata parsing/inference to helper layer; client metadata is optional and backend infers typed metadata from payload/provider outputs.
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL
   - local branch: reversible signed token URL (`/media/files/local/:token`)
-- Media descriptor is returned directly in response and is not persisted in local DB.
+- Media descriptor is returned directly in response with typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) and is not persisted in local DB.
 
 ## Persistence Boundaries
 - PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).

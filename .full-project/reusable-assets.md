@@ -149,6 +149,17 @@
 - Reuse Opportunity:
   - Reuse for secure temporary download tokens in other modules.
 
+### Asset: Local media URL token decoder
+- Name: `DecodeLocalURLToken`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/local_url_codec.go`
+- Purpose: Decode local signed media URL tokens with env-based secret fallback outside service layer.
+- Scope: Media local decode endpoint and future local signed-link consumers.
+- Dependencies: `os`, `strings`, `DecodeLocalObjectKey`.
+- Current Usage: `api/v1/media/file_handler.go`.
+- Reuse Opportunity:
+  - Reuse for any endpoint needing reversible local object-key token decoding.
+
 ### Asset: Media kind/provider resolvers
 - Name: `ResolveMediaKind`, `ResolveMediaProvider`
 - Type: Util/Helper
@@ -161,15 +172,15 @@
   - Reuse for any future media ingestion endpoints to keep provider-kind resolution behavior identical.
 
 ### Asset: Media metadata parser helpers
-- Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`
+- Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`
 - Type: Util/Helper
 - Path: `pkg/logic/helper/media_metadata.go`
-- Purpose: Parse raw metadata JSON and normalize metadata payload consistently with shared error formatting.
+- Purpose: Parse raw metadata JSON, normalize metadata payload, and infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) consistently in backend.
 - Scope: Media handlers/services and any upload endpoint accepting metadata JSON.
 - Dependencies: `encoding/json`, `fmt`, `strings`, `pkg/entities`.
-- Current Usage: `api/v1/media/file_handler.go`.
+- Current Usage: `api/v1/media/file_handler.go`, `services/media/file_service.go`.
 - Reuse Opportunity:
-  - Reuse for all future endpoints that accept metadata in raw string form to avoid duplicate parsing logic in services.
+  - Reuse for all future endpoints that accept metadata in raw string form and require backend metadata inference.
 
 ### Asset: Taxonomy status normalization
 - Name: `NormalizeTaxonomyStatus`
@@ -227,10 +238,10 @@
   - Extend with additional pure entities for future domains while keeping DB mapping (`TableName`) only in `models/*`.
 
 ### Asset: File domain types
-- Name: `File`, `FileMetadata`
+- Name: `File`, `FileMetadata`, `ImageMetadata`, `VideoMetadata`, `DocumentMetadata`
 - Type: Type/Entity
 - Path: `pkg/entities/file.go`
-- Purpose: Shared media response descriptor for stateless cloud upload API.
+- Purpose: Shared media response descriptor for stateless cloud upload API with base metadata + typed metadata inheritance model.
 - Scope: Media upload service + transport response payload.
 - Dependencies: `constants/media.go`.
 - Current Usage: `services/media/*`, `api/v1/media/*`.

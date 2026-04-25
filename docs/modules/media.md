@@ -16,7 +16,7 @@ Media does **not** persist file records in local database. Backend acts as uploa
 
 SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go`), then reused by media service flow.
 Media kind/provider normalization is implemented as shared helper assets in `pkg/logic/helper/media_resolver.go`, keeping `services/media` orchestration-only.
-Metadata raw parsing/normalization is also handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
+Metadata parsing and typed inference are handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
 
 ---
 
@@ -62,7 +62,19 @@ Returned `File` object fields:
 - `origin_url`: provider origin URL
 - `object_key`: storage key/object identifier
 - `status`: `READY | FAILED | DELETED`
-- `metadata`: dynamic JSON map from request/provider response
+- `metadata`: typed object inferred by backend:
+  - `ImageMetadata` for image files
+  - `VideoMetadata` for video files
+  - `DocumentMetadata` for non-image documents
+
+`VideoMetadata` always includes:
+- `duration`
+- `thumbnail_url`
+- `bunny_video_id`
+- `bunny_library_id`
+- `size`
+- `width`
+- `height`
 
 ---
 
@@ -71,4 +83,5 @@ Returned `File` object fields:
 - `Local`: `url` is a signed reversible token path (`/api/v1/media/files/local/:token`), `origin_url` stores raw object key.
 - Non-video default: upload to B2 and return Gcore CDN URL + B2 origin URL.
 - Video default: upload to Bunny Stream and return playback URL.
+- Decode token flow uses helper placement (`pkg/logic/helper/DecodeLocalURLToken`), not service-local utility.
 

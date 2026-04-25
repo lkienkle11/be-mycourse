@@ -886,3 +886,53 @@
 
 ### Documentation sync
 - Updated `.full-project/data-flow.md`, `.full-project/reusable-assets.md` (new asset + corrected media metadata usage line), and this file.
+
+## Phase Sub 02 RESET Update (2026-04-26 - metadata typing + helper placement)
+
+### Scope completed for tasks 01->10
+- Re-ran reset baseline:
+  - `npx gitnexus analyze --force`
+  - `npx gitnexus status`
+- Re-read required sources (`.context/*`, `.full-project/*`, `docs/*`, `README.md`, this plan file) before edits.
+- Revalidated media API method scope remains unchanged:
+  - `GET/POST/PUT/DELETE/OPTIONS` on `/api/v1/media/files*`.
+
+### Core implementation in this cycle
+- Refactored non-CRUD decode utility out of service layer:
+  - removed `DecodeLocalURLToken` from `services/media/file_service.go`
+  - added/reused helper placement at `pkg/logic/helper/local_url_codec.go` (`DecodeLocalURLToken`).
+- Extended media entity metadata model:
+  - `pkg/entities/file.go` now includes base `FileMetadata` plus typed metadata structs:
+    - `ImageMetadata`
+    - `VideoMetadata`
+    - `DocumentMetadata`
+  - `VideoMetadata` includes required fields:
+    - `duration`, `thumbnail_url`, `bunny_video_id`, `bunny_library_id`, `size`, `width`, `height`.
+- Implemented backend metadata inference flow:
+  - `services/media/file_service.go` reads payload once, uploads by provider, and maps response metadata through helper inference.
+  - `pkg/logic/helper/media_metadata.go` adds typed inference helper (`BuildTypedMetadata`) and keeps raw parse helpers.
+  - `pkg/media/clients.go` now enriches Bunny metadata with `bunny_video_id` and `bunny_library_id`.
+- Updated media handler decode flow to call helper directly:
+  - `api/v1/media/file_handler.go` uses `helper.DecodeLocalURLToken`.
+
+### Contract/behavior verification
+- Preserved response envelope/status/error behavior (`pkg/response` and existing handler status codes unchanged).
+- CRUD responses now return typed metadata payload by file kind instead of ambiguous map in service result.
+
+### Quality gate + GitNexus post-change
+- Executed:
+  - `gofmt -w ...` on touched files
+  - `go test ./...` (pass)
+  - `go build ./...` (pass)
+- Reindexed and verified freshness:
+  - `npx gitnexus analyze --force`
+  - `npx gitnexus status` -> up-to-date.
+
+### Documentation sync
+- Updated:
+  - `README.md`
+  - `docs/modules/media.md`
+  - `.full-project/modules.md`
+  - `.full-project/data-flow.md`
+  - `.full-project/reusable-assets.md`
+  - this execution plan file.

@@ -17,6 +17,8 @@
   - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`.
   - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
   - Uses shared resolver helpers in `pkg/logic/helper/media_resolver.go`; service layer remains orchestration-only.
+  - Uses helper `pkg/logic/helper/DecodeLocalURLToken` for local token decode (no non-CRUD decode utility in service layer).
+  - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.
   - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
   - No DB persistence for media records; backend is a stateless cloud-upload gateway.
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).

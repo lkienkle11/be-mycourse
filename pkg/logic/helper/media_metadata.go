@@ -2,6 +2,7 @@ package helper
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"mycourse-io-be/pkg/entities"
@@ -31,4 +32,12 @@ func NormalizeMetadata(in map[string]any) entities.FileMetadata {
 		out[key] = v
 	}
 	return out
+}
+
+func ParseMetadataFromRaw(raw string) (entities.FileMetadata, error) {
+	meta, err := ParseMetadataJSON(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid metadata json: %w", err)
+	}
+	return meta, nil
 }

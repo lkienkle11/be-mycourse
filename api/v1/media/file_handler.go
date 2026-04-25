@@ -63,7 +63,7 @@ func createFile(c *gin.Context) {
 	}
 	defer file.Close()
 
-	meta, err := mediaservice.ParseMetadataFromRaw(c.PostForm("metadata"))
+	meta, err := helper.ParseMetadataFromRaw(c.PostForm("metadata"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
@@ -105,7 +105,7 @@ func updateFile(c *gin.Context) {
 	}
 	defer file.Close()
 
-	meta, err := mediaservice.ParseMetadataFromRaw(c.PostForm("metadata"))
+	meta, err := helper.ParseMetadataFromRaw(c.PostForm("metadata"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
@@ -134,7 +134,7 @@ func deleteFile(c *gin.Context) {
 		return
 	}
 	provider := constants.FileProvider(strings.TrimSpace(c.Query("provider")))
-	meta, err := mediaservice.ParseMetadataFromRaw(c.Query("metadata"))
+	meta, err := helper.ParseMetadataFromRaw(c.Query("metadata"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return

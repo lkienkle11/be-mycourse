@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime/multipart"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -62,9 +61,9 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	clients := pkgmedia.Cloud
 	filename := strings.TrimSpace(fileHeader.Filename)
 	meta := helper.NormalizeMetadata(req.Metadata)
-	kind := resolveKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
+	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
 	objectKey := pkgmedia.BuildObjectKey(req.ObjectKey, filename)
-	provider := resolveProvider(kind, req.Provider)
+	provider := helper.ResolveMediaProvider(kind, req.Provider)
 
 	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, file, meta)
 	if err != nil {
@@ -121,11 +120,11 @@ func DeleteFile(objectKey string, provider constants.FileProvider, metadata enti
 		if videoGUID == "" {
 			videoGUID = key
 		}
-		return clients.DeleteBunnyVideo(contextBackground(), videoGUID)
+		return clients.DeleteBunnyVideo(context.Background(), videoGUID)
 	case constants.FileProviderLocal:
 		return nil
 	default:
-		return clients.DeleteB2Object(contextBackground(), key)
+		return clients.DeleteB2Object(context.Background(), key)
 	}
 }
 
@@ -141,34 +140,6 @@ func DecodeLocalURLToken(token string) (string, error) {
 	return objectKey, nil
 }
 
-func resolveKind(kindRaw, mime, filename string) constants.FileKind {
-	kind := constants.FileKind(strings.TrimSpace(kindRaw))
-	if kind == constants.FileKindFile || kind == constants.FileKindVideo {
-		return kind
-	}
-	if strings.HasPrefix(strings.ToLower(mime), "video/") {
-		return constants.FileKindVideo
-	}
-	ext := strings.ToLower(filepath.Ext(filename))
-	switch ext {
-	case ".mp4", ".mov", ".mkv", ".avi", ".webm":
-		return constants.FileKindVideo
-	default:
-		return constants.FileKindFile
-	}
-}
-
-func resolveProvider(kind constants.FileKind, providerRaw string) constants.FileProvider {
-	p := constants.FileProvider(strings.TrimSpace(providerRaw))
-	if p != "" {
-		return p
-	}
-	if kind == constants.FileKindVideo {
-		return constants.FileProviderBunny
-	}
-	return constants.FileProviderB2
-}
-
 func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FileProvider, objectKey, filename string, file multipart.File, meta entities.FileMetadata) (dto.UploadFileResponse, error) {
 	switch provider {
 	case constants.FileProviderLocal:
@@ -178,20 +149,8 @@ func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FilePro
 		if err != nil {
 			return dto.UploadFileResponse{}, err
 		}
-		return clients.UploadBunnyVideo(contextBackground(), filename, payload, objectKey, meta)
+		return clients.UploadBunnyVideo(context.Background(), filename, payload, objectKey, meta)
 	default:
-		return clients.UploadB2(contextBackground(), objectKey, file, meta)
+		return clients.UploadB2(context.Background(), objectKey, file, meta)
 	}
-}
-
-func contextBackground() context.Context {
-	return context.Background()
-}
-
-func ParseMetadataFromRaw(raw string) (entities.FileMetadata, error) {
-	meta, err := helper.ParseMetadataJSON(raw)
-	if err != nil {
-		return nil, fmt.Errorf("invalid metadata json: %w", err)
-	}
-	return meta, nil
 }

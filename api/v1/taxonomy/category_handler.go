@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/requestutil"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/pkg/validate"
@@ -29,18 +30,7 @@ func listCategories(c *gin.Context) {
 		return
 	}
 
-	perPage := q.GetPerPage()
-	totalPages := int((total + int64(perPage) - 1) / int64(perPage))
-	if totalPages == 0 {
-		totalPages = 1
-	}
-
-	response.OKPaginated(c, "ok", rows, response.PageInfo{
-		Page:       q.GetPage(),
-		PerPage:    perPage,
-		TotalPages: totalPages,
-		TotalItems: int(total),
-	})
+	response.OKPaginated(c, "ok", rows, utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
 }
 
 func createCategory(c *gin.Context) {

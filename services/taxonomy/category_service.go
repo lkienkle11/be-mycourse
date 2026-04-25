@@ -3,6 +3,7 @@ package taxonomy
 import (
 	"strings"
 
+	"mycourse-io-be/core/entities"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	repo "mycourse-io-be/repository/taxonomy"
@@ -14,10 +15,12 @@ func ListCategories(filter dto.CategoryFilter) ([]models.Category, int64, error)
 
 func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*models.Category, error) {
 	row := &models.Category{
-		Name:     strings.TrimSpace(req.Name),
-		Slug:     strings.TrimSpace(req.Slug),
-		ImageURL: strings.TrimSpace(req.ImageURL),
-		Status:   normalizeTaxonomyStatus(req.Status),
+		Category: entities.Category{
+			Name:     strings.TrimSpace(req.Name),
+			Slug:     strings.TrimSpace(req.Slug),
+			ImageURL: strings.TrimSpace(req.ImageURL),
+			Status:   normalizeTaxonomyStatus(req.Status),
+		},
 	}
 	if actorID > 0 {
 		row.CreatedBy = &actorID

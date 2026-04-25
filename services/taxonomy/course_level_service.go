@@ -3,6 +3,7 @@ package taxonomy
 import (
 	"strings"
 
+	"mycourse-io-be/core/entities"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	repo "mycourse-io-be/repository/taxonomy"
@@ -14,9 +15,11 @@ func ListCourseLevels(filter dto.CourseLevelFilter) ([]models.CourseLevel, int64
 
 func CreateCourseLevel(actorID uint, req dto.CreateCourseLevelRequest) (*models.CourseLevel, error) {
 	row := &models.CourseLevel{
-		Name:   strings.TrimSpace(req.Name),
-		Slug:   strings.TrimSpace(req.Slug),
-		Status: normalizeTaxonomyStatus(req.Status),
+		CourseLevel: entities.CourseLevel{
+			Name:   strings.TrimSpace(req.Name),
+			Slug:   strings.TrimSpace(req.Slug),
+			Status: normalizeTaxonomyStatus(req.Status),
+		},
 	}
 	if actorID > 0 {
 		row.CreatedBy = &actorID

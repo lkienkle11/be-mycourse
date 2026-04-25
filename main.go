@@ -8,10 +8,10 @@ import (
 	"os"
 
 	"mycourse-io-be/api"
-	"mycourse-io-be/cache_clients"
 	"mycourse-io-be/config"
 	"mycourse-io-be/internal/appcli"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/cache_clients"
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
 	"mycourse-io-be/queues"

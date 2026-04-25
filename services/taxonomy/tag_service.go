@@ -3,6 +3,7 @@ package taxonomy
 import (
 	"strings"
 
+	"mycourse-io-be/core/entities"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	repo "mycourse-io-be/repository/taxonomy"
@@ -14,9 +15,11 @@ func ListTags(filter dto.TagFilter) ([]models.Tag, int64, error) {
 
 func CreateTag(actorID uint, req dto.CreateTagRequest) (*models.Tag, error) {
 	row := &models.Tag{
-		Name:   strings.TrimSpace(req.Name),
-		Slug:   strings.TrimSpace(req.Slug),
-		Status: normalizeTaxonomyStatus(req.Status),
+		Tag: entities.Tag{
+			Name:   strings.TrimSpace(req.Name),
+			Slug:   strings.TrimSpace(req.Slug),
+			Status: normalizeTaxonomyStatus(req.Status),
+		},
 	}
 	if actorID > 0 {
 		row.CreatedBy = &actorID

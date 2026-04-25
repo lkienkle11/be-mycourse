@@ -419,3 +419,94 @@
 ### Next Gate
 - Phase 01 is closed.
 - Ready to begin `phase-02-start` only after this checkpoint is accepted.
+
+## Phase Sub 01 Execution Update (2026-04-25)
+
+### Task 01 / Task 04 - Continuous Discovery + Sync
+- Re-read active context from `.context/` and existing implementation snapshot docs.
+- Re-ran GitNexus indexing with `gitnexus analyze --force` before making refactor changes.
+- Performed GitNexus impact checks for symbols touched in this sub-phase (`SetupRedis`, `CourseLevel`, `Category`, `taxonomyNS`) and proceeded with only LOW-risk results.
+- Synced this file with the exact refactor surfaces completed in Task 02 and Task 03.
+
+### Task 02 - Move `cache_clients` into `pkg` + shared entities example
+- Moved Redis client package from `cache_clients/redis.go` to `pkg/cache_clients/redis.go`.
+- Updated all imports referencing the old location:
+  - `main.go`
+  - `services/cache/auth_user.go`
+- Introduced shared entities package `core/entities` and migrated two taxonomy modules as reusable examples:
+  - `core/entities/course_level.go`
+  - `core/entities/category.go`
+- Models remain the persistence layer and own table mapping (`TableName`) while reusing shared fields from core entities:
+  - `models/taxonomy_course_level.go`
+  - `models/taxonomy_category.go`
+
+### Task 03 - Split `dbschema/taxonomy.go`
+- Split taxonomy schema namespace into focused files under `dbschema/`:
+  - `taxonomy_namespace.go`
+  - `taxonomy_course_levels.go`
+  - `taxonomy_categories.go`
+  - `taxonomy_tags.go`
+- Removed the previous monolithic file `dbschema/taxonomy.go`.
+- Existing call sites remain stable (`dbschema.Taxonomy.*`) so no consumer import changes were required.
+
+### Validation
+- Executed `go test ./...` successfully after all refactors.
+
+## Phase Sub 01 Rework Update (2026-04-25 - sync 2)
+
+### Request-driven architecture correction
+- Enforced strict boundary: `core/entities` now contains only pure type definitions (no table-name mapping, no dbschema dependency).
+- Moved table mapping responsibility back to models only:
+  - `models/taxonomy_course_level.go` defines model wrapper + `TableName()`.
+  - `models/taxonomy_category.go` defines model wrapper + `TableName()`.
+- Updated taxonomy service/repository layers to consume `models` types again so ORM-facing flows stay inside model boundary.
+
+### Subtask 01 + Subtask 04 sync loop
+- Re-ran `gitnexus analyze --force`.
+- Re-read `.context` and execution plan documentation before rework.
+- Ran impact checks for touched symbols (`CourseLevel`, `Category`) and continued with LOW risk only.
+- Re-synchronized docs in `.full-project/*` and this execution plan to reflect corrected architecture boundary.
+
+### Validation for rework
+- `go test ./...` (pass)
+- `go build ./...` (pass)
+
+## Phase Sub 01 Rework Update (2026-04-25 - sync 3)
+
+### Task 02 (requested in this cycle) - Extract pagination math to shared utils
+- Added reusable pagination builder:
+  - `pkg/logic/utils/pagination.go` with `utils.BuildPage(page, perPage, totalItems)`.
+- Refactored handlers to stop manual `totalPages` math and use shared utility:
+  - `api/v1/taxonomy/course_level_handler.go`
+  - `api/v1/taxonomy/category_handler.go`
+  - `api/v1/taxonomy/tag_handler.go`
+  - `api/v1/internal_rbac.go`
+
+### Task 03 (requested in this cycle) - Apply refactor across all manual page calculations
+- Completed cross-module replacement for all current manual pagination calculations in API handlers.
+- Confirmed no remaining manual `totalPages` blocks outside shared utility implementation.
+
+### Task 01 + Task 04 loop for this cycle
+- Re-ran `gitnexus analyze --force` and impact checks before/around edits.
+- Re-read context and synchronized docs after implementation.
+
+### Validation for this cycle
+- `go test ./...` (pass)
+- `go build ./...` (pass)
+
+## Phase Sub 01 Rework Update (2026-04-25 - sync 4, user-requested redo)
+
+### Task 02 + Task 03 (redefined for this cycle) - Add `Tag` into core entity and refactor
+- Added pure shared entity:
+  - `core/entities/tag.go`
+- Refactored `models/taxonomy_tag.go` to keep ORM table mapping in model and reuse core entity fields via embedding.
+- Updated `services/taxonomy/tag_service.go` to initialize nested entity payload (`Tag: entities.Tag{...}`) for create flow.
+
+### Task 01 + Task 04 loop for this redo
+- Re-ran `gitnexus analyze --force` before the refactor cycle.
+- Ran impact checks for `Tag`, `CreateTag`, and related model surfaces, then applied changes with scope control.
+- Re-synced `.full-project/reusable-assets.md` and this plan after code updates.
+
+### Validation for this redo
+- `go test ./...` (pass)
+- `go build ./...` (pass)

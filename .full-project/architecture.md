@@ -22,7 +22,7 @@
 - Runtime migration path is gated by `MIGRATE=1` in `main.go`.
 
 ## Integration/Operational Boundaries
-- Redis cache is optional and wrapped by `cache_clients/redis.go` and `services/cache/auth_user.go`.
+- Redis cache is optional and wrapped by `pkg/cache_clients/redis.go` and `services/cache/auth_user.go`.
 - Email side-effect uses Brevo package (`pkg/brevo`).
 - Queue subsystem is currently a placeholder (`queues/queues.go`).
 

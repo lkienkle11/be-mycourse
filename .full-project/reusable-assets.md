@@ -105,6 +105,17 @@
 - Reuse Opportunity:
   - Reuse in all future CRUD handlers to keep transport-layer parsing behavior consistent.
 
+### Asset: Shared pagination page builder
+- Name: `BuildPage`
+- Type: Util/Helper
+- Path: `pkg/logic/utils/pagination.go`
+- Purpose: Centralize pagination response construction (`Page`, `PerPage`, `TotalPages`, `TotalItems`) and avoid duplicated manual total-page math.
+- Scope: All paginated handlers across taxonomy/internal modules and future CRUD modules.
+- Dependencies: `pkg/response.PageInfo`.
+- Current Usage: `api/v1/taxonomy/*_handler.go`, `api/v1/internal_rbac.go`.
+- Reuse Opportunity:
+  - Reuse by all list endpoints to keep pagination behavior consistent and reduce duplicated handler logic.
+
 ### Asset: sqlnamed.Postgres
 - Name: `Postgres`
 - Type: Util/Helper
@@ -133,10 +144,21 @@
 - Path: `services/cache/auth_user.go`
 - Purpose: Cache-aside support for login and me endpoints.
 - Scope: High-frequency identity reads and login flows.
-- Dependencies: `cache_clients`, Redis.
+- Dependencies: `pkg/cache_clients`, Redis.
 - Current Usage: `services/auth.go`.
 - Reuse Opportunity:
   - Reuse pattern for read-heavy course catalog/progress reads later.
+
+### Asset: Core taxonomy entities (pure shared types)
+- Name: `CourseLevel`, `Category`, `Tag`
+- Type: Type/Entity
+- Path: `core/entities/course_level.go`, `core/entities/category.go`, `core/entities/tag.go`
+- Purpose: Share taxonomy field definitions as pure data types across layers.
+- Scope: Domain modeling and transfer structures where persistence mapping is not required.
+- Dependencies: `constants` (no dbschema and no table-name binding).
+- Current Usage: `models/taxonomy_course_level.go`, `models/taxonomy_category.go`, `models/taxonomy_tag.go` as model embedding source.
+- Reuse Opportunity:
+  - Extend with additional pure entities for future domains while keeping DB mapping (`TableName`) only in `models/*`.
 
 ## Constant / ErrorCode Assets
 

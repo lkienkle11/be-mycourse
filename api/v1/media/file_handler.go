@@ -152,7 +152,7 @@ func deleteFile(c *gin.Context) {
 
 func decodeLocalURL(c *gin.Context) {
 	token := c.Param("token")
-	objectKey, err := mediaservice.DecodeLocalURLToken(token)
+	objectKey, err := helper.DecodeLocalURLToken(token)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return

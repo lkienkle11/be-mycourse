@@ -22,9 +22,9 @@ type UpdateFileRequest struct {
 }
 
 type UploadFileResponse struct {
-	URL       string                `json:"url"`
-	OriginURL string                `json:"origin_url"`
-	ObjectKey string                `json:"object_key"`
-	Provider  string                `json:"provider"`
-	Metadata  entities.FileMetadata `json:"metadata"`
+	URL       string               `json:"url"`
+	OriginURL string               `json:"origin_url"`
+	ObjectKey string               `json:"object_key"`
+	Provider  string               `json:"provider"`
+	Metadata  entities.RawMetadata `json:"metadata"`
 }

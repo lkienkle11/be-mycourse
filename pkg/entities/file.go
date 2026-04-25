@@ -6,7 +6,35 @@ import (
 	"mycourse-io-be/constants"
 )
 
-type FileMetadata map[string]any
+type RawMetadata map[string]any
+
+type FileMetadata struct {
+	Size      int64  `json:"size,omitempty"`
+	Width     int    `json:"width,omitempty"`
+	Height    int    `json:"height,omitempty"`
+	MimeType  string `json:"mime_type,omitempty"`
+	Extension string `json:"extension,omitempty"`
+}
+
+type ImageMetadata struct {
+	FileMetadata
+}
+
+type VideoMetadata struct {
+	FileMetadata
+	Duration       float64 `json:"duration"`
+	ThumbnailURL   string  `json:"thumbnail_url"`
+	BunnyVideoID   string  `json:"bunny_video_id"`
+	BunnyLibraryID string  `json:"bunny_library_id"`
+	Size           int64   `json:"size"`
+	Width          int     `json:"width"`
+	Height         int     `json:"height"`
+}
+
+type DocumentMetadata struct {
+	FileMetadata
+	PageCount int `json:"page_count,omitempty"`
+}
 
 type File struct {
 	ID        string                 `json:"id"`
@@ -19,7 +47,7 @@ type File struct {
 	OriginURL string                 `json:"origin_url"`
 	ObjectKey string                 `json:"object_key"`
 	Status    constants.FileStatus   `json:"status"`
-	Metadata  FileMetadata           `json:"metadata"`
+	Metadata  any                    `json:"metadata"`
 	CreatedAt time.Time              `json:"created_at"`
 	UpdatedAt time.Time              `json:"updated_at"`
 }

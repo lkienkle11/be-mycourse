@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"os"
 	"strings"
 )
 
@@ -31,4 +32,16 @@ func DecodeLocalObjectKey(secret, token string) (string, error) {
 		return "", errors.New("invalid token signature")
 	}
 	return string(payload), nil
+}
+
+func DecodeLocalURLToken(token string) (string, error) {
+	secret := strings.TrimSpace(os.Getenv("LOCAL_FILE_URL_SECRET"))
+	if secret == "" {
+		secret = "mycourse-local-file-secret"
+	}
+	objectKey, err := DecodeLocalObjectKey(secret, token)
+	if err != nil {
+		return "", errors.New("invalid local media token")
+	}
+	return objectKey, nil
 }

@@ -1,12 +1,11 @@
 package media
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
-	"os"
 	"strings"
 	"time"
 
@@ -48,7 +47,7 @@ func GetFile(objectKey string, provider constants.FileProvider, kind constants.F
 		OriginURL: fileURL,
 		ObjectKey: key,
 		Status:    constants.FileStatusReady,
-		Metadata:  entities.FileMetadata{},
+		Metadata:  entities.DocumentMetadata{FileMetadata: entities.FileMetadata{}},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}, nil
@@ -64,11 +63,23 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
 	objectKey := pkgmedia.BuildObjectKey(req.ObjectKey, filename)
 	provider := helper.ResolveMediaProvider(kind, req.Provider)
-
-	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, file, meta)
+	payload, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
+
+	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, meta)
+	if err != nil {
+		return nil, err
+	}
+	typedMetadata := helper.BuildTypedMetadata(
+		kind,
+		fileHeader.Header.Get("Content-Type"),
+		filename,
+		fileHeader.Size,
+		payload,
+		uploaded.Metadata,
+	)
 	now := time.Now()
 	return &entities.File{
 		ID:        uuid.NewString(),
@@ -81,7 +92,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		OriginURL: uploaded.OriginURL,
 		ObjectKey: uploaded.ObjectKey,
 		Status:    constants.FileStatusReady,
-		Metadata:  uploaded.Metadata,
+		Metadata:  typedMetadata,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
@@ -105,7 +116,7 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 	return row, nil
 }
 
-func DeleteFile(objectKey string, provider constants.FileProvider, metadata entities.FileMetadata) error {
+func DeleteFile(objectKey string, provider constants.FileProvider, metadata entities.RawMetadata) error {
 	if err := helper.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return err
 	}
@@ -128,29 +139,13 @@ func DeleteFile(objectKey string, provider constants.FileProvider, metadata enti
 	}
 }
 
-func DecodeLocalURLToken(token string) (string, error) {
-	secret := strings.TrimSpace(os.Getenv("LOCAL_FILE_URL_SECRET"))
-	if secret == "" {
-		secret = "mycourse-local-file-secret"
-	}
-	objectKey, err := helper.DecodeLocalObjectKey(secret, token)
-	if err != nil {
-		return "", errors.New("invalid local media token")
-	}
-	return objectKey, nil
-}
-
-func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FileProvider, objectKey, filename string, file multipart.File, meta entities.FileMetadata) (dto.UploadFileResponse, error) {
+func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	switch provider {
 	case constants.FileProviderLocal:
 		return clients.UploadLocal(objectKey, meta)
 	case constants.FileProviderBunny:
-		payload, err := io.ReadAll(file)
-		if err != nil {
-			return dto.UploadFileResponse{}, err
-		}
 		return clients.UploadBunnyVideo(context.Background(), filename, payload, objectKey, meta)
 	default:
-		return clients.UploadB2(context.Background(), objectKey, file, meta)
+		return clients.UploadB2(context.Background(), objectKey, bytes.NewReader(payload), meta)
 	}
 }

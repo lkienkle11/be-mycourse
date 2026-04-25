@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -76,7 +75,7 @@ func NewCloudClientsFromEnv() (*CloudClients, error) {
 	return out, nil
 }
 
-func (c *CloudClients) UploadLocal(objectKey string, meta entities.FileMetadata) (dto.UploadFileResponse, error) {
+func (c *CloudClients) UploadLocal(objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	secret := strings.TrimSpace(os.Getenv("LOCAL_FILE_URL_SECRET"))
 	if secret == "" {
 		secret = "mycourse-local-file-secret"
@@ -92,7 +91,7 @@ func (c *CloudClients) UploadLocal(objectKey string, meta entities.FileMetadata)
 	}, nil
 }
 
-func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file multipart.File, meta entities.FileMetadata) (dto.UploadFileResponse, error) {
+func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.Reader, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	if c.b2Client == nil || c.b2BucketName == "" {
 		return dto.UploadFileResponse{}, fmt.Errorf("B2 client is not configured")
 	}
@@ -120,7 +119,7 @@ func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file mult
 	}, nil
 }
 
-func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, payload []byte, objectKey string, meta entities.FileMetadata) (dto.UploadFileResponse, error) {
+func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, payload []byte, objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	libraryID := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_LIBRARY_ID"))
 	apiKey := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_STREAM_API_KEY"))
 	if libraryID == "" || apiKey == "" {
@@ -175,9 +174,11 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 	stream := utils.NormalizeBaseURL(os.Getenv("MEDIA_BUNNY_STREAM_BASE_URL"), "https://iframe.mediadelivery.net/play")
 	playURL := fmt.Sprintf("%s/%s/%s", stream, libraryID, created.GUID)
 	if meta == nil {
-		meta = entities.FileMetadata{}
+		meta = entities.RawMetadata{}
 	}
 	meta["video_guid"] = created.GUID
+	meta["bunny_video_id"] = created.GUID
+	meta["bunny_library_id"] = libraryID
 	meta["video_provider"] = "bunny_stream"
 	return dto.UploadFileResponse{
 		URL:       playURL,

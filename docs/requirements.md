@@ -19,6 +19,7 @@
    - [FR-8 Planned: Course Management](#fr-8-planned-course-management)
    - [FR-9 Planned: Lesson Management](#fr-9-planned-lesson-management)
    - [FR-10 Planned: Enrollment](#fr-10-planned-enrollment)
+   - [FR-11 Media Upload Gateway](#fr-11-media-upload-gateway)
 2. [Non-Functional Requirements](#non-functional-requirements)
    - [NFR-1 Performance & Availability](#nfr-1-performance--availability)
    - [NFR-2 Security](#nfr-2-security)
@@ -342,6 +343,19 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 - Learners enroll in courses after payment or free grant.
 - Duplicate enrollment is prevented at the DB constraint level.
 - Enrollment creation and payment status update must be atomic.
+
+---
+
+### FR-11 Media Upload Gateway
+
+> **Status: Implemented.** See `docs/modules/media.md`.
+
+- The system **MUST** provide unified media endpoints under `/api/v1/media/files` for `GET/POST/PUT/DELETE/OPTIONS`.
+- The system **MUST** keep media flow stateless (no local media table persistence), acting as a cloud upload gateway.
+- The system **MUST** select provider from server configuration (`setting.MediaSetting.AppMediaProvider`), not client request fields.
+- The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
+- The system **MUST** keep feature-specific helpers in `pkg/logic/helper` and generic reusable primitives in `pkg/logic/util`.
+- The system **MUST** restrict direct runtime `os.Getenv` reads in media runtime paths and use `setting.MediaSetting` as source-of-truth after `setting.Setup()`.
 
 ---
 

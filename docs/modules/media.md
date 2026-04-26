@@ -18,6 +18,7 @@ SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
 Media kind/provider normalization is implemented as shared helper assets in `pkg/logic/helper/media_resolver.go`, keeping `services/media` orchestration-only.
 Metadata parsing and typed inference are handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
+Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`) are extracted to `pkg/logic/util/media_metadata.go`.
 Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider details are removed from public payload.
 
 ---
@@ -83,5 +84,6 @@ Returned `dto.UploadFileResponse` fields:
 - Non-video default: upload to B2 and return Gcore CDN URL + B2 origin URL.
 - Video default: upload to Bunny Stream and return playback URL.
 - Client request cannot override provider; provider is selected from server env config.
+- Runtime provider/base URL/secret reads use `setting.MediaSetting` (post-`setting.Setup()` source of truth); direct `os.Getenv` is kept only in the approved env-only constructor path.
 - Decode token flow uses helper placement (`pkg/logic/helper/DecodeLocalURLToken`), not service-local utility.
 

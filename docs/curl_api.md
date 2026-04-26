@@ -49,6 +49,7 @@
    - [Remove Direct Permission from User](#94-remove-direct-permission-from-user)
 10. [Deprecated / Planned APIs](#10-deprecated--planned-apis)
 11. [Error Code Reference](#11-error-code-reference)
+12. [Media Upload API (`/api/v1/media/files`)](#12-media-upload-api-apiv1mediafiles)
 
 ---
 
@@ -1145,6 +1146,65 @@ curl -X DELETE {{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions/P8 
 | ❌ N/A | Logout endpoint | No server-side logout; client deletes cookies and discards tokens |
 
 > No endpoints are currently marked as **deprecated**. When an endpoint is deprecated it will be listed here with the deprecation date, reason, and replacement.
+
+---
+
+## 12. Media Upload API (`/api/v1/media/files`)
+
+> **Auth:** `Authorization: Bearer <access_token>` + media permissions (`media_file:*`)  
+> **Module details:** `docs/modules/media.md`
+
+### 12.1 Upload file/video
+
+**`POST /api/v1/media/files`** (multipart form-data)
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/media/files \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "file=@./sample.mp4" \
+  -F "kind=video" \
+  -F 'metadata={"duration":120.5}'
+```
+
+### 12.2 Get file descriptor by object key
+
+**`GET /api/v1/media/files/{objectKey}?kind=file`**
+
+```bash
+curl -X GET "{{BASE_URL}}/api/v1/media/files/path/to/file.png?kind=file" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 12.3 Replace media object
+
+**`PUT /api/v1/media/files/{objectKey}`** (multipart form-data)
+
+```bash
+curl -X PUT {{BASE_URL}}/api/v1/media/files/path/to/file.png \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "file=@./new-file.png" \
+  -F "kind=file"
+```
+
+### 12.4 Delete media object
+
+**`DELETE /api/v1/media/files/{objectKey}`**
+
+```bash
+curl -X DELETE {{BASE_URL}}/api/v1/media/files/path/to/file.png \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 12.5 Decode local token
+
+**`GET /api/v1/media/files/local/{token}`**
+
+```bash
+curl -X GET {{BASE_URL}}/api/v1/media/files/local/<token> \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Provider is chosen by server config (`setting.MediaSetting.AppMediaProvider`), not by client payload.
 
 ---
 

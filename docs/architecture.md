@@ -84,6 +84,15 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | POST | `/api/v1/auth/refresh` | No |
 | GET | `/api/v1/me` | JWT |
 | GET | `/api/v1/me/permissions` | JWT + permission middleware |
+| OPTIONS | `/api/v1/media/files` | JWT + permission middleware |
+| GET | `/api/v1/media/files` | JWT + permission middleware |
+| POST | `/api/v1/media/files` | JWT + permission middleware |
+| OPTIONS | `/api/v1/media/files/:id` | JWT + permission middleware |
+| GET | `/api/v1/media/files/:id` | JWT + permission middleware |
+| PUT | `/api/v1/media/files/:id` | JWT + permission middleware |
+| DELETE | `/api/v1/media/files/:id` | JWT + permission middleware |
+| OPTIONS | `/api/v1/media/files/local/:token` | JWT + permission middleware |
+| GET | `/api/v1/media/files/local/:token` | JWT + permission middleware |
 
 Exact permission constants for `/me/permissions` are wired in `api/v1/routes.go`.
 
@@ -117,6 +126,7 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 | [`docs/curl_api.md`](curl_api.md) | Complete API reference with cURL examples and Postman scripts. |
 | [`docs/modules/auth.md`](modules/auth.md) | Auth service and cache behaviour. |
 | [`docs/modules/user.md`](modules/user.md) | User profile endpoints — `GET /me`, `GET /me/permissions`. |
+| [`docs/modules/media.md`](modules/media.md) | Implemented media upload module (cloud gateway, helper/util split, config-driven provider). |
 | [`docs/modules/course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (planned features). |
 
 When this repository sits next to the Next.js app in a monorepo (e.g. **`mycourse-full`**), the frontend deploy runbook is at [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md).

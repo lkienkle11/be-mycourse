@@ -1,3 +1,41 @@
+## Documentation Resync Update (2026-04-26 - full docs pass)
+
+- Re-synced docs folder after sub02 helper/util/settings refactor:
+  - `docs/architecture.md` (public media endpoint surface + media module reference)
+  - `docs/requirements.md` (added FR-11 Media Upload Gateway with helper/util + settings constraints)
+  - `docs/return_types.md` (added media API return-shape section)
+  - `docs/curl_api.md` (added media upload/get/update/delete/local-decode cURL section)
+  - `docs/modules/media.md` (runtime config source-of-truth + util extraction notes)
+- Re-synced root docs:
+  - `README.md` (media module description aligned with helper-vs-util convention)
+  - this execution plan file
+
+## Phase Sub 02 RESET Update (2026-04-26 - provider helper move + util split + settings source hardening)
+
+### Scope completed for tasks 01->10 in this cycle
+- Re-ran baseline/context/doc refresh and GitNexus indexing/status before edits.
+- Moved `defaultMediaProvider` out of `services/media/file_service.go` into helper layer (`pkg/logic/helper/media_metadata.go`) as `DefaultMediaProvider`.
+- Moved generic functions out of `pkg/logic/helper/media_metadata.go` into util layer (`pkg/logic/util/media_metadata.go`):
+  - `DetectExtension`
+  - `ImageSizeFromPayload`
+  - `StringFromRaw`
+  - `IntFromRaw`
+  - `FloatFromRaw`
+  - `NonEmpty`
+- Updated media metadata helper to consume util primitives and remain media-feature focused.
+- Updated `services/media/file_service.go` call-sites to use `helper.DefaultMediaProvider(...)` (service no longer owns default-provider helper).
+- Refactored `pkg/media/clients.go` runtime config reads to `setting.MediaSetting` after `setting.Setup()`:
+  - `UploadLocal`, `UploadB2`, `UploadBunnyVideo`, `DeleteBunnyVideo`, `BuildPublicURL`
+  - kept approved env-only path in `NewCloudClientsFromEnv`.
+- Verified startup chain compatibility (`main.go` -> `setting.Setup()` -> `pkg/media.Setup()` -> `NewCloudClientsFromEnv`) remains intact.
+- Synced docs:
+  - `README.md`
+  - `docs/modules/media.md`
+  - `.full-project/modules.md`
+  - `.full-project/patterns.md`
+  - `.full-project/reusable-assets.md`
+  - this plan file
+
 ## Phase Sub 02 RESET Update (2026-04-26 - mapper + provider-from-env contract)
 
 ### Scope completed for tasks 01->10 in this cycle

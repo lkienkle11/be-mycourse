@@ -12,7 +12,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
 | [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, course, lesson, enrollment) |
-| [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, cloud gateway, no DB persistence) |
+| [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, cloud gateway, no DB persistence, helper-vs-util convention) |
 
 ## Quick Start
 
@@ -338,7 +338,7 @@ func listUsers(c *gin.Context) {
 - `main.go`: startup flow (settings, db, cache, migrate, bootstrap, queue, router).
 - `api/`: router, route groups (`public`, `api/v1`, `api/internal-v1`), API config.
 - `middleware/`: request interceptor for auth/permission/tenant hooks.
-- `services/`, `services/cache/`, `services/media/`, `dto/`: business layer; `services/cache` holds Redis helpers (e.g. auth `/me` + login invalid cache), and `services/media` orchestrates the unified upload flow for non-video files and videos while shared resolver/helper logic stays under `pkg/logic/helper`. Typed media metadata is inferred in backend (image/video/document), provider is selected from server config (`setting.MediaSetting.AppMediaProvider`), and public media response is mapped via `pkg/logic/mapping` to `dto.UploadFileResponse` (provider is not exposed). `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
+- `services/`, `services/cache/`, `services/media/`, `dto/`: business layer; `services/cache` holds Redis helpers (e.g. auth `/me` + login invalid cache), and `services/media` orchestrates the unified upload flow for non-video files and videos while shared feature helpers stay under `pkg/logic/helper` and generic cross-feature primitives live in `pkg/logic/util`. Typed media metadata is inferred in backend (image/video/document), provider is selected from server config (`setting.MediaSetting.AppMediaProvider`), and public media response is mapped via `pkg/logic/mapping` to `dto.UploadFileResponse` (provider is not exposed). `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
 - `models/`, `migrations/`: persistence layer (GORM models + SQL migrations).
 - `pkg/cache_clients/`: Redis client bootstrap (used for auth profile + login negative cache — see `docs/modules/auth.md`).
 - `pkg/entities/file.go`: shared media `File` entity descriptor used by stateless media responses, including base `FileMetadata` plus typed `ImageMetadata`, `VideoMetadata`, and `DocumentMetadata`.

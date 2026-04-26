@@ -47,6 +47,7 @@
 - `/api/v1/media/files*` (JWT + permission protected) -> media handlers -> media services -> provider SDK/HTTP clients.
 - Service normalizes metadata and dispatches by provider:
   - provider comes from server config (`setting.MediaSetting.AppMediaProvider`) and is not accepted from client API params.
+  - default provider resolution helper lives in `pkg/logic/helper/media_metadata.go` and generic conversion primitives are delegated to `pkg/logic/util/media_metadata.go`.
   - service delegates metadata parsing/inference to helper layer; client metadata is optional and backend infers typed metadata from payload/provider outputs.
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL

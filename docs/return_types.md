@@ -15,6 +15,7 @@
    - [services/system.go](#servicessystemgo)
 4. [API Layer Return Types](#4-api-layer-return-types)
    - [Public API `/api/v1`](#public-api-apiv1)
+   - [Media API `/api/v1/media/files`](#media-api-apiv1mediafiles)
    - [System API `/api/system`](#system-api-apisystem)
    - [Internal API `/api/internal-v1`](#internal-api-apiinternal-v1)
 5. [Error Response Type](#5-error-response-type)
@@ -654,6 +655,41 @@ All endpoints return `application/json`. The outer envelope is always `Response`
   "data": ["course:read", "profile:read", "user:read"]
 }
 ```
+
+---
+
+### Media API `/api/v1/media/files`
+
+Media endpoints are implemented and return the standard envelope. Public payloads are mapped to `dto.UploadFileResponse`.
+
+| Endpoint | Success `data` |
+|----------|-----------------|
+| `POST /api/v1/media/files` | `dto.UploadFileResponse` |
+| `GET /api/v1/media/files/:id` | `dto.UploadFileResponse` |
+| `PUT /api/v1/media/files/:id` | `dto.UploadFileResponse` |
+| `DELETE /api/v1/media/files/:id` | `null` |
+| `GET /api/v1/media/files` | `[]dto.UploadFileResponse` (current placeholder may be empty) |
+| `GET /api/v1/media/files/local/:token` | `{ "object_key": string }` |
+
+`dto.UploadFileResponse`:
+
+```json
+{
+  "url": "https://...",
+  "origin_url": "https://...",
+  "object_key": "path/to/object",
+  "metadata": {
+    "mime_type": "video/mp4"
+  }
+}
+```
+
+Media metadata is inferred in backend and can be one of:
+- `ImageMetadata`
+- `VideoMetadata`
+- `DocumentMetadata`
+
+Provider is selected by server config (`setting.MediaSetting.AppMediaProvider`) and is not exposed as client-controlled request field.
 
 ---
 

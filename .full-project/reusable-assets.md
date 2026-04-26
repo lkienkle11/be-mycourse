@@ -189,20 +189,31 @@
 - Purpose: Server-side source of truth for upload provider selection.
 - Scope: Media service provider resolution.
 - Dependencies: YAML/env config loading in `pkg/setting`.
-- Current Usage: `services/media/file_service.go`.
+- Current Usage: `pkg/logic/helper/media_metadata.go`, `services/media/file_service.go`, `pkg/media/clients.go`.
 - Reuse Opportunity:
   - Reuse as canonical provider control for all future media upload entry points.
 
 ### Asset: Media metadata parser helpers
-- Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`
+- Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`, `DefaultMediaProvider`
 - Type: Util/Helper
 - Path: `pkg/logic/helper/media_metadata.go`
-- Purpose: Parse raw metadata JSON, normalize metadata payload, and infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) consistently in backend.
+- Purpose: Parse raw metadata JSON, normalize metadata payload, infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`), and resolve default provider from centralized media setting.
 - Scope: Media handlers/services and any upload endpoint accepting metadata JSON.
-- Dependencies: `encoding/json`, `fmt`, `strings`, `pkg/entities`.
+- Dependencies: `encoding/json`, `fmt`, `strings`, `pkg/entities`, `pkg/setting`.
 - Current Usage: `api/v1/media/file_handler.go`, `services/media/file_service.go`.
 - Reuse Opportunity:
   - Reuse for all future endpoints that accept metadata in raw string form and require backend metadata inference.
+
+### Asset: Generic media metadata conversion primitives
+- Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`
+- Type: Util
+- Path: `pkg/logic/util/media_metadata.go`
+- Purpose: Provide generic metadata conversion primitives reusable beyond media helper orchestration.
+- Scope: Any module needing generic raw-metadata conversion helpers.
+- Dependencies: `pkg/entities`, Go stdlib (`image`, `bytes`, `strings`, `fmt`).
+- Current Usage: `pkg/logic/helper/media_metadata.go`.
+- Reuse Opportunity:
+  - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.
 
 ### Asset: Taxonomy status normalization
 - Name: `NormalizeTaxonomyStatus`

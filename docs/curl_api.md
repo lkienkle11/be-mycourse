@@ -1152,7 +1152,8 @@ curl -X DELETE {{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions/P8 
 ## 12. Media Upload API (`/api/v1/media/files`)
 
 > **Auth:** `Authorization: Bearer <access_token>` + media permissions (`media_file:*`)  
-> **Module details:** `docs/modules/media.md`
+> **Module details:** `docs/modules/media.md`  
+> **Size limit:** one file part per request, max **2 GiB** (`2×1024³` bytes); cap **`constants.MaxMediaUploadFileBytes`** and the default oversize **`message`** string **`constants.MsgFileTooLargeUpload`** both live in **`constants/error_msg.go`** (same literal as `pkg/errcode` `FileTooLarge` and media sentinel — see `docs/architecture.md`). Over the limit → HTTP **413**, JSON `code` **2003** (`FileTooLarge`). Nginx / edge `client_max_body_size` (or equivalent) must be **≥ 2G** on the API host. See `docs/deploy.md`.
 
 ### 12.1 Upload file/video
 

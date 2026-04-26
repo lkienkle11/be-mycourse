@@ -55,6 +55,9 @@
 - Roles CRUD + set role permissions.
 - User-role and user-direct-permission assignment/list/removal APIs.
 
+## Upload / body limits (media)
+- Media `POST/PUT /api/v1/media/files` enforces **2 GiB** max per `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); oversize JSON `message` / sentinel both use **`constants.MsgFileTooLargeUpload`**. HTTP **413** + app code **2003** when exceeded. Reverse proxies must allow **≥ 2G** request bodies on the API vhost (`docs/deploy.md`).
+
 ## Middleware/Auth Matrix
 - Global: request/recovery/CORS/gzip.
 - `/api/v1` auth subgroup: local rate limit + JWT auth.

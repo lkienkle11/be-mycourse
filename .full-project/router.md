@@ -2,6 +2,7 @@
 
 ## Initialization
 - Router is created in `api.InitRouter()`.
+- `InitRouter` sets `router.MaxMultipartMemory = 64 << 20` (64 MiB) so large multipart bodies spill to disk during parse; per-file upload cap is still enforced in media handlers/services (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**, 2 GiB).
 - `main.go` runs `router.Run(":"+port)` after service/bootstrap initialization.
 
 ## Route Hierarchy

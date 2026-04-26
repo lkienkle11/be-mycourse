@@ -4,6 +4,7 @@
 - Layered monolith: `api` -> `services` -> `models`.
 - Cross-cutting concerns isolated in `middleware` and `pkg/*`.
 - RBAC policy-as-code through constants + DB sync.
+- Shared **error/sentinel message strings** (and small related numeric caps) belong in **`constants/error_msg.go`** — see file header; numeric JSON codes stay in `pkg/errcode`. If the same sentence is both API default `message` and `errors.New` text, **`pkg/errcode/messages.go` must use the constant** from `error_msg.go` (example: `MsgFileTooLargeUpload` ↔ `FileTooLarge`).
 
 ## API Patterns
 - Standardized response envelope via `pkg/response`.

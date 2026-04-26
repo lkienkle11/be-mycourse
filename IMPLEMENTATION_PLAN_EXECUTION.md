@@ -1,3 +1,55 @@
+## Phase Sub 03 — Upload cap 2 GiB per file (tasks 01–10, 2026-04-26)
+
+### Task 01 — Baseline / discovery / multipart inventory
+- Re-read `.full-project/*`, `.context/*`, `docs/*`, `README.md`, this plan; ran `npx gitnexus analyze --force` + `npx gitnexus status` (index up-to-date).
+- **Multipart upload entry points (repo grep `FormFile` / upload):** only `api/v1/media/file_handler.go` (`createFile`, `updateFile`) use `c.FormFile("file")`. No other handlers accept multipart file uploads.
+- **Service read path:** `services/media/file_service.go` `CreateFile` (and `UpdateFile` via `CreateFile`) reads the opened part into memory before provider dispatch; guarded by `io.LimitReader(..., MaxMediaUploadFileBytes+1)` + size checks (see tasks 04–05).
+- **Other `io.ReadAll`:** `pkg/media/clients.go` uses `io.ReadAll` on **HTTP response bodies** for Bunny/B2 error diagnostics — not a client upload entry point.
+- **Policy:** maximum **one** file part per create/update = **2×1024×1024×1024 bytes** (`constants.MaxMediaUploadFileBytes`). Declared oversize → HTTP **413** + `errcode.FileTooLarge` (**2003**). Missing `file` field remains HTTP **400** + `errcode.BadRequest` (**3001**) with explicit message — not confused with oversize.
+- **Residual risks:** uploads up to the cap still buffer the full payload in RAM in `CreateFile` (required today for Bunny video `[]byte` path and metadata inference); very large legitimate files increase memory pressure — mitigated by hard cap, Gin `MaxMultipartMemory` spilling most multipart parsing to disk, and infra `client_max_body_size` (task 08).
+
+### Task 02 — Single source of truth
+- **`constants/error_msg.go`:** canonical file for **error/sentinel string literals** (and related limits for the same feature). Media upload: `MaxMediaUploadFileBytes` (2 GiB) **and** `MsgFileTooLargeUpload` — **one** string used by both `pkg/errcode` (`FileTooLarge` / 2003 default `message`) and `pkg/media.ErrFileExceedsMaxUploadSize` (`errors.New`); no duplicate literals in `messages.go` or `upload_errors.go`. File header documents rules for future AI contributors.
+
+### Task 03 — Gin multipart memory
+- `api/router.go` `InitRouter`: `router.MaxMultipartMemory = 64 << 20` (64 MiB) with inline comment (parts larger than this spill to temp files during multipart parse).
+
+### Task 04 — Handler early reject
+- `file_handler.go`: after successful `FormFile`, if `FileHeader.Size >= 0` and exceeds cap → 413 + `FileTooLarge`.
+
+### Task 05 — Service second line
+- `CreateFile`: header size check, `LimitReader` cap+1, reject if `len(payload) > cap`; `SizeBytes` uses actual payload length when header size unknown.
+
+### Task 06 — Other entrypoints
+- Confirmed no other `FormFile` / multipart file uploads; policy applies only to media create/update.
+
+### Task 07 — Errcode / message consistency
+- `pkg/errcode`: `FileTooLarge = 2003`, default message in `messages.go`; handlers map `pkgmedia.ErrFileExceedsMaxUploadSize` and declared oversize to same code (distinct from missing-file `BadRequest`).
+- Sentinel lives in **`pkg/media/upload_errors.go`** (`errors.New(constants.MsgFileTooLargeUpload)`); **not** under `services/media/` (orchestration only returns the shared sentinel).
+
+### Task 08 — Infra / proxy
+- `docs/deploy.md` + `docs/modules/media.md`: reverse proxy (e.g. nginx `client_max_body_size`) must allow **≥ 2G** on the API vhost or the edge returns **413/400** before the app.
+
+### Task 09 — Quality gate + manual test notes
+- `gofmt`, `go test ./...`, `go vet ./...` — pass. **Manual:** upload file just under 2 GiB (expect 200 path when auth + provider configured); boundary at cap (expect 413 + code 2003); file slightly over cap with known `Size` (expect early 413); chunked/unknown size with padded stream over cap (expect 413 after service read cap).
+
+### Task 10 — Final audit / handoff
+- Checklist satisfied: single constant; Gin memory set; handler + service enforce cap; repo scan clean; err/message split; proxy doc; quality gate. GitNexus re-analyze after doc/code sync. Ready for `phase-02-start` in plan sequencing.
+
+### Phase Sub 03 — Message sync errcode ↔ error_msg (tasks 01–10, 2026-04-26)
+- **`constants.MsgFileTooLargeUpload`** is the only literal for upload oversize copy; **`pkg/errcode/messages.go`** uses `constants.MsgFileTooLargeUpload` for `FileTooLarge`; **`pkg/media/upload_errors.go`** uses the same for `ErrFileExceedsMaxUploadSize`. Renamed from `MediaUploadErrFileExceedsMaxSize` to avoid two strings for one UX. Full docs + package comments updated for downstream AI agents.
+
+### Phase Sub 03 — Constants layout (tasks 01–10 follow-up, 2026-04-26)
+- Merged **`constants/upload_limits.go` → `constants/error_msg.go`** so all agent-discoverable **error/sentinel message** literals (and co-located limits) live in one documented file. Updated architecture, README, `.full-project/*`, `docs/modules/media.md`, `pkg/errcode/messages.go` cross-reference, this plan, `.context` handoff.
+
+### Phase Sub 03 — Re-audit (sentinel + message constant, same tasks 01–10, 2026-04-26)
+- Re-validated: `FormFile` only in media handlers; policy unchanged (2 GiB, Gin 64 MiB, handler early reject, service `LimitReader`, deploy/nginx notes, errcode **2003**).
+- **Structural fix:** deleted `services/media/errors.go`. Upload oversize sentinel is **`pkg/media.ErrFileExceedsMaxUploadSize`** in `pkg/media/upload_errors.go`, built from **`constants.MsgFileTooLargeUpload`** in **`constants/error_msg.go`** — **same** constant as `pkg/errcode/messages.go` → `defaultMessages[FileTooLarge]` (no wording drift between JSON `message` and `errors.Is` sentinel).
+- **Import rule:** `api/v1/media` is `package media` → handler imports `mycourse-io-be/pkg/media` as **`pkgmedia`** so it does not collide with the handler’s own package name `media`.
+- Docs/snapshots updated again: this plan, `.full-project/reusable-assets.md`, `.context/session_summary_2026-04-26_phase_sub03_upload_cap.md`; `npx gitnexus analyze --force` after edits.
+
+---
+
 ## Documentation Resync Update (2026-04-26 - full docs pass)
 
 - Re-synced docs folder after sub02 helper/util/settings refactor:

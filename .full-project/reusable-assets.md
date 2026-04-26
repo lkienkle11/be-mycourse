@@ -397,6 +397,38 @@
 - Reuse Opportunity:
   - Create equivalent namespaces per new module (`dbschema/course`, etc.) as new reusable assets.
 
+### Asset: MaxMediaUploadFileBytes
+- Name: `MaxMediaUploadFileBytes`
+- Type: Constant
+- Path: `constants/error_msg.go`
+- Purpose: Single source of truth for maximum bytes of one multipart `file` on media create/update (2 GiB).
+- Scope: Media handler early reject, service stream cap, documentation cross-references.
+- Dependencies: none.
+
+### Asset: MsgFileTooLargeUpload
+- Name: `MsgFileTooLargeUpload`
+- Type: Constant (string)
+- Path: `constants/error_msg.go`
+- Purpose: **Single** user-facing string for media upload over 2 GiB: `pkg/errcode` `defaultMessages[FileTooLarge]` **and** `pkg/media.ErrFileExceedsMaxUploadSize` (`errors.New`). Prevents drift between JSON `message` and sentinel `Error()`.
+- Scope: Any future code paths that surface the same copy must import this constant, not re-type the sentence.
+- Dependencies: none.
+
+### Asset: ErrFileExceedsMaxUploadSize
+- Name: `ErrFileExceedsMaxUploadSize`
+- Type: Sentinel error (`var`)
+- Path: `pkg/media/upload_errors.go` (message: `constants.MsgFileTooLargeUpload` in `constants/error_msg.go`, shared with `pkg/errcode/messages.go`)
+- Purpose: Stable `errors.Is` check in handlers for oversize uploads after service-side `LimitReader` / header validation.
+- Scope: Media upload flow; map to `errcode.FileTooLarge` + HTTP 413 in `api/v1/media/file_handler.go`; service returns same sentinel via `pkgmedia.ErrFileExceedsMaxUploadSize`.
+- Dependencies: `constants.MaxMediaUploadFileBytes`, `constants.MsgFileTooLargeUpload`.
+
+### Asset: FileTooLarge (errcode)
+- Name: `FileTooLarge`
+- Type: Application error code constant + default message
+- Path: `pkg/errcode/codes.go`, `pkg/errcode/messages.go`
+- Purpose: Distinct application `code` (**2003**) for payload too large vs generic `BadRequest` (**3001**) used for missing multipart file.
+- Scope: Any future upload endpoints that need the same client contract.
+- Dependencies: `response.Fail` callers supply HTTP 413 where appropriate; default **message** text for this code is **`constants.MsgFileTooLargeUpload`** (referenced from `messages.go`, not duplicated).
+
 ## Gap Analysis (What Must Be Created Later)
 - Missing reusable domain DTO/model/service packages for:
   - course shell/versioning

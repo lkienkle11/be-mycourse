@@ -81,7 +81,7 @@ be-mycourse/
 - `cmd/syncpermissions/`: permission catalog sync command.
 - `cmd/syncrolepermissions/`: role-permission sync command.
 - `config/`: stage-specific app configuration and initialization glue.
-- `constants/`: role/permission constants and mappings.
+- `constants/`: role/permission constants, domain enums, and **`error_msg.go`** (central error-message / sentinel strings + related limits such as media upload max bytes; **`MsgFileTooLargeUpload`** is shared with `pkg/errcode/messages.go` and `pkg/media/upload_errors.go` — see file header).
 - `dbschema/`: shared DB table-name namespace helpers.
 - `docs/`: maintained architecture/API/deploy requirements docs.
 - `docs/modules/`: module-level functional docs.

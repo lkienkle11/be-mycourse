@@ -26,6 +26,7 @@
   - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
   - No DB persistence for media records; backend is a stateless cloud-upload gateway.
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).
+  - Enforces **2 GiB** max per uploaded `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); handler + service guards; HTTP **413** + `errcode.FileTooLarge` (**2003**) on violation (see `docs/modules/media.md`, `docs/deploy.md` for proxy sizing).
 
 ## Planned But Not Implemented (per docs/modules)
 - **Course module (phase 02+)**

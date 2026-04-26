@@ -45,6 +45,8 @@
 
 ### Media Upload CRUD
 - `/api/v1/media/files*` (JWT + permission protected) -> media handlers -> media services -> provider SDK/HTTP clients.
+- **Single-file size cap:** `constants.MaxMediaUploadFileBytes` (**2 GiB**, defined in **`constants/error_msg.go`**). Oversize user-facing copy is **`constants.MsgFileTooLargeUpload`** (used for both JSON `message` via `errcode.DefaultMessage(FileTooLarge)` and `pkg/media.ErrFileExceedsMaxUploadSize`). Handler rejects declared `multipart.FileHeader.Size` over cap (**413** + `errcode.FileTooLarge`); service uses `io.LimitReader(max+1)` before buffering so streams cannot exceed the cap silently. Missing `file` remains **400** + `BadRequest` (distinct error path).
+- **Multipart parsing:** Gin engine `MaxMultipartMemory` (**64 MiB** in `api.InitRouter`) so large parts spill to temp disk during parse (see `docs/modules/media.md`).
 - Service normalizes metadata and dispatches by provider:
   - provider comes from server config (`setting.MediaSetting.AppMediaProvider`) and is not accepted from client API params.
   - default provider resolution helper lives in `pkg/logic/helper/media_metadata.go` and generic conversion primitives are delegated to `pkg/logic/util/media_metadata.go`.

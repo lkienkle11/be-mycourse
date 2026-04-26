@@ -65,7 +65,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `config/` | System bootstrap (`InitSystem`, default configs). |
 | `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |
-| `constants/` | Role names and permission catalog (`AllPermissions`, `RolePermissions`) for RBAC. |
+| `constants/` | RBAC (`roles.go`, `permissions.go`, `roles_permission.go`), domain enums (e.g. `media.go`), and **`error_msg.go`** — canonical **string literals for errors/sentinels** (and tightly coupled numeric caps such as `MaxMediaUploadFileBytes`). **`pkg/errcode/messages.go`** holds the code→message map but **must import** string constants from here when the same wording is used for sentinels (e.g. **`MsgFileTooLargeUpload`** for `FileTooLarge` + `ErrFileExceedsMaxUploadSize`) so copy cannot drift. |
 | `dbschema/` | RBAC-related schema helpers. |
 | `cmd/syncpermissions/` | Upsert `permissions.permission_name` by `permission_id` (`//go:generate` from `main.go`). |
 | `cmd/syncrolepermissions/` | Rebuild `role_permissions` from `constants/roles_permission.go`. |
@@ -126,7 +126,7 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 | [`docs/curl_api.md`](curl_api.md) | Complete API reference with cURL examples and Postman scripts. |
 | [`docs/modules/auth.md`](modules/auth.md) | Auth service and cache behaviour. |
 | [`docs/modules/user.md`](modules/user.md) | User profile endpoints — `GET /me`, `GET /me/permissions`. |
-| [`docs/modules/media.md`](modules/media.md) | Implemented media upload module (cloud gateway, helper/util split, config-driven provider). |
+| [`docs/modules/media.md`](modules/media.md) | Implemented media upload module (cloud gateway, helper/util split, config-driven provider, **2 GiB** per-file cap + Gin multipart memory tuning). |
 | [`docs/modules/course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (planned features). |
 
 When this repository sits next to the Next.js app in a monorepo (e.g. **`mycourse-full`**), the frontend deploy runbook is at [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md).

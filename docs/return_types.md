@@ -662,6 +662,13 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 Media endpoints are implemented and return the standard envelope. Public payloads are mapped to `dto.UploadFileResponse`.
 
+**Upload errors (create/replace):**
+
+| Condition | HTTP status | `code` | Typical `message` |
+|-----------|-------------|--------|-------------------|
+| Missing multipart field `file` | 400 | `3001` (`BadRequest`) | `file is required (multipart field: file)` |
+| Single file exceeds **2 GiB** (`constants.MaxMediaUploadFileBytes` in `constants/error_msg.go`) | 413 | `2003` (`FileTooLarge`) | `errcode.DefaultMessage(FileTooLarge)` = **`constants.MsgFileTooLargeUpload`** (single literal; also used for `pkg/media.ErrFileExceedsMaxUploadSize`) |
+
 | Endpoint | Success `data` |
 |----------|-----------------|
 | `POST /api/v1/media/files` | `dto.UploadFileResponse` |

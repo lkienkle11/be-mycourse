@@ -314,6 +314,9 @@ server {
     listen 80;
     server_name api.yourdomain.net;
 
+    # Large media uploads: must be >= app single-file cap (2 GiB). Otherwise nginx returns 413 before the Go API runs.
+    client_max_body_size 2G;
+
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
@@ -360,6 +363,8 @@ sudo certbot --nginx \
 Both `server { ... 443 ... }` blocks should reference the **same** `ssl_certificate` and `ssl_certificate_key` paths (multi-SAN / multi-name cert).
 
 **If you only use `www` for the site (no apex):** Omit `yourdomain.net` from `server_name` and from the `certbot` `-d` list; keep `api.yourdomain.net` as its own name on the cert.
+
+**Large uploads (media API):** After Certbot edits the vhosts, ensure the **HTTPS** `server { ... }` block for `api.yourdomain.net` still includes `client_max_body_size 2G;` (or higher) at `server` or `location /` level. The Go API enforces a **2 GiB per file** cap on `/api/v1/media/files`; if nginx (or another edge) uses the default **1m**, uploads fail at the edge with **413** before the application runs. Match any other reverse proxy / LB (AWS ALB, Cloudflare, etc.) body limits to the same minimum if you rely on multi-gigabyte uploads.
 
 ---
 

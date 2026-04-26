@@ -12,7 +12,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
 | [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, course, lesson, enrollment) |
-| [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, cloud gateway, no DB persistence, helper-vs-util convention) |
+| [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, cloud gateway, no DB persistence, helper-vs-util convention; **2 GiB max per uploaded file**, Gin multipart memory + proxy sizing notes) |
 
 ## Quick Start
 
@@ -345,6 +345,7 @@ func listUsers(c *gin.Context) {
 - `queues/`: async layer placeholder (RabbitMQ intentionally excluded).
 - `pkg/response`: **unified API response envelope** — use this in all handlers.
 - `pkg/errcode`: numeric application error codes and their default messages.
+- `constants/`: RBAC IDs, roles, domain enums; **`constants/error_msg.go`** holds reusable **error message / sentinel strings** (and small related numeric caps). If the same text is used in **`pkg/errcode/messages.go`** and in a sentinel (`errors.New`), define it **once** in `error_msg.go` and reference it from `messages.go` (see `MsgFileTooLargeUpload` + `FileTooLarge`). Numeric JSON `code` values stay in `pkg/errcode/codes.go`.
 - `pkg/httperr`: Gin middleware for centralised error handling (panic recovery, validation).
 - `pkg/setting`: YAML config with per-stage files and `.env` map substitution.
 - `pkg/envbool`: parsing common “truthy” environment variable values (`true`, `1`, `yes`, …) for feature flags.

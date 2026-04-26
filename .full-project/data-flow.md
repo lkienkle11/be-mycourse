@@ -40,16 +40,18 @@
 - `/api/v1/taxonomy/*` (JWT + permission protected) -> taxonomy handlers -> taxonomy services -> taxonomy repositories.
 - List endpoints apply shared filter parsing (`pkg/query/filter_parser.go`) with whitelist sorting/search.
 - Mutations normalize taxonomy status via `helper.NormalizeTaxonomyStatus` (`pkg/logic/helper/taxonomy_status.go`) before repository writes.
+- Public responses are mapped via `pkg/logic/mapping` into DTO contracts (`CategoryResponse`, `CourseLevelResponse`, `TagResponse`).
 - Persistence targets new taxonomy tables from migration `000002_taxonomy_domain.*`.
 
 ### Media Upload CRUD
 - `/api/v1/media/files*` (JWT + permission protected) -> media handlers -> media services -> provider SDK/HTTP clients.
 - Service normalizes metadata and dispatches by provider:
+  - provider comes from server config (`setting.MediaSetting.AppMediaProvider`) and is not accepted from client API params.
   - service delegates metadata parsing/inference to helper layer; client metadata is optional and backend infers typed metadata from payload/provider outputs.
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL
   - local branch: reversible signed token URL (`/media/files/local/:token`)
-- Media descriptor is returned directly in response with typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) and is not persisted in local DB.
+- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal provider field) and is not persisted in local DB.
 
 ## Persistence Boundaries
 - PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).

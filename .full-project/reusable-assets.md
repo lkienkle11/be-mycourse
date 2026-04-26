@@ -171,6 +171,28 @@
 - Reuse Opportunity:
   - Reuse for any future media ingestion endpoints to keep provider-kind resolution behavior identical.
 
+### Asset: Mapping helpers for API DTO contracts
+- Name: `ToUploadFileResponse`, `ToCategoryResponse`, `ToCourseLevelResponse`, `ToTagResponse` (+ slice variants)
+- Type: Util/Helper
+- Path: `pkg/logic/mapping/media_file_mapping.go`, `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/taxonomy_course_level_mapping.go`, `pkg/logic/mapping/taxonomy_tag_mapping.go`
+- Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs.
+- Scope: Media and taxonomy transport responses.
+- Dependencies: `dto`, `models`, `pkg/entities`.
+- Current Usage: `api/v1/media/file_handler.go`, `api/v1/taxonomy/*_handler.go`.
+- Reuse Opportunity:
+  - Reuse for all upcoming domain handlers to enforce stable public API contracts.
+
+### Asset: App media provider config
+- Name: `MediaSetting.AppMediaProvider`
+- Type: Config/Constant source
+- Path: `pkg/setting/setting.go`
+- Purpose: Server-side source of truth for upload provider selection.
+- Scope: Media service provider resolution.
+- Dependencies: YAML/env config loading in `pkg/setting`.
+- Current Usage: `services/media/file_service.go`.
+- Reuse Opportunity:
+  - Reuse as canonical provider control for all future media upload entry points.
+
 ### Asset: Media metadata parser helpers
 - Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`
 - Type: Util/Helper

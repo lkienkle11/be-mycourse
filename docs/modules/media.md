@@ -15,8 +15,10 @@ Media module provides a unified API surface for file and video uploads with prov
 Media does **not** persist file records in local database. Backend acts as upload gateway to third-party services.
 
 SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go`), then reused by media service flow.
+Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
 Media kind/provider normalization is implemented as shared helper assets in `pkg/logic/helper/media_resolver.go`, keeping `services/media` orchestration-only.
 Metadata parsing and typed inference are handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
+Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider details are removed from public payload.
 
 ---
 
@@ -28,9 +30,9 @@ Metadata parsing and typed inference are handled in helper layer (`pkg/logic/hel
 | GET | `/media/files` | List endpoint (stateless placeholder) |
 | POST | `/media/files` | Upload multipart file and return file descriptor |
 | OPTIONS | `/media/files/:id` | CORS/preflight support |
-| GET | `/media/files/:id` | Build file detail from object key + query params |
+| GET | `/media/files/:id` | Build file detail from object key |
 | PUT | `/media/files/:id` | Re-upload/replace object by object key |
-| DELETE | `/media/files/:id` | Delete object on cloud provider |
+| DELETE | `/media/files/:id` | Delete object on configured provider |
 | OPTIONS | `/media/files/local/:token` | CORS/preflight support |
 | GET | `/media/files/local/:token` | Decode local signed token to object key |
 
@@ -54,14 +56,11 @@ Role mapping is declared in `constants/roles_permission.go` and synced via:
 
 ## Runtime Descriptor
 
-Returned `File` object fields:
+Returned `dto.UploadFileResponse` fields:
 
-- `kind`: `FILE | VIDEO`
-- `provider`: `S3 | GCS | B2 | R2 | Bunny | Local`
 - `url`: effective URL returned to client
 - `origin_url`: provider origin URL
 - `object_key`: storage key/object identifier
-- `status`: `READY | FAILED | DELETED`
 - `metadata`: typed object inferred by backend:
   - `ImageMetadata` for image files
   - `VideoMetadata` for video files
@@ -83,5 +82,6 @@ Returned `File` object fields:
 - `Local`: `url` is a signed reversible token path (`/api/v1/media/files/local/:token`), `origin_url` stores raw object key.
 - Non-video default: upload to B2 and return Gcore CDN URL + B2 origin URL.
 - Video default: upload to Bunny Stream and return playback URL.
+- Client request cannot override provider; provider is selected from server env config.
 - Decode token flow uses helper placement (`pkg/logic/helper/DecodeLocalURLToken`), not service-local utility.
 

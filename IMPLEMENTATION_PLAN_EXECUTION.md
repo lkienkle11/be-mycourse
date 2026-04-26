@@ -1,3 +1,40 @@
+## Phase Sub 02 RESET Update (2026-04-26 - mapper + provider-from-env contract)
+
+### Scope completed for tasks 01->10 in this cycle
+- Re-ran baseline and context/docs recovery before implementation:
+  - `npx gitnexus analyze --force`
+  - `npx gitnexus status`
+  - re-read `.context/*`, `.full-project/*`, `docs/*`, `README.md`, and this plan file.
+
+### Media contract hardening
+- Added mapper layer in `pkg/logic/mapping/*_mapping.go` (`media_file_mapping.go`, `taxonomy_category_mapping.go`, `taxonomy_course_level_mapping.go`, `taxonomy_tag_mapping.go`) and routed media handler responses through `mapping.ToUploadFileResponse`.
+- Standardized public media payload to `dto.UploadFileResponse` only.
+- Removed public `provider` field from `dto.UploadFileResponse` and removed provider from media request DTO fields.
+- Updated media handlers to stop accepting provider from client query/body in create/update/get/delete flow.
+
+### Provider source-of-truth update
+- Added config field `MediaSetting.AppMediaProvider` in `pkg/setting/setting.go` (`yaml media.app_media_provider`).
+- Updated media service provider selection to use server-side config only (`defaultMediaProvider`).
+- Client cannot override provider anymore; upload/delete flow keeps behavior based on configured provider + media kind.
+
+### Taxonomy DTO baseline + mapping
+- Updated taxonomy handlers (`category`, `course_level`, `tag`) to map all responses via `pkg/logic/mapping`:
+  - `CategoryResponse`
+  - `CourseLevelResponse`
+  - `TagResponse`
+- Handlers no longer return raw model/entity payload directly.
+
+### Quality gate + sync
+- Executed:
+  - `gofmt -w` on changed files
+  - `go test ./...` (pass)
+  - `go build ./...` (pass)
+- Synced docs:
+  - `docs/modules/media.md`
+  - `.full-project/modules.md`
+  - `.full-project/data-flow.md`
+  - `.full-project/reusable-assets.md`
+  - this plan file
 # IMPLEMENTATION_PLAN_EXECUTION
 
 ## Discovery Summary

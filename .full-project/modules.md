@@ -16,7 +16,9 @@
 - **Media upload module** (`api/v1/media/*`, `services/media/*`, `dto/media_file.go`, `pkg/entities/file.go`):
   - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`.
   - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
+  - Provider source-of-truth is server config (`setting.MediaSetting.AppMediaProvider`), not client request payload/query.
   - Uses shared resolver helpers in `pkg/logic/helper/media_resolver.go`; service layer remains orchestration-only.
+  - Uses mapper helpers in `pkg/logic/mapping` so handlers always return DTO (`dto.UploadFileResponse`) instead of raw entity.
   - Uses helper `pkg/logic/helper/DecodeLocalURLToken` for local token decode (no non-CRUD decode utility in service layer).
   - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.
   - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.

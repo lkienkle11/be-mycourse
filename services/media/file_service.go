@@ -56,9 +56,19 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
 	objectKey := pkgmedia.BuildObjectKey(req.ObjectKey, filename)
 	provider := helper.DefaultMediaProvider(kind)
-	payload, err := io.ReadAll(file)
+
+	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
+		return nil, pkgmedia.ErrFileExceedsMaxUploadSize
+	}
+
+	// Never read more than cap+1 bytes so oversized streams fail without buffering the whole payload.
+	limited := io.LimitReader(file, constants.MaxMediaUploadFileBytes+1)
+	payload, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(payload)) > constants.MaxMediaUploadFileBytes {
+		return nil, pkgmedia.ErrFileExceedsMaxUploadSize
 	}
 
 	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, meta)
@@ -69,11 +79,15 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	if metaMap, ok := uploaded.Metadata.(map[string]any); ok {
 		uploadedMetadata = helper.NormalizeMetadata(metaMap)
 	}
+	sizeBytes := fileHeader.Size
+	if sizeBytes < 0 {
+		sizeBytes = int64(len(payload))
+	}
 	typedMetadata := helper.BuildTypedMetadata(
 		kind,
 		fileHeader.Header.Get("Content-Type"),
 		filename,
-		fileHeader.Size,
+		sizeBytes,
 		payload,
 		uploadedMetadata,
 	)
@@ -84,7 +98,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		Provider:  provider,
 		Filename:  filename,
 		MimeType:  fileHeader.Header.Get("Content-Type"),
-		SizeBytes: fileHeader.Size,
+		SizeBytes: sizeBytes,
 		URL:       uploaded.URL,
 		OriginURL: uploaded.OriginURL,
 		ObjectKey: uploaded.ObjectKey,

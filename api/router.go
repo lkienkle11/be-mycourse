@@ -15,6 +15,10 @@ import (
 
 func InitRouter() *gin.Engine {
 	router := gin.New()
+	// Multipart: keep only this much of each part in memory; larger bodies spill to temp files.
+	// Gin default is 32 MiB. Raising slightly reduces disk churn for medium files while staying far
+	// below the per-file upload cap enforced in handlers/services (see constants.MaxMediaUploadFileBytes in constants/error_msg.go).
+	router.MaxMultipartMemory = 64 << 20 // 64 MiB
 	router.Use(httperr.Middleware())
 	router.Use(httperr.Recovery())
 	router.Use(cors.New(cors.Config{

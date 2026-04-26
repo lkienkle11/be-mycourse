@@ -13,6 +13,7 @@ import (
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
+	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/response"
 	mediaservice "mycourse-io-be/services/media"
 )
@@ -56,6 +57,11 @@ func createFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "file is required (multipart field: file)", nil)
 		return
 	}
+	// Early reject when the client declared Content-Length / part size (avoids pointless buffering).
+	if upload.Size >= 0 && upload.Size > constants.MaxMediaUploadFileBytes {
+		response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
+		return
+	}
 	file, err := upload.Open()
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "cannot open uploaded file", nil)
@@ -79,6 +85,10 @@ func createFile(c *gin.Context) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return
 		}
+		if errors.Is(err, pkgmedia.ErrFileExceedsMaxUploadSize) {
+			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
@@ -95,6 +105,10 @@ func updateFile(c *gin.Context) {
 	upload, err := c.FormFile("file")
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "file is required (multipart field: file)", nil)
+		return
+	}
+	if upload.Size >= 0 && upload.Size > constants.MaxMediaUploadFileBytes {
+		response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
 		return
 	}
 	file, err := upload.Open()
@@ -117,6 +131,10 @@ func updateFile(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, helper.ErrDependencyNotConfigured) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
+			return
+		}
+		if errors.Is(err, pkgmedia.ErrFileExceedsMaxUploadSize) {
+			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)

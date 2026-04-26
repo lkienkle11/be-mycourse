@@ -1,5 +1,7 @@
 // Package errcode defines numeric application error_code values and their default messages
 // (see messages.go). HTTP status remains on the response line; error_code is in the JSON body.
+// Shared literals used both here (default JSON message) and in errors.New sentinels must be defined
+// only in constants/error_msg.go and referenced from messages.go (e.g. FileTooLarge + MsgFileTooLargeUpload).
 package errcode
 
 // Application error codes (numeric), in addition to HTTP status on the response line.
@@ -16,6 +18,7 @@ const (
 	// Validation (2xxx)
 	ValidationFailed = 2001
 	ValidationField  = 2002 // used per-field in details when applicable
+	FileTooLarge     = 2003 // single-file upload exceeds cap; default message = constants.MsgFileTooLargeUpload (see messages.go)
 
 	// Client / HTTP-shaped (3xxx) — align loosely with HTTP family
 	BadRequest      = 3001

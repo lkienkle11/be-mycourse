@@ -7,6 +7,9 @@
 //
 // data may be: null | string | number | boolean | array | object | PaginatedData.
 // On error the helpers set data to nil and code to a non-zero errcode constant.
+// Typical pattern: pass errcode.DefaultMessage(code) as message — those defaults live in pkg/errcode/messages.go
+// and, when the same wording is used for error sentinels, the string is defined once in constants/error_msg.go
+// (e.g. MsgFileTooLargeUpload for FileTooLarge + media upload oversize).
 //
 // # Optional headers and cookies
 //

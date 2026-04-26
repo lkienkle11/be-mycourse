@@ -16,25 +16,19 @@ import (
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
 	pkgmedia "mycourse-io-be/pkg/media"
+	"mycourse-io-be/pkg/setting"
 )
 
 func ListFiles(_ dto.FileFilter) ([]entities.File, int64, error) {
 	return []entities.File{}, 0, nil
 }
 
-func GetFile(objectKey string, provider constants.FileProvider, kind constants.FileKind) (*entities.File, error) {
+func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) {
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
 		return nil, fmt.Errorf("object key is required")
 	}
-	resolvedProvider := provider
-	if resolvedProvider == "" {
-		if kind == constants.FileKindVideo {
-			resolvedProvider = constants.FileProviderBunny
-		} else {
-			resolvedProvider = constants.FileProviderB2
-		}
-	}
+	resolvedProvider := defaultMediaProvider(kind)
 	fileURL := pkgmedia.BuildPublicURL(resolvedProvider, key)
 	return &entities.File{
 		ID:        key,
@@ -62,7 +56,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	meta := helper.NormalizeMetadata(req.Metadata)
 	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
 	objectKey := pkgmedia.BuildObjectKey(req.ObjectKey, filename)
-	provider := helper.ResolveMediaProvider(kind, req.Provider)
+	provider := defaultMediaProvider(kind)
 	payload, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
@@ -72,13 +66,17 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	if err != nil {
 		return nil, err
 	}
+	uploadedMetadata := entities.RawMetadata{}
+	if metaMap, ok := uploaded.Metadata.(map[string]any); ok {
+		uploadedMetadata = helper.NormalizeMetadata(metaMap)
+	}
 	typedMetadata := helper.BuildTypedMetadata(
 		kind,
 		fileHeader.Header.Get("Content-Type"),
 		filename,
 		fileHeader.Size,
 		payload,
-		uploaded.Metadata,
+		uploadedMetadata,
 	)
 	now := time.Now()
 	return &entities.File{
@@ -104,7 +102,6 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 	}
 	createReq := dto.CreateFileRequest{
 		Kind:      req.Kind,
-		Provider:  req.Provider,
 		ObjectKey: objectKey,
 		Metadata:  req.Metadata,
 	}
@@ -116,7 +113,7 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 	return row, nil
 }
 
-func DeleteFile(objectKey string, provider constants.FileProvider, metadata entities.RawMetadata) error {
+func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 	if err := helper.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return err
 	}
@@ -124,6 +121,10 @@ func DeleteFile(objectKey string, provider constants.FileProvider, metadata enti
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
 		return fmt.Errorf("object key is required")
+	}
+	provider := defaultMediaProvider(constants.FileKindFile)
+	if videoGUID := strings.TrimSpace(fmt.Sprintf("%v", metadata["video_guid"])); videoGUID != "" {
+		provider = defaultMediaProvider(constants.FileKindVideo)
 	}
 	switch provider {
 	case constants.FileProviderBunny:
@@ -137,6 +138,14 @@ func DeleteFile(objectKey string, provider constants.FileProvider, metadata enti
 	default:
 		return clients.DeleteB2Object(context.Background(), key)
 	}
+}
+
+func defaultMediaProvider(kind constants.FileKind) constants.FileProvider {
+	configured := strings.TrimSpace(setting.MediaSetting.AppMediaProvider)
+	if configured != "" {
+		return helper.ResolveMediaProvider(kind, configured)
+	}
+	return helper.ResolveMediaProvider(kind, "")
 }
 
 func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (dto.UploadFileResponse, error) {

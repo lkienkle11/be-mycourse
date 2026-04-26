@@ -86,7 +86,6 @@ func (c *CloudClients) UploadLocal(objectKey string, meta entities.RawMetadata) 
 		URL:       path,
 		OriginURL: objectKey,
 		ObjectKey: objectKey,
-		Provider:  string(constants.FileProviderLocal),
 		Metadata:  meta,
 	}, nil
 }
@@ -114,7 +113,6 @@ func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.R
 		URL:       cdn + "/" + key,
 		OriginURL: origin + "/" + key,
 		ObjectKey: key,
-		Provider:  string(constants.FileProviderB2),
 		Metadata:  meta,
 	}, nil
 }
@@ -184,7 +182,6 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 		URL:       playURL,
 		OriginURL: playURL,
 		ObjectKey: objectKey,
-		Provider:  string(constants.FileProviderBunny),
 		Metadata:  meta,
 	}, nil
 }

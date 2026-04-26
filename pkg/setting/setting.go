@@ -60,6 +60,7 @@ type Supabase struct {
 }
 
 type Media struct {
+	AppMediaProvider     string
 	B2KeyID              string
 	B2AppKey             string
 	B2Bucket             string
@@ -144,6 +145,7 @@ type yamlSupabase struct {
 }
 
 type yamlMedia struct {
+	AppMediaProvider     string `yaml:"app_media_provider"`
 	B2KeyID              string `yaml:"b2_key_id"`
 	B2AppKey             string `yaml:"b2_app_key"`
 	B2Bucket             string `yaml:"b2_bucket"`
@@ -278,6 +280,7 @@ func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
 	c.Brevo.SenderEmail = expand(c.Brevo.SenderEmail)
 	c.Brevo.SenderName = expand(c.Brevo.SenderName)
 
+	c.Media.AppMediaProvider = expand(c.Media.AppMediaProvider)
 	c.Media.B2KeyID = expand(c.Media.B2KeyID)
 	c.Media.B2AppKey = expand(c.Media.B2AppKey)
 	c.Media.B2Bucket = expand(c.Media.B2Bucket)
@@ -371,6 +374,7 @@ func applyYAMLToGlobals(c *yamlConfig) {
 	SupabaseSetting.DBURL = c.Supabase.DBURL
 
 	MediaSetting.B2KeyID = c.Media.B2KeyID
+	MediaSetting.AppMediaProvider = c.Media.AppMediaProvider
 	MediaSetting.B2AppKey = c.Media.B2AppKey
 	MediaSetting.B2Bucket = c.Media.B2Bucket
 	MediaSetting.B2BaseURL = c.Media.B2BaseURL

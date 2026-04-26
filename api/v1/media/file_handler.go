@@ -11,6 +11,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/logic/helper"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/response"
 	mediaservice "mycourse-io-be/services/media"
@@ -31,7 +32,7 @@ func listFiles(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 		return
 	}
-	response.OKPaginated(c, "ok", rows, utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
+	response.OKPaginated(c, "ok", mapping.ToUploadFileResponses(rows), utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
 }
 
 func getFile(c *gin.Context) {
@@ -40,14 +41,13 @@ func getFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid object key", nil)
 		return
 	}
-	provider := constants.FileProvider(strings.TrimSpace(c.Query("provider")))
 	kind := constants.FileKind(strings.TrimSpace(c.Query("kind")))
-	row, err := mediaservice.GetFile(objectKey, provider, kind)
+	row, err := mediaservice.GetFile(objectKey, kind)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", row)
+	response.OK(c, "ok", mapping.ToUploadFileResponse(*row))
 }
 
 func createFile(c *gin.Context) {
@@ -70,7 +70,6 @@ func createFile(c *gin.Context) {
 	}
 	req := dto.CreateFileRequest{
 		Kind:      c.PostForm("kind"),
-		Provider:  c.PostForm("provider"),
 		ObjectKey: c.PostForm("object_key"),
 		Metadata:  meta,
 	}
@@ -83,7 +82,7 @@ func createFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.Created(c, "created", row)
+	response.Created(c, "created", mapping.ToUploadFileResponse(*row))
 }
 
 func updateFile(c *gin.Context) {
@@ -112,7 +111,6 @@ func updateFile(c *gin.Context) {
 	}
 	req := dto.UpdateFileRequest{
 		Kind:     c.PostForm("kind"),
-		Provider: c.PostForm("provider"),
 		Metadata: meta,
 	}
 	row, err := mediaservice.UpdateFile(objectKey, req, file, upload)
@@ -124,7 +122,7 @@ func updateFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "updated", row)
+	response.OK(c, "updated", mapping.ToUploadFileResponse(*row))
 }
 
 func deleteFile(c *gin.Context) {
@@ -133,13 +131,12 @@ func deleteFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid object key", nil)
 		return
 	}
-	provider := constants.FileProvider(strings.TrimSpace(c.Query("provider")))
 	meta, err := helper.ParseMetadataFromRaw(c.Query("metadata"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	if err := mediaservice.DeleteFile(objectKey, provider, meta); err != nil {
+	if err := mediaservice.DeleteFile(objectKey, meta); err != nil {
 		if errors.Is(err, helper.ErrDependencyNotConfigured) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return

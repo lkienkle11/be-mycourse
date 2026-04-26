@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/requestutil"
 	"mycourse-io-be/pkg/response"
@@ -30,7 +31,7 @@ func listTags(c *gin.Context) {
 		return
 	}
 
-	response.OKPaginated(c, "ok", rows, utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
+	response.OKPaginated(c, "ok", mapping.ToTagResponses(rows), utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
 }
 
 func createTag(c *gin.Context) {
@@ -45,7 +46,7 @@ func createTag(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.Created(c, "created", row)
+	response.Created(c, "created", mapping.ToTagResponse(*row))
 }
 
 func updateTag(c *gin.Context) {
@@ -70,7 +71,7 @@ func updateTag(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "updated", row)
+	response.OK(c, "updated", mapping.ToTagResponse(*row))
 }
 
 func deleteTag(c *gin.Context) {

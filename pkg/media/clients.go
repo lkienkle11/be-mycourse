@@ -23,6 +23,7 @@ import (
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/utils"
+	"mycourse-io-be/pkg/setting"
 )
 
 type CloudClients struct {
@@ -76,7 +77,7 @@ func NewCloudClientsFromEnv() (*CloudClients, error) {
 }
 
 func (c *CloudClients) UploadLocal(objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
-	secret := strings.TrimSpace(os.Getenv("LOCAL_FILE_URL_SECRET"))
+	secret := strings.TrimSpace(setting.MediaSetting.LocalFileURLSecret)
 	if secret == "" {
 		secret = "mycourse-local-file-secret"
 	}
@@ -107,8 +108,8 @@ func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.R
 	if err := writer.Close(); err != nil {
 		return dto.UploadFileResponse{}, err
 	}
-	origin := utils.NormalizeBaseURL(os.Getenv("MEDIA_B2_BASE_URL"), bucket.BaseURL())
-	cdn := utils.NormalizeBaseURL(os.Getenv("MEDIA_GCORE_CDN_URL"), origin)
+	origin := utils.NormalizeBaseURL(setting.MediaSetting.B2BaseURL, bucket.BaseURL())
+	cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, origin)
 	return dto.UploadFileResponse{
 		URL:       cdn + "/" + key,
 		OriginURL: origin + "/" + key,
@@ -118,12 +119,12 @@ func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.R
 }
 
 func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, payload []byte, objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
-	libraryID := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_LIBRARY_ID"))
-	apiKey := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_STREAM_API_KEY"))
+	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
+	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
 		return dto.UploadFileResponse{}, fmt.Errorf("Bunny Stream is not configured")
 	}
-	apiBase := utils.NormalizeBaseURL(os.Getenv("MEDIA_BUNNY_STREAM_API_BASE_URL"), "https://video.bunnycdn.com")
+	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 
 	createBody, _ := json.Marshal(map[string]string{"title": filename})
 	createURL := fmt.Sprintf("%s/library/%s/videos", apiBase, libraryID)
@@ -169,7 +170,7 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 		return dto.UploadFileResponse{}, fmt.Errorf("bunny upload video failed: %s", string(body))
 	}
 
-	stream := utils.NormalizeBaseURL(os.Getenv("MEDIA_BUNNY_STREAM_BASE_URL"), "https://iframe.mediadelivery.net/play")
+	stream := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
 	playURL := fmt.Sprintf("%s/%s/%s", stream, libraryID, created.GUID)
 	if meta == nil {
 		meta = entities.RawMetadata{}
@@ -198,12 +199,12 @@ func (c *CloudClients) DeleteB2Object(ctx context.Context, objectKey string) err
 }
 
 func (c *CloudClients) DeleteBunnyVideo(ctx context.Context, videoGUID string) error {
-	libraryID := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_LIBRARY_ID"))
-	apiKey := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_STREAM_API_KEY"))
+	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
+	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
 		return fmt.Errorf("Bunny Stream is not configured")
 	}
-	apiBase := utils.NormalizeBaseURL(os.Getenv("MEDIA_BUNNY_STREAM_API_BASE_URL"), "https://video.bunnycdn.com")
+	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 	u := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, videoGUID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u, nil)
 	if err != nil {
@@ -239,20 +240,20 @@ func BuildObjectKey(defaultKey, filename string) string {
 func BuildPublicURL(provider constants.FileProvider, objectKey string) string {
 	switch provider {
 	case constants.FileProviderLocal:
-		secret := strings.TrimSpace(os.Getenv("LOCAL_FILE_URL_SECRET"))
+		secret := strings.TrimSpace(setting.MediaSetting.LocalFileURLSecret)
 		if secret == "" {
 			secret = "mycourse-local-file-secret"
 		}
 		return "/api/v1/media/files/local/" + helper.EncodeLocalObjectKey(secret, objectKey)
 	case constants.FileProviderBunny:
-		base := utils.NormalizeBaseURL(os.Getenv("MEDIA_BUNNY_STREAM_BASE_URL"), "https://iframe.mediadelivery.net/play")
-		libraryID := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_LIBRARY_ID"))
+		base := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
+		libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 		if libraryID == "" {
 			libraryID = "00000"
 		}
 		return fmt.Sprintf("%s/%s/%s", base, libraryID, objectKey)
 	default:
-		cdn := utils.NormalizeBaseURL(os.Getenv("MEDIA_GCORE_CDN_URL"), "https://cdn.mycourse.local")
+		cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, "https://cdn.mycourse.local")
 		return cdn + "/" + strings.TrimLeft(objectKey, "/")
 	}
 }

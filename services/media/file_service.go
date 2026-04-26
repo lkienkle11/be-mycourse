@@ -16,7 +16,6 @@ import (
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
 	pkgmedia "mycourse-io-be/pkg/media"
-	"mycourse-io-be/pkg/setting"
 )
 
 func ListFiles(_ dto.FileFilter) ([]entities.File, int64, error) {
@@ -28,7 +27,7 @@ func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) 
 	if key == "" {
 		return nil, fmt.Errorf("object key is required")
 	}
-	resolvedProvider := defaultMediaProvider(kind)
+	resolvedProvider := helper.DefaultMediaProvider(kind)
 	fileURL := pkgmedia.BuildPublicURL(resolvedProvider, key)
 	return &entities.File{
 		ID:        key,
@@ -56,7 +55,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	meta := helper.NormalizeMetadata(req.Metadata)
 	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
 	objectKey := pkgmedia.BuildObjectKey(req.ObjectKey, filename)
-	provider := defaultMediaProvider(kind)
+	provider := helper.DefaultMediaProvider(kind)
 	payload, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
@@ -122,9 +121,9 @@ func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 	if key == "" {
 		return fmt.Errorf("object key is required")
 	}
-	provider := defaultMediaProvider(constants.FileKindFile)
+	provider := helper.DefaultMediaProvider(constants.FileKindFile)
 	if videoGUID := strings.TrimSpace(fmt.Sprintf("%v", metadata["video_guid"])); videoGUID != "" {
-		provider = defaultMediaProvider(constants.FileKindVideo)
+		provider = helper.DefaultMediaProvider(constants.FileKindVideo)
 	}
 	switch provider {
 	case constants.FileProviderBunny:
@@ -138,14 +137,6 @@ func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 	default:
 		return clients.DeleteB2Object(context.Background(), key)
 	}
-}
-
-func defaultMediaProvider(kind constants.FileKind) constants.FileProvider {
-	configured := strings.TrimSpace(setting.MediaSetting.AppMediaProvider)
-	if configured != "" {
-		return helper.ResolveMediaProvider(kind, configured)
-	}
-	return helper.ResolveMediaProvider(kind, "")
 }
 
 func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (dto.UploadFileResponse, error) {

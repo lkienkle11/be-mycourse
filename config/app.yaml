@@ -39,6 +39,7 @@ supabase:
   db_url: "${SUPABASE_DB_URL}"
 
 media:
+  app_media_provider: "${MEDIA_APP_PROVIDER}"
   b2_key_id: "${MEDIA_B2_KEY_ID}"
   b2_app_key: "${MEDIA_B2_APP_KEY}"
   b2_bucket: "${MEDIA_B2_BUCKET}"

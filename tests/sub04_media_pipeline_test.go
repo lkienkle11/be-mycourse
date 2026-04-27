@@ -5,11 +5,41 @@ import (
 	"testing"
 
 	"mycourse-io-be/constants"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/setting"
 )
+
+func TestBunnyVideoStatus_StatusString(t *testing.T) {
+	cases := []struct {
+		name   string
+		status utils.BunnyVideoStatus
+		want   string
+	}{
+		{name: "created", status: utils.Created, want: "created"},
+		{name: "uploaded", status: utils.Uploaded, want: "uploaded"},
+		{name: "processing", status: utils.Processing, want: "processing"},
+		{name: "transcoding", status: utils.Transcoding, want: "transcoding"},
+		{name: "finished", status: utils.Finished, want: "finished"},
+		{name: "resolutions_finished", status: utils.ResolutionsFinished, want: "resolutions_finished"},
+		{name: "failed", status: utils.Failed, want: "failed"},
+		{name: "presigned_upload", status: utils.PresignedUpload, want: "presigned_upload"},
+		{name: "transcribing", status: utils.Transcribing, want: "transcribing"},
+		{name: "unknown", status: utils.BunnyVideoStatus(999), want: "unknown"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.status.StatusString()
+			if got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestJoinURLPathSegments_noDoubleSlash(t *testing.T) {
 	got := utils.JoinURLPathSegments("https://cdn.example.com/", "bucket", "path/to/obj")
@@ -130,5 +160,29 @@ func TestBuildPublicURL_B2_leadingSlashInKey(t *testing.T) {
 	want := "https://cdn.example.com/bucket/leading/slash.jpg"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestToUploadFileResponse_videoFieldsFromBunnyFixture(t *testing.T) {
+	in := entities.File{
+		URL:            "https://iframe.mediadelivery.net/play/123/abc",
+		OriginURL:      "https://iframe.mediadelivery.net/play/123/abc",
+		ObjectKey:      "abc",
+		BunnyVideoID:   "abc",
+		BunnyLibraryID: "123",
+		Duration:       157,
+		VideoProvider:  "bunny_stream",
+		Metadata: entities.VideoMetadata{
+			FileMetadata: entities.FileMetadata{MimeType: "video/mp4"},
+			Width:        1920,
+			Height:       1080,
+			Duration:     157.8,
+			FPS:          29.97,
+		},
+	}
+
+	got := mapping.ToUploadFileResponse(in)
+	if got.BunnyVideoID != "abc" || got.BunnyLibraryID != "123" || got.Duration != 157 || got.VideoProvider != "bunny_stream" {
+		t.Fatalf("unexpected mapped video fields: %+v", got)
 	}
 }

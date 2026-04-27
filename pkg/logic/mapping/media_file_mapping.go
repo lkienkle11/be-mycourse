@@ -7,10 +7,14 @@ import (
 
 func ToUploadFileResponse(file entities.File) dto.UploadFileResponse {
 	return dto.UploadFileResponse{
-		URL:       file.URL,
-		OriginURL: file.OriginURL,
-		ObjectKey: file.ObjectKey,
-		Metadata:  file.Metadata,
+		URL:            file.URL,
+		OriginURL:      file.OriginURL,
+		ObjectKey:      file.ObjectKey,
+		BunnyVideoID:   file.BunnyVideoID,
+		BunnyLibraryID: file.BunnyLibraryID,
+		Duration:       file.Duration,
+		VideoProvider:  file.VideoProvider,
+		Metadata:       file.Metadata,
 	}
 }
 

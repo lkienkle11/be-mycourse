@@ -91,21 +91,32 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		payload,
 		uploadedMetadata,
 	)
+	videoMeta, _ := typedMetadata.(entities.VideoMetadata)
+	bunnyVideoID := strings.TrimSpace(fmt.Sprintf("%v", uploadedMetadata["bunny_video_id"]))
+	if bunnyVideoID == "" {
+		bunnyVideoID = strings.TrimSpace(fmt.Sprintf("%v", uploadedMetadata["video_guid"]))
+	}
+	bunnyLibraryID := strings.TrimSpace(fmt.Sprintf("%v", uploadedMetadata["bunny_library_id"]))
+	videoProvider := strings.TrimSpace(fmt.Sprintf("%v", uploadedMetadata["video_provider"]))
 	now := time.Now()
 	return &entities.File{
-		ID:        uuid.NewString(),
-		Kind:      kind,
-		Provider:  provider,
-		Filename:  filename,
-		MimeType:  fileHeader.Header.Get("Content-Type"),
-		SizeBytes: sizeBytes,
-		URL:       uploaded.URL,
-		OriginURL: uploaded.OriginURL,
-		ObjectKey: uploaded.ObjectKey,
-		Status:    constants.FileStatusReady,
-		Metadata:  typedMetadata,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:             uuid.NewString(),
+		Kind:           kind,
+		Provider:       provider,
+		Filename:       filename,
+		MimeType:       fileHeader.Header.Get("Content-Type"),
+		SizeBytes:      sizeBytes,
+		URL:            uploaded.URL,
+		OriginURL:      uploaded.OriginURL,
+		ObjectKey:      uploaded.ObjectKey,
+		Status:         constants.FileStatusReady,
+		BunnyVideoID:   bunnyVideoID,
+		BunnyLibraryID: bunnyLibraryID,
+		Duration:       int64(videoMeta.Duration),
+		VideoProvider:  videoProvider,
+		Metadata:       typedMetadata,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}, nil
 }
 

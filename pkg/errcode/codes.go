@@ -48,4 +48,6 @@ const (
 	BunnyCreateFailed        = 9012
 	BunnyUploadFailed        = 9013
 	BunnyInvalidResponse     = 9014
+	BunnyVideoNotFound       = 9015
+	BunnyGetVideoFailed      = 9016
 )

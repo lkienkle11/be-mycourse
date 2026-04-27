@@ -190,3 +190,29 @@ func decodeLocalURL(c *gin.Context) {
 	}
 	response.OK(c, "ok", gin.H{"object_key": objectKey})
 }
+
+func getVideoStatus(c *gin.Context) {
+	videoGUID := strings.TrimSpace(c.Param("id"))
+	if videoGUID == "" {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid video guid", nil)
+		return
+	}
+	out, err := mediaservice.GetVideoStatus(c.Request.Context(), videoGUID)
+	if err != nil {
+		if errors.Is(err, helper.ErrDependencyNotConfigured) {
+			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
+			return
+		}
+		if pe, ok := pkgmedia.AsProviderError(err); ok {
+			msg := pe.Error()
+			if strings.TrimSpace(msg) == "" {
+				msg = errcode.DefaultMessage(pe.Code)
+			}
+			response.Fail(c, pkgmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			return
+		}
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
+		return
+	}
+	response.OK(c, "ok", out)
+}

@@ -11,6 +11,11 @@ import (
 	"mycourse-io-be/pkg/response"
 )
 
+// RegisterNoFilterRoutes mounts /api/v1 routes that must bypass v1 middleware chain.
+func RegisterNoFilterRoutes(rg *gin.RouterGroup) {
+	RegisterWebhookRoutes(rg)
+}
+
 // RegisterNotAuthenRoutes mounts /api/v1 routes that do not require JWT.
 func RegisterNotAuthenRoutes(rg *gin.RouterGroup) {
 	rg.GET("/health", func(c *gin.Context) {
@@ -37,4 +42,8 @@ func RegisterAuthenRoutes(rg *gin.RouterGroup) {
 
 func RegisterInternalRoutes(rg *gin.RouterGroup) {
 	internalv1.RegisterRoutes(rg)
+}
+
+func RegisterWebhookRoutes(rg *gin.RouterGroup) {
+	mediav1.RegisterWebhookRoutes(rg)
 }

@@ -28,6 +28,10 @@ func HTTPStatusForProviderCode(code int) int {
 	switch code {
 	case errcode.BunnyCreateFailed, errcode.BunnyUploadFailed, errcode.BunnyInvalidResponse:
 		return http.StatusBadGateway
+	case errcode.BunnyVideoNotFound:
+		return http.StatusNotFound
+	case errcode.BunnyGetVideoFailed:
+		return http.StatusBadGateway
 	default:
 		return http.StatusInternalServerError
 	}

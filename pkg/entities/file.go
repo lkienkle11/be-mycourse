@@ -22,14 +22,15 @@ type ImageMetadata struct {
 
 type VideoMetadata struct {
 	FileMetadata
-	Duration       float64 `json:"duration"`
-	ThumbnailURL   string  `json:"thumbnail_url"`
-	BunnyVideoID   string  `json:"bunny_video_id"`
-	BunnyLibraryID string  `json:"bunny_library_id"`
-	VideoProvider  string  `json:"video_provider"`
-	Size           int64   `json:"size"`
-	Width          int     `json:"width"`
-	Height         int     `json:"height"`
+	Width      int     `json:"width"`
+	Height     int     `json:"height"`
+	Duration   float64 `json:"duration"`
+	Bitrate    int     `json:"bitrate"`
+	FPS        float64 `json:"fps"`
+	VideoCodec string  `json:"video_codec"`
+	AudioCodec string  `json:"audio_codec"`
+	HasAudio   bool    `json:"has_audio"`
+	IsHDR      bool    `json:"is_hdr"`
 }
 
 type DocumentMetadata struct {
@@ -38,17 +39,21 @@ type DocumentMetadata struct {
 }
 
 type File struct {
-	ID        string                 `json:"id"`
-	Kind      constants.FileKind     `json:"kind"`
-	Provider  constants.FileProvider `json:"provider"`
-	Filename  string                 `json:"filename"`
-	MimeType  string                 `json:"mime_type"`
-	SizeBytes int64                  `json:"size_bytes"`
-	URL       string                 `json:"url"`
-	OriginURL string                 `json:"origin_url"`
-	ObjectKey string                 `json:"object_key"`
-	Status    constants.FileStatus   `json:"status"`
-	Metadata  any                    `json:"metadata"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at"`
+	ID             string                 `json:"id"`
+	Kind           constants.FileKind     `json:"kind"`
+	Provider       constants.FileProvider `json:"provider"`
+	Filename       string                 `json:"filename"`
+	MimeType       string                 `json:"mime_type"`
+	SizeBytes      int64                  `json:"size_bytes"`
+	URL            string                 `json:"url"`
+	OriginURL      string                 `json:"origin_url"`
+	ObjectKey      string                 `json:"object_key"`
+	Status         constants.FileStatus   `json:"status"`
+	BunnyVideoID   string                 `json:"bunny_video_id"`
+	BunnyLibraryID string                 `json:"bunny_library_id"`
+	Duration       int64                  `json:"duration"`
+	VideoProvider  string                 `json:"video_provider"`
+	Metadata       any                    `json:"metadata"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
 }

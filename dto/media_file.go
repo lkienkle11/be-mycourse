@@ -18,8 +18,16 @@ type UpdateFileRequest struct {
 }
 
 type UploadFileResponse struct {
-	URL       string `json:"url"`
-	OriginURL string `json:"origin_url"`
-	ObjectKey string `json:"object_key"`
-	Metadata  any    `json:"metadata"`
+	URL            string `json:"url"`
+	OriginURL      string `json:"origin_url"`
+	ObjectKey      string `json:"object_key"`
+	BunnyVideoID   string `json:"bunny_video_id,omitempty"`
+	BunnyLibraryID string `json:"bunny_library_id,omitempty"`
+	Duration       int64  `json:"duration,omitempty"`
+	VideoProvider  string `json:"video_provider,omitempty"`
+	Metadata       any    `json:"metadata"`
+}
+
+type VideoStatusResponse struct {
+	Status string `json:"status"`
 }

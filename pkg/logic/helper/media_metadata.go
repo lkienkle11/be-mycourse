@@ -3,6 +3,7 @@ package helper
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"mycourse-io-be/constants"
@@ -61,27 +62,45 @@ func BuildTypedMetadata(
 
 	switch kind {
 	case constants.FileKindVideo:
-		width := utils.IntFromRaw(raw, "width")
-		height := utils.IntFromRaw(raw, "height")
-		if width <= 0 || height <= 0 {
-			w, h := utils.ImageSizeFromPayload(payload)
-			if width <= 0 {
-				width = w
+		duration := utils.FloatFromRaw(raw, "duration")
+		if duration == 0 {
+			duration = utils.FloatFromRaw(raw, "length")
+		}
+		fps := utils.FloatFromRaw(raw, "fps")
+		if fps == 0 {
+			fps = utils.FloatFromRaw(raw, "framerate")
+		}
+		hasAudio := false
+		if v, ok := raw["has_audio"]; ok {
+			switch typed := v.(type) {
+			case bool:
+				hasAudio = typed
+			default:
+				parsed, err := strconv.ParseBool(strings.TrimSpace(fmt.Sprintf("%v", typed)))
+				hasAudio = err == nil && parsed
 			}
-			if height <= 0 {
-				height = h
+		}
+		isHDR := false
+		if v, ok := raw["is_hdr"]; ok {
+			switch typed := v.(type) {
+			case bool:
+				isHDR = typed
+			default:
+				parsed, err := strconv.ParseBool(strings.TrimSpace(fmt.Sprintf("%v", typed)))
+				isHDR = err == nil && parsed
 			}
 		}
 		return entities.VideoMetadata{
-			FileMetadata:   base,
-			Duration:       utils.FloatFromRaw(raw, "duration"),
-			ThumbnailURL:   utils.StringFromRaw(raw, "thumbnail_url"),
-			BunnyVideoID:   utils.NonEmpty(utils.StringFromRaw(raw, "bunny_video_id"), utils.StringFromRaw(raw, "video_guid")),
-			BunnyLibraryID: utils.StringFromRaw(raw, "bunny_library_id"),
-			VideoProvider:  utils.StringFromRaw(raw, "video_provider"),
-			Size:           sizeBytes,
-			Width:          width,
-			Height:         height,
+			FileMetadata: base,
+			Width:        utils.IntFromRaw(raw, "width"),
+			Height:       utils.IntFromRaw(raw, "height"),
+			Duration:     duration,
+			Bitrate:      utils.IntFromRaw(raw, "bitrate"),
+			FPS:          fps,
+			VideoCodec:   utils.StringFromRaw(raw, "video_codec"),
+			AudioCodec:   utils.StringFromRaw(raw, "audio_codec"),
+			HasAudio:     hasAudio,
+			IsHDR:        isHDR,
 		}
 	case constants.FileKindFile:
 		w, h := utils.ImageSizeFromPayload(payload)

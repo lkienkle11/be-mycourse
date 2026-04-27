@@ -37,6 +37,9 @@ func InitRouter() *gin.Engine {
 	system.Use(middleware.RateLimitSystemIP(10, 3))
 	apisystem.RegisterRoutes(system, models.DB)
 
+	v1NoFilter := apiRoot.Group("/v1")
+	apiV1.RegisterNoFilterRoutes(v1NoFilter)
+
 	v1 := apiRoot.Group("/v1")
 	v1.Use(middleware.BeforeInterceptor())
 

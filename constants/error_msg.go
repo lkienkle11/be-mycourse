@@ -44,4 +44,6 @@ const (
 	MsgMediaBunnyCreateFailed        = "Bunny Stream failed to create video"
 	MsgMediaBunnyUploadFailed        = "Bunny Stream failed to upload video content"
 	MsgMediaBunnyInvalidResponse     = "Bunny Stream returned an invalid response"
+	MsgMediaBunnyVideoNotFound       = "Bunny Stream video was not found"
+	MsgMediaBunnyGetVideoFailed      = "Bunny Stream failed to get video details"
 )

@@ -35,6 +35,20 @@ type CloudClients struct {
 	httpClient   *http.Client
 }
 
+type BunnyVideoDetail struct {
+	VideoLibraryID int     `json:"videoLibraryId"`
+	GUID           string  `json:"guid"`
+	Length         float64 `json:"length"`
+	Status         int     `json:"status"`
+	Width          int     `json:"width"`
+	Height         int     `json:"height"`
+	Framerate      float64 `json:"framerate"`
+	Bitrate        int     `json:"bitrate"`
+	VideoCodec     string  `json:"videoCodec"`
+	AudioCodec     string  `json:"audioCodec"`
+	HasMP4Fallback bool    `json:"hasMP4Fallback"`
+}
+
 func NewCloudClientsFromEnv() (*CloudClients, error) {
 	out := &CloudClients{
 		httpClient: &http.Client{Timeout: 60 * time.Second},
@@ -256,6 +270,61 @@ func (c *CloudClients) DeleteBunnyVideo(ctx context.Context, videoGUID string) e
 		return fmt.Errorf("bunny delete video failed: %s", string(body))
 	}
 	return nil
+}
+
+func (c *CloudClients) GetBunnyVideoByID(ctx context.Context, videoGUID string) (*BunnyVideoDetail, error) {
+	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
+	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
+	if libraryID == "" || apiKey == "" {
+		return nil, &ProviderError{Code: errcode.BunnyStreamNotConfigured}
+	}
+	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
+	u := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, videoGUID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("AccessKey", apiKey)
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, &ProviderError{
+			Code: errcode.BunnyVideoNotFound,
+			Msg:  strings.TrimSpace(string(body)),
+			Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
+		}
+	}
+	if resp.StatusCode >= 300 {
+		return nil, &ProviderError{
+			Code: errcode.BunnyGetVideoFailed,
+			Msg:  strings.TrimSpace(string(body)),
+			Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
+		}
+	}
+
+	var out BunnyVideoDetail
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, &ProviderError{
+			Code: errcode.BunnyInvalidResponse,
+			Msg:  err.Error(),
+			Err:  err,
+		}
+	}
+	if strings.TrimSpace(out.GUID) == "" {
+		return nil, &ProviderError{
+			Code: errcode.BunnyInvalidResponse,
+			Msg:  "bunny stream did not return video guid",
+			Err:  errors.New("missing guid"),
+		}
+	}
+	return &out, nil
 }
 
 func BuildPublicURL(provider constants.FileProvider, objectKey string) string {

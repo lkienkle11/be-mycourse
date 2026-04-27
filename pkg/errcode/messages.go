@@ -46,4 +46,6 @@ var defaultMessages = map[int]string{
 	BunnyCreateFailed:        constants.MsgMediaBunnyCreateFailed,
 	BunnyUploadFailed:        constants.MsgMediaBunnyUploadFailed,
 	BunnyInvalidResponse:     constants.MsgMediaBunnyInvalidResponse,
+	BunnyVideoNotFound:       constants.MsgMediaBunnyVideoNotFound,
+	BunnyGetVideoFailed:      constants.MsgMediaBunnyGetVideoFailed,
 }

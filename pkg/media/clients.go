@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,6 +21,7 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/setting"
@@ -76,6 +77,14 @@ func NewCloudClientsFromEnv() (*CloudClients, error) {
 	return out, nil
 }
 
+// effectiveB2Bucket prefers YAML/media.b2_bucket after setting.Setup(); falls back to env bucket from constructor.
+func (c *CloudClients) effectiveB2Bucket() string {
+	if b := strings.TrimSpace(setting.MediaSetting.B2Bucket); b != "" {
+		return b
+	}
+	return strings.TrimSpace(c.b2BucketName)
+}
+
 func (c *CloudClients) UploadLocal(objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	secret := strings.TrimSpace(setting.MediaSetting.LocalFileURLSecret)
 	if secret == "" {
@@ -92,10 +101,14 @@ func (c *CloudClients) UploadLocal(objectKey string, meta entities.RawMetadata) 
 }
 
 func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.Reader, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
-	if c.b2Client == nil || c.b2BucketName == "" {
+	if c.b2Client == nil {
 		return dto.UploadFileResponse{}, fmt.Errorf("B2 client is not configured")
 	}
-	bucket, err := c.b2Client.Bucket(ctx, c.b2BucketName)
+	bucketName := c.effectiveB2Bucket()
+	if bucketName == "" {
+		return dto.UploadFileResponse{}, &ProviderError{Code: errcode.B2BucketNotConfigured}
+	}
+	bucket, err := c.b2Client.Bucket(ctx, bucketName)
 	if err != nil {
 		return dto.UploadFileResponse{}, err
 	}
@@ -110,19 +123,21 @@ func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.R
 	}
 	origin := utils.NormalizeBaseURL(setting.MediaSetting.B2BaseURL, bucket.BaseURL())
 	cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, origin)
+	publicURL := utils.JoinURLPathSegments(cdn, bucketName, key)
 	return dto.UploadFileResponse{
-		URL:       cdn + "/" + key,
-		OriginURL: origin + "/" + key,
+		URL:       publicURL,
+		OriginURL: utils.JoinURLPathSegments(origin, key),
 		ObjectKey: key,
 		Metadata:  meta,
 	}, nil
 }
 
 func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, payload []byte, objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
+	_ = objectKey // Bunny object key is the API GUID after create.
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
-		return dto.UploadFileResponse{}, fmt.Errorf("Bunny Stream is not configured")
+		return dto.UploadFileResponse{}, &ProviderError{Code: errcode.BunnyStreamNotConfigured}
 	}
 	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 
@@ -139,18 +154,30 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 		return dto.UploadFileResponse{}, err
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return dto.UploadFileResponse{}, fmt.Errorf("bunny create video failed: %s", string(body))
+		return dto.UploadFileResponse{}, &ProviderError{
+			Code: errcode.BunnyCreateFailed,
+			Msg:  strings.TrimSpace(string(body)),
+			Err:  fmt.Errorf("bunny create video: HTTP %d", resp.StatusCode),
+		}
 	}
 	var created struct {
 		GUID string `json:"guid"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
-		return dto.UploadFileResponse{}, err
+	if err := json.Unmarshal(body, &created); err != nil {
+		return dto.UploadFileResponse{}, &ProviderError{
+			Code: errcode.BunnyInvalidResponse,
+			Msg:  err.Error(),
+			Err:  err,
+		}
 	}
 	if created.GUID == "" {
-		return dto.UploadFileResponse{}, fmt.Errorf("bunny stream did not return video guid")
+		return dto.UploadFileResponse{}, &ProviderError{
+			Code: errcode.BunnyInvalidResponse,
+			Msg:  "bunny stream did not return video guid",
+			Err:  errors.New("missing guid"),
+		}
 	}
 
 	uploadURL := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, created.GUID)
@@ -165,9 +192,13 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 		return dto.UploadFileResponse{}, err
 	}
 	defer uploadResp.Body.Close()
+	uploadBody, _ := io.ReadAll(uploadResp.Body)
 	if uploadResp.StatusCode >= 300 {
-		body, _ := io.ReadAll(uploadResp.Body)
-		return dto.UploadFileResponse{}, fmt.Errorf("bunny upload video failed: %s", string(body))
+		return dto.UploadFileResponse{}, &ProviderError{
+			Code: errcode.BunnyUploadFailed,
+			Msg:  strings.TrimSpace(string(uploadBody)),
+			Err:  fmt.Errorf("bunny upload video: HTTP %d", uploadResp.StatusCode),
+		}
 	}
 
 	stream := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
@@ -182,16 +213,20 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 	return dto.UploadFileResponse{
 		URL:       playURL,
 		OriginURL: playURL,
-		ObjectKey: objectKey,
+		ObjectKey: created.GUID,
 		Metadata:  meta,
 	}, nil
 }
 
 func (c *CloudClients) DeleteB2Object(ctx context.Context, objectKey string) error {
-	if c.b2Client == nil || c.b2BucketName == "" {
+	if c.b2Client == nil {
 		return fmt.Errorf("B2 client is not configured")
 	}
-	bucket, err := c.b2Client.Bucket(ctx, c.b2BucketName)
+	bucketName := c.effectiveB2Bucket()
+	if bucketName == "" {
+		return &ProviderError{Code: errcode.B2BucketNotConfigured}
+	}
+	bucket, err := c.b2Client.Bucket(ctx, bucketName)
 	if err != nil {
 		return err
 	}
@@ -223,20 +258,6 @@ func (c *CloudClients) DeleteBunnyVideo(ctx context.Context, videoGUID string) e
 	return nil
 }
 
-func BuildObjectKey(defaultKey, filename string) string {
-	key := strings.TrimSpace(defaultKey)
-	if key != "" {
-		return strings.TrimLeft(key, "/")
-	}
-	ext := filepath.Ext(filename)
-	base := strings.TrimSuffix(filename, ext)
-	base = strings.ReplaceAll(strings.TrimSpace(base), " ", "-")
-	if base == "" {
-		base = "file"
-	}
-	return fmt.Sprintf("%d-%s%s", time.Now().UnixNano(), base, ext)
-}
-
 func BuildPublicURL(provider constants.FileProvider, objectKey string) string {
 	switch provider {
 	case constants.FileProviderLocal:
@@ -254,6 +275,10 @@ func BuildPublicURL(provider constants.FileProvider, objectKey string) string {
 		return fmt.Sprintf("%s/%s/%s", base, libraryID, objectKey)
 	default:
 		cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, "https://cdn.mycourse.local")
-		return cdn + "/" + strings.TrimLeft(objectKey, "/")
+		key := strings.TrimLeft(objectKey, "/")
+		if b := strings.TrimSpace(setting.MediaSetting.B2Bucket); b != "" {
+			return utils.JoinURLPathSegments(cdn, b, key)
+		}
+		return utils.JoinURLPathSegments(cdn, key)
 	}
 }

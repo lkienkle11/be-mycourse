@@ -78,6 +78,7 @@ func BuildTypedMetadata(
 			ThumbnailURL:   util.StringFromRaw(raw, "thumbnail_url"),
 			BunnyVideoID:   util.NonEmpty(util.StringFromRaw(raw, "bunny_video_id"), util.StringFromRaw(raw, "video_guid")),
 			BunnyLibraryID: util.StringFromRaw(raw, "bunny_library_id"),
+			VideoProvider:  util.StringFromRaw(raw, "video_provider"),
 			Size:           sizeBytes,
 			Width:          width,
 			Height:         height,

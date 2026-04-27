@@ -26,6 +26,7 @@ type VideoMetadata struct {
 	ThumbnailURL   string  `json:"thumbnail_url"`
 	BunnyVideoID   string  `json:"bunny_video_id"`
 	BunnyLibraryID string  `json:"bunny_library_id"`
+	VideoProvider  string  `json:"video_provider"`
 	Size           int64   `json:"size"`
 	Width          int     `json:"width"`
 	Height         int     `json:"height"`

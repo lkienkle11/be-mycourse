@@ -36,3 +36,12 @@ const MaxMediaUploadFileBytes int64 = 2 * 1024 * 1024 * 1024
 //
 // Do not copy this literal into messages.go or upload_errors.go — import constants.MsgFileTooLargeUpload.
 const MsgFileTooLargeUpload = "Uploaded file exceeds the maximum allowed size (2 GiB per file)"
+
+// Default JSON messages for media upstream errcodes 9010–9014 (pkg/errcode/messages.go references only).
+const (
+	MsgMediaB2BucketNotConfigured    = "Media B2 bucket is not configured (set MEDIA_B2_BUCKET / media.b2_bucket so URLs can use path <cdn>/<bucket>/<object>)"
+	MsgMediaBunnyStreamNotConfigured = "Bunny Stream is not configured (library id and API key required)"
+	MsgMediaBunnyCreateFailed        = "Bunny Stream failed to create video"
+	MsgMediaBunnyUploadFailed        = "Bunny Stream failed to upload video content"
+	MsgMediaBunnyInvalidResponse     = "Bunny Stream returned an invalid response"
+)

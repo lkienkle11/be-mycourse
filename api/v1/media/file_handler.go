@@ -89,6 +89,14 @@ func createFile(c *gin.Context) {
 			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
 			return
 		}
+		if pe, ok := pkgmedia.AsProviderError(err); ok {
+			msg := pe.Error()
+			if strings.TrimSpace(msg) == "" {
+				msg = errcode.DefaultMessage(pe.Code)
+			}
+			response.Fail(c, pkgmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
@@ -135,6 +143,14 @@ func updateFile(c *gin.Context) {
 		}
 		if errors.Is(err, pkgmedia.ErrFileExceedsMaxUploadSize) {
 			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
+			return
+		}
+		if pe, ok := pkgmedia.AsProviderError(err); ok {
+			msg := pe.Error()
+			if strings.TrimSpace(msg) == "" {
+				msg = errcode.DefaultMessage(pe.Code)
+			}
+			response.Fail(c, pkgmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)

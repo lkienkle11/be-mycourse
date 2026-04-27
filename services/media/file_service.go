@@ -54,7 +54,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	filename := strings.TrimSpace(fileHeader.Filename)
 	meta := helper.NormalizeMetadata(req.Metadata)
 	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
-	objectKey := pkgmedia.BuildObjectKey(req.ObjectKey, filename)
+	objectKey := helper.ResolveMediaUploadObjectKey(req.ObjectKey, filename, helper.DefaultMediaProvider(kind))
 	provider := helper.DefaultMediaProvider(kind)
 
 	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {

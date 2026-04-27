@@ -40,4 +40,10 @@ var defaultMessages = map[int]string{
 
 	InternalError: "Internal server error",
 	Panic:         "Internal server error",
+
+	B2BucketNotConfigured:    constants.MsgMediaB2BucketNotConfigured,
+	BunnyStreamNotConfigured: constants.MsgMediaBunnyStreamNotConfigured,
+	BunnyCreateFailed:        constants.MsgMediaBunnyCreateFailed,
+	BunnyUploadFailed:        constants.MsgMediaBunnyUploadFailed,
+	BunnyInvalidResponse:     constants.MsgMediaBunnyInvalidResponse,
 }

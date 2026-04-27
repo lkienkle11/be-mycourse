@@ -41,4 +41,11 @@ const (
 	// Server (9xxx)
 	InternalError = 9001
 	Panic         = 9998
+
+	// Media upstream (90xx)
+	B2BucketNotConfigured    = 9010
+	BunnyStreamNotConfigured = 9011
+	BunnyCreateFailed        = 9012
+	BunnyUploadFailed        = 9013
+	BunnyInvalidResponse     = 9014
 )

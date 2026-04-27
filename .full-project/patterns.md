@@ -24,8 +24,8 @@
 
 ## Helper vs Util Convention
 - `pkg/logic/helper/*`: feature-scoped helpers tied to one bounded domain (e.g., media resolver/provider flow).
-- `pkg/logic/util/*`: generic, cross-feature helpers without domain coupling (e.g., raw metadata primitive conversion/image probing).
-- Rule of placement: if logic can be reused across multiple modules, move to `util`; keep orchestration-specific flow logic in `helper`.
+- `pkg/logic/utils/*`: generic, cross-feature helpers without domain coupling (e.g., raw metadata primitive conversion/image probing).
+- Rule of placement: if logic can be reused across multiple modules, move to `utils`; keep orchestration-specific flow logic in `helper`.
 
 ## Operational Patterns
 - Sync CLI commands for RBAC catalogs.

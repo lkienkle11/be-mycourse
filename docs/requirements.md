@@ -354,7 +354,7 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 - The system **MUST** keep media flow stateless (no local media table persistence), acting as a cloud upload gateway.
 - The system **MUST** select provider from server configuration (`setting.MediaSetting.AppMediaProvider`), not client request fields.
 - The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
-- The system **MUST** keep feature-specific helpers in `pkg/logic/helper` and generic reusable primitives in `pkg/logic/util`.
+- The system **MUST** keep feature-specific helpers in `pkg/logic/helper` and generic reusable primitives in `pkg/logic/utils`.
 - The system **MUST** restrict direct runtime `os.Getenv` reads in media runtime paths and use `setting.MediaSetting` as source-of-truth after `setting.Setup()`.
 - The system **MUST** reject a single uploaded file larger than **2 GiB** (`2×1024×1024×1024` bytes) on media create/update (handler + service), returning HTTP **413** and application code **2003** (`FileTooLarge`). The byte cap and the **single** oversize message constant **`constants.MsgFileTooLargeUpload`** **MUST** live in **`constants/error_msg.go`** and **MUST** be the same string used for the default JSON `message` for `FileTooLarge` in `pkg/errcode/messages.go` and for `pkg/media.ErrFileExceedsMaxUploadSize` (no duplicate literals). See `docs/architecture.md` directory map. Deployment **MUST** configure reverse proxies / load balancers with a body limit **at least** that large on API routes so requests are not dropped before the application (see `docs/deploy.md`).
 

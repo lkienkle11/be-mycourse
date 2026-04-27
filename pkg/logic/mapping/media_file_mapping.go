@@ -7,6 +7,13 @@ import (
 
 func ToUploadFileResponse(file entities.File) dto.UploadFileResponse {
 	return dto.UploadFileResponse{
+		ID:             file.ID,
+		Kind:           string(file.Kind),
+		Filename:       file.Filename,
+		MimeType:       file.MimeType,
+		SizeBytes:      file.SizeBytes,
+		Status:         string(file.Status),
+		B2BucketName:   file.B2BucketName,
 		URL:            file.URL,
 		OriginURL:      file.OriginURL,
 		ObjectKey:      file.ObjectKey,

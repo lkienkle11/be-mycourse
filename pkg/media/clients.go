@@ -138,6 +138,10 @@ func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.R
 	origin := utils.NormalizeBaseURL(setting.MediaSetting.B2BaseURL, bucket.BaseURL())
 	cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, origin)
 	publicURL := utils.JoinURLPathSegments(cdn, bucketName, key)
+	if meta == nil {
+		meta = entities.RawMetadata{}
+	}
+	meta["b2_bucket_name"] = bucketName
 	return dto.UploadFileResponse{
 		URL:       publicURL,
 		OriginURL: utils.JoinURLPathSegments(origin, key),

@@ -2,15 +2,17 @@ package media
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
+	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
+	"mycourse-io-be/repository"
 )
 
 func GetVideoStatus(ctx context.Context, videoGUID string) (*dto.VideoStatusResponse, error) {
@@ -42,12 +44,33 @@ func HandleBunnyVideoWebhook(ctx context.Context, req dto.BunnyVideoWebhookReque
 	if err != nil {
 		return err
 	}
-
-	re := regexp.MustCompile(utils.SignBunnyIFrameRegex)
-	playbackURL := pkgmedia.BuildPublicURL(constants.FileProviderBunny, strings.TrimSpace(req.VideoGUID))
-	_ = re.ReplaceAllString(playbackURL, "")
-	_ = int64(video.Length)
-
-	// TODO: persist duration xuống bảng files/lessons khi DB ready.
-	return nil
+	repo := repository.New(models.DB).Media
+	row, err := repo.GetByBunnyVideoID(strings.TrimSpace(req.VideoGUID))
+	if err != nil {
+		// idempotent retry safety: if local DB row does not exist, acknowledge without failing webhook.
+		return nil
+	}
+	raw := map[string]any{}
+	_ = json.Unmarshal(row.MetadataJSON, &raw)
+	raw["length"] = video.Length
+	raw["width"] = video.Width
+	raw["height"] = video.Height
+	raw["framerate"] = video.Framerate
+	raw["bitrate"] = video.Bitrate
+	raw["video_codec"] = video.VideoCodec
+	raw["audio_codec"] = video.AudioCodec
+	blob, _ := json.Marshal(raw)
+	row.MetadataJSON = blob
+	row.Duration = int64(video.Length)
+	row.Status = constants.FileStatusReady
+	if row.URL == "" {
+		row.URL = pkgmedia.BuildPublicURL(constants.FileProviderBunny, strings.TrimSpace(req.VideoGUID))
+	}
+	if row.OriginURL == "" {
+		row.OriginURL = row.URL
+	}
+	if row.VideoProvider == "" {
+		row.VideoProvider = "bunny_stream"
+	}
+	return repo.UpsertByObjectKey(row)
 }

@@ -3,6 +3,7 @@ package repository
 import (
 	"gorm.io/gorm"
 
+	mediarepo "mycourse-io-be/repository/media"
 	taxonomyrepo "mycourse-io-be/repository/taxonomy"
 )
 
@@ -14,6 +15,7 @@ type TaxonomyRepository struct {
 
 type Repository struct {
 	Taxonomy TaxonomyRepository
+	Media    *mediarepo.FileRepository
 }
 
 func New(db *gorm.DB) *Repository {
@@ -23,5 +25,6 @@ func New(db *gorm.DB) *Repository {
 			Categories:   taxonomyrepo.NewCategoryRepository(db),
 			Tags:         taxonomyrepo.NewTagRepository(db),
 		},
+		Media: mediarepo.NewFileRepository(db),
 	}
 }

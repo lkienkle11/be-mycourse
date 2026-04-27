@@ -18,6 +18,13 @@ type UpdateFileRequest struct {
 }
 
 type UploadFileResponse struct {
+	ID             string `json:"id,omitempty"`
+	Kind           string `json:"kind,omitempty"`
+	Filename       string `json:"filename,omitempty"`
+	MimeType       string `json:"mime_type,omitempty"`
+	SizeBytes      int64  `json:"size_bytes,omitempty"`
+	Status         string `json:"status,omitempty"`
+	B2BucketName   string `json:"b2_bucket_name,omitempty"`
 	URL            string `json:"url"`
 	OriginURL      string `json:"origin_url"`
 	ObjectKey      string `json:"object_key"`

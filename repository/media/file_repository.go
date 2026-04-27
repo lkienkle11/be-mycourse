@@ -1,0 +1,97 @@
+package media
+
+import (
+	"errors"
+
+	"gorm.io/gorm"
+
+	"mycourse-io-be/dto"
+	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/query"
+)
+
+type FileRepository struct {
+	db *gorm.DB
+}
+
+func NewFileRepository(db *gorm.DB) *FileRepository {
+	return &FileRepository{db: db}
+}
+
+func (r *FileRepository) List(filter dto.FileFilter) ([]models.MediaFile, int64, error) {
+	q := r.db.Model(&models.MediaFile{}).Where("deleted_at IS NULL")
+	if filter.Provider != nil && *filter.Provider != "" {
+		q = q.Where("provider = ?", *filter.Provider)
+	}
+	if filter.Kind != nil && *filter.Kind != "" {
+		q = q.Where("kind = ?", *filter.Kind)
+	}
+
+	if where, arg, ok := query.BuildSearchClause(filter.BaseFilter, map[string]string{
+		"filename":   "filename",
+		"object_key": "object_key",
+		"mime_type":  "mime_type",
+		"status":     "status",
+	}); ok {
+		q = q.Where(where, arg)
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	p := query.ParseListFilter(filter.BaseFilter)
+	sortClause := query.BuildSortClause(filter.BaseFilter, map[string]string{
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+		"filename":   "filename",
+		"size_bytes": "size_bytes",
+	}, "created_at")
+
+	var rows []models.MediaFile
+	if err := q.Order(sortClause).Offset(p.Offset).Limit(p.PerPage).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+func (r *FileRepository) GetByObjectKey(objectKey string) (*models.MediaFile, error) {
+	var row models.MediaFile
+	if err := r.db.Where("object_key = ? AND deleted_at IS NULL", objectKey).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+func (r *FileRepository) GetByBunnyVideoID(videoID string) (*models.MediaFile, error) {
+	var row models.MediaFile
+	if err := r.db.Where("bunny_video_id = ? AND deleted_at IS NULL", videoID).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+func (r *FileRepository) UpsertByObjectKey(row *models.MediaFile) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var existing models.MediaFile
+		err := tx.Where("object_key = ?", row.ObjectKey).First(&existing).Error
+		if err == nil {
+			row.ID = existing.ID
+			row.CreatedAt = existing.CreatedAt
+			row.UpdatedAt = existing.UpdatedAt
+			return tx.Model(&existing).Updates(row).Error
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		return tx.Create(row).Error
+	})
+}
+
+func (r *FileRepository) SoftDeleteByObjectKey(objectKey string) error {
+	return r.db.Model(&models.MediaFile{}).
+		Where("object_key = ? AND deleted_at IS NULL", objectKey).
+		Update("deleted_at", gorm.Expr("NOW()")).
+		Error
+}

@@ -13,13 +13,31 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
+	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
+	"mycourse-io-be/pkg/logic/mapping"
+	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
+	"mycourse-io-be/pkg/setting"
+	"mycourse-io-be/repository"
+	mediarepo "mycourse-io-be/repository/media"
 )
 
-func ListFiles(_ dto.FileFilter) ([]entities.File, int64, error) {
-	return []entities.File{}, 0, nil
+func mediaRepository() *mediarepo.FileRepository {
+	return repository.New(models.DB).Media
+}
+
+func ListFiles(filter dto.FileFilter) ([]entities.File, int64, error) {
+	rows, total, err := mediaRepository().List(filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]entities.File, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, mapping.ToMediaEntity(row))
+	}
+	return out, total, nil
 }
 
 func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) {
@@ -27,8 +45,15 @@ func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) 
 	if key == "" {
 		return nil, fmt.Errorf("object key is required")
 	}
+	row, err := mediaRepository().GetByObjectKey(key)
+	if err == nil {
+		entity := mapping.ToMediaEntity(*row)
+		return &entity, nil
+	}
+	// backward-compat fallback for files uploaded before DB persistence existed.
 	resolvedProvider := helper.DefaultMediaProvider(kind)
 	fileURL := pkgmedia.BuildPublicURL(resolvedProvider, key)
+	now := time.Now()
 	return &entities.File{
 		ID:        key,
 		Kind:      kind,
@@ -41,8 +66,8 @@ func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) 
 		ObjectKey: key,
 		Status:    constants.FileStatusReady,
 		Metadata:  entities.DocumentMetadata{FileMetadata: entities.FileMetadata{}},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}, nil
 }
 
@@ -83,6 +108,9 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	if sizeBytes < 0 {
 		sizeBytes = int64(len(payload))
 	}
+	if sizeBytes == 0 {
+		sizeBytes = int64(len(payload))
+	}
 	typedMetadata := helper.BuildTypedMetadata(
 		kind,
 		fileHeader.Header.Get("Content-Type"),
@@ -98,8 +126,16 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	}
 	bunnyLibraryID := strings.TrimSpace(fmt.Sprintf("%v", uploadedMetadata["bunny_library_id"]))
 	videoProvider := strings.TrimSpace(fmt.Sprintf("%v", uploadedMetadata["video_provider"]))
+	duration := int64(videoMeta.Duration)
+	if duration <= 0 {
+		duration = int64(utils.FloatFromRaw(uploadedMetadata, "length"))
+	}
 	now := time.Now()
-	return &entities.File{
+	b2Bucket := strings.TrimSpace(setting.MediaSetting.B2Bucket)
+	if b2Bucket == "" {
+		b2Bucket = strings.TrimSpace(fmt.Sprintf("%v", uploadedMetadata["b2_bucket_name"]))
+	}
+	entity := &entities.File{
 		ID:             uuid.NewString(),
 		Kind:           kind,
 		Provider:       provider,
@@ -110,20 +146,32 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		OriginURL:      uploaded.OriginURL,
 		ObjectKey:      uploaded.ObjectKey,
 		Status:         constants.FileStatusReady,
+		B2BucketName:   b2Bucket,
 		BunnyVideoID:   bunnyVideoID,
 		BunnyLibraryID: bunnyLibraryID,
-		Duration:       int64(videoMeta.Duration),
+		Duration:       duration,
 		VideoProvider:  videoProvider,
 		Metadata:       typedMetadata,
 		CreatedAt:      now,
 		UpdatedAt:      now,
-	}, nil
+	}
+	record := mapping.ToMediaModel(*entity)
+	record.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
+	if err := mediaRepository().UpsertByObjectKey(record); err != nil {
+		// Best-effort compensation: remove cloud object when DB write fails to avoid orphaned object.
+		_ = DeleteFile(entity.ObjectKey, entities.RawMetadata{
+			"video_guid": entity.BunnyVideoID,
+		})
+		return nil, err
+	}
+	return entity, nil
 }
 
 func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (*entities.File, error) {
 	if strings.TrimSpace(objectKey) == "" {
 		return nil, fmt.Errorf("object key is required")
 	}
+	prev, _ := mediaRepository().GetByObjectKey(strings.TrimSpace(objectKey))
 	createReq := dto.CreateFileRequest{
 		Kind:      req.Kind,
 		ObjectKey: objectKey,
@@ -134,6 +182,9 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 		return nil, err
 	}
 	row.ID = objectKey
+	if prev != nil {
+		row.CreatedAt = prev.CreatedAt
+	}
 	return row, nil
 }
 
@@ -160,8 +211,11 @@ func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 	case constants.FileProviderLocal:
 		return nil
 	default:
-		return clients.DeleteB2Object(context.Background(), key)
+		if err := clients.DeleteB2Object(context.Background(), key); err != nil {
+			return err
+		}
 	}
+	return mediaRepository().SoftDeleteByObjectKey(key)
 }
 
 func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (dto.UploadFileResponse, error) {

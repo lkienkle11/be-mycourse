@@ -49,6 +49,7 @@ type File struct {
 	OriginURL      string                 `json:"origin_url"`
 	ObjectKey      string                 `json:"object_key"`
 	Status         constants.FileStatus   `json:"status"`
+	B2BucketName   string                 `json:"b2_bucket_name"`
 	BunnyVideoID   string                 `json:"bunny_video_id"`
 	BunnyLibraryID string                 `json:"bunny_library_id"`
 	Duration       int64                  `json:"duration"`

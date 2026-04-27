@@ -7,7 +7,7 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/entities"
-	"mycourse-io-be/pkg/logic/util"
+	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/setting"
 )
 
@@ -56,15 +56,15 @@ func BuildTypedMetadata(
 	base := entities.FileMetadata{
 		Size:      sizeBytes,
 		MimeType:  strings.TrimSpace(mimeType),
-		Extension: util.DetectExtension(filename, mimeType),
+		Extension: utils.DetectExtension(filename, mimeType),
 	}
 
 	switch kind {
 	case constants.FileKindVideo:
-		width := util.IntFromRaw(raw, "width")
-		height := util.IntFromRaw(raw, "height")
+		width := utils.IntFromRaw(raw, "width")
+		height := utils.IntFromRaw(raw, "height")
 		if width <= 0 || height <= 0 {
-			w, h := util.ImageSizeFromPayload(payload)
+			w, h := utils.ImageSizeFromPayload(payload)
 			if width <= 0 {
 				width = w
 			}
@@ -74,17 +74,17 @@ func BuildTypedMetadata(
 		}
 		return entities.VideoMetadata{
 			FileMetadata:   base,
-			Duration:       util.FloatFromRaw(raw, "duration"),
-			ThumbnailURL:   util.StringFromRaw(raw, "thumbnail_url"),
-			BunnyVideoID:   util.NonEmpty(util.StringFromRaw(raw, "bunny_video_id"), util.StringFromRaw(raw, "video_guid")),
-			BunnyLibraryID: util.StringFromRaw(raw, "bunny_library_id"),
-			VideoProvider:  util.StringFromRaw(raw, "video_provider"),
+			Duration:       utils.FloatFromRaw(raw, "duration"),
+			ThumbnailURL:   utils.StringFromRaw(raw, "thumbnail_url"),
+			BunnyVideoID:   utils.NonEmpty(utils.StringFromRaw(raw, "bunny_video_id"), utils.StringFromRaw(raw, "video_guid")),
+			BunnyLibraryID: utils.StringFromRaw(raw, "bunny_library_id"),
+			VideoProvider:  utils.StringFromRaw(raw, "video_provider"),
 			Size:           sizeBytes,
 			Width:          width,
 			Height:         height,
 		}
 	case constants.FileKindFile:
-		w, h := util.ImageSizeFromPayload(payload)
+		w, h := utils.ImageSizeFromPayload(payload)
 		if w > 0 && h > 0 {
 			base.Width = w
 			base.Height = h
@@ -92,7 +92,7 @@ func BuildTypedMetadata(
 		}
 		return entities.DocumentMetadata{
 			FileMetadata: base,
-			PageCount:    util.IntFromRaw(raw, "page_count"),
+			PageCount:    utils.IntFromRaw(raw, "page_count"),
 		}
 	default:
 		return entities.DocumentMetadata{FileMetadata: base}

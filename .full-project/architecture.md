@@ -15,6 +15,7 @@
 - JWT access/refresh flow is implemented in `services/auth.go` and `pkg/token/`.
 - RBAC is constants-driven (`constants/permissions.go`, `constants/roles_permission.go`) and synchronized to DB via `internal/rbacsync/` plus `cmd/sync*`.
 - Permission enforcement is middleware-based (`middleware.RequirePermission`) with JWT context fast-path and DB fallback.
+- Route boundary note: `/api/v1` now has a dedicated no-filter registration lane (`RegisterNoFilterRoutes`) for public webhooks that must bypass `BeforeInterceptor`/auth/permission middleware.
 
 ## Database & Migration Architecture
 - SQL migrations are embedded from `migrations/*.sql` via `migrations/embed.go`.

@@ -56,6 +56,12 @@
   - local branch: reversible signed token URL (`/media/files/local/:token`)
 - Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal provider field) and is not persisted in local DB.
 
+### Media Video Status + Webhook
+- `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
+- Numeric Bunny status is normalized by `pkg/logic/utils.BunnyVideoStatus.StatusString()` (`unknown` fallback for unsupported values).
+- `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
+- Webhook currently applies skeleton flow only for status `4` (`utils.FinishedWebhookBunnyStatus`) and defers DB persistence of duration to later lesson/media phase.
+
 ## Persistence Boundaries
 - PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).
 - Redis optional cache (auth and me payload optimization).

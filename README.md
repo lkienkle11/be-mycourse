@@ -12,7 +12,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
 | [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, course, lesson, enrollment) |
-| [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, cloud gateway, no DB persistence, helper-vs-util convention; **2 GiB max per uploaded file**, Gin multipart memory + proxy sizing notes) |
+| [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, cloud gateway, no DB persistence, Bunny status endpoint + webhook, helper-vs-util convention; **2 GiB max per uploaded file**, Gin multipart memory + proxy sizing notes) |
 | [`tests/`](tests/) | **All test code** (unit/module-level/integration) — place test packages, fixtures, and shared harnesses here (see **Testing** below). |
 
 ## Quick Start

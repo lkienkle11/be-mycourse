@@ -49,6 +49,9 @@
   - `DELETE /media/files/:id`
   - `OPTIONS /media/files/local/:token`
   - `GET /media/files/local/:token`
+  - `GET /media/videos/:id/status`
+- Public webhook (registered before auth middleware):
+  - `POST /webhook/bunny`
 
 ### `/api/internal-v1/rbac`
 - Permissions CRUD: list/create/update/delete.

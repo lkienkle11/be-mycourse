@@ -32,9 +32,11 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 1. **`main.go`** loads settings, DB, optional privileged-user **CLI** when `CLI_REGISTER_NEW_SYSTEM_USER` is truthy (then exits), Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, queue consumers, then **`api.InitRouter()`**.
 2. **`api/router.go`** attaches global middleware: `pkg/httperr` (validation + recovery), **CORS**, **gzip**, then groups under **`/api`**.
 3. **`/api/system`** — `BeforeInterceptor`, **`RateLimitSystemIP(10, 3)`** (overridable per IP via `middleware.SetSystemRateLimitOverride`), short-lived system JWT for privileged operators: login + permission / role-permission sync and in-memory 12h jobs (`api/system`, `services/system.go`, `internal/jobs/*`).
-4. **`/api/v1`** uses `middleware.BeforeInterceptor()` on all routes, then splits into:
-   - **Authenticated subtree** — `RateLimitLocal` + **`middleware.AuthJWT()`** → `api/v1.RegisterAuthenRoutes`.
-   - **Unauthenticated subtree** — `RateLimitLocal` only → `api/v1.RegisterNotAuthenRoutes`.
+4. **`/api/v1`** has two registration lanes:
+   - **No-filter lane** (mounted first, no `BeforeInterceptor`) → `api/v1.RegisterNoFilterRoutes` (currently `POST /api/v1/webhook/bunny`).
+   - **Standard lane** uses `middleware.BeforeInterceptor()`, then splits into:
+     - **Authenticated subtree** — `RateLimitLocal` + **`middleware.AuthJWT()`** → `api/v1.RegisterAuthenRoutes`.
+     - **Unauthenticated subtree** — `RateLimitLocal` only → `api/v1.RegisterNotAuthenRoutes`.
 5. **`/api/internal-v1`** — `RateLimitLocal`, `BeforeInterceptor`, **`middleware.RequireInternalAPIKey()`** → internal RBAC HTTP API (`api/v1.RegisterInternalRoutes`).
 6. **Handlers** in `api/v1/*.go` parse/bind DTOs, call **`services/*`**, and respond with **`pkg/response`** helpers (never ad-hoc `gin.H` envelopes).
 
@@ -94,6 +96,8 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | DELETE | `/api/v1/media/files/:id` | JWT + permission middleware |
 | OPTIONS | `/api/v1/media/files/local/:token` | JWT + permission middleware |
 | GET | `/api/v1/media/files/local/:token` | JWT + permission middleware |
+| GET | `/api/v1/media/videos/:id/status` | JWT + permission middleware |
+| POST | `/api/v1/webhook/bunny` | No-filter lane (outside `BeforeInterceptor`, no JWT/permission middleware) |
 
 Exact permission constants for `/me/permissions` are wired in `api/v1/routes.go`.
 

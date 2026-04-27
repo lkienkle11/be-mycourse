@@ -1,6 +1,6 @@
 # Media Module
 
-> **Status: Implemented through Phase Sub 04 (B2 URL path, keys, Bunny errors).**
+> **Status: Implemented through Phase Sub 04 (B2 URL path, keys, Bunny status + webhook).**
 
 ---
 
@@ -23,7 +23,7 @@ Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileRespons
 
 ---
 
-## API Surface (`/api/v1/media/files`)
+## API Surface
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -36,6 +36,8 @@ Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileRespons
 | DELETE | `/media/files/:id` | Delete object on configured provider |
 | OPTIONS | `/media/files/local/:token` | CORS/preflight support |
 | GET | `/media/files/local/:token` | Decode local signed token to object key |
+| GET | `/media/videos/:id/status` | Get Bunny video processing status by GUID |
+| POST | `/webhook/bunny` | Bunny callback endpoint (registered outside auth/permission middleware) |
 
 ---
 
@@ -67,21 +69,30 @@ Returned `dto.UploadFileResponse` fields:
   - `VideoMetadata` for video files
   - `DocumentMetadata` for non-image documents
 
-`VideoMetadata` always includes:
+`VideoMetadata` includes:
 - `duration`
-- `thumbnail_url`
-- `bunny_video_id`
-- `bunny_library_id`
-- `video_provider` (e.g. `bunny_stream` set by `pkg/media` after upload)
-- `size`
 - `width`
 - `height`
+- `bitrate`
+- `fps`
+- `video_codec`
+- `audio_codec`
+- `has_audio`
+- `is_hdr`
+
+`UploadFileResponse` (top-level) includes:
+- `bunny_video_id`
+- `bunny_library_id`
+- `duration`
+- `video_provider`
 
 ### Upstream errors (Sub 04)
 
 - B2 bucket missing at runtime (no resolved bucket after settings + env fallback) → application code **9010** (`B2BucketNotConfigured`), HTTP **500**.
-- Bunny Stream not configured → **9011**; create / upload / invalid API response → **9012** / **9013** / **9014** with HTTP **502** for **9012–9014** (see `pkg/media/provider_error.go` and `api/v1/media/file_handler.go`).
-- Default JSON messages for **9010–9014** live in **`constants/error_msg.go`**; **`pkg/errcode/messages.go`** references those constants only.
+- Bunny Stream not configured → **9011**.
+- Bunny create / upload / invalid API response → **9012** / **9013** / **9014** (HTTP **502**).
+- Bunny video not found / Bunny get-video failed → **9015** / **9016**.
+- Default JSON messages for **9010–9016** live in **`constants/error_msg.go`**; **`pkg/errcode/messages.go`** references those constants only.
 
 ---
 

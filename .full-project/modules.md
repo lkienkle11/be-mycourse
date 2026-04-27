@@ -14,7 +14,7 @@
   - Uses shared list parsing helper (`pkg/query/filter_parser.go`) and shared request helpers (`pkg/requestutil/params.go`).
   - Uses permission middleware with taxonomy-specific RBAC entries (`P14`-`P25`).
 - **Media upload module** (`api/v1/media/*`, `services/media/*`, `dto/media_file.go`, `pkg/entities/file.go`):
-  - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`.
+  - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`, plus `GET /media/videos/:id/status` and public `POST /webhook/bunny`.
   - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
   - Provider source-of-truth is server config (`setting.MediaSetting.AppMediaProvider`), not client request payload/query.
   - Uses shared resolver helpers in `pkg/logic/helper/media_resolver.go`; service layer remains orchestration-only.
@@ -26,6 +26,7 @@
   - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
   - No DB persistence for media records; backend is a stateless cloud-upload gateway.
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).
+  - Converts Bunny numeric video status to stable API strings via `pkg/logic/utils/bunny_status.go`.
   - Enforces **2 GiB** max per uploaded `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); handler + service guards; HTTP **413** + `errcode.FileTooLarge` (**2003**) on violation (see `docs/modules/media.md`, `docs/deploy.md` for proxy sizing).
 
 ## Planned But Not Implemented (per docs/modules)

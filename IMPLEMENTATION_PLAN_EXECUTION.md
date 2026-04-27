@@ -99,6 +99,95 @@
 - **Giữa:** All five `UploadBunnyVideo` error branches mapped via `ProviderError`: config missing (9011→500), create failed (9012→502), invalid response/GUID empty (9014→502), upload failed (9013→502). `file_handler.go` uses `AsProviderError` + `HTTPStatusForProviderCode`. Shared default copy in `constants/error_msg.go`; `pkg/errcode/messages.go` references constants. `DeleteBunnyVideo` uses raw `fmt.Errorf` (task scope limited to UploadBunnyVideo); consistent with `deleteFile` handler not calling `AsProviderError`.
 - **Cuối:** `VideoMetadata.video_provider` + `BuildTypedMetadata` reads `video_provider` from raw metadata. `go build ./... && go vet ./... && go test ./...` all PASS.
 
+## Phase Sub 04 — Tasks 11–20 (status/webhook/metadata/env/docs/audit)
+
+### Task 11 ✅
+- Added `pkg/logic/utils/bunny_status.go`:
+  - `type BunnyVideoStatus`
+  - status constants `0..8`
+  - `StatusString() string`
+  - `FinishedWebhookBunnyStatus = 4`
+- Added full-case unit tests (including invalid -> `unknown`) in `tests/sub04_media_pipeline_test.go`.
+
+### Task 12 ✅
+- Added endpoint: `GET /api/v1/media/videos/:id/status`.
+- Added service: `services/media.GetVideoStatus(ctx, videoGUID)`.
+- Added DTO: `dto.VideoStatusResponse{status}`.
+- Bunny API call uses `CloudClients.GetBunnyVideoByID`.
+- Added errcodes for status path:
+  - `9015` Bunny video not found
+  - `9016` Bunny get-video failed
+
+### Task 13 ✅
+- Added DTO `dto/BunnyVideoWebhookRequest`.
+- Added handler file `api/v1/media/webhook_handler.go` with `bunnyWebhook`.
+- Added route `POST /api/v1/webhook/bunny` mounted before auth middleware via `api/router.go`.
+- Follow-up refactor for maintainability: introduced `RegisterNoFilterRoutes` in `api/v1/routes.go` and mount it from a dedicated `/api/v1` no-filter lane in `api/router.go`.
+
+### Task 14 ✅
+- Added service `services/media.HandleBunnyVideoWebhook`.
+- Only processes status `utils.FinishedWebhookBunnyStatus` (`4`).
+- Reuses regex constant `utils.SignBunnyIFrameRegex` in skeleton cleanup path.
+- Added explicit TODO for future DB persistence:
+  - `// TODO: persist duration xuống bảng files/lessons khi DB ready.`
+
+### Task 15 ✅
+- Extended `pkg/entities/file.go`:
+  - file-level fields: `BunnyVideoID`, `BunnyLibraryID`, `Duration`, `VideoProvider`.
+  - expanded typed `VideoMetadata` with fields:
+    - `Width`, `Height`, `Duration`, `Bitrate`, `FPS`, `VideoCodec`, `AudioCodec`, `HasAudio`, `IsHDR`.
+
+### Task 16 ✅
+- Updated `helper.BuildTypedMetadata` for `kind=video`:
+  - reads Bunny metadata keys (`length`, `width`, `height`, `framerate`, etc.).
+  - missing data stays zero-value (no fabricated values).
+- Updated `mapping.ToUploadFileResponse` to include top-level video fields from `entities.File`.
+- Added mapping test fixture in `tests/sub04_media_pipeline_test.go`.
+
+### Task 17 ✅
+- Synced media blocks across 5 env examples:
+  - `.env.example`
+  - `.env.local.example`
+  - `.env.staging.example`
+  - `.env.prod.example`
+  - `.env.test.example`
+- Included full key set and bucket comment:
+  - `MEDIA_B2_BUCKET` comment now references URL shape `<gcore_cdn>/<bucket>/<file>`.
+
+### Task 18 ✅
+- Synced docs:
+  - `docs/modules/media.md`
+  - `README.md`
+  - `.full-project/data-flow.md`
+  - `.full-project/modules.md`
+  - `.full-project/api-overview.md`
+  - `.full-project/reusable-assets.md`
+  - `IMPLEMENTATION_PLAN_EXECUTION.md` (this section)
+- Quality gate:
+  - `go fmt ./...` ✅
+  - `go vet ./...` ✅
+  - `go build ./...` ✅
+  - `go test ./...` ✅
+
+### Task 19 ✅ — Audit checklist (code-vs-doc-vs-plan)
+- (a) CDN URL format `<cdn>/<bucket>/<file>`: PASS (via `JoinURLPathSegments`; no double slash).
+- (b) Bucket source from `setting.MediaSetting.B2Bucket`: PASS.
+- (c) B2 object key prefix 8 digits + `-` + sanitized name: PASS.
+- (d) Bunny video no 8-digit prefix, GUID-based key/title flow: PASS.
+- (e) Bunny pipeline + status endpoint + webhook outside auth middleware: PASS.
+- (f) Entity/DTO fields (`BunnyVideoID`, `BunnyLibraryID`, `Duration`, `VideoProvider`) + typed `VideoMetadata`: PASS.
+- (g) Five env example files synchronized: PASS.
+- (h) docs + `.full-project/*` + plan synchronized: PASS.
+- (i) quality gate clean: PASS.
+
+### Task 20 ✅
+- Re-ran index refresh: `gitnexus analyze --force`.
+- Ran impact checks for requested symbols:
+  - `UploadB2`, `UploadBunnyVideo`, `BuildPublicURL`, `CreateFile` (LOW risk).
+  - Note: symbol `BuildObjectKey` is represented in this repo as `BuildB2ObjectKey`.
+- GitNexus detect_changes MCP tool is not available through current CLI surface; equivalent verification done via git diff + impact checks + successful quality gate.
+- Updated reusable-assets and added session handoff context summary for sub04 tasks 11–20.
+
 ---
 
 ## Documentation Resync Update (2026-04-26 - full docs pass)

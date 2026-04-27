@@ -13,11 +13,14 @@
   - gzip
 
 - Groups:
+  - `/api/v1` (no-filter lane)
+    - no `BeforeInterceptor`
+    - mounted by `RegisterNoFilterRoutes` (currently webhook callbacks)
   - `/api/system`
     - `BeforeInterceptor`
     - `RateLimitSystemIP`
     - protected subgroup with `RequireSystemAccessToken`
-  - `/api/v1`
+  - `/api/v1` (standard lane)
     - `BeforeInterceptor`
     - authenticated subgroup: `RateLimitLocal` + `AuthJWT`
     - non-auth subgroup: `RateLimitLocal`
@@ -30,7 +33,7 @@
 - `api/system/routes.go` -> system operations.
 - `api/v1/routes.go` -> auth/me, internal RBAC, and mounts taxonomy + media route groups.
 - `api/v1/taxonomy/routes.go` -> taxonomy CRUD endpoint registration (`levels`, `categories`, `tags`).
-- `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS and local token decode).
+- `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS + local token decode + video status route) and webhook route mount used by no-filter lane.
 
 ## Authorization Pattern
 - Authentication middleware on group level.

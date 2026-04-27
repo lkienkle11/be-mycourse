@@ -51,3 +51,9 @@ When course APIs are implemented, update:
 - `dto/course.go` — request/response DTOs
 - `migrations/` — new SQL migration file
 - This file and `docs/architecture.md` — update the public API surface table
+
+---
+
+## Testing
+
+- **Module-level / integration** tests: **`tests/`** at repo root (`tests/README.md`, root `README.md` **Testing**).

@@ -401,6 +401,11 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 - Database migrations are applied with `MIGRATE=1 go run .` (not auto-run on startup).
 - The binary supports a one-shot CLI flow for privileged user registration (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
 
+#### NFR-1.6 Test code layout
+
+- New **module-level** test code (integration suites, black-box packages importing `mycourse-io-be`, cross-feature harnesses, or shared fixtures kept out of production trees) **MUST** be added under repository root **`tests/`**, not under `api/`, `services/`, or `pkg/` unless using idiomatic colocated `*_test.go` for small unit tests next to a single package.
+- The canonical description of this split lives in **`.full-project/patterns.md`** and **`README.md`** (section **Testing**).
+
 ---
 
 ### NFR-2 Security

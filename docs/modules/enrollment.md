@@ -37,3 +37,9 @@ When enrollment APIs are implemented, update:
 - `dto/enrollment.go` — request/response DTOs
 - `migrations/` — new SQL migration
 - This file and `docs/architecture.md`
+
+---
+
+## Testing
+
+- **Module-level / integration** tests: **`tests/`** at repo root (`tests/README.md`, root `README.md` **Testing**).

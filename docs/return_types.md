@@ -20,6 +20,8 @@
    - [Internal API `/api/internal-v1`](#internal-api-apiinternal-v1)
 5. [Error Response Type](#5-error-response-type)
 
+**Test code layout:** module-level / integration tests live under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
+
 ---
 
 ## 1. Response Envelope

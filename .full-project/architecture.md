@@ -21,6 +21,9 @@
 - Current schema focuses on users, RBAC, and system tables (`000001_schema.up.sql`).
 - Runtime migration path is gated by `MIGRATE=1` in `main.go`.
 
+## Testing layout
+- **Module / integration tests** and shared test harnesses belong under repository root **`tests/`** (see `.full-project/patterns.md`). Colocated `*_test.go` remains fine for narrow unit tests.
+
 ## Integration/Operational Boundaries
 - Redis cache is optional and wrapped by `pkg/cache_clients/redis.go` and `services/cache/auth_user.go`.
 - Shared pure domain entities currently live in `pkg/entities/*` and are embedded by taxonomy models.

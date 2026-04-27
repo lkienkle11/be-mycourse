@@ -192,3 +192,5 @@ DROP TABLE public.users;
 ```
 
 **Maintenance note:** When adding a **new table** in a migration, update this list: insert `DROP TABLE public.<table_name>;` at the appropriate position (usually **before** any table it references via FK). Keep `schema_migrations` at the **top** of the list as it has no FK dependents.
+
+**Automated tests:** DB-backed integration suites belong under repository root **`tests/`** (see `tests/README.md` and root `README.md` **Testing**).

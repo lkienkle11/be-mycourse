@@ -94,3 +94,9 @@ Returns a **sorted** list of permission code strings (`permission_name` values) 
 | Permission constant (`UserRead`) | `constants/permissions.go` |
 | JWT middleware | `middleware/auth_jwt.go` |
 | Permission middleware | `middleware/rbac.go` |
+
+---
+
+## Testing
+
+- **Module-level / integration** tests: **`tests/`** at repo root (`tests/README.md`, root `README.md` **Testing**). Unit tests may stay as colocated `*_test.go` when scoped to one package.

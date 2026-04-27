@@ -96,3 +96,9 @@ Returned `dto.UploadFileResponse` fields:
 - Runtime provider/base URL/secret reads use `setting.MediaSetting` (post-`setting.Setup()` source of truth); direct `os.Getenv` is kept only in the approved env-only constructor path.
 - Decode token flow uses helper placement (`pkg/logic/helper/DecodeLocalURLToken`), not service-local utility.
 
+---
+
+## Testing
+
+- Add **module-level / integration** tests for this API under repository root **`tests/`** (shared convention for the whole backend — see `README.md` **Testing** and `.full-project/patterns.md`). Narrow unit tests may still use colocated `*_test.go` next to `services/media` or `pkg/logic/*` when scoped to one package.
+

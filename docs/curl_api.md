@@ -51,6 +51,8 @@
 11. [Error Code Reference](#11-error-code-reference)
 12. [Media Upload API (`/api/v1/media/files`)](#12-media-upload-api-apiv1mediafiles)
 
+**Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
+
 ---
 
 ## 1. Global Conventions

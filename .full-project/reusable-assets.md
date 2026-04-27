@@ -438,7 +438,7 @@
   - coupons/orders/enrollments
   - progress/reviews
 - Missing shared query helper namespaces beyond RBAC.
-- Missing test helper assets (`*_test.go`, fixtures, integration test harness).
+- Missing test helper assets: prefer **`tests/`** for module-level suites, fixtures, and integration harnesses; colocated `*_test.go` for small unit tests (see `.full-project/patterns.md`).
 - Missing generalized ownership-check helper utilities for instructor/learner/admin scopes.
 
 ## Immediate Reuse Plan by Phase Core

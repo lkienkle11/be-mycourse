@@ -291,3 +291,9 @@ The following custom headers are whitelisted in the CORS configuration:
 - Session rotation updates the **existing session entry in-place** — the session count does not increase on rotation.
 - All session writes that change the session count use a **DB transaction** to prevent concurrent logins from exceeding the limit.
 - Cookies are **non-HttpOnly**: protected against CSRF via `SameSite=Lax` and the use of custom headers (`Authorization`, `X-Refresh-Token`, `X-Session-Id`) which cannot be set by cross-site form submissions.
+
+---
+
+## Testing
+
+- **Module-level / integration** tests for this domain: add packages under repository root **`tests/`** (see `tests/README.md`, root `README.md` **Testing**, `.full-project/patterns.md`). Narrow unit tests may use colocated `*_test.go` next to `services/auth.go`, `api/v1/auth.go`, etc.

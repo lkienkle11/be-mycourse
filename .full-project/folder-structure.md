@@ -59,6 +59,7 @@ be-mycourse/
 ├── runtime/
 ├── scripts/
 ├── services/
+├── tests/
 ├── template/
 │   └── html/
 │       └── email/
@@ -118,6 +119,7 @@ be-mycourse/
 - `runtime/`: runtime metadata structures.
 - `scripts/`: build/deploy helper scripts.
 - `services/`: core business logic and orchestration.
+- `tests/`: **module-level / integration** Go test packages, shared harnesses, and fixtures (not production code); see `.full-project/patterns.md` and `README.md` (**Testing**).
 - `template/`: template root folder.
 - `template/html/`: HTML template grouping.
 - `template/html/email/`: email templates.

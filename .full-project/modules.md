@@ -38,3 +38,7 @@ These planned modules currently have documentation stubs and no route/service/mo
 ## Ownership and Boundaries
 - Middleware + RBAC engine are shared core boundaries and high-risk to modify.
 - New domain CRUD should plug into existing route/service/model patterns without changing current RBAC engine behavior.
+
+## Testing (repository-wide)
+
+- **Module-level / integration** Go tests and shared harnesses: repository root **`tests/`** — see `tests/README.md` and `.full-project/patterns.md`.

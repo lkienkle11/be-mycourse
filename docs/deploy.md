@@ -509,6 +509,8 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 **Smoke-test path:** `GET /api/v1/health` (no JWT). Auth routes live under `/api/v1/auth/...`; authenticated routes include `/api/v1/me` (see `api/v1/routes.go`).
 
+**Automated tests:** add module-level / integration Go suites under **`tests/`** at the repo root (`tests/README.md`, root `README.md` **Testing**).
+
 **Config:** `config/app.yaml` + `config/app-<STAGE>.yaml`; `${VAR}` placeholders resolve from `.env` / environment in `pkg/setting`.
 
 ---

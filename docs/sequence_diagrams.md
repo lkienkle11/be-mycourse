@@ -32,6 +32,8 @@
 22. [JWT Auth Middleware Flow](#22-jwt-auth-middleware-flow)
 23. [RequirePermission Middleware Flow](#23-requirepermission-middleware-flow)
 
+**Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
+
 ---
 
 ## 1. Server Startup

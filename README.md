@@ -13,6 +13,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
 | [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, course, lesson, enrollment) |
 | [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, cloud gateway, no DB persistence, helper-vs-util convention; **2 GiB max per uploaded file**, Gin multipart memory + proxy sizing notes) |
+| [`tests/`](tests/) | **Module-level / integration tests** — place new test packages and shared harnesses here (see **Testing** below). |
 
 ## Quick Start
 
@@ -42,6 +43,13 @@ go run .
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
+
+## Testing
+
+- **Module tests** (integration flows, black-box tests against `mycourse-io-be`, shared fixtures, or any test code you want outside production packages): add packages under **`tests/`** at the repository root (alongside `api/`, `services/`, …). `go test ./...` from the repo root includes those packages once they contain `*_test.go` files.
+- **Unit tests** may still live as idiomatic colocated `*_test.go` next to the code under test when they are small and scoped to one package.
+- On-disk pointer: [`tests/README.md`](tests/README.md).
+- Canonical convention text also lives in [`.full-project/patterns.md`](.full-project/patterns.md) and [`docs/requirements.md`](docs/requirements.md) (NFR on test layout).
 
 ### CI deploy (`master`)
 
@@ -350,4 +358,5 @@ func listUsers(c *gin.Context) {
 - `pkg/setting`: YAML config with per-stage files and `.env` map substitution.
 - `pkg/envbool`: parsing common “truthy” environment variable values (`true`, `1`, `yes`, …) for feature flags.
 - `config/`: `app.yaml` + `app-<STAGE>.yaml` and env examples.
+- `tests/`: **module-level / integration** Go tests and harnesses (not application runtime code).
 - `tracing/`, `runtime/`: observability and runtime placeholders.

@@ -55,49 +55,49 @@
 
 ## Phase Sub 04 — B2/CDN URL, object keys, Bunny split + provider errcodes (tasks 01–10, 2026-04-27)
 
-### Task 01 — Đầu / Giữa / Cuối (baseline + scope)
+### Task 01 — Đầu / Giữa / Cuối (baseline + scope) ✅
 - **Đầu:** Re-read `AGENTS.md`, `.full-project/patterns.md`, `docs/modules/media.md`, Sub04 intent: align with project layout (constants → errcode; media-specific keys in `pkg/logic/helper`; generic URL + random in `pkg/logic/utils`; tests under `tests/` only for this slice).
-- **Giữa:** Out-of-repo specs under `temporary-docs/chuc-nang-upload/*` may be absent — **poll/webhook** parity with openedu-core stays **not implemented** until those docs exist; this phase covers gateway upload/delete + URL/key/errcode only.
+- **Giữa:** Reference docs confirmed at `temporary-docs/chuc-nang-upload/openedu-core-arch.md` (§4.2/§5.5/§5.7) and `temporary-docs/chuc-nang-upload/chuc-nang-bo-sung.md`. Five baseline groups locked: (1) CDN URL `<cdn>/<bucket>/<key>` via `JoinURLPathSegments`; (2) B2 bucket from `setting.MediaSetting.B2Bucket` (not hardcoded); (3) 8-digit prefix for B2 objects only; (4) Bunny 2-step pipeline (CreateVideo POST + UploadContent PUT) — **poll/webhook (openedu-core §5.2/§5.7) deferred to tasks 11–20** per task scope ("2 bước" in task 09); (5) `VideoMetadata` entity has BunnyVideoID/LibraryID/Duration/VideoProvider.
 - **Cuối:** This section is the authoritative task checklist for Sub04; implementation matches rows below.
 
-### Task 02 — Đầu / Giữa / Cuối (inventory)
+### Task 02 — Đầu / Giữa / Cuối (inventory) ✅
 - **Đầu:** Touch list: `pkg/media/clients.go`, `pkg/media/provider_error.go`, `services/media/file_service.go`, `api/v1/media/file_handler.go`, `pkg/logic/helper/media_upload_keys.go`, `pkg/logic/helper/media_metadata.go`, `pkg/logic/utils/url.go`, `pkg/logic/utils/random.go`, `pkg/entities/file.go`, `pkg/errcode/{codes,messages}.go`, `constants/error_msg.go`, five `.env*.example`, `tests/sub04_media_pipeline_test.go`, `docs/modules/media.md`.
-- **Giữa:** GitNexus `impact` on `UploadB2` / `CreateFile` / `UploadBunnyVideo` → LOW blast radius (orchestration + single handler).
+- **Giữa:** GitNexus `impact` on `UploadB2` / `CreateFile` / `UploadBunnyVideo` → LOW blast radius (orchestration + single handler). `api/router.go` webhook group noted in inventory; implementation deferred to tasks 11–20.
 - **Cuối:** No tests added under `pkg/logic/utils` (module tests live in `tests/`).
 
-### Task 03 — B2 bucket after `setting.Setup()`
+### Task 03 — B2 bucket after `setting.Setup()` ✅
 - **Đầu:** `NewCloudClientsFromEnv` stays **env-only** (approved) so blazer can authenticate at startup.
 - **Giữa:** `effectiveB2Bucket()` prefers `setting.MediaSetting.B2Bucket` (YAML / expanded env), else env bucket from constructor; used for `b2.Client.Bucket` and for URL path segment.
 - **Cuối:** Empty resolved bucket at upload/delete → `ProviderError` **9010** (`B2BucketNotConfigured`).
 
-### Task 04 — `.env*.example` comments
-- **Đầu:** All five `/.env*.example` files mention `MEDIA_B2_BUCKET` role in `<cdn>/<bucket>/<object_key>` and that YAML `media.b2_bucket` can override.
+### Task 04 — `.env*.example` comments ✅
+- **Đầu:** All five `/.env*.example` files mention `MEDIA_B2_BUCKET` role in `<cdn>/<bucket>/<object_key>` and that YAML `media.b2_bucket` can override. All `config/app-*.yaml` files have `b2_bucket: "${MEDIA_B2_BUCKET}"`.
 - **Giữa / Cuối:** Comments only; no secrets committed.
 
-### Task 05–06 — B2 public URL + tests
+### Task 05–06 — B2 public URL + tests ✅
 - **Đầu:** No duplicated `//`; CDN base trimmed.
-- **Giữa:** `pkg/logic/utils.JoinURLPathSegments` builds `URL` and `BuildPublicURL` (B2 default provider branch) with bucket + object key; `tests/sub04_media_pipeline_test.go` covers join + B2 public URL.
-- **Cuối:** `go test ./tests/...` passes.
+- **Giữa:** `pkg/logic/utils.JoinURLPathSegments` builds `URL` in `UploadB2` (`cdn/bucket/key`) and `BuildPublicURL` (B2 default branch). Edge cases: CDN trailing slash, bucket trailing slash, empty bucket (→ `cdn/key` only), leading slash in objectKey (stripped). Tests added: `TestBuildPublicURL_B2_trailingSlashVariants` (4 subtests), `TestBuildPublicURL_B2_emptyBucket`, `TestBuildPublicURL_B2_leadingSlashInKey`.
+- **Cuối:** `go test ./tests/...` — 8 tests PASS.
 
-### Task 07 — Eight random digits (B2 key prefix)
-- **Đầu:** Cryptographic decimal digits, length 8.
-- **Giữa:** `pkg/logic/utils.GenerateRandomDigits`; `helper.BuildB2ObjectKey` = `digits + "-" + sanitized filename` (B2 only).
-- **Cuối:** Test regex on `BuildB2ObjectKey`.
+### Task 07 — Eight random digits (B2 key prefix) ✅
+- **Đầu:** Cryptographic decimal digits, length 8, using `crypto/rand`.
+- **Giữa:** `pkg/logic/utils.GenerateRandomDigits`; `helper.BuildB2ObjectKey` = `digits + "-" + sanitized filename` (B2 only). Bunny path uses empty objectKey (filename becomes title, GUID returned from API).
+- **Cuối:** `TestGenerateRandomDigits`: n=8, length check, all-digit check, 20-sample uniqueness check. PASS.
 
-### Task 08 — Resolve upload object key in service
+### Task 08 — Resolve upload object key in service ✅
 - **Đầu:** Bunny default key remains empty until API returns GUID; local keeps nano-based key; explicit `object_key` still wins.
-- **Giữa:** `helper.ResolveMediaUploadObjectKey` used from `CreateFile`; removed `BuildObjectKey` from `pkg/media`.
-- **Cuối:** `uploadToProvider` receives correct key per provider.
+- **Giữa:** `helper.ResolveMediaUploadObjectKey` used from `CreateFile`; B2 path → `BuildB2ObjectKey`; Bunny path → `""` (Bunny self-generates GUID); Local path → nano-based. `uploadToProvider` routes correctly per provider.
+- **Cuối:** `uploadToProvider` receives correct key per provider; `TestResolveMediaUploadObjectKey_byProvider` PASS.
 
-### Task 09 — Bunny Stream create vs upload
-- **Đầu:** Two HTTP steps: `POST …/videos` then `PUT …/videos/{guid}`.
-- **Giữa:** Create response body read once then `json.Unmarshal` to `guid`; response `ObjectKey` = **GUID** (not client-supplied placeholder).
-- **Cuối:** Metadata still sets `video_guid`, `bunny_*`, `video_provider`.
+### Task 09 — Bunny Stream create vs upload ✅
+- **Đầu:** Two HTTP steps per openedu-core §5.5: `POST …/videos` then `PUT …/videos/{guid}`.
+- **Giữa:** Create response body read once then `json.Unmarshal` to `guid`; response `ObjectKey` = **GUID** (not client-supplied placeholder). Return URL = `<BunnyStreamBaseURL>/<libraryID>/<guid>`. GetVideoById status check (§5.5 step 3) and webhook (§5.7) are out-of-scope for this task ("2 bước" scope) → tasks 11–20.
+- **Cuối:** Metadata sets `video_guid` (compat alias), `bunny_video_id`, `bunny_library_id`, `video_provider=bunny_stream`.
 
-### Task 10 — Provider errors + HTTP mapping
+### Task 10 — Provider errors + HTTP mapping ✅
 - **Đầu:** Typed `pkg/media.ProviderError` with `errcode` **9011–9014** for Bunny; **9010** for missing B2 bucket.
-- **Giữa:** Shared default copy in `constants/error_msg.go`; `pkg/errcode/messages.go` references constants; `file_handler` uses `AsProviderError` + `HTTPStatusForProviderCode` (**502** for create/upload/invalid Bunny responses, **500** for bucket/config class).
-- **Cuối:** `VideoMetadata.video_provider` + `BuildTypedMetadata` reads `video_provider` from raw metadata.
+- **Giữa:** All five `UploadBunnyVideo` error branches mapped via `ProviderError`: config missing (9011→500), create failed (9012→502), invalid response/GUID empty (9014→502), upload failed (9013→502). `file_handler.go` uses `AsProviderError` + `HTTPStatusForProviderCode`. Shared default copy in `constants/error_msg.go`; `pkg/errcode/messages.go` references constants. `DeleteBunnyVideo` uses raw `fmt.Errorf` (task scope limited to UploadBunnyVideo); consistent with `deleteFile` handler not calling `AsProviderError`.
+- **Cuối:** `VideoMetadata.video_provider` + `BuildTypedMetadata` reads `video_provider` from raw metadata. `go build ./... && go vet ./... && go test ./...` all PASS.
 
 ---
 

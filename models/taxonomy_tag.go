@@ -1,8 +1,8 @@
 package models
 
 import (
-	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/dbschema"
+	"mycourse-io-be/pkg/entities"
 )
 
 type Tag struct {

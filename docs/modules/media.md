@@ -107,6 +107,6 @@ Returned `dto.UploadFileResponse` fields:
 
 ## Testing
 
-- Add **module-level / integration** tests for this API under repository root **`tests/`** (shared convention for the whole backend — see `README.md` **Testing** and `.full-project/patterns.md`). Narrow unit tests may still use colocated `*_test.go` next to `services/media` or `pkg/logic/*` when scoped to one package.
+- Add all tests for this API (unit/module-level/integration) under repository root **`tests/`** only (shared convention for the whole backend — see `README.md` **Testing** and `.full-project/patterns.md`).
 - Latest verification (2026-04-27): `go build ./...` and `go test ./... -count=1` pass after fixing helper alias usage in `pkg/logic/helper/media_metadata.go` (`util.*` -> `utils.*`).
 

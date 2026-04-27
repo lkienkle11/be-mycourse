@@ -296,4 +296,4 @@ The following custom headers are whitelisted in the CORS configuration:
 
 ## Testing
 
-- **Module-level / integration** tests for this domain: add packages under repository root **`tests/`** (see `tests/README.md`, root `README.md` **Testing**, `.full-project/patterns.md`). Narrow unit tests may use colocated `*_test.go` next to `services/auth.go`, `api/v1/auth.go`, etc.
+- **All tests** for this domain (unit/module-level/integration) must be added under repository root **`tests/`** (see `tests/README.md`, root `README.md` **Testing**, `.full-project/patterns.md`).

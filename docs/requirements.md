@@ -403,7 +403,7 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 
 #### NFR-1.6 Test code layout
 
-- New **module-level** test code (integration suites, black-box packages importing `mycourse-io-be`, cross-feature harnesses, or shared fixtures kept out of production trees) **MUST** be added under repository root **`tests/`**, not under `api/`, `services/`, or `pkg/` unless using idiomatic colocated `*_test.go` for small unit tests next to a single package.
+- All new test code (**unit**, integration suites, black-box packages importing `mycourse-io-be`, cross-feature harnesses, and shared fixtures) **MUST** be added under repository root **`tests/`** and **MUST NOT** be placed under `api/`, `services/`, or `pkg/`.
 - The canonical description of this split lives in **`.full-project/patterns.md`** and **`README.md`** (section **Testing**).
 
 ---

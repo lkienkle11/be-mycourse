@@ -70,7 +70,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `cmd/syncpermissions/` | Upsert `permissions.permission_name` by `permission_id` (`//go:generate` from `main.go`). |
 | `cmd/syncrolepermissions/` | Rebuild `role_permissions` from `constants/roles_permission.go`. |
 | `tracing/`, `runtime/` | Observability / runtime placeholders. |
-| `tests/` | **Module-level and integration tests** — Go test packages, shared harnesses, and fixtures that should not live next to production code. Prefer this tree when adding cross-package or black-box suites; small unit tests may still use colocated `*_test.go`. See `.full-project/patterns.md` and `README.md` (**Testing**). |
+| `tests/` | **All tests (unit/module-level/integration)** — Go test packages, shared harnesses, and fixtures must live in this tree and should not live next to production code. See `.full-project/patterns.md` and `README.md` (**Testing**). |
 
 ---
 

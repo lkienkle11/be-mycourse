@@ -31,7 +31,7 @@
 ## Tests directory (`tests/`)
 - **Module-level tests** (integration or black-box packages that import `mycourse-io-be`, shared test harnesses, fixtures used across features, or any test code intentionally kept out of production packages) **belong under repository root `tests/`** (see `tests/README.md`).
 - Prefer **`tests/`** when a test suite spans multiple packages or mirrors a user-facing “module” of the API rather than a single `.go` file.
-- **Colocated `*_test.go`** next to implementation remains acceptable for small unit tests; use `tests/` when the test is clearly cross-cutting or a dedicated test module.
+- **All tests** must live under repository root `tests/`; do not add colocated `*_test.go` files next to production implementation files.
 
 ## Operational Patterns
 - Sync CLI commands for RBAC catalogs.

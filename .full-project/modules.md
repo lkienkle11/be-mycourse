@@ -41,4 +41,4 @@ These planned modules currently have documentation stubs and no route/service/mo
 
 ## Testing (repository-wide)
 
-- **Module-level / integration** Go tests and shared harnesses: repository root **`tests/`** — see `tests/README.md` and `.full-project/patterns.md`.
+- **All tests** (unit/module-level/integration) and shared harnesses: repository root **`tests/`** — see `tests/README.md` and `.full-project/patterns.md`.

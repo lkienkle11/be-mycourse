@@ -99,4 +99,4 @@ Returns a **sorted** list of permission code strings (`permission_name` values) 
 
 ## Testing
 
-- **Module-level / integration** tests: **`tests/`** at repo root (`tests/README.md`, root `README.md` **Testing**). Unit tests may stay as colocated `*_test.go` when scoped to one package.
+- **All tests** for this module (unit/module-level/integration): **`tests/`** at repo root (`tests/README.md`, root `README.md` **Testing**).

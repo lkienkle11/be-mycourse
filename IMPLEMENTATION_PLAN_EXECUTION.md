@@ -1,7 +1,7 @@
 ## Repository convention — `tests/` (module-level tests)
 
 - Add **module / integration** Go tests, black-box packages importing `mycourse-io-be`, shared fixtures, and cross-feature harnesses under repository root **`tests/`** (see `tests/README.md`, `README.md` **Testing**, `.full-project/patterns.md`, `docs/requirements.md` NFR-1.6, `docs/architecture.md` directory map).
-- Narrow **unit tests** may remain as colocated `*_test.go` next to the package under test when appropriate.
+- **All tests** (including narrow unit tests) must be added under repository root **`tests/`**.
 
 ## Phase Sub 03 — Upload cap 2 GiB per file (tasks 01–10, 2026-04-26)
 

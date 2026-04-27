@@ -22,7 +22,7 @@
 - Runtime migration path is gated by `MIGRATE=1` in `main.go`.
 
 ## Testing layout
-- **Module / integration tests** and shared test harnesses belong under repository root **`tests/`** (see `.full-project/patterns.md`). Colocated `*_test.go` remains fine for narrow unit tests.
+- **All tests** (unit/module-level/integration) and shared test harnesses belong under repository root **`tests/`** (see `.full-project/patterns.md`).
 
 ## Integration/Operational Boundaries
 - Redis cache is optional and wrapped by `pkg/cache_clients/redis.go` and `services/cache/auth_user.go`.

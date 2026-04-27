@@ -204,6 +204,56 @@
 - Reuse Opportunity:
   - Reuse for all future endpoints that accept metadata in raw string form and require backend metadata inference.
 
+### Asset: Media upload object keys (B2 / Bunny / local)
+- Name: `ResolveMediaUploadObjectKey`, `BuildB2ObjectKey`
+- Type: Helper
+- Path: `pkg/logic/helper/media_upload_keys.go`
+- Purpose: Provider-specific default object keys before upload (8-digit B2 prefix; Bunny empty until GUID; local nano key).
+- Scope: Media upload service and any future upload entry point.
+- Dependencies: `constants`, `pkg/logic/utils` (`GenerateRandomDigits`), `path/filepath`, `strings`, `time`.
+- Current Usage: `services/media/file_service.go`.
+- Reuse Opportunity: Reuse instead of duplicating filename sanitization or key rules in `pkg/media`.
+
+### Asset: URL join helper (generic)
+- Name: `JoinURLPathSegments`
+- Type: Util
+- Path: `pkg/logic/utils/url.go`
+- Purpose: Join CDN/base URL with path segments without duplicated slashes.
+- Scope: Any module building hierarchical URLs (media B2 public URLs, etc.).
+- Dependencies: `strings`.
+- Current Usage: `pkg/media/clients.go`, `tests/sub04_media_pipeline_test.go`.
+- Reuse Opportunity: Prefer over manual string concatenation for CDN + bucket + key.
+
+### Asset: Cryptographic random decimal string
+- Name: `GenerateRandomDigits`
+- Type: Util
+- Path: `pkg/logic/utils/random.go`
+- Purpose: `n` decimal digits from `crypto/rand` (used for B2 object key prefix).
+- Scope: Any feature needing short random numeric IDs.
+- Dependencies: `crypto/rand`, `io`.
+- Current Usage: `pkg/logic/helper/media_upload_keys.go`.
+- Reuse Opportunity: Reuse for other token prefixes; do not reimplement with `math/rand`.
+
+### Asset: Media provider typed error + HTTP mapping
+- Name: `ProviderError`, `AsProviderError`, `HTTPStatusForProviderCode`
+- Type: Error / helper
+- Path: `pkg/media/provider_error.go`
+- Purpose: Carry `errcode` 9010–9014 for B2/Bunny client failures; map to HTTP 500 vs 502.
+- Scope: Media handlers and provider clients.
+- Dependencies: `errors`, `net/http`, `pkg/errcode`.
+- Current Usage: `pkg/media/clients.go`, `api/v1/media/file_handler.go`.
+- Reuse Opportunity: Extend with more provider-specific codes without changing handler shape.
+
+### Asset: Media upstream errcodes (9010–9014)
+- Name: `B2BucketNotConfigured`, `BunnyStreamNotConfigured`, `BunnyCreateFailed`, `BunnyUploadFailed`, `BunnyInvalidResponse`
+- Type: Constant / API contract
+- Path: `pkg/errcode/codes.go`, `pkg/errcode/messages.go`, `constants/error_msg.go` (`MsgMedia*`)
+- Purpose: Stable API codes + default JSON messages for media upstream failures.
+- Scope: Clients of `pkg/response` and observability.
+- Dependencies: `constants` for shared message literals.
+- Current Usage: `pkg/media/provider_error.go`, `api/v1/media/file_handler.go`.
+- Reuse Opportunity: Reference from tests and dashboards; keep messages only in `constants/error_msg.go`.
+
 ### Asset: Generic media metadata conversion primitives
 - Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`
 - Type: Util

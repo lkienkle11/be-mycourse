@@ -1,6 +1,6 @@
 # Media Module
 
-> **Status: Implemented (Phase Sub 02).**
+> **Status: Implemented through Phase Sub 04 (B2 URL path, keys, Bunny errors).**
 
 ---
 
@@ -8,7 +8,7 @@
 
 Media module provides a unified API surface for file and video uploads with provider-aware URL behavior:
 
-- Non-video files: upload storage at B2, distribution URL through Gcore CDN.
+- Non-video files: upload storage at B2, distribution URL through Gcore CDN as **`{CDN}/{bucket}/{object_key}`** (bucket from `setting.MediaSetting.B2Bucket` after `setting.Setup()`, falling back to the env bucket used when constructing the B2 client). Object keys for B2 default uploads: **8 random digits + `-` + sanitized filename** (`pkg/logic/helper/media_upload_keys.go`). Bunny Stream videos use the API **GUID** as `object_key`.
 - Videos: playback/distribution URL through Bunny Stream.
 - Local provider: reversible signed URL token that can be decoded back to object key.
 
@@ -72,9 +72,16 @@ Returned `dto.UploadFileResponse` fields:
 - `thumbnail_url`
 - `bunny_video_id`
 - `bunny_library_id`
+- `video_provider` (e.g. `bunny_stream` set by `pkg/media` after upload)
 - `size`
 - `width`
 - `height`
+
+### Upstream errors (Sub 04)
+
+- B2 bucket missing at runtime (no resolved bucket after settings + env fallback) → application code **9010** (`B2BucketNotConfigured`), HTTP **500**.
+- Bunny Stream not configured → **9011**; create / upload / invalid API response → **9012** / **9013** / **9014** with HTTP **502** for **9012–9014** (see `pkg/media/provider_error.go` and `api/v1/media/file_handler.go`).
+- Default JSON messages for **9010–9014** live in **`constants/error_msg.go`**; **`pkg/errcode/messages.go`** references those constants only.
 
 ---
 

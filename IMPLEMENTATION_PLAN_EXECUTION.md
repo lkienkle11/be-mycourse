@@ -53,6 +53,52 @@
 - **Import rule:** `api/v1/media` is `package media` → handler imports `mycourse-io-be/pkg/media` as **`pkgmedia`** so it does not collide with the handler’s own package name `media`.
 - Docs/snapshots updated again: this plan, `.full-project/reusable-assets.md`, `.context/session_summary_2026-04-26_phase_sub03_upload_cap.md`; `npx gitnexus analyze --force` after edits.
 
+## Phase Sub 04 — B2/CDN URL, object keys, Bunny split + provider errcodes (tasks 01–10, 2026-04-27)
+
+### Task 01 — Đầu / Giữa / Cuối (baseline + scope)
+- **Đầu:** Re-read `AGENTS.md`, `.full-project/patterns.md`, `docs/modules/media.md`, Sub04 intent: align with project layout (constants → errcode; media-specific keys in `pkg/logic/helper`; generic URL + random in `pkg/logic/utils`; tests under `tests/` only for this slice).
+- **Giữa:** Out-of-repo specs under `temporary-docs/chuc-nang-upload/*` may be absent — **poll/webhook** parity with openedu-core stays **not implemented** until those docs exist; this phase covers gateway upload/delete + URL/key/errcode only.
+- **Cuối:** This section is the authoritative task checklist for Sub04; implementation matches rows below.
+
+### Task 02 — Đầu / Giữa / Cuối (inventory)
+- **Đầu:** Touch list: `pkg/media/clients.go`, `pkg/media/provider_error.go`, `services/media/file_service.go`, `api/v1/media/file_handler.go`, `pkg/logic/helper/media_upload_keys.go`, `pkg/logic/helper/media_metadata.go`, `pkg/logic/utils/url.go`, `pkg/logic/utils/random.go`, `pkg/entities/file.go`, `pkg/errcode/{codes,messages}.go`, `constants/error_msg.go`, five `.env*.example`, `tests/sub04_media_pipeline_test.go`, `docs/modules/media.md`.
+- **Giữa:** GitNexus `impact` on `UploadB2` / `CreateFile` / `UploadBunnyVideo` → LOW blast radius (orchestration + single handler).
+- **Cuối:** No tests added under `pkg/logic/utils` (module tests live in `tests/`).
+
+### Task 03 — B2 bucket after `setting.Setup()`
+- **Đầu:** `NewCloudClientsFromEnv` stays **env-only** (approved) so blazer can authenticate at startup.
+- **Giữa:** `effectiveB2Bucket()` prefers `setting.MediaSetting.B2Bucket` (YAML / expanded env), else env bucket from constructor; used for `b2.Client.Bucket` and for URL path segment.
+- **Cuối:** Empty resolved bucket at upload/delete → `ProviderError` **9010** (`B2BucketNotConfigured`).
+
+### Task 04 — `.env*.example` comments
+- **Đầu:** All five `/.env*.example` files mention `MEDIA_B2_BUCKET` role in `<cdn>/<bucket>/<object_key>` and that YAML `media.b2_bucket` can override.
+- **Giữa / Cuối:** Comments only; no secrets committed.
+
+### Task 05–06 — B2 public URL + tests
+- **Đầu:** No duplicated `//`; CDN base trimmed.
+- **Giữa:** `pkg/logic/utils.JoinURLPathSegments` builds `URL` and `BuildPublicURL` (B2 default provider branch) with bucket + object key; `tests/sub04_media_pipeline_test.go` covers join + B2 public URL.
+- **Cuối:** `go test ./tests/...` passes.
+
+### Task 07 — Eight random digits (B2 key prefix)
+- **Đầu:** Cryptographic decimal digits, length 8.
+- **Giữa:** `pkg/logic/utils.GenerateRandomDigits`; `helper.BuildB2ObjectKey` = `digits + "-" + sanitized filename` (B2 only).
+- **Cuối:** Test regex on `BuildB2ObjectKey`.
+
+### Task 08 — Resolve upload object key in service
+- **Đầu:** Bunny default key remains empty until API returns GUID; local keeps nano-based key; explicit `object_key` still wins.
+- **Giữa:** `helper.ResolveMediaUploadObjectKey` used from `CreateFile`; removed `BuildObjectKey` from `pkg/media`.
+- **Cuối:** `uploadToProvider` receives correct key per provider.
+
+### Task 09 — Bunny Stream create vs upload
+- **Đầu:** Two HTTP steps: `POST …/videos` then `PUT …/videos/{guid}`.
+- **Giữa:** Create response body read once then `json.Unmarshal` to `guid`; response `ObjectKey` = **GUID** (not client-supplied placeholder).
+- **Cuối:** Metadata still sets `video_guid`, `bunny_*`, `video_provider`.
+
+### Task 10 — Provider errors + HTTP mapping
+- **Đầu:** Typed `pkg/media.ProviderError` with `errcode` **9011–9014** for Bunny; **9010** for missing B2 bucket.
+- **Giữa:** Shared default copy in `constants/error_msg.go`; `pkg/errcode/messages.go` references constants; `file_handler` uses `AsProviderError` + `HTTPStatusForProviderCode` (**502** for create/upload/invalid Bunny responses, **500** for bucket/config class).
+- **Cuối:** `VideoMetadata.video_provider` + `BuildTypedMetadata` reads `video_provider` from raw metadata.
+
 ---
 
 ## Documentation Resync Update (2026-04-26 - full docs pass)

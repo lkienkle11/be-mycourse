@@ -26,7 +26,6 @@ be-mycourse/
 ├── dbschema/
 ├── docs/
 │   └── modules/
-├── docs-will-be-delete/
 ├── dto/
 ├── internal/
 │   ├── appcli/
@@ -86,7 +85,7 @@ be-mycourse/
 - `dbschema/`: shared DB table-name namespace helpers.
 - `docs/`: maintained architecture/API/deploy requirements docs.
 - `docs/modules/`: module-level functional docs.
-- `docs-will-be-delete/`: temporary/deprecated planning docs (read-only inputs).
+- `docs-will-be-delete/`: moved out of `be-mycourse` to `../temporary-docs/docs-sample-chucnang/docs-will-be-delete/` as shared external docs storage.
 - `dto/`: request/query/response transport contracts.
 - `internal/`: non-public operational internals.
 - `internal/appcli/`: protected CLI flow for system-user registration.

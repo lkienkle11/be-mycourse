@@ -345,10 +345,10 @@
 - Name: `File`, `FileMetadata`, `ImageMetadata`, `VideoMetadata`, `DocumentMetadata`
 - Type: Type/Entity
 - Path: `pkg/entities/file.go`
-- Purpose: Shared media response descriptor for stateless cloud upload API with base metadata + typed metadata inheritance model.
+- Purpose: Shared media response descriptor for persisted media upload API with base metadata + typed metadata inheritance model.
 - Scope: Media upload service + transport response payload.
 - Dependencies: `constants/media.go`.
-- Current Usage: `services/media/*`, `api/v1/media/*`.
+- Current Usage: `services/media/*`, `api/v1/media/*`, `models/media_file.go`, `repository/media/file_repository.go`.
 - Reuse Opportunity:
   - Reuse for course lesson media, subtitles, and future asset libraries.
 

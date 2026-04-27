@@ -12,7 +12,7 @@ Media module provides a unified API surface for file and video uploads with prov
 - Videos: playback/distribution URL through Bunny Stream.
 - Local provider: reversible signed URL token that can be decoded back to object key.
 
-Media does **not** persist file records in local database. Backend acts as upload gateway to third-party services.
+Media now persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync.
 
 SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go`), then reused by media service flow.
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
@@ -28,7 +28,7 @@ Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileRespons
 | Method | Path | Purpose |
 |---|---|---|
 | OPTIONS | `/media/files` | CORS/preflight support |
-| GET | `/media/files` | List endpoint (stateless placeholder) |
+| GET | `/media/files` | List persisted records from `media_files` with pagination |
 | POST | `/media/files` | Upload multipart file and return file descriptor |
 | OPTIONS | `/media/files/:id` | CORS/preflight support |
 | GET | `/media/files/:id` | Build file detail from object key |
@@ -64,6 +64,7 @@ Returned `dto.UploadFileResponse` fields:
 - `url`: effective URL returned to client
 - `origin_url`: provider origin URL
 - `object_key`: storage key/object identifier
+- `provider` is intentionally **not returned** in public response to avoid exposing internal provider selection policy.
 - `metadata`: typed object inferred by backend:
   - `ImageMetadata` for image files
   - `VideoMetadata` for video files

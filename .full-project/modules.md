@@ -13,7 +13,7 @@
   - CRUD and list/filter for `course_levels`, `categories`, `tags`.
   - Uses shared list parsing helper (`pkg/query/filter_parser.go`) and shared request helpers (`pkg/requestutil/params.go`).
   - Uses permission middleware with taxonomy-specific RBAC entries (`P14`-`P25`).
-- **Media upload module** (`api/v1/media/*`, `services/media/*`, `dto/media_file.go`, `pkg/entities/file.go`):
+- **Media upload module** (`api/v1/media/*`, `services/media/*`, `dto/media_file.go`, `pkg/entities/file.go`, `models/media_file.go`, `repository/media/file_repository.go`):
   - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`, plus `GET /media/videos/:id/status` and public `POST /webhook/bunny`.
   - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
   - Provider source-of-truth is server config (`setting.MediaSetting.AppMediaProvider`), not client request payload/query.
@@ -24,7 +24,8 @@
   - Uses helper `pkg/logic/helper/DecodeLocalURLToken` for local token decode (no non-CRUD decode utility in service layer).
   - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.
   - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
-  - No DB persistence for media records; backend is a stateless cloud-upload gateway.
+  - Persists upload metadata in `media_files` and syncs create/update/delete + webhook duration updates.
+  - DB model<->entity mapping is handled in `pkg/logic/mapping/media_model_mapping.go` (not inside service layer).
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).
   - Converts Bunny numeric video status to stable API strings via `pkg/logic/utils/bunny_status.go`.
   - Enforces **2 GiB** max per uploaded `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); handler + service guards; HTTP **413** + `errcode.FileTooLarge` (**2003**) on violation (see `docs/modules/media.md`, `docs/deploy.md` for proxy sizing).

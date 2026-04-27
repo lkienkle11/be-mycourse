@@ -42,4 +42,4 @@
   - `services/media/*` (provider dispatch + upload flow logic + third-party SDK clients)
   - `pkg/media/*` startup-initialized SDK clients (`pkg/media.Setup()` in `main.go`)
   - `pkg/entities/file.go` + `constants/media.go` (shared descriptor + enums)
-  - stateless design (no media table/model/repository in local DB)
+  - persisted metadata design (`media_files` + `models/media_file.go` + `repository/media/file_repository.go`) with cloud↔DB sync workflow

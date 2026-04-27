@@ -3,6 +3,32 @@
 - Add **module / integration** Go tests, black-box packages importing `mycourse-io-be`, shared fixtures, and cross-feature harnesses under repository root **`tests/`** (see `tests/README.md`, `README.md` **Testing**, `.full-project/patterns.md`, `docs/requirements.md` NFR-1.6, `docs/architecture.md` directory map).
 - **All tests** (including narrow unit tests) must be added under repository root **`tests/`**.
 
+## Phase Sub 05 Execution Update (2026-04-27 - tasks 01->15)
+
+- Completed reset baseline and impact analysis with GitNexus (`analyze --force`, `status`, symbol-level `impact`) before edits; all planned symbol changes reported **LOW** risk.
+- Implemented metadata persistence after cloud provider operations:
+  - Added migration `000003_media_metadata` for `media_files`.
+  - Added `models/media_file.go`, `dbschema/media_*`, `repository/media/file_repository.go`, and repository root wiring.
+  - `services/media/file_service.go` now persists create/update metadata and soft-deletes DB row after successful cloud delete (with best-effort compensation when DB write fails after upload).
+- Finalized upload file path requirements:
+  - B2 public URL remains `<cdn_gcore_base_url>/<bucket_b2_name>/<file_to_see>`.
+  - B2 upload object key keeps random 8-digit prefix policy.
+  - Bunny pipeline remains `CreateVideo -> UploadVideoContent`, with status API + webhook.
+- Webhook/status:
+  - `POST /api/v1/webhook/bunny` stays outside auth middleware.
+  - Webhook service now updates persisted duration/metadata on finished status and remains idempotent-safe for retry when row is absent.
+- Config/env hardening:
+  - Added `media.app_media_provider` in all `config/app*.yaml`.
+  - Added `MEDIA_APP_PROVIDER` in `.env*.example`.
+- Contract sync:
+  - Extended upload response mapping with persisted metadata fields (id/kind/provider/filename/mime/size/status/bucket + Bunny metadata).
+- Correction pass (same sub05 scope):
+  - Removed `provider` from public `UploadFileResponse` to avoid leaking internal provider-routing business logic.
+  - Refactored DB<->entity mapping out of `services/media/file_service.go` into `pkg/logic/mapping/media_model_mapping.go` to align with project layering conventions.
+  - Kept API behavior and tests green after refactor.
+- Quality gate:
+  - `gofmt -w ...` and `go test ./...` passed.
+
 ## Phase Sub 03 — Upload cap 2 GiB per file (tasks 01–10, 2026-04-26)
 
 ### Task 01 — Baseline / discovery / multipart inventory

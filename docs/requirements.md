@@ -351,7 +351,7 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 > **Status: Implemented.** See `docs/modules/media.md`.
 
 - The system **MUST** provide unified media endpoints under `/api/v1/media/files` for `GET/POST/PUT/DELETE/OPTIONS`.
-- The system **MUST** keep media flow stateless (no local media table persistence), acting as a cloud upload gateway.
+- The system **MUST** persist media cloud metadata in local DB (`media_files`) after successful create/update/delete sync while keeping provider upload execution in cloud services.
 - The system **MUST** select provider from server configuration (`setting.MediaSetting.AppMediaProvider`), not client request fields.
 - The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
 - The system **MUST** keep feature-specific helpers in `pkg/logic/helper` and generic reusable primitives in `pkg/logic/utils`.

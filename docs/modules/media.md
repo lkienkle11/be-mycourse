@@ -18,7 +18,7 @@ SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
 Media kind/provider normalization is implemented as shared helper assets in `pkg/logic/helper/media_resolver.go`, keeping `services/media` orchestration-only.
 Metadata parsing and typed inference are handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
-Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`) are extracted to `pkg/logic/util/media_metadata.go`.
+Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`) are extracted to `pkg/logic/utils/media_metadata.go` and must be called through `utils.*` import alias in helper code.
 Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider details are removed from public payload.
 
 ---
@@ -108,4 +108,5 @@ Returned `dto.UploadFileResponse` fields:
 ## Testing
 
 - Add **module-level / integration** tests for this API under repository root **`tests/`** (shared convention for the whole backend — see `README.md` **Testing** and `.full-project/patterns.md`). Narrow unit tests may still use colocated `*_test.go` next to `services/media` or `pkg/logic/*` when scoped to one package.
+- Latest verification (2026-04-27): `go build ./...` and `go test ./... -count=1` pass after fixing helper alias usage in `pkg/logic/helper/media_metadata.go` (`util.*` -> `utils.*`).
 

@@ -19,7 +19,7 @@
   - Provider source-of-truth is server config (`setting.MediaSetting.AppMediaProvider`), not client request payload/query.
   - Uses shared resolver helpers in `pkg/logic/helper/media_resolver.go`; service layer remains orchestration-only.
   - Uses `helper.DefaultMediaProvider` from `pkg/logic/helper/media_metadata.go`; service no longer owns provider default helper.
-  - Generic metadata parsing primitives are extracted to `pkg/logic/util/media_metadata.go` and reused by media helper.
+  - Generic metadata parsing primitives are extracted to `pkg/logic/utils/media_metadata.go` and reused by media helper.
   - Uses mapper helpers in `pkg/logic/mapping` so handlers always return DTO (`dto.UploadFileResponse`) instead of raw entity.
   - Uses helper `pkg/logic/helper/DecodeLocalURLToken` for local token decode (no non-CRUD decode utility in service layer).
   - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.

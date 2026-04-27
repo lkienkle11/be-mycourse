@@ -118,7 +118,7 @@
 ### Scope completed for tasks 01->10 in this cycle
 - Re-ran baseline/context/doc refresh and GitNexus indexing/status before edits.
 - Moved `defaultMediaProvider` out of `services/media/file_service.go` into helper layer (`pkg/logic/helper/media_metadata.go`) as `DefaultMediaProvider`.
-- Moved generic functions out of `pkg/logic/helper/media_metadata.go` into util layer (`pkg/logic/util/media_metadata.go`):
+- Moved generic functions out of `pkg/logic/helper/media_metadata.go` into util layer (`pkg/logic/utils/media_metadata.go`):
   - `DetectExtension`
   - `ImageSizeFromPayload`
   - `StringFromRaw`

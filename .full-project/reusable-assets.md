@@ -257,11 +257,12 @@
 ### Asset: Generic media metadata conversion primitives
 - Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`
 - Type: Util
-- Path: `pkg/logic/util/media_metadata.go`
+- Path: `pkg/logic/utils/media_metadata.go`
 - Purpose: Provide generic metadata conversion primitives reusable beyond media helper orchestration.
 - Scope: Any module needing generic raw-metadata conversion helpers.
 - Dependencies: `pkg/entities`, Go stdlib (`image`, `bytes`, `strings`, `fmt`).
 - Current Usage: `pkg/logic/helper/media_metadata.go`.
+- Integration Note (2026-04-27): media helper branch `FileKindFile` uses `utils.ImageSizeFromPayload` and `utils.IntFromRaw`; alias mismatch (`util.*`) is a compile-time risk.
 - Reuse Opportunity:
   - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.
 

@@ -67,13 +67,14 @@
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL
   - local branch: reversible signed token URL (`/media/files/local/:token`)
-- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal provider field) and is not persisted in local DB.
+- Persisted rows live in `media_files` (migration `000003_media_metadata`, extended by `000004_media_orphan_safety` with `row_version` + `content_fingerprint`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
+- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal provider field).
 
 ### Media Video Status + Webhook
 - `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
 - Numeric Bunny status is normalized by `pkg/logic/utils.BunnyVideoStatus.StatusString()` (`unknown` fallback for unsupported values).
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
-- Webhook currently applies skeleton flow only for status `4` (`utils.FinishedWebhookBunnyStatus`) and defers DB persistence of duration to later lesson/media phase.
+- Webhook applies metadata/duration sync when status matches finished (`utils.FinishedWebhookBunnyStatus`); idempotent when DB row missing.
 
 ## Persistence Boundaries
 - PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).

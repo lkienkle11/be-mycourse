@@ -227,6 +227,63 @@
 - Current Usage: `services/media/file_service.go`.
 - Reuse Opportunity: Reuse instead of duplicating filename sanitization or key rules in `pkg/media`.
 
+### Asset: Content fingerprint (SHA-256 hex)
+- Name: `ContentFingerprint`
+- Type: Helper
+- Path: `pkg/logic/helper/media_fingerprint.go`
+- Purpose: Stable digest of upload bytes for skip-upload dedupe on `PUT /media/files/:id`.
+- Scope: Media replace/update flows.
+- Dependencies: `crypto/sha256`, `encoding/hex`.
+- Current Usage: `services/media/file_service.go`.
+- Reuse Opportunity: Any feature needing cheap binary equality without storing raw bytes.
+
+### Asset: MergeMediaMetadataJSON
+- Name: `MergeMediaMetadataJSON`
+- Type: Helper
+- Path: `pkg/logic/helper/media_metadata_merge.go`
+- Purpose: Merge JSONB metadata with overlay map for metadata-only updates.
+- Scope: Media row updates preserving unspecified keys.
+- Dependencies: `encoding/json`, `pkg/entities.RawMetadata`.
+- Current Usage: `services/media/file_service.go`.
+
+### Asset: Superseded cloud cleanup guard
+- Name: `ShouldEnqueueSupersededCloudCleanup`
+- Type: Helper
+- Path: `pkg/logic/helper/media_replace_policy.go`
+- Purpose: Decide whether replace produced a new cloud identity requiring deferred delete of the prior object.
+- Scope: Media replace branch after successful DB save.
+- Current Usage: `services/media/file_service.go`.
+
+### Asset: Multipart binders (media create/update)
+- Name: `BindCreateFileMultipart`, `BindUpdateFileMultipart`
+- Type: Helper (transport parsing)
+- Path: `pkg/logic/helper/media_multipart.go`
+- Purpose: Map Gin multipart text fields to `dto.CreateFileRequest` / `dto.UpdateFileRequest` (same layer as `ParseMetadataFromRaw`).
+- Scope: `api/v1/media/file_handler.go` only; keeps handlers thin.
+- Dependencies: `github.com/gin-gonic/gin`, `dto`.
+
+### Asset: DeleteStoredObject (unified cloud delete)
+- Name: `DeleteStoredObject`
+- Type: Function (`pkg/media`)
+- Path: `pkg/media/stored_object_delete.go`
+- Purpose: Route delete by provider (B2 key vs Bunny GUID vs local noop).
+- Scope: Delete compensation, pending cleanup worker, avoids duplicating switch in callers.
+- Current Usage: `services/media/file_service.go`, `services/media/pending_cleanup.go`.
+
+### Asset: Media cleanup worker scheduler
+- Name: `StartMediaPendingCleanupJob`, `StopMediaPendingCleanupJob`
+- Type: Job (`internal/jobs`)
+- Path: `internal/jobs/media_pending_cleanup_scheduler.go`
+- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `permission_sync_scheduler.go`.
+- Scope: Process-wide background loop; interval from `MEDIA_CLEANUP_INTERVAL_SEC` or `constants.MediaCleanupDefaultIntervalSec`.
+
+### Asset: Media concurrency / reuse errors
+- Name: `ErrMediaOptimisticLock`, `ErrMediaReuseMismatch`
+- Type: Sentinel (`pkg/errors`)
+- Path: `pkg/errors/media_errors.go`
+- Purpose: Map to HTTP **409** + `errcode.Conflict` when row version or `reuse_media_id` mismatches.
+- Dependencies: `constants/error_msg.go` (`MsgMediaOptimisticLockConflict`, `MsgMediaReuseMismatch`).
+
 ### Asset: URL join helper (generic)
 - Name: `JoinURLPathSegments`
 - Type: Util

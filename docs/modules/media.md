@@ -19,7 +19,7 @@ Media module provides a unified API surface for file and video uploads with prov
 - Videos: playback/distribution URL through Bunny Stream.
 - Local provider: reversible signed URL token that can be decoded back to object key.
 
-Media now persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync.
+Media persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync. **Phase Sub 06** adds optimistic concurrency (`row_version`), SHA-256 hex `content_fingerprint`, deferred superseded-cloud deletes (`media_pending_cloud_cleanup` + worker in `internal/jobs/media_pending_cleanup_scheduler.go`), and multipart field binding via `pkg/logic/helper/media_multipart.go` (aligned with `ParseMetadataFromRaw`).
 
 SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go`), then reused by media service flow.
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
@@ -36,10 +36,11 @@ Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileRespons
 |---|---|---|
 | OPTIONS | `/media/files` | CORS/preflight support |
 | GET | `/media/files` | List persisted records from `media_files` with pagination |
+| GET | `/media/files/cleanup-metrics` | Ops: deferred cleanup counters (deleted/failed/retried since process start) — registered **before** `/:id` |
 | POST | `/media/files` | Upload multipart file and return file descriptor |
 | OPTIONS | `/media/files/:id` | CORS/preflight support |
 | GET | `/media/files/:id` | Build file detail from object key |
-| PUT | `/media/files/:id` | Re-upload/replace object by object key |
+| PUT | `/media/files/:id` | Re-upload/replace by logical row (`id` path param = `object_key`). Multipart text fields: `kind`, `metadata` (JSON string), optional `reuse_media_id` (must equal DB row UUID), optional `expected_row_version` (optimistic lock), optional `skip_upload_if_unchanged` (`1`/`true`/`yes`) with same-file fingerprint → metadata-only DB update without new upload. Conflict → HTTP **409** `Conflict`. |
 | DELETE | `/media/files/:id` | Delete object on configured provider |
 | OPTIONS | `/media/files/local/:token` | CORS/preflight support |
 | GET | `/media/files/local/:token` | Decode local signed token to object key |
@@ -93,10 +94,22 @@ Returned `dto.UploadFileResponse` fields:
 - `bunny_library_id`
 - `duration`
 - `video_provider`
+- `row_version` (optimistic concurrency; omit/zero when not applicable)
+- `content_fingerprint` (SHA-256 hex of last confirmed upload bytes; used with `skip_upload_if_unchanged` on update)
+
+### Phase Sub 06 — orphan / reuse / deferred cleanup (implementation summary)
+
+- **Migration:** `000004_media_orphan_safety.up.sql` — columns `media_files.row_version`, `media_files.content_fingerprint`; table `media_pending_cloud_cleanup`.
+- **Orphan definitions (operational):**
+  - **Superseded cloud object:** after successful DB replace, prior `object_key` / Bunny GUID may still exist in cloud until the deferred worker deletes it — rows are **queued**, not deleted inline at replace time.
+  - **Failed DB after upload:** `CreateFile` / replace paths compensate by calling `DeleteStoredObject` on the new cloud object when the DB write fails.
+  - **True orphans** (cloud exists without DB row, or DB row without cloud) require separate sweep tooling — **not** automated beyond superseded queue + delete sync on `DELETE`.
+- **Reuse policy:** same-byte uploads skip provider upload when `skip_upload_if_unchanged=true` and stored fingerprint matches; metadata-only merge via `MergeMediaMetadataJSON`.
+- **Concurrency:** `expected_row_version` vs stored `row_version`; mismatch → `pkg/errors.ErrMediaOptimisticLock` → HTTP **409**. Optional `reuse_media_id` must equal persisted row UUID or → `ErrMediaReuseMismatch` (**409**).
+- **Worker:** `internal/jobs/media_pending_cleanup_scheduler.go` — pattern matches `permission_sync_scheduler.go`. Env `MEDIA_CLEANUP_INTERVAL_SEC` (`0` = disabled); defaults from `constants/media_cleanup.go`. Processing batch/logic: `services/media/pending_cleanup.go`; counters: `services/media/cleanup_metrics.go`.
 
 ### Upstream errors (Sub 04)
-
-- B2 bucket missing at runtime (no resolved bucket after settings + env fallback) → application code **9010** (`B2BucketNotConfigured`), HTTP **500**.
+ (no resolved bucket after settings + env fallback) → application code **9010** (`B2BucketNotConfigured`), HTTP **500**.
 - Bunny Stream not configured → **9011**.
 - Bunny create / upload / invalid API response → **9012** / **9013** / **9014** (HTTP **502**).
 - Bunny video not found / Bunny get-video failed → **9015** / **9016**.
@@ -127,5 +140,5 @@ Returned `dto.UploadFileResponse` fields:
 ## Testing
 
 - Add all tests for this API (unit/module-level/integration) under repository root **`tests/`** only (shared convention for the whole backend — see `README.md` **Testing** and `.full-project/patterns.md`).
-- Latest verification (2026-04-27): `go build ./...` and `go test ./... -count=1` pass after fixing helper alias usage in `pkg/logic/helper/media_metadata.go` (`util.*` -> `utils.*`).
+- Latest verification (2026-04-28, Sub 06): `go build ./...` and `go test ./tests/... -count=1` include `tests/sub06_media_orphan_safety_test.go` (helper-level fingerprint / merge / superseded guards).
 

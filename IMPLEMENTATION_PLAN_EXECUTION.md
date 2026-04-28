@@ -1242,3 +1242,80 @@
   - `.full-project/data-flow.md`
   - `.full-project/reusable-assets.md`
   - this execution plan file.
+
+---
+
+## Phase Sub 06 — Orphan safety, reuse, deferred cleanup (tasks 01→16, closed 2026-04-28)
+
+Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-sub-06-task-16`. Implementation lives under `be-mycourse` only (course/lesson APIs are **not** in repo yet — see task 10).
+
+### Task 01 — Baseline + orphan-risk inventory ✅
+- Flows that could strand cloud vs DB: create/update/delete, partial failure after upload, concurrent updates. Symbols/files touched: `api/v1/media/file_handler.go`, `services/media/file_service.go`, `repository/media/file_repository.go`, `pkg/media/clients.go`, `pkg/media/stored_object_delete.go`, `internal/jobs/media_pending_cleanup_scheduler.go`.
+- Inventory reflected in this section + `docs/modules/media.md` **Phase Sub 06** prose.
+
+### Task 02 — Orphan definition + source of truth ✅ (documented)
+- **DB row canonical:** `media_files` holds `object_key`, `provider`, `bunny_video_id`, URLs, `metadata_json`, `row_version`, `content_fingerprint`.
+- **B2/Gcore:** identity = `(provider=B2|…, object_key)`; CDN URL derived from `setting.MediaSetting` + bucket + key.
+- **Bunny Stream:** identity = `(provider=Bunny, bunny_video_id GUID)`; `object_key` stores GUID after create.
+- **Superseded blob:** previous cloud identifiers queued in `media_pending_cloud_cleanup` until worker deletes.
+
+### Task 03 — Reuse / dedupe strategy ✅
+- **Fingerprint:** SHA-256 hex (`helper.ContentFingerprint`) over uploaded bytes.
+- **Skip upload:** `skip_upload_if_unchanged` + matching fingerprint ⇒ metadata merge only (`MergeMediaMetadataJSON`).
+- **Fallback:** if fingerprint empty/missing, full replace path applies.
+
+### Task 04 — API contract (reuse fields) ✅
+- `PUT /api/v1/media/files/:id` multipart: `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`; errors **409** + `errcode.Conflict` on mismatch (`pkg/errors/media_errors.go`).
+- Binding centralized in `pkg/logic/helper/media_multipart.go` (not inlined in handler).
+
+### Task 05 — DTO/data types ✅
+- `dto.UpdateFileRequest` extended; `dto.UploadFileResponse` includes `row_version`, `content_fingerprint`; `entities.File` aligned; `mapping/*` wired.
+
+### Task 06 — Service flow prioritizes reuse ✅
+- `services/media/file_service.go`: guards → fingerprint short-circuit → else upload → `SaveWithRowVersionCheck` → enqueue superseded cleanup when policy says so.
+
+### Task 07 — Traceability fields ✅
+- `row_version`, `content_fingerprint` on `media_files`; pending table tracks deferred deletes (`repository/media/pending_cleanup_repo.go`).
+
+### Task 08 — Mark-and-sweep / pending ✅
+- Replace does **not** synchronous-delete old cloud object; inserts `media_pending_cloud_cleanup` row (`InsertPendingCleanup`).
+
+### Task 09 — Cleanup worker ✅
+- `internal/jobs/media_pending_cleanup_scheduler.go`: mutex/cancel/waitgroup + immediate first tick (same spirit as RBAC jobs). Batch/retry: `constants/media_cleanup.go`; processor `services/media/pending_cleanup.go`; metrics `services/media/cleanup_metrics.go`.
+- Env: `MEDIA_CLEANUP_INTERVAL_SEC` (`0` off).
+
+### Task 10 — Apply to course/lesson/quiz APIs — **N/A (repository scope)**
+- No `courses`/`lessons`/`sections` upload endpoints exist in `be-mycourse` yet. When Phase 05/06 domain lands, consume **same** media APIs / FK references — no duplicate upload bypass.
+
+### Task 11 — Transaction / compensation ✅ (within current architecture)
+- Upload-then-DB: on DB failure after successful upload, **compensate** via `DeleteStoredObject` on the **new** object (`CreateFile` / replace failure branch).
+- Full distributed two-phase transaction cloud↔Postgres is **not** implemented (Postgres cannot enlist B2/Bunny); documented limitation above.
+
+### Task 12 — Race guards ✅
+- Optimistic locking: `SaveWithRowVersionCheck` vs `expected_row_version` / stored version.
+
+### Task 13 — Observability ✅
+- `GET /api/v1/media/files/cleanup-metrics`: exposes atomic counters (deleted/failed/retried). Structured logging for worker start/stop in job package.
+
+### Task 14 — Test plan ✅
+- Automated: `tests/sub06_media_orphan_safety_test.go` (fingerprint, merge, superseded policy, constant presence).
+- Manual QA checklist: migrate (`MIGRATE=1`); create media; PUT with wrong `expected_row_version` → 409; PUT same file + `skip_upload_if_unchanged=true` → metadata bump without new object key change where fingerprint matches; verify pending rows processed after worker tick.
+
+### Task 15 — Quality gate + audit ✅
+- `gofmt`, `go build ./...`, `go test ./tests/...` — run as part of closure.
+- Code-vs-plan: this section + `docs/modules/media.md` are aligned.
+
+### Task 16 — GitNexus refresh ✅ (post-edit command)
+- After merging: run `npx gitnexus analyze --force` from repo root; optionally `gitnexus_detect_changes` / `gitnexus_impact` on `UpdateFile`, `ProcessPendingCleanupBatch`, `StartMediaPendingCleanupJob` before release branches.
+
+### Files reference (Sub 06)
+- DDL: `migrations/000004_media_orphan_safety.up.sql`
+- Models: `models/media_file.go`, `models/media_pending_cloud_cleanup.go`, `dbschema/media_pending_cloud_cleanup.go`
+- Constants: `constants/media_cleanup.go`, `constants/media_meta_keys.go`, `constants/error_msg.go`
+- Errors: `pkg/errors/media_errors.go`
+- Helpers: `pkg/logic/helper/media_fingerprint.go`, `media_metadata_merge.go`, `media_replace_policy.go`, `media_upload_entity.go`, `media_multipart.go`; input struct `pkg/entities/media_upload.go`
+- Media delete routing: `pkg/media/stored_object_delete.go`
+- Repo: `repository/media/file_repository.go`, `repository/media/pending_cleanup_repo.go`
+- Services: `services/media/file_service.go`, `pending_cleanup.go`, `cleanup_metrics.go`
+- Jobs: `internal/jobs/media_pending_cleanup_scheduler.go`; bootstrap `main.go`
+- API: `api/v1/media/file_handler.go`, `routes.go`

@@ -60,6 +60,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `models/` | GORM models and DB setup (`setup.go`, taxonomy models, …). |
 | `migrations/` | Versioned SQL migrations (embedded / migrate tooling). |
 | `pkg/response` | Unified `{ code, message, data }` (and health shape). |
+| `pkg/errors` | Shared functional/sentinel errors and typed feature errors (e.g. provider errors, upload sentinel errors). New reusable `Err*` and typed errors must be declared here, then imported by handlers/services/repositories. |
 | `pkg/errcode` | Application error codes. |
 | `pkg/httperr` | Gin middleware for errors and panic recovery. |
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |

@@ -356,7 +356,7 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 - The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
 - The system **MUST** keep feature-specific helpers in `pkg/logic/helper` and generic reusable primitives in `pkg/logic/utils`.
 - The system **MUST** restrict direct runtime `os.Getenv` reads in media runtime paths and use `setting.MediaSetting` as source-of-truth after `setting.Setup()`.
-- The system **MUST** reject a single uploaded file larger than **2 GiB** (`2×1024×1024×1024` bytes) on media create/update (handler + service), returning HTTP **413** and application code **2003** (`FileTooLarge`). The byte cap and the **single** oversize message constant **`constants.MsgFileTooLargeUpload`** **MUST** live in **`constants/error_msg.go`** and **MUST** be the same string used for the default JSON `message` for `FileTooLarge` in `pkg/errcode/messages.go` and for `pkg/media.ErrFileExceedsMaxUploadSize` (no duplicate literals). See `docs/architecture.md` directory map. Deployment **MUST** configure reverse proxies / load balancers with a body limit **at least** that large on API routes so requests are not dropped before the application (see `docs/deploy.md`).
+- The system **MUST** reject a single uploaded file larger than **2 GiB** (`2×1024×1024×1024` bytes) on media create/update (handler + service), returning HTTP **413** and application code **2003** (`FileTooLarge`). The byte cap and the **single** oversize message constant **`constants.MsgFileTooLargeUpload`** **MUST** live in **`constants/error_msg.go`** and **MUST** be the same string used for the default JSON `message` for `FileTooLarge` in `pkg/errcode/messages.go` and for `pkg/errors.ErrFileExceedsMaxUploadSize` (no duplicate literals). See `docs/architecture.md` directory map. Deployment **MUST** configure reverse proxies / load balancers with a body limit **at least** that large on API routes so requests are not dropped before the application (see `docs/deploy.md`).
 
 ---
 
@@ -466,6 +466,19 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 
 - All error scenarios **MUST** use the numeric application error codes defined in `pkg/errcode/codes.go`.
 - Default messages for each code are defined in `pkg/errcode/messages.go`.
+- Reusable functional/sentinel errors (`Err*`) and typed feature errors **MUST** be defined in `pkg/errors` (not inside `services/*`, `repository/*`, or feature runtime packages).
+
+#### NFR-3.2.1 Shared Type Placement
+
+- For all new code from now on, if a module under `pkg/*` contains logic handling, newly introduced reusable types **MUST** be declared in `pkg/entities` instead of inline declaration in that logic module file.
+- New reusable types **MUST NOT** be introduced in logic-orchestration layers (`services/*`, `repository/*`, or other business-flow files).
+- New and reused domain types **MUST** be placed under `pkg/entities` (new module file or existing module file), then imported where needed.
+
+#### NFR-3.2.2 Helper vs Util Placement
+
+- Cross-feature generic logic/functions (e.g. parse/url/normalize/general transformers) **MUST** be implemented under `pkg/logic/utils`.
+- Feature-specific logic/functions (e.g. domain processing helpers such as decode/process flows tied to one module) **MUST** be implemented under `pkg/logic/helper`.
+- For functions created inside `services/*` / `repository/*`: if the logic is standalone or expected to be reused/expanded, it **MUST** be extracted to `pkg/logic/utils` (generic) or `pkg/logic/helper` (feature-specific).
 
 #### NFR-3.3 Structured Logging
 

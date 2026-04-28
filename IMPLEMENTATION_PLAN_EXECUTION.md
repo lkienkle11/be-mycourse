@@ -40,7 +40,7 @@
 - **Residual risks:** uploads up to the cap still buffer the full payload in RAM in `CreateFile` (required today for Bunny video `[]byte` path and metadata inference); very large legitimate files increase memory pressure — mitigated by hard cap, Gin `MaxMultipartMemory` spilling most multipart parsing to disk, and infra `client_max_body_size` (task 08).
 
 ### Task 02 — Single source of truth
-- **`constants/error_msg.go`:** canonical file for **error/sentinel string literals** (and related limits for the same feature). Media upload: `MaxMediaUploadFileBytes` (2 GiB) **and** `MsgFileTooLargeUpload` — **one** string used by both `pkg/errcode` (`FileTooLarge` / 2003 default `message`) and `pkg/media.ErrFileExceedsMaxUploadSize` (`errors.New`); no duplicate literals in `messages.go` or `upload_errors.go`. File header documents rules for future AI contributors.
+- **`constants/error_msg.go`:** canonical file for **error/sentinel string literals** (and related limits for the same feature). Media upload: `MaxMediaUploadFileBytes` (2 GiB) **and** `MsgFileTooLargeUpload` — **one** string used by both `pkg/errcode` (`FileTooLarge` / 2003 default `message`) and `pkg/errors.ErrFileExceedsMaxUploadSize` (`errors.New`); no duplicate literals in `messages.go` or `upload_errors.go`. File header documents rules for future AI contributors.
 
 ### Task 03 — Gin multipart memory
 - `api/router.go` `InitRouter`: `router.MaxMultipartMemory = 64 << 20` (64 MiB) with inline comment (parts larger than this spill to temp files during multipart parse).
@@ -56,7 +56,7 @@
 
 ### Task 07 — Errcode / message consistency
 - `pkg/errcode`: `FileTooLarge = 2003`, default message in `messages.go`; handlers map `pkgmedia.ErrFileExceedsMaxUploadSize` and declared oversize to same code (distinct from missing-file `BadRequest`).
-- Sentinel lives in **`pkg/media/upload_errors.go`** (`errors.New(constants.MsgFileTooLargeUpload)`); **not** under `services/media/` (orchestration only returns the shared sentinel).
+- Sentinel lives in **`pkg/errors/upload_errors.go`** (`errors.New(constants.MsgFileTooLargeUpload)`); **not** under `services/media/` (orchestration only returns the shared sentinel).
 
 ### Task 08 — Infra / proxy
 - `docs/deploy.md` + `docs/modules/media.md`: reverse proxy (e.g. nginx `client_max_body_size`) must allow **≥ 2G** on the API vhost or the edge returns **413/400** before the app.
@@ -68,14 +68,14 @@
 - Checklist satisfied: single constant; Gin memory set; handler + service enforce cap; repo scan clean; err/message split; proxy doc; quality gate. GitNexus re-analyze after doc/code sync. Ready for `phase-02-start` in plan sequencing.
 
 ### Phase Sub 03 — Message sync errcode ↔ error_msg (tasks 01–10, 2026-04-26)
-- **`constants.MsgFileTooLargeUpload`** is the only literal for upload oversize copy; **`pkg/errcode/messages.go`** uses `constants.MsgFileTooLargeUpload` for `FileTooLarge`; **`pkg/media/upload_errors.go`** uses the same for `ErrFileExceedsMaxUploadSize`. Renamed from `MediaUploadErrFileExceedsMaxSize` to avoid two strings for one UX. Full docs + package comments updated for downstream AI agents.
+- **`constants.MsgFileTooLargeUpload`** is the only literal for upload oversize copy; **`pkg/errcode/messages.go`** uses `constants.MsgFileTooLargeUpload` for `FileTooLarge`; **`pkg/errors/upload_errors.go`** uses the same for `ErrFileExceedsMaxUploadSize`. Renamed from `MediaUploadErrFileExceedsMaxSize` to avoid two strings for one UX. Full docs + package comments updated for downstream AI agents.
 
 ### Phase Sub 03 — Constants layout (tasks 01–10 follow-up, 2026-04-26)
 - Merged **`constants/upload_limits.go` → `constants/error_msg.go`** so all agent-discoverable **error/sentinel message** literals (and co-located limits) live in one documented file. Updated architecture, README, `.full-project/*`, `docs/modules/media.md`, `pkg/errcode/messages.go` cross-reference, this plan, `.context` handoff.
 
 ### Phase Sub 03 — Re-audit (sentinel + message constant, same tasks 01–10, 2026-04-26)
 - Re-validated: `FormFile` only in media handlers; policy unchanged (2 GiB, Gin 64 MiB, handler early reject, service `LimitReader`, deploy/nginx notes, errcode **2003**).
-- **Structural fix:** deleted `services/media/errors.go`. Upload oversize sentinel is **`pkg/media.ErrFileExceedsMaxUploadSize`** in `pkg/media/upload_errors.go`, built from **`constants.MsgFileTooLargeUpload`** in **`constants/error_msg.go`** — **same** constant as `pkg/errcode/messages.go` → `defaultMessages[FileTooLarge]` (no wording drift between JSON `message` and `errors.Is` sentinel).
+- **Structural fix:** deleted `services/media/errors.go`. Upload oversize sentinel is **`pkg/errors.ErrFileExceedsMaxUploadSize`** in `pkg/errors/upload_errors.go`, built from **`constants.MsgFileTooLargeUpload`** in **`constants/error_msg.go`** — **same** constant as `pkg/errcode/messages.go` → `defaultMessages[FileTooLarge]` (no wording drift between JSON `message` and `errors.Is` sentinel).
 - **Import rule:** `api/v1/media` is `package media` → handler imports `mycourse-io-be/pkg/media` as **`pkgmedia`** so it does not collide with the handler’s own package name `media`.
 - Docs/snapshots updated again: this plan, `.full-project/reusable-assets.md`, `.context/session_summary_2026-04-26_phase_sub03_upload_cap.md`; `npx gitnexus analyze --force` after edits.
 
@@ -87,7 +87,7 @@
 - **Cuối:** This section is the authoritative task checklist for Sub04; implementation matches rows below.
 
 ### Task 02 — Đầu / Giữa / Cuối (inventory) ✅
-- **Đầu:** Touch list: `pkg/media/clients.go`, `pkg/media/provider_error.go`, `services/media/file_service.go`, `api/v1/media/file_handler.go`, `pkg/logic/helper/media_upload_keys.go`, `pkg/logic/helper/media_metadata.go`, `pkg/logic/utils/url.go`, `pkg/logic/utils/random.go`, `pkg/entities/file.go`, `pkg/errcode/{codes,messages}.go`, `constants/error_msg.go`, five `.env*.example`, `tests/sub04_media_pipeline_test.go`, `docs/modules/media.md`.
+- **Đầu:** Touch list: `pkg/media/clients.go`, `pkg/errors/provider_error.go`, `services/media/file_service.go`, `api/v1/media/file_handler.go`, `pkg/logic/helper/media_upload_keys.go`, `pkg/logic/helper/media_metadata.go`, `pkg/logic/utils/url.go`, `pkg/logic/utils/random.go`, `pkg/entities/file.go`, `pkg/errcode/{codes,messages}.go`, `constants/error_msg.go`, five `.env*.example`, `tests/sub04_media_pipeline_test.go`, `docs/modules/media.md`.
 - **Giữa:** GitNexus `impact` on `UploadB2` / `CreateFile` / `UploadBunnyVideo` → LOW blast radius (orchestration + single handler). `api/router.go` webhook group noted in inventory; implementation deferred to tasks 11–20.
 - **Cuối:** No tests added under `pkg/logic/utils` (module tests live in `tests/`).
 
@@ -121,7 +121,7 @@
 - **Cuối:** Metadata sets `video_guid` (compat alias), `bunny_video_id`, `bunny_library_id`, `video_provider=bunny_stream`.
 
 ### Task 10 — Provider errors + HTTP mapping ✅
-- **Đầu:** Typed `pkg/media.ProviderError` with `errcode` **9011–9014** for Bunny; **9010** for missing B2 bucket.
+- **Đầu:** Typed `pkg/errors.ProviderError` with `errcode` **9011–9014** for Bunny; **9010** for missing B2 bucket.
 - **Giữa:** All five `UploadBunnyVideo` error branches mapped via `ProviderError`: config missing (9011→500), create failed (9012→502), invalid response/GUID empty (9014→502), upload failed (9013→502). `file_handler.go` uses `AsProviderError` + `HTTPStatusForProviderCode`. Shared default copy in `constants/error_msg.go`; `pkg/errcode/messages.go` references constants. `DeleteBunnyVideo` uses raw `fmt.Errorf` (task scope limited to UploadBunnyVideo); consistent with `deleteFile` handler not calling `AsProviderError`.
 - **Cuối:** `VideoMetadata.video_provider` + `BuildTypedMetadata` reads `video_provider` from raw metadata. `go build ./... && go vet ./... && go test ./...` all PASS.
 

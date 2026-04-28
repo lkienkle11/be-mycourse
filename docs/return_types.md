@@ -669,7 +669,7 @@ Media endpoints are implemented and return the standard envelope. Public payload
 | Condition | HTTP status | `code` | Typical `message` |
 |-----------|-------------|--------|-------------------|
 | Missing multipart field `file` | 400 | `3001` (`BadRequest`) | `file is required (multipart field: file)` |
-| Single file exceeds **2 GiB** (`constants.MaxMediaUploadFileBytes` in `constants/error_msg.go`) | 413 | `2003` (`FileTooLarge`) | `errcode.DefaultMessage(FileTooLarge)` = **`constants.MsgFileTooLargeUpload`** (single literal; also used for `pkg/media.ErrFileExceedsMaxUploadSize`) |
+| Single file exceeds **2 GiB** (`constants.MaxMediaUploadFileBytes` in `constants/error_msg.go`) | 413 | `2003` (`FileTooLarge`) | `errcode.DefaultMessage(FileTooLarge)` = **`constants.MsgFileTooLargeUpload`** (single literal; also used for `pkg/errors.ErrFileExceedsMaxUploadSize`) |
 
 | Endpoint | Success `data` |
 |----------|-----------------|

@@ -20,6 +20,12 @@
 - Every business/functional error must have a corresponding numeric code in `pkg/errcode/codes.go`.
 - Never set error code/message directly inside `services/*`, `repository/*`, or other feature modules. Those layers only return/propagate errors from `pkg/errors` and map via `pkg/errcode`.
 
+## Constants Placement Convention (Mandatory)
+- All constants must be declared under `constants/*` (messages, status, limits, parameters, default values, error-related constants, and any other shared constant).
+- Do not declare module-level business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, or other feature folders.
+- If a new constant is needed, create/extend the appropriate file in `constants/` and import it where used.
+- Keep `pkg/errcode/codes.go` and `pkg/errcode/messages.go` as mapping tables only; source message literals and shared numeric/enum constants must come from `constants/*` whenever applicable.
+
 ### Error Implementation Examples (for AI agents)
 - **Typed provider error pattern**: follow `pkg/errors/provider_error.go` (`ProviderError`, `AsProviderError`, `HTTPStatusForProviderCode`) for upstream/provider integrations that need stable `code` mapping.
 - **Sentinel upload error pattern**: follow `pkg/errors/upload_errors.go` where sentinel `Err...` uses shared message constant from `constants/error_msg.go`, and handler maps it to code in `pkg/errcode`.

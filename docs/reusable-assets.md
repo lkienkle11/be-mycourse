@@ -389,6 +389,12 @@
 - Error numeric codes must be defined in `pkg/errcode/codes.go` before use.
 - Do not hardcode error code/message in feature modules; map at boundary using centralized `errcode`.
 
+### Convention: Constants Placement (Mandatory)
+- All constants must be centralized in `constants/*` (messages, status, thresholds, default values, and any other shared constant).
+- Feature layers (`services/*`, `repository/*`, `api/*`, `pkg/*`) must not define business constants inline.
+- When adding new constants, place them in the appropriate file inside `constants/` and import from there.
+- For error flows, keep `pkg/errcode/*` as code/message mapping tables; source literals should come from `constants/*`.
+
 ### Convention Examples (Reference Implementations)
 - `pkg/errors/provider_error.go`: typed error pattern for provider/upstream failures with stable code + HTTP status mapping helpers.
 - `pkg/errors/upload_errors.go`: sentinel error pattern with shared message constant and `errors.Is`-friendly flow.

@@ -2,9 +2,11 @@ package media
 
 import (
 	"fmt"
+
+	"mycourse-io-be/pkg/entities"
 )
 
-var Cloud *CloudClients
+var Cloud *entities.CloudClients
 
 // Setup initializes media SDK clients once at app startup.
 func Setup() error {

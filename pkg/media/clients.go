@@ -21,37 +21,16 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/entities"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/setting"
 )
 
-type CloudClients struct {
-	b2Client     *b2.Client
-	b2BucketName string
-	bunnyStorage *bunnystorage.Client
-	gcoreService *gcdn.Service
-	httpClient   *http.Client
-}
-
-type BunnyVideoDetail struct {
-	VideoLibraryID int     `json:"videoLibraryId"`
-	GUID           string  `json:"guid"`
-	Length         float64 `json:"length"`
-	Status         int     `json:"status"`
-	Width          int     `json:"width"`
-	Height         int     `json:"height"`
-	Framerate      float64 `json:"framerate"`
-	Bitrate        int     `json:"bitrate"`
-	VideoCodec     string  `json:"videoCodec"`
-	AudioCodec     string  `json:"audioCodec"`
-	HasMP4Fallback bool    `json:"hasMP4Fallback"`
-}
-
-func NewCloudClientsFromEnv() (*CloudClients, error) {
-	out := &CloudClients{
-		httpClient: &http.Client{Timeout: 60 * time.Second},
+func NewCloudClientsFromEnv() (*entities.CloudClients, error) {
+	out := &entities.CloudClients{
+		HTTPClient: &http.Client{Timeout: 60 * time.Second},
 	}
 
 	keyID := strings.TrimSpace(os.Getenv("MEDIA_B2_KEY_ID"))
@@ -62,8 +41,8 @@ func NewCloudClientsFromEnv() (*CloudClients, error) {
 		if err != nil {
 			return nil, err
 		}
-		out.b2Client = client
-		out.b2BucketName = bucket
+		out.B2Client = client
+		out.B2BucketName = bucket
 	}
 
 	gcoreAPIToken := strings.TrimSpace(os.Getenv("MEDIA_GCORE_API_TOKEN"))
@@ -75,7 +54,7 @@ func NewCloudClientsFromEnv() (*CloudClients, error) {
 				return nil
 			}),
 		)
-		out.gcoreService = gcdn.NewService(apiClient)
+		out.GcoreService = gcdn.NewService(apiClient)
 	}
 
 	bunnyEndpoint := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_STORAGE_ENDPOINT"))
@@ -86,20 +65,20 @@ func NewCloudClientsFromEnv() (*CloudClients, error) {
 			return nil, err
 		}
 		client := bunnystorage.NewClient(*parsed, bunnyPassword)
-		out.bunnyStorage = &client
+		out.BunnyStorage = &client
 	}
 	return out, nil
 }
 
 // effectiveB2Bucket prefers YAML/media.b2_bucket after setting.Setup(); falls back to env bucket from constructor.
-func (c *CloudClients) effectiveB2Bucket() string {
+func effectiveB2Bucket(c *entities.CloudClients) string {
 	if b := strings.TrimSpace(setting.MediaSetting.B2Bucket); b != "" {
 		return b
 	}
-	return strings.TrimSpace(c.b2BucketName)
+	return strings.TrimSpace(c.B2BucketName)
 }
 
-func (c *CloudClients) UploadLocal(objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
+func UploadLocal(_ *entities.CloudClients, objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	secret := strings.TrimSpace(setting.MediaSetting.LocalFileURLSecret)
 	if secret == "" {
 		secret = "mycourse-local-file-secret"
@@ -114,15 +93,15 @@ func (c *CloudClients) UploadLocal(objectKey string, meta entities.RawMetadata) 
 	}, nil
 }
 
-func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.Reader, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
-	if c.b2Client == nil {
+func UploadB2(c *entities.CloudClients, ctx context.Context, objectKey string, file io.Reader, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
+	if c.B2Client == nil {
 		return dto.UploadFileResponse{}, fmt.Errorf("B2 client is not configured")
 	}
-	bucketName := c.effectiveB2Bucket()
+	bucketName := effectiveB2Bucket(c)
 	if bucketName == "" {
-		return dto.UploadFileResponse{}, &ProviderError{Code: errcode.B2BucketNotConfigured}
+		return dto.UploadFileResponse{}, &pkgerrors.ProviderError{Code: errcode.B2BucketNotConfigured}
 	}
-	bucket, err := c.b2Client.Bucket(ctx, bucketName)
+	bucket, err := c.B2Client.Bucket(ctx, bucketName)
 	if err != nil {
 		return dto.UploadFileResponse{}, err
 	}
@@ -150,12 +129,12 @@ func (c *CloudClients) UploadB2(ctx context.Context, objectKey string, file io.R
 	}, nil
 }
 
-func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, payload []byte, objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
+func UploadBunnyVideo(c *entities.CloudClients, ctx context.Context, filename string, payload []byte, objectKey string, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	_ = objectKey // Bunny object key is the API GUID after create.
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
-		return dto.UploadFileResponse{}, &ProviderError{Code: errcode.BunnyStreamNotConfigured}
+		return dto.UploadFileResponse{}, &pkgerrors.ProviderError{Code: errcode.BunnyStreamNotConfigured}
 	}
 	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 
@@ -167,14 +146,14 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 	}
 	req.Header.Set("AccessKey", apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return dto.UploadFileResponse{}, err
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
-		return dto.UploadFileResponse{}, &ProviderError{
+		return dto.UploadFileResponse{}, &pkgerrors.ProviderError{
 			Code: errcode.BunnyCreateFailed,
 			Msg:  strings.TrimSpace(string(body)),
 			Err:  fmt.Errorf("bunny create video: HTTP %d", resp.StatusCode),
@@ -184,14 +163,14 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 		GUID string `json:"guid"`
 	}
 	if err := json.Unmarshal(body, &created); err != nil {
-		return dto.UploadFileResponse{}, &ProviderError{
+		return dto.UploadFileResponse{}, &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
 			Msg:  err.Error(),
 			Err:  err,
 		}
 	}
 	if created.GUID == "" {
-		return dto.UploadFileResponse{}, &ProviderError{
+		return dto.UploadFileResponse{}, &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
 			Msg:  "bunny stream did not return video guid",
 			Err:  errors.New("missing guid"),
@@ -205,14 +184,14 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 	}
 	uploadReq.Header.Set("AccessKey", apiKey)
 	uploadReq.Header.Set("Content-Type", "application/octet-stream")
-	uploadResp, err := c.httpClient.Do(uploadReq)
+	uploadResp, err := c.HTTPClient.Do(uploadReq)
 	if err != nil {
 		return dto.UploadFileResponse{}, err
 	}
 	defer uploadResp.Body.Close()
 	uploadBody, _ := io.ReadAll(uploadResp.Body)
 	if uploadResp.StatusCode >= 300 {
-		return dto.UploadFileResponse{}, &ProviderError{
+		return dto.UploadFileResponse{}, &pkgerrors.ProviderError{
 			Code: errcode.BunnyUploadFailed,
 			Msg:  strings.TrimSpace(string(uploadBody)),
 			Err:  fmt.Errorf("bunny upload video: HTTP %d", uploadResp.StatusCode),
@@ -236,22 +215,22 @@ func (c *CloudClients) UploadBunnyVideo(ctx context.Context, filename string, pa
 	}, nil
 }
 
-func (c *CloudClients) DeleteB2Object(ctx context.Context, objectKey string) error {
-	if c.b2Client == nil {
+func DeleteB2Object(c *entities.CloudClients, ctx context.Context, objectKey string) error {
+	if c.B2Client == nil {
 		return fmt.Errorf("B2 client is not configured")
 	}
-	bucketName := c.effectiveB2Bucket()
+	bucketName := effectiveB2Bucket(c)
 	if bucketName == "" {
-		return &ProviderError{Code: errcode.B2BucketNotConfigured}
+		return &pkgerrors.ProviderError{Code: errcode.B2BucketNotConfigured}
 	}
-	bucket, err := c.b2Client.Bucket(ctx, bucketName)
+	bucket, err := c.B2Client.Bucket(ctx, bucketName)
 	if err != nil {
 		return err
 	}
 	return bucket.Object(strings.TrimLeft(objectKey, "/")).Delete(ctx)
 }
 
-func (c *CloudClients) DeleteBunnyVideo(ctx context.Context, videoGUID string) error {
+func DeleteBunnyVideo(c *entities.CloudClients, ctx context.Context, videoGUID string) error {
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
@@ -264,7 +243,7 @@ func (c *CloudClients) DeleteBunnyVideo(ctx context.Context, videoGUID string) e
 		return err
 	}
 	req.Header.Set("AccessKey", apiKey)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -276,11 +255,11 @@ func (c *CloudClients) DeleteBunnyVideo(ctx context.Context, videoGUID string) e
 	return nil
 }
 
-func (c *CloudClients) GetBunnyVideoByID(ctx context.Context, videoGUID string) (*BunnyVideoDetail, error) {
+func GetBunnyVideoByID(c *entities.CloudClients, ctx context.Context, videoGUID string) (*entities.BunnyVideoDetail, error) {
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
-		return nil, &ProviderError{Code: errcode.BunnyStreamNotConfigured}
+		return nil, &pkgerrors.ProviderError{Code: errcode.BunnyStreamNotConfigured}
 	}
 	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 	u := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, videoGUID)
@@ -291,7 +270,7 @@ func (c *CloudClients) GetBunnyVideoByID(ctx context.Context, videoGUID string) 
 	req.Header.Set("AccessKey", apiKey)
 	req.Header.Set("accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -299,30 +278,30 @@ func (c *CloudClients) GetBunnyVideoByID(ctx context.Context, videoGUID string) 
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, &ProviderError{
+		return nil, &pkgerrors.ProviderError{
 			Code: errcode.BunnyVideoNotFound,
 			Msg:  strings.TrimSpace(string(body)),
 			Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
 		}
 	}
 	if resp.StatusCode >= 300 {
-		return nil, &ProviderError{
+		return nil, &pkgerrors.ProviderError{
 			Code: errcode.BunnyGetVideoFailed,
 			Msg:  strings.TrimSpace(string(body)),
 			Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
 		}
 	}
 
-	var out BunnyVideoDetail
+	var out entities.BunnyVideoDetail
 	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, &ProviderError{
+		return nil, &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
 			Msg:  err.Error(),
 			Err:  err,
 		}
 	}
 	if strings.TrimSpace(out.GUID) == "" {
-		return nil, &ProviderError{
+		return nil, &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
 			Msg:  "bunny stream did not return video guid",
 			Err:  errors.New("missing guid"),

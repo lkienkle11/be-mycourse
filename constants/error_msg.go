@@ -20,7 +20,7 @@
 // entry whose text is shared with a constant in this file **must** use the constant from here
 // so wording cannot drift (search this file before adding a parallel string in messages.go).
 //
-// Related: pkg/media/upload_errors.go (ErrFileExceedsMaxUploadSize), pkg/errcode/messages.go (FileTooLarge).
+// Related: pkg/errors/upload_errors.go (ErrFileExceedsMaxUploadSize), pkg/errcode/messages.go (FileTooLarge).
 package constants
 
 // --- Media upload (multipart field "file", POST/PUT /api/v1/media/files) ---
@@ -32,7 +32,7 @@ const MaxMediaUploadFileBytes int64 = 2 * 1024 * 1024 * 1024
 // MsgFileTooLargeUpload is the single canonical user-facing string for "uploaded file over 2 GiB cap".
 // Used by:
 //   - pkg/errcode defaultMessages[FileTooLarge] (JSON envelope message for code 2003),
-//   - pkg/media.ErrFileExceedsMaxUploadSize (errors.New / errors.Is sentinel).
+//   - pkg/errors.ErrFileExceedsMaxUploadSize (errors.New / errors.Is sentinel).
 //
 // Do not copy this literal into messages.go or upload_errors.go — import constants.MsgFileTooLargeUpload.
 const MsgFileTooLargeUpload = "Uploaded file exceeds the maximum allowed size (2 GiB per file)"

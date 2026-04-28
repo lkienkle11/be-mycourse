@@ -1,7 +1,7 @@
-package media
+package errors
 
 import (
-	"errors"
+	stderrors "errors"
 
 	"mycourse-io-be/constants"
 )
@@ -9,4 +9,4 @@ import (
 // ErrFileExceedsMaxUploadSize is returned when a single uploaded file exceeds constants.MaxMediaUploadFileBytes
 // (declared size, buffered read cap, or stream longer than the limit).
 // Same text as pkg/errcode default for FileTooLarge — constants.MsgFileTooLargeUpload (do not duplicate).
-var ErrFileExceedsMaxUploadSize = errors.New(constants.MsgFileTooLargeUpload)
+var ErrFileExceedsMaxUploadSize = stderrors.New(constants.MsgFileTooLargeUpload)

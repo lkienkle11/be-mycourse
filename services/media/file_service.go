@@ -15,6 +15,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
@@ -83,7 +84,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	provider := helper.DefaultMediaProvider(kind)
 
 	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
-		return nil, pkgmedia.ErrFileExceedsMaxUploadSize
+		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
 	}
 
 	// Never read more than cap+1 bytes so oversized streams fail without buffering the whole payload.
@@ -93,7 +94,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		return nil, err
 	}
 	if int64(len(payload)) > constants.MaxMediaUploadFileBytes {
-		return nil, pkgmedia.ErrFileExceedsMaxUploadSize
+		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
 	}
 
 	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, meta)
@@ -207,24 +208,24 @@ func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 		if videoGUID == "" {
 			videoGUID = key
 		}
-		return clients.DeleteBunnyVideo(context.Background(), videoGUID)
+		return pkgmedia.DeleteBunnyVideo(clients, context.Background(), videoGUID)
 	case constants.FileProviderLocal:
 		return nil
 	default:
-		if err := clients.DeleteB2Object(context.Background(), key); err != nil {
+		if err := pkgmedia.DeleteB2Object(clients, context.Background(), key); err != nil {
 			return err
 		}
 	}
 	return mediaRepository().SoftDeleteByObjectKey(key)
 }
 
-func uploadToProvider(clients *pkgmedia.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
+func uploadToProvider(clients *entities.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
 	switch provider {
 	case constants.FileProviderLocal:
-		return clients.UploadLocal(objectKey, meta)
+		return pkgmedia.UploadLocal(clients, objectKey, meta)
 	case constants.FileProviderBunny:
-		return clients.UploadBunnyVideo(context.Background(), filename, payload, objectKey, meta)
+		return pkgmedia.UploadBunnyVideo(clients, context.Background(), filename, payload, objectKey, meta)
 	default:
-		return clients.UploadB2(context.Background(), objectKey, bytes.NewReader(payload), meta)
+		return pkgmedia.UploadB2(clients, context.Background(), objectKey, bytes.NewReader(payload), meta)
 	}
 }

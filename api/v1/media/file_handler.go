@@ -9,11 +9,11 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
-	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/response"
 	mediaservice "mycourse-io-be/services/media"
 )
@@ -85,16 +85,16 @@ func createFile(c *gin.Context) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return
 		}
-		if errors.Is(err, pkgmedia.ErrFileExceedsMaxUploadSize) {
+		if errors.Is(err, pkgerrors.ErrFileExceedsMaxUploadSize) {
 			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
 			return
 		}
-		if pe, ok := pkgmedia.AsProviderError(err); ok {
+		if pe, ok := pkgerrors.AsProviderError(err); ok {
 			msg := pe.Error()
 			if strings.TrimSpace(msg) == "" {
 				msg = errcode.DefaultMessage(pe.Code)
 			}
-			response.Fail(c, pkgmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
@@ -141,16 +141,16 @@ func updateFile(c *gin.Context) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return
 		}
-		if errors.Is(err, pkgmedia.ErrFileExceedsMaxUploadSize) {
+		if errors.Is(err, pkgerrors.ErrFileExceedsMaxUploadSize) {
 			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
 			return
 		}
-		if pe, ok := pkgmedia.AsProviderError(err); ok {
+		if pe, ok := pkgerrors.AsProviderError(err); ok {
 			msg := pe.Error()
 			if strings.TrimSpace(msg) == "" {
 				msg = errcode.DefaultMessage(pe.Code)
 			}
-			response.Fail(c, pkgmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
@@ -203,12 +203,12 @@ func getVideoStatus(c *gin.Context) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return
 		}
-		if pe, ok := pkgmedia.AsProviderError(err); ok {
+		if pe, ok := pkgerrors.AsProviderError(err); ok {
 			msg := pe.Error()
 			if strings.TrimSpace(msg) == "" {
 				msg = errcode.DefaultMessage(pe.Code)
 			}
-			response.Fail(c, pkgmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)

@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/dto"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/errcode"
-	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/response"
 	mediaservice "mycourse-io-be/services/media"
 )
@@ -20,9 +20,9 @@ func bunnyWebhook(c *gin.Context) {
 	}
 
 	if err := mediaservice.HandleBunnyVideoWebhook(c.Request.Context(), req); err != nil {
-		if pe, ok := pkgmedia.AsProviderError(err); ok {
+		if pe, ok := pkgerrors.AsProviderError(err); ok {
 			msg := pe.Error()
-			response.Fail(c, pkgmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)

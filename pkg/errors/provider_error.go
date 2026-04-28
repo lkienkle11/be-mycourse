@@ -1,7 +1,7 @@
-package media
+package errors
 
 import (
-	"errors"
+	stderrors "errors"
 	"net/http"
 
 	"mycourse-io-be/pkg/errcode"
@@ -40,7 +40,7 @@ func HTTPStatusForProviderCode(code int) int {
 // AsProviderError unwraps *ProviderError.
 func AsProviderError(err error) (*ProviderError, bool) {
 	var pe *ProviderError
-	if errors.As(err, &pe) {
+	if stderrors.As(err, &pe) {
 		return pe, true
 	}
 	return nil, false

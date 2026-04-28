@@ -23,7 +23,7 @@ func GetVideoStatus(ctx context.Context, videoGUID string) (*dto.VideoStatusResp
 	if guid == "" {
 		return nil, fmt.Errorf("video guid is required")
 	}
-	video, err := pkgmedia.Cloud.GetBunnyVideoByID(ctx, guid)
+	video, err := pkgmedia.GetBunnyVideoByID(pkgmedia.Cloud, ctx, guid)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func HandleBunnyVideoWebhook(ctx context.Context, req dto.BunnyVideoWebhookReque
 		return nil
 	}
 
-	video, err := pkgmedia.Cloud.GetBunnyVideoByID(ctx, strings.TrimSpace(req.VideoGUID))
+	video, err := pkgmedia.GetBunnyVideoByID(pkgmedia.Cloud, ctx, strings.TrimSpace(req.VideoGUID))
 	if err != nil {
 		return err
 	}

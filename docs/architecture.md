@@ -7,6 +7,12 @@
 - Do not declare new reusable/domain types inline inside logic implementation files.
 - Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
+## Global Constants Placement Rule (Mandatory)
+
+- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
+- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
+- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+
 ## Overview
 
 The **MyCourse** backend is a **Go 1.25** monolith (`module mycourse-io-be`): **Gin** for HTTP, **GORM** (and **sqlx** where needed) for PostgreSQL, **Redis** for auth-related caching, optional **Supabase** HTTP + DB helpers, **golang-migrate** SQL files under `migrations/`, and a **unified JSON envelope** via `pkg/response` plus numeric codes in `pkg/errcode`.

@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/api"
 	"mycourse-io-be/config"
 	"mycourse-io-be/internal/appcli"
+	"mycourse-io-be/internal/jobs"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/cache_clients"
 	pkgmedia "mycourse-io-be/pkg/media"
@@ -54,6 +55,8 @@ func main() {
 	}
 
 	config.InitSystem()
+
+	jobs.StartMediaPendingCleanupJob(models.DB)
 
 	queues.Consume()
 

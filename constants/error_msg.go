@@ -46,4 +46,6 @@ const (
 	MsgMediaBunnyInvalidResponse     = "Bunny Stream returned an invalid response"
 	MsgMediaBunnyVideoNotFound       = "Bunny Stream video was not found"
 	MsgMediaBunnyGetVideoFailed      = "Bunny Stream failed to get video details"
+	MsgMediaOptimisticLockConflict   = "Media row was modified by another request; refresh and retry"
+	MsgMediaReuseMismatch            = "reuse_media_id does not match this media row"
 )

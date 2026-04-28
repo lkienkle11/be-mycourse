@@ -7,21 +7,23 @@ import (
 
 func ToUploadFileResponse(file entities.File) dto.UploadFileResponse {
 	return dto.UploadFileResponse{
-		ID:             file.ID,
-		Kind:           string(file.Kind),
-		Filename:       file.Filename,
-		MimeType:       file.MimeType,
-		SizeBytes:      file.SizeBytes,
-		Status:         string(file.Status),
-		B2BucketName:   file.B2BucketName,
-		URL:            file.URL,
-		OriginURL:      file.OriginURL,
-		ObjectKey:      file.ObjectKey,
-		BunnyVideoID:   file.BunnyVideoID,
-		BunnyLibraryID: file.BunnyLibraryID,
-		Duration:       file.Duration,
-		VideoProvider:  file.VideoProvider,
-		Metadata:       file.Metadata,
+		ID:                 file.ID,
+		Kind:               string(file.Kind),
+		Filename:           file.Filename,
+		MimeType:           file.MimeType,
+		SizeBytes:          file.SizeBytes,
+		Status:             string(file.Status),
+		B2BucketName:       file.B2BucketName,
+		URL:                file.URL,
+		OriginURL:          file.OriginURL,
+		ObjectKey:          file.ObjectKey,
+		BunnyVideoID:       file.BunnyVideoID,
+		BunnyLibraryID:     file.BunnyLibraryID,
+		Duration:           file.Duration,
+		VideoProvider:      file.VideoProvider,
+		Metadata:           file.Metadata,
+		RowVersion:         file.RowVersion,
+		ContentFingerprint: file.ContentFingerprint,
 	}
 }
 

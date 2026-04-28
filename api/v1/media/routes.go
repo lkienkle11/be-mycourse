@@ -14,6 +14,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	media.OPTIONS("/local/:token", optionsMedia)
 
 	media.GET("", middleware.RequirePermission(constants.AllPermissions.MediaFileRead), listFiles)
+	media.GET("/cleanup-metrics", middleware.RequirePermission(constants.AllPermissions.MediaFileRead), getMediaCleanupMetrics)
 	media.POST("", middleware.RequirePermission(constants.AllPermissions.MediaFileCreate), createFile)
 	media.GET("/:id", middleware.RequirePermission(constants.AllPermissions.MediaFileRead), getFile)
 	media.PUT("/:id", middleware.RequirePermission(constants.AllPermissions.MediaFileUpdate), updateFile)

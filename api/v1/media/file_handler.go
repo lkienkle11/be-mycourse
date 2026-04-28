@@ -9,8 +9,8 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
-	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/errcode"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
@@ -57,7 +57,6 @@ func createFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "file is required (multipart field: file)", nil)
 		return
 	}
-	// Early reject when the client declared Content-Length / part size (avoids pointless buffering).
 	if upload.Size >= 0 && upload.Size > constants.MaxMediaUploadFileBytes {
 		response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
 		return
@@ -69,15 +68,10 @@ func createFile(c *gin.Context) {
 	}
 	defer file.Close()
 
-	meta, err := helper.ParseMetadataFromRaw(c.PostForm("metadata"))
+	req, err := helper.BindCreateFileMultipart(c)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
-	}
-	req := dto.CreateFileRequest{
-		Kind:      c.PostForm("kind"),
-		ObjectKey: c.PostForm("object_key"),
-		Metadata:  meta,
 	}
 	row, err := mediaservice.CreateFile(req, file, upload)
 	if err != nil {
@@ -126,14 +120,10 @@ func updateFile(c *gin.Context) {
 	}
 	defer file.Close()
 
-	meta, err := helper.ParseMetadataFromRaw(c.PostForm("metadata"))
+	req, err := helper.BindUpdateFileMultipart(c)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
-	}
-	req := dto.UpdateFileRequest{
-		Kind:     c.PostForm("kind"),
-		Metadata: meta,
 	}
 	row, err := mediaservice.UpdateFile(objectKey, req, file, upload)
 	if err != nil {
@@ -143,6 +133,10 @@ func updateFile(c *gin.Context) {
 		}
 		if errors.Is(err, pkgerrors.ErrFileExceedsMaxUploadSize) {
 			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
+			return
+		}
+		if errors.Is(err, pkgerrors.ErrMediaOptimisticLock) || errors.Is(err, pkgerrors.ErrMediaReuseMismatch) {
+			response.Fail(c, http.StatusConflict, errcode.Conflict, err.Error(), nil)
 			return
 		}
 		if pe, ok := pkgerrors.AsProviderError(err); ok {
@@ -215,4 +209,12 @@ func getVideoStatus(c *gin.Context) {
 		return
 	}
 	response.OK(c, "ok", out)
+}
+
+func getMediaCleanupMetrics(c *gin.Context) {
+	response.OK(c, "ok", gin.H{
+		"cleanup_cloud_deleted": mediaservice.CleanupCloudDeleted.Load(),
+		"cleanup_cloud_failed":  mediaservice.CleanupCloudFailed.Load(),
+		"cleanup_cloud_retried": mediaservice.CleanupCloudRetried.Load(),
+	})
 }

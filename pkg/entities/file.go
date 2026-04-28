@@ -39,22 +39,24 @@ type DocumentMetadata struct {
 }
 
 type File struct {
-	ID             string                 `json:"id"`
-	Kind           constants.FileKind     `json:"kind"`
-	Provider       constants.FileProvider `json:"provider"`
-	Filename       string                 `json:"filename"`
-	MimeType       string                 `json:"mime_type"`
-	SizeBytes      int64                  `json:"size_bytes"`
-	URL            string                 `json:"url"`
-	OriginURL      string                 `json:"origin_url"`
-	ObjectKey      string                 `json:"object_key"`
-	Status         constants.FileStatus   `json:"status"`
-	B2BucketName   string                 `json:"b2_bucket_name"`
-	BunnyVideoID   string                 `json:"bunny_video_id"`
-	BunnyLibraryID string                 `json:"bunny_library_id"`
-	Duration       int64                  `json:"duration"`
-	VideoProvider  string                 `json:"video_provider"`
-	Metadata       any                    `json:"metadata"`
-	CreatedAt      time.Time              `json:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at"`
+	ID                 string                 `json:"id"`
+	Kind               constants.FileKind     `json:"kind"`
+	Provider           constants.FileProvider `json:"provider"`
+	Filename           string                 `json:"filename"`
+	MimeType           string                 `json:"mime_type"`
+	SizeBytes          int64                  `json:"size_bytes"`
+	URL                string                 `json:"url"`
+	OriginURL          string                 `json:"origin_url"`
+	ObjectKey          string                 `json:"object_key"`
+	Status             constants.FileStatus   `json:"status"`
+	B2BucketName       string                 `json:"b2_bucket_name"`
+	BunnyVideoID       string                 `json:"bunny_video_id"`
+	BunnyLibraryID     string                 `json:"bunny_library_id"`
+	Duration           int64                  `json:"duration"`
+	VideoProvider      string                 `json:"video_provider"`
+	RowVersion         int64                  `json:"row_version,omitempty"`
+	ContentFingerprint string                 `json:"content_fingerprint,omitempty"`
+	Metadata           any                    `json:"metadata"`
+	CreatedAt          time.Time              `json:"created_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
 }

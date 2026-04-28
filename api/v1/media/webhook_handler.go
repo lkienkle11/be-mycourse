@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/dto"
-	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/errcode"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/response"
 	mediaservice "mycourse-io-be/services/media"
 )

@@ -1,5 +1,12 @@
 # Deploying MyCourse (Backend + Frontend) on Ubuntu 24.04
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 This guide walks through **server setup**, **HTTPS for two hostnames on one machine**—the **apex / `www` domain for the Next.js frontend** (e.g. `yourdomain.net`) and **`api.` for the Go API** (e.g. `api.yourdomain.net`)—plus **CI/CD** (`.github/workflows/deploy-dev.yml` for the backend on **`master`**, and the frontend workflow in the **Next.js repo** on **`dev`** — checkout path on the server is often `/opt/mycourse/fe` or `fe-mycourse`). Replace **`yourdomain.net`** everywhere with your real **`.net`** domain.
 
 The sections under **Deployment runbook** are ordered: follow **Step 1 → Step 2 → …** in sequence. Background context and CI/CD details come **after** the runbook.

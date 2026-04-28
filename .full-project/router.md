@@ -1,5 +1,12 @@
 # Router Snapshot
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 ## Initialization
 - Router is created in `api.InitRouter()`.
 - `InitRouter` sets `router.MaxMultipartMemory = 64 << 20` (64 MiB) so large multipart bodies spill to disk during parse; per-file upload cap is still enforced in media handlers/services (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**, 2 GiB).

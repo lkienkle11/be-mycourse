@@ -1,5 +1,12 @@
 # Dependencies Snapshot
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 ## Core Runtime Libraries
 - `github.com/gin-gonic/gin`: HTTP server/router.
 - `gorm.io/gorm` + `gorm.io/driver/postgres`: ORM and PostgreSQL driver.

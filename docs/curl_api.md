@@ -1,5 +1,12 @@
 # MyCourse Backend — API Reference & cURL Examples
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 > **Base URL:** `http://localhost:8080` (local) / `https://api.mycourse.io` (production)  
 > Replace `{{BASE_URL}}` with the actual base URL in all examples.  
 > **Last updated:** 2026-04-18

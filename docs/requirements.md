@@ -1,5 +1,12 @@
 # MyCourse Backend — Requirements
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 > **Module:** `mycourse-io-be`  
 > **Language:** Go 1.25 · Gin · GORM · PostgreSQL · Redis  
 > **Last updated:** 2026-04-18

@@ -14,6 +14,22 @@
 - Shared **error/sentinel message strings** (and small related numeric caps) belong in **`constants/error_msg.go`** — see file header; numeric JSON codes stay in `pkg/errcode`. If the same sentence is both API default `message` and `errors.New` text, **`pkg/errcode/messages.go` must use the constant** from `error_msg.go` (example: `MsgFileTooLargeUpload` ↔ `FileTooLarge`).
 - **Centralized functional errors:** all reusable functional/sentinel errors (`var Err...`) and typed domain errors (`struct ...Error`) must be placed in **`pkg/errors`**. Domain modules (including `services/*`, `repository/*`, `pkg/media/*`) must import from `pkg/errors` instead of declaring duplicate error vars/types.
 
+## Error / ErrorCode Convention (Mandatory)
+- Reusable/sentinel/typed errors must be defined in `pkg/errors`.
+- Message strings must be centralized in `constants` and referenced by `pkg/errcode/messages.go` (do not duplicate literal text).
+- Every business/functional error must have a corresponding numeric code in `pkg/errcode/codes.go`.
+- Never set error code/message directly inside `services/*`, `repository/*`, or other feature modules. Those layers only return/propagate errors from `pkg/errors` and map via `pkg/errcode`.
+
+### Error Implementation Examples (for AI agents)
+- **Typed provider error pattern**: follow `pkg/errors/provider_error.go` (`ProviderError`, `AsProviderError`, `HTTPStatusForProviderCode`) for upstream/provider integrations that need stable `code` mapping.
+- **Sentinel upload error pattern**: follow `pkg/errors/upload_errors.go` where sentinel `Err...` uses shared message constant from `constants/error_msg.go`, and handler maps it to code in `pkg/errcode`.
+- Minimal checklist when adding new errors:
+  1. Add message constant in `constants/error_msg.go`.
+  2. Add numeric code in `pkg/errcode/codes.go`.
+  3. Wire default message in `pkg/errcode/messages.go` using that constant.
+  4. Declare sentinel/typed error in `pkg/errors/*`.
+  5. In handler boundary, map error -> `errcode` (never hardcode in service/repository).
+
 ## API Patterns
 - Standardized response envelope via `pkg/response`.
 - DTO-centric bind/validate in handlers (`dto/*`).
@@ -41,6 +57,8 @@
 - From now on, for every new code written in any module under `pkg/*` that contains logic handling, all newly introduced reusable types must be created in `pkg/entities` (new file/module or existing entity module), not inline in that logic package file.
 - Do not declare new reusable types inside logic-orchestration layers such as `repository/*`, `services/*`, or ad-hoc feature logic files.
 - All shared/new types must be defined in **`pkg/entities`** (new module file or existing module file) and referenced from other layers.
+- Exception for tests: any type created for test scope can be declared directly inside files under `tests/` when it is only used by those tests.
+- Repository exception remains limited: only the repository initialization type may be declared directly in `repository/*`; other reusable/shared types still belong to `pkg/entities`.
 
 ## Tests directory (`tests/`)
 - **Module-level tests** (integration or black-box packages that import `mycourse-io-be`, shared test harnesses, fixtures used across features, or any test code intentionally kept out of production packages) **belong under repository root `tests/`** (see `tests/README.md`).

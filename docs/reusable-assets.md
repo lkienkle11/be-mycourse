@@ -383,6 +383,17 @@
 
 ## Constant / ErrorCode Assets
 
+### Convention: Error Placement and Mapping (Mandatory)
+- Errors must be declared in `pkg/errors` (sentinel/typed), not inside `services/*` or `repository/*`.
+- Error messages must come from shared constants in `constants/error_msg.go` and be wired into `pkg/errcode/messages.go`.
+- Error numeric codes must be defined in `pkg/errcode/codes.go` before use.
+- Do not hardcode error code/message in feature modules; map at boundary using centralized `errcode`.
+
+### Convention Examples (Reference Implementations)
+- `pkg/errors/provider_error.go`: typed error pattern for provider/upstream failures with stable code + HTTP status mapping helpers.
+- `pkg/errors/upload_errors.go`: sentinel error pattern with shared message constant and `errors.Is`-friendly flow.
+- Reuse these two patterns when creating new errors so all modules stay consistent.
+
 ### Asset: Permission Catalog
 - Name: `AllPermissions`, `AllPermissionEntries`
 - Type: Constant catalog
@@ -415,6 +426,10 @@
 - Current Usage: Auth, RBAC, middleware, error pipeline.
 - Reuse Opportunity:
   - Reuse for all new CRUD failure conditions.
+
+### Tests Exception (Type Placement)
+- Types created only for test scope can be declared directly inside files under `tests/`.
+- This tests-only exception does not apply to production code paths in `services/*` or `repository/*`.
 
 ## Middleware / Validator Assets
 

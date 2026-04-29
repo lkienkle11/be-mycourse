@@ -1,111 +1,1007 @@
+# Apidog: import docs/api-dog-import.json (Postman Collection v2.1 — auto-saves tokens after Login / Confirm / Refresh; run generator below).
+# Regenerate: ruby scripts/generate-apidog-postman.rb (from repo root)
 openapi: 3.0.3
 info:
   title: MyCourse Backend API
-  version: 0.1.0
+  description: |
+    REST API for **be-mycourse** (Gin). Responses use envelope `{ "code", "message", "data" }` with `code: 0` for success.
+    Health check uses `{ "code", "message", "status" }`.
+  version: 1.0.0
+  contact:
+    name: MyCourse Backend
+
 servers:
   - url: http://localhost:8080
-security:
-  - bearerAuth: []
+    description: Local
+  - url: https://api.mycourse.io
+    description: Production (example)
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Me
+  - name: Taxonomy
+  - name: Media
+  - name: Webhooks
+  - name: System
+  - name: Internal RBAC
+
 components:
   securitySchemes:
-    bearerAuth:
+    bearerJwt:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: User access token from login / confirm / refresh (`Authorization` header).
+    systemBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived token from `POST /api/system/login`.
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Internal service API key.
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+      description: 1-based page index.
+    PerPage:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    SortOrder:
+      name: sort_order
+      in: query
+      schema: { type: string, enum: [asc, desc], default: asc }
+    SearchBy:
+      name: search_by
+      in: query
+      schema: { type: string }
+    SearchData:
+      name: search_data
+      in: query
+      schema: { type: string }
+
   schemas:
-    ErrorResponse:
+    EnvelopeOK:
       type: object
       properties:
-        message:
-          type: string
+        code: { type: integer, example: 0 }
+        message: { type: string }
+        data: {}
+    EnvelopeHealth:
+      type: object
+      properties:
+        code: { type: integer, example: 0 }
+        message: { type: string }
+        status: { type: string, example: ok }
+    RegisterRequest:
+      type: object
+      required: [email, password, display_name]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        display_name: { type: string, minLength: 1, maxLength: 255 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        remember_me: { type: boolean, default: false }
+    TokenPair:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        session_id: { type: string, description: 128-char hex session id }
+    SystemLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    CreatePermissionRequest:
+      type: object
+      required: [permission_id, permission_name]
+      properties:
+        permission_id: { type: string, maxLength: 10 }
+        permission_name: { type: string, maxLength: 50 }
+        description: { type: string, maxLength: 512 }
+    UpdatePermissionRequest:
+      type: object
+      properties:
+        permission_id: { type: string }
+        permission_name: { type: string }
+        description: { type: string }
+    CreateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+    SetRolePermissionsRequest:
+      type: object
+      required: [permission_ids]
+      properties:
+        permission_ids:
+          type: array
+          items: { type: string }
+    AssignUserRoleRequest:
+      type: object
+      required: [role_id]
+      properties:
+        role_id: { type: integer, format: int64 }
+    AssignUserPermissionRequest:
+      type: object
+      properties:
+        permission_id: { type: string }
+        permission_name: { type: string }
+      description: At least one of permission_id or permission_name required.
+    CreateCourseLevelRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255 }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    UpdateCourseLevelRequest:
+      type: object
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    CreateCategoryRequest:
+      type: object
+      required: [name, slug, image_url]
+      properties:
+        name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255 }
+        image_url: { type: string, maxLength: 512 }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    UpdateCategoryRequest:
+      type: object
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        image_url: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    CreateTagRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255 }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    UpdateTagRequest:
+      type: object
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    BunnyVideoWebhookRequest:
+      type: object
+      required: [video_library_id, video_guid, status]
+      properties:
+        video_library_id: { type: string }
+        video_guid: { type: string }
+        status: { type: integer }
+
 paths:
-  /health:
+  /api/v1/health:
     get:
+      tags: [Health]
       summary: Health check
       security: []
       responses:
         "200":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvelopeHealth"
+
   /api/v1/auth/register:
     post:
+      tags: [Auth]
       summary: Register user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
         "201":
           description: Created
-        "400":
-          description: Bad request
-        "500":
-          description: Server error
+        "400": { description: Validation / weak password }
+        "409": { description: Email already exists }
+
   /api/v1/auth/login:
     post:
-      summary: Login user
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
-          description: Success
-        "400":
-          description: Bad request
-        "401":
-          description: Unauthorized
-  /api/v1/users/me:
+          description: Tokens in body + Set-Cookie (access_token, refresh_token, session_id)
+
+  /api/v1/auth/confirm:
     get:
-      summary: Get profile
+      tags: [Auth]
+      summary: Confirm email (query token)
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
       responses:
         "200":
-          description: Success
-        "401":
-          description: Unauthorized
+          description: Logged in; tokens returned
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access + refresh tokens
+      security: []
+      parameters:
+        - name: X-Refresh-Token
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-Session-Id
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: New token pair
+
+  /api/v1/me:
+    get:
+      tags: [Me]
+      summary: Current user profile + effective permissions
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/me/permissions:
+    get:
+      tags: [Me]
+      summary: List permission codes (requires user:read)
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
         "403":
           description: Forbidden
-  /api/v1/courses:
+
+  /api/v1/taxonomy/levels:
     get:
-      summary: List courses
+      tags: [Taxonomy]
+      summary: List course levels (paginated)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [id, name, slug, status, created_at]
+        - $ref: "#/components/parameters/SortOrder"
+        - $ref: "#/components/parameters/SearchBy"
+        - $ref: "#/components/parameters/SearchData"
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, INACTIVE] }
       responses:
         "200":
-          description: Success
+          description: Paginated list
     post:
-      summary: Create course
+      tags: [Taxonomy]
+      summary: Create course level
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourseLevelRequest"
       responses:
         "201":
           description: Created
-        "401":
-          description: Unauthorized
-        "403":
-          description: Forbidden
-  /api/v1/courses/{id}:
-    get:
-      summary: Get course details
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+
+  /api/v1/taxonomy/levels/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      tags: [Taxonomy]
+      summary: Update course level
+      security:
+        - bearerJwt: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCourseLevelRequest"
       responses:
         "200":
-          description: Success
+          description: OK
+    delete:
+      tags: [Taxonomy]
+      summary: Delete course level
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/taxonomy/categories:
+    get:
+      tags: [Taxonomy]
+      summary: List categories (paginated)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [id, name, slug, status, created_at]
+        - $ref: "#/components/parameters/SortOrder"
+        - $ref: "#/components/parameters/SearchBy"
+        - $ref: "#/components/parameters/SearchData"
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+      responses:
+        "200":
+          description: Paginated list
+    post:
+      tags: [Taxonomy]
+      summary: Create category
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryRequest"
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/taxonomy/categories/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      tags: [Taxonomy]
+      summary: Update category
+      security:
+        - bearerJwt: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryRequest"
+      responses:
+        "200":
+          description: OK
         "404":
           description: Not found
-  /api/v1/courses/{id}/lessons:
-    get:
-      summary: Get lessons by course
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+    delete:
+      tags: [Taxonomy]
+      summary: Delete category
+      security:
+        - bearerJwt: []
       responses:
         "200":
-          description: Success
-        "403":
-          description: Forbidden
-  /api/v1/enrollments:
+          description: OK
+
+  /api/v1/taxonomy/tags:
+    get:
+      tags: [Taxonomy]
+      summary: List tags (paginated)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [id, name, slug, status, created_at]
+        - $ref: "#/components/parameters/SortOrder"
+        - $ref: "#/components/parameters/SearchBy"
+        - $ref: "#/components/parameters/SearchData"
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+      responses:
+        "200":
+          description: Paginated list
     post:
-      summary: Enroll course
+      tags: [Taxonomy]
+      summary: Create tag
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTagRequest"
       responses:
         "201":
           description: Created
+
+  /api/v1/taxonomy/tags/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      tags: [Taxonomy]
+      summary: Update tag
+      security:
+        - bearerJwt: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTagRequest"
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Taxonomy]
+      summary: Delete tag
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/media/files:
+    get:
+      tags: [Media]
+      summary: List media files (paginated)
+      description: |
+        Sortable `sort_by`: created_at, updated_at, filename, size_bytes (default created_at).
+        Searchable `search_by`: filename, object_key, mime_type, status.
+        Filter `provider`: S3, GCS, B2, R2, Bunny, Local. Filter `kind`: FILE, VIDEO.
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/SortOrder"
+        - $ref: "#/components/parameters/SearchBy"
+        - $ref: "#/components/parameters/SearchData"
+        - name: provider
+          in: query
+          schema: { type: string, enum: [S3, GCS, B2, R2, Bunny, Local] }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [FILE, VIDEO] }
+      responses:
+        "200":
+          description: Paginated upload descriptors
+    post:
+      tags: [Media]
+      summary: Upload file or video (multipart)
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                kind:
+                  type: string
+                  description: FILE or VIDEO
+                object_key:
+                  type: string
+                metadata:
+                  type: string
+                  description: JSON object as string
+      responses:
+        "201":
+          description: Created
+        "413":
+          description: File too large
+
+  /api/v1/media/files/cleanup-metrics:
+    get:
+      tags: [Media]
+      summary: Media orphan cleanup counters (atomic gauges)
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/media/files/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+        description: Storage object key (single path segment in default Gin routing).
+      - name: kind
+        in: query
+        schema: { type: string, description: FILE or VIDEO }
+    get:
+      tags: [Media]
+      summary: Get file descriptor by object key
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [Media]
+      summary: Replace media object (multipart)
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                kind: { type: string }
+                metadata: { type: string, description: JSON string }
+                reuse_media_id: { type: string }
+                expected_row_version: { type: string }
+                skip_upload_if_unchanged: { type: string }
+      responses:
+        "200":
+          description: OK
+        "409":
+          description: Optimistic lock / reuse mismatch
+    delete:
+      tags: [Media]
+      summary: Delete media object
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: metadata
+          in: query
+          required: false
+          schema: { type: string, description: Optional JSON metadata for delete flow }
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/media/files/local/{token}:
+    get:
+      tags: [Media]
+      summary: Decode local URL token to object_key
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 'JSON data contains object_key string'
+
+  /api/v1/media/videos/{id}/status:
+    get:
+      tags: [Media]
+      summary: Bunny (or configured provider) video processing status
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Video GUID (e.g. Bunny video id)
+      responses:
+        "200":
+          description: Status payload from provider
+
+  /api/v1/webhook/bunny:
+    post:
+      tags: [Webhooks]
+      summary: Bunny Stream webhook (JSON body)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BunnyVideoWebhookRequest"
+      responses:
+        "200":
+          description: OK
+
+  /api/system/login:
+    post:
+      tags: [System]
+      summary: System operator login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemLoginRequest"
+      responses:
+        "200":
+          description: access_token + expires_in
         "401":
-          description: Unauthorized
-        "403":
-          description: Forbidden
+          description: Invalid credentials
+
+  /api/system/permission-sync-now:
+    post:
+      tags: [System]
+      summary: Upsert permissions from code constants
+      security:
+        - systemBearer: []
+      responses:
+        "200":
+          description: synced count
+
+  /api/system/role-permission-sync-now:
+    post:
+      tags: [System]
+      summary: Rebuild role_permissions from constants (destructive)
+      security:
+        - systemBearer: []
+      responses:
+        "200":
+          description: rows count
+
+  /api/system/create-permission-sync-job:
+    post:
+      tags: [System]
+      summary: Start periodic permission sync job
+      security:
+        - systemBearer: []
+      responses:
+        "200":
+          description: Started
+
+  /api/system/create-role-permission-sync-job:
+    post:
+      tags: [System]
+      summary: Start periodic role-permission sync job
+      security:
+        - systemBearer: []
+      responses:
+        "200":
+          description: Started
+
+  /api/system/delete-permission-sync-job:
+    post:
+      tags: [System]
+      summary: Stop permission sync job
+      security:
+        - systemBearer: []
+      responses:
+        "200":
+          description: Stopped
+
+  /api/system/delete-role-permission-sync-job:
+    post:
+      tags: [System]
+      summary: Stop role-permission sync job
+      security:
+        - systemBearer: []
+      responses:
+        "200":
+          description: Stopped
+
+  /api/internal-v1/rbac/permissions:
+    get:
+      tags: [Internal RBAC]
+      summary: List permissions (paginated)
+      security:
+        - internalApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [permission_id, permission_name, description, created_at]
+        - $ref: "#/components/parameters/SortOrder"
+        - $ref: "#/components/parameters/SearchBy"
+        - $ref: "#/components/parameters/SearchData"
+      responses:
+        "200":
+          description: Paginated
+    post:
+      tags: [Internal RBAC]
+      summary: Create permission
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePermissionRequest"
+      responses:
+        "201":
+          description: Created
+
+  /api/internal-v1/rbac/permissions/{permissionId}:
+    parameters:
+      - name: permissionId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [Internal RBAC]
+      summary: Update permission
+      security:
+        - internalApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePermissionRequest"
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Internal RBAC]
+      summary: Delete permission (cascades)
+      security:
+        - internalApiKey: []
+      responses:
+        "200":
+          description: Deleted
+
+  /api/internal-v1/rbac/roles:
+    get:
+      tags: [Internal RBAC]
+      summary: List roles
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: with_permissions
+          in: query
+          schema: { type: string, enum: ["0", "1"], default: "0" }
+      responses:
+        "200":
+          description: Array of roles
+    post:
+      tags: [Internal RBAC]
+      summary: Create role
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: Created
+
+  /api/internal-v1/rbac/roles/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Internal RBAC]
+      summary: Get role by id
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: with_permissions
+          in: query
+          schema: { type: string, enum: ["0", "1"] }
+      responses:
+        "200":
+          description: Role
+    patch:
+      tags: [Internal RBAC]
+      summary: Update role
+      security:
+        - internalApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Internal RBAC]
+      summary: Delete role
+      security:
+        - internalApiKey: []
+      responses:
+        "200":
+          description: Deleted
+
+  /api/internal-v1/rbac/roles/{id}/permissions:
+    put:
+      tags: [Internal RBAC]
+      summary: Replace all permissions for role
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetRolePermissionsRequest"
+      responses:
+        "200":
+          description: OK
+
+  /api/internal-v1/rbac/users/{userId}/roles:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Internal RBAC]
+      summary: List roles for user
+      security:
+        - internalApiKey: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Internal RBAC]
+      summary: Assign role to user
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignUserRoleRequest"
+      responses:
+        "200":
+          description: Assigned
+
+  /api/internal-v1/rbac/users/{userId}/roles/{roleId}:
+    delete:
+      tags: [Internal RBAC]
+      summary: Remove role from user
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: roleId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Removed
+
+  /api/internal-v1/rbac/users/{userId}/permissions:
+    get:
+      tags: [Internal RBAC]
+      summary: Effective permission codes for user
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: String array
+
+  /api/internal-v1/rbac/users/{userId}/direct-permissions:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Internal RBAC]
+      summary: Direct permissions only
+      security:
+        - internalApiKey: []
+      responses:
+        "200":
+          description: Permission objects
+    post:
+      tags: [Internal RBAC]
+      summary: Grant direct permission
+      security:
+        - internalApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignUserPermissionRequest"
+      responses:
+        "200":
+          description: Assigned
+
+  /api/internal-v1/rbac/users/{userId}/direct-permissions/{permissionId}:
+    delete:
+      tags: [Internal RBAC]
+      summary: Revoke direct permission
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: permissionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Removed

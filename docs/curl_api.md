@@ -9,7 +9,7 @@
 
 > **Base URL:** `http://localhost:8080` (local) / `https://api.mycourse.io` (production)  
 > Replace `{{BASE_URL}}` with the actual base URL in all examples.  
-> **Last updated:** 2026-04-18
+> **Last updated:** 2026-04-29
 
 ---
 
@@ -55,8 +55,11 @@
    - [Assign Direct Permission to User](#93-assign-direct-permission-to-user)
    - [Remove Direct Permission from User](#94-remove-direct-permission-from-user)
 10. [Deprecated / Planned APIs](#10-deprecated--planned-apis)
-11. [Error Code Reference](#11-error-code-reference)
-12. [Media Upload API (`/api/v1/media/files`)](#12-media-upload-api-apiv1mediafiles)
+11. [Media API (`/api/v1/media/*`)](#11-media-api-apiv1media)
+12. [Taxonomy (`/api/v1/taxonomy/*`)](#12-taxonomy-apiv1taxonomy)
+13. [Webhooks (`/api/v1/webhook/*`)](#13-webhooks-apiv1webhook)
+14. [Error Code Reference](#14-error-code-reference)
+15. [Postman / API Dog](#15-postman--api-dog)
 
 **Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
 
@@ -85,7 +88,7 @@ Every response is JSON in one of two shapes:
 { "code": 0, "message": "ok", "status": "ok" }
 ```
 
-`code: 0` = success. Any non-zero `code` = application error (see [§11](#11-error-code-reference)).
+`code: 0` = success. Any non-zero `code` = application error (see [section 14](#14-error-code-reference)).
 
 ### Authentication Headers
 
@@ -1158,59 +1161,103 @@ curl -X DELETE {{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions/P8 
 
 ---
 
-## 12. Media Upload API (`/api/v1/media/files`)
+## 11. Media API (`/api/v1/media/*`)
 
-> **Auth:** `Authorization: Bearer <access_token>` + media permissions (`media_file:*`)  
+> **Auth:** `Authorization: Bearer <access_token>` + permissions `media_file:read` / `media_file:create` / `media_file:update` / `media_file:delete` (see `constants/permissions.go`).  
 > **Module details:** `docs/modules/media.md`  
 > **Size limit:** one file part per request, max **2 GiB** (`2×1024³` bytes); cap **`constants.MaxMediaUploadFileBytes`** and the default oversize **`message`** string **`constants.MsgFileTooLargeUpload`** both live in **`constants/error_msg.go`** (same literal as `pkg/errcode` `FileTooLarge` and media sentinel — see `docs/architecture.md`). Over the limit → HTTP **413**, JSON `code` **2003** (`FileTooLarge`). Nginx / edge `client_max_body_size` (or equivalent) must be **≥ 2G** on the API host. See `docs/deploy.md`.
 
-### 12.1 Upload file/video
+Path param `:id` on file routes is the **object key** (Gin matches one URL segment; if your key contains `/`, encode per segment or adjust routing).
+
+### 11.1 List files (paginated)
+
+**`GET /api/v1/media/files`**
+
+Query: standard pagination (`page`, `per_page`, `sort_by`, `sort_order`, `search_by`, `search_data`) plus optional `provider` (`S3|GCS|B2|R2|Bunny|Local`), `kind` (`FILE|VIDEO`).  
+Sort whitelist: `created_at`, `updated_at`, `filename`, `size_bytes` (default `created_at`).  
+Search whitelist: `filename`, `object_key`, `mime_type`, `status`.
+
+```bash
+curl -X GET "{{BASE_URL}}/api/v1/media/files?page=1&per_page=20&kind=FILE&sort_by=created_at&sort_order=desc" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 11.2 Cleanup metrics
+
+**`GET /api/v1/media/files/cleanup-metrics`**
+
+Returns JSON `data` with counters `cleanup_cloud_deleted`, `cleanup_cloud_failed`, `cleanup_cloud_retried` (orphan cleanup job).
+
+```bash
+curl -X GET "{{BASE_URL}}/api/v1/media/files/cleanup-metrics" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 11.3 Upload file/video
 
 **`POST /api/v1/media/files`** (multipart form-data)
+
+Form fields: `file` (required), optional `kind` (`FILE`/`VIDEO`), `object_key`, `metadata` (JSON string).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/media/files \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -F "file=@./sample.mp4" \
-  -F "kind=video" \
+  -F "kind=VIDEO" \
   -F 'metadata={"duration":120.5}'
 ```
 
-### 12.2 Get file descriptor by object key
+### 11.4 Get file descriptor by object key
 
-**`GET /api/v1/media/files/{objectKey}?kind=file`**
+**`GET /api/v1/media/files/{objectKey}?kind=FILE`**
 
 ```bash
-curl -X GET "{{BASE_URL}}/api/v1/media/files/path/to/file.png?kind=file" \
+curl -G "{{BASE_URL}}/api/v1/media/files/my-key.png" \
+  --data-urlencode "kind=FILE" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-### 12.3 Replace media object
+### 11.5 Replace media object
 
-**`PUT /api/v1/media/files/{objectKey}`** (multipart form-data)
+**`PUT /api/v1/media/files/{objectKey}`** (multipart)
+
+Optional form fields: `kind`, `metadata` (JSON string), `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`.
 
 ```bash
-curl -X PUT {{BASE_URL}}/api/v1/media/files/path/to/file.png \
+curl -X PUT "{{BASE_URL}}/api/v1/media/files/my-key.png" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -F "file=@./new-file.png" \
-  -F "kind=file"
+  -F "kind=FILE"
 ```
 
-### 12.4 Delete media object
+### 11.6 Delete media object
 
 **`DELETE /api/v1/media/files/{objectKey}`**
 
+Optional query `metadata` (JSON) for delete flow.
+
 ```bash
-curl -X DELETE {{BASE_URL}}/api/v1/media/files/path/to/file.png \
+curl -X DELETE "{{BASE_URL}}/api/v1/media/files/my-key.png" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-### 12.5 Decode local token
+### 11.7 Decode local token
 
 **`GET /api/v1/media/files/local/{token}`**
 
 ```bash
-curl -X GET {{BASE_URL}}/api/v1/media/files/local/<token> \
+curl -X GET "{{BASE_URL}}/api/v1/media/files/local/<token>" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 11.8 Video processing status
+
+**`GET /api/v1/media/videos/{videoGuid}/status`**
+
+`videoGuid` is the provider video id (e.g. Bunny `video_guid`). Response `data` follows provider (e.g. `status` string).
+
+```bash
+curl -X GET "{{BASE_URL}}/api/v1/media/videos/550e8400-e29b-41d4-a716-446655440000/status" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
@@ -1218,7 +1265,110 @@ Provider is chosen by server config (`setting.MediaSetting.AppMediaProvider`), n
 
 ---
 
-## 11. Error Code Reference
+## 12. Taxonomy (`/api/v1/taxonomy/*`)
+
+> **Auth:** Bearer JWT. Permissions: course levels `course_level:*` (P14–P17), categories `category:*` (P18–P21), tags `tag:*` (P22–P25).
+
+All list endpoints support the same pagination / sort / search query params as [Global Conventions](#1-global-conventions).  
+**Course levels & tags:** `search_by` ∈ `name`, `slug`; `sort_by` ∈ `id`, `name`, `slug`, `status`, `created_at` (default `id`). Optional filter `status` = `ACTIVE` or `INACTIVE`.  
+**Categories:** same sort/search; `status` filter identical.
+
+### 12.1 Course levels
+
+| Method | Path |
+|--------|------|
+| GET | `/api/v1/taxonomy/levels` |
+| POST | `/api/v1/taxonomy/levels` |
+| PATCH | `/api/v1/taxonomy/levels/:id` |
+| DELETE | `/api/v1/taxonomy/levels/:id` |
+
+**Create body:** `{ "name", "slug", "status"? }` — `status` optional (`ACTIVE` / `INACTIVE`).  
+**Update body:** partial `{ "name"?, "slug"?, "status"? }`.
+
+```bash
+# List
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&status=ACTIVE" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Create
+curl -X POST {{BASE_URL}}/api/v1/taxonomy/levels \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Beginner","slug":"beginner","status":"ACTIVE"}'
+
+# Update
+curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/1 \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Beginner (updated)"}'
+
+# Delete
+curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1 \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 12.2 Categories
+
+| Method | Path |
+|--------|------|
+| GET | `/api/v1/taxonomy/categories` |
+| POST | `/api/v1/taxonomy/categories` |
+| PATCH | `/api/v1/taxonomy/categories/:id` |
+| DELETE | `/api/v1/taxonomy/categories/:id` |
+
+**Create body:** `{ "name", "slug", "image_url", "status"? }`.  
+**Update body:** partial fields.
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/taxonomy/categories \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Math","slug":"math","image_url":"https://cdn.example.com/math.png","status":"ACTIVE"}'
+```
+
+### 12.3 Tags
+
+| Method | Path |
+|--------|------|
+| GET | `/api/v1/taxonomy/tags` |
+| POST | `/api/v1/taxonomy/tags` |
+| PATCH | `/api/v1/taxonomy/tags/:id` |
+| DELETE | `/api/v1/taxonomy/tags/:id` |
+
+**Create body:** `{ "name", "slug", "status"? }`.
+
+```bash
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search_by=name&search_data=react" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+---
+
+## 13. Webhooks (`/api/v1/webhook/*`)
+
+> **Auth:** none (public URL — protect at edge / signature if you add it). Mounted on the **no-filter** v1 group (same CORS as app).
+
+### 13.1 Bunny Stream video webhook
+
+**`POST /api/v1/webhook/bunny`**
+
+JSON body:
+
+| Field | Type | Required |
+|-------|------|----------|
+| `video_library_id` | string | yes |
+| `video_guid` | string | yes |
+| `status` | int | yes |
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
+  -H "Content-Type: application/json" \
+  -d '{"video_library_id":"lib-1","video_guid":"vid-uuid","status":3}'
+```
+
+---
+
+## 14. Error Code Reference
 
 | HTTP | `code` | Constant | Meaning |
 |------|--------|----------|---------|
@@ -1262,7 +1412,9 @@ Provider is chosen by server config (`setting.MediaSetting.AppMediaProvider`), n
 
 ---
 
-## Postman / API Dog Import
+## 15. Postman / API Dog
+
+> **Import vào Apidog:** dùng [`docs/api-dog-import.json`](./api-dog-import.json) — định dạng **Postman Collection v2.1** (menu **Import → Postman**). Sau khi gọi **Login** / **Confirm email** / **Refresh**, tab **Tests** tự ghi `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` vào Environment và biến collection (chọn một Environment trước khi chạy). Sinh lại file: `ruby scripts/generate-apidog-postman.rb`. OpenAPI gốc: [`docs/api_swagger.yaml`](./api_swagger.yaml).
 
 ### Environment Variables
 

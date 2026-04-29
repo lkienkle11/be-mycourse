@@ -1,3 +1,75 @@
+## Phase Sub 07 — Orphan image cleanup (tasks 01→10, closed 2026-04-29)
+
+Single authoritative checklist for plan ids `phase-sub-07-task-01` … `phase-sub-07-task-10`.
+
+### Image field inventory (Task 01) ✅
+| Domain | Field | Type | Has CRUD delete/update |
+|--------|-------|------|------------------------|
+| `categories` | `image_url` VARCHAR(512) | URL string (no FK to media_files) | ✅ DELETE + PATCH |
+| `users` | `avatar_url` TEXT | URL string (no FK to media_files) | No update endpoint yet |
+| `course_levels` | — | No image field | N/A |
+| `tags` | — | No image field | N/A |
+| Future courses | `cover_image`, `thumbnail`, `banner` | URL strings | To be added in Phase 02+ |
+| Future lessons/sections | JSONB content URLs | Embedded in JSONB | To be added in Phase 05+ |
+
+Orphan risk: URL field points to a B2/Bunny object that is never deleted when the parent record is deleted or the field is replaced.
+
+### Orphan definition + source of truth (Task 02) ✅
+- **Orphan object**: a cloud storage object (B2 key or Bunny GUID) that still exists but has no valid owning DB record referencing it.
+- **Source of truth for identity**: `media_files` row (preferred — has `provider`, `object_key`, `bunny_video_id` stored). Fallback: parse URL by pattern against runtime `MediaSetting` (CDN base + bucket, or Bunny stream base + library ID).
+- **Cleanup queue**: `media_pending_cloud_cleanup` table — same deferred pattern as sub06 replace orphan.
+
+### Cleanup strategy — reuse existing layer (Task 03) ✅
+- **Single delete path**: `pkg/media.DeleteStoredObject` routes by provider (B2 → `DeleteB2Object`; Bunny → `DeleteBunnyVideo`; Local → noop).
+- **Deferred queue**: `media_pending_cloud_cleanup` via `repository/media.FileRepository.InsertPendingCleanup`. Worker: `internal/jobs/media_pending_cleanup_scheduler.go`.
+- **No new providers or delete paths** — all orphan enqueues reuse the existing pipeline.
+
+### hook cleanup — media/files DELETE (Task 04) ✅
+Already implemented in sub06: `services/media.DeleteFile` calls `pkg/media.DeleteStoredObject` then `SoftDeleteByObjectKey`. No change needed.
+
+### Course domain skeleton (Task 05) ✅
+Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `course_edits.thumbnail` etc., call `mediasvc.EnqueueOrphanImageCleanup(oldURL)` after each DELETE/PATCH commit. See `services/media/orphan_cleanup.go` doc comment.
+
+### Taxonomy + user/profile hooks (Task 06) ✅
+- `services/taxonomy/category_service.go`:
+  - `DeleteCategory`: reads `image_url` before delete, enqueues cleanup after successful DB delete.
+  - `UpdateCategory`: captures `prevImageURL` before mutation, enqueues cleanup if `image_url` is replaced.
+- `users.avatar_url`: no update endpoint yet — hook must be added to the future `UpdateProfile` service function following the same pattern.
+- External/3rd-party URLs (not matching configured CDN/Bunny) are silently skipped (no-op).
+
+### JSONB/nested skeleton (Task 07) ✅
+- `pkg/logic/helper/media_jsonb_scan.go`: `ScanJSONBForImageURLs(raw []byte) []string` — recursive walker that collects values under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
+- Future lesson/quiz domain: call `ScanJSONBForImageURLs(row.ContentJSON)` before cascade delete, then `mediasvc.EnqueueOrphanImageCleanup` for each URL. See TODO comment in the file.
+
+### Transaction + compensation policy (Task 08) ✅
+1. **DB delete first, cloud enqueue after commit** — prevents cloud deletes for records that still exist.
+2. **Orphan on enqueue failure**: if `InsertPendingCleanup` fails (transient DB error), the cloud object is temporarily stranded. Acceptable — no user data lost; future admin scan or next update cycle will re-trigger.
+3. **Worker retry**: exponential backoff `n²` minutes, capped at 30 min, max `constants.MediaCleanupMaxAttempts`. Worker marks row `failed` after max attempts.
+4. **No 2-phase commit cloud↔DB**: Postgres cannot enlist B2/Bunny in a distributed transaction. Documented limitation.
+5. **Replace path**: `UpdateCategory` captures `prevImageURL` before saving, enqueues ONLY when URL changed AND old URL non-empty — avoids spurious no-op enqueues.
+
+### Quality gate + tests (Task 09) ✅
+- `tests/sub07_orphan_image_test.go`: 11 tests covering `ParseImageURLForOrphanCleanup` (empty, local, external, Bunny with/without query params, B2 CDN, B2 without bucket) and `ScanJSONBForImageURLs` (nil, flat, nested, no-url-keys). All PASS.
+- `go build ./...` ✅ `go test ./...` ✅
+
+### Final audit (Task 10) ✅
+- `categories.image_url` DELETE hook ✅ UPDATE replace hook ✅
+- `users.avatar_url` — no update endpoint yet; hook TODO documented in `services/taxonomy/category_service.go` pattern and this section.
+- `media_files` DELETE — already covered by sub06 `DeleteFile`.
+- Future domains (courses, lessons, quiz) — pattern documented + `ScanJSONBForImageURLs` skeleton ready.
+- Transaction policy documented above.
+- No HIGH/CRITICAL GitNexus risk: `DeleteCategory` (LOW, 1 direct caller) + `UpdateCategory` (LOW, 1 direct caller).
+- `gitnexus_detect_changes` to be run pre-commit.
+
+### Files reference (Sub 07)
+- Helpers: `pkg/logic/helper/media_url_orphan.go`, `pkg/logic/helper/media_jsonb_scan.go`
+- Service: `services/media/orphan_cleanup.go`
+- Repository: `repository/media/file_repository.go` (added `GetByURL`)
+- Modified services: `services/taxonomy/category_service.go`
+- Tests: `tests/sub07_orphan_image_test.go`
+
+---
+
 ## Repository convention — `tests/` (module-level tests)
 
 - Add **module / integration** Go tests, black-box packages importing `mycourse-io-be`, shared fixtures, and cross-feature harnesses under repository root **`tests/`** (see `tests/README.md`, `README.md` **Testing**, `.full-project/patterns.md`, `docs/requirements.md` NFR-1.6, `docs/architecture.md` directory map).

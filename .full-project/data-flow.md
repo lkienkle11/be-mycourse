@@ -81,6 +81,15 @@
 - Redis optional cache (auth and me payload optimization).
 - SQL migrations via embedded files and `golang-migrate`.
 
+### Orphan Image Cleanup Flow (Sub 07)
+- Triggered when a business entity with an image URL field is deleted or has its URL replaced.
+- `services/taxonomy.DeleteCategory` / `UpdateCategory` → `mediasvc.EnqueueOrphanImageCleanup(url)`.
+- `EnqueueOrphanImageCleanup` (in `services/media/orphan_cleanup.go`):
+  1. DB lookup via `repository/media.FileRepository.GetByURL` → uses stored provider/key.
+  2. Fallback: `helper.ParseImageURLForOrphanCleanup` parses URL by pattern (Bunny prefix or B2/CDN prefix from `MediaSetting`).
+  3. Inserts `media_pending_cloud_cleanup` row for deferred worker deletion.
+- Future JSONB domains: `helper.ScanJSONBForImageURLs(raw)` collects URLs from nested JSONB payloads before cascade delete.
+
 ## Data-Risk Hotspots
 - Permission staleness window when RBAC changes but client still uses old JWT.
 - `role_permissions` full rebuild in sync can remove access immediately if constants are incomplete.

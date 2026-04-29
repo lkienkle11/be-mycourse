@@ -570,6 +570,45 @@
 - Scope: Any future upload endpoints that need the same client contract.
 - Dependencies: `response.Fail` callers supply HTTP 413 where appropriate; default **message** text for this code is **`constants.MsgFileTooLargeUpload`** (referenced from `messages.go`, not duplicated).
 
+### Asset: ParseImageURLForOrphanCleanup
+- Name: `ParseImageURLForOrphanCleanup`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/media_url_orphan.go`
+- Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, Gcore CDN + B2 bucket). Pure function — no I/O.
+- Scope: Orphan cleanup flows in any domain service that holds image URL strings.
+- Dependencies: `constants/media.go`, `pkg/logic/utils` (NormalizeBaseURL, JoinURLPathSegments), `pkg/setting`.
+- Current Usage: `services/media/orphan_cleanup.go`.
+- Reuse Opportunity: Call whenever a stored image URL must be mapped back to a cloud object for deletion.
+
+### Asset: ScanJSONBForImageURLs
+- Name: `ScanJSONBForImageURLs`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/media_jsonb_scan.go`
+- Purpose: Walk a raw JSONB payload and collect all string values stored under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
+- Scope: Future lesson/quiz/section cascade delete flows where content images are embedded in JSONB.
+- Dependencies: `encoding/json`, `strings`.
+- Current Usage: Tests only (`tests/sub07_orphan_image_test.go`). TODO hooks in `media_jsonb_scan.go`.
+- Reuse Opportunity: Use in Phase 05+ when lesson/section/quiz content JSONB is added.
+
+### Asset: EnqueueOrphanImageCleanup
+- Name: `EnqueueOrphanImageCleanup`
+- Type: Function (service)
+- Path: `services/media/orphan_cleanup.go`
+- Purpose: Single entry-point to schedule deferred cloud-object deletion for any image URL field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
+- Scope: Any domain service that deletes or replaces an image URL field (taxonomy category, user avatar, future course cover).
+- Dependencies: `services/media.mediaRepository()`, `helper.ParseImageURLForOrphanCleanup`, `constants/media.go`, `models`.
+- Current Usage: `services/taxonomy/category_service.go` (`DeleteCategory`, `UpdateCategory`).
+- Reuse Opportunity: Wire into every future service that has an image URL field on delete/update.
+
+### Asset: GetByURL (FileRepository)
+- Name: `GetByURL`
+- Type: Repository method
+- Path: `repository/media/file_repository.go`
+- Purpose: Find a non-deleted `media_files` row by its public URL or origin URL. Used by orphan cleanup to resolve provider/key from a plain URL string.
+- Scope: Orphan cleanup and any future feature needing to look up a media row by URL.
+- Dependencies: GORM, `models.MediaFile`.
+- Current Usage: `services/media/orphan_cleanup.go`.
+
 ## Gap Analysis (What Must Be Created Later)
 - Missing reusable domain DTO/model/service packages for:
   - course shell/versioning

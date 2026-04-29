@@ -247,25 +247,10 @@
 - Current Usage: `pkg/logic/helper/media_upload_keys.go`.
 - Reuse Opportunity: Reuse for other token prefixes; do not reimplement with `math/rand`.
 
-### Asset: Bunny status enum mapper
-- Name: `BunnyVideoStatus`, `StatusString`, `FinishedWebhookBunnyStatus`
-- Type: Util
-- Path: `pkg/logic/utils/bunny_status.go`
-- Purpose: Normalize Bunny numeric status (`0..8`) into stable lowercase API strings and expose reusable webhook-finished constant (`4`).
-- Scope: Media status endpoint and Bunny webhook handling.
-- Dependencies: none.
-- Current Usage: `services/media/video_service.go`.
-- Reuse Opportunity: Reuse for any future polling/scheduler job that consumes Bunny status numbers.
-
-### Asset: Bunny iframe signature regex
-- Name: `SignBunnyIFrameRegex`
-- Type: Constant
-- Path: `pkg/logic/utils/regex.go`
-- Purpose: Strip transient Bunny iframe query token/expire params from stored playback URLs.
-- Scope: Webhook post-processing and future URL-cleanup jobs.
-- Dependencies: `regexp` callers.
-- Current Usage: `services/media/video_service.go`.
-- Reuse Opportunity: Reuse in migration/data-cleanup scripts for signed iframe URL normalization.
+### Asset: Bunny Stream — constants vs helper
+- **Constants** (`constants/bunny_video.go`): `FinishedWebhookBunnyStatus`, `SignBunnyIFrameRegex` — literals only (Global Constants Placement).
+- **Helper** (`pkg/logic/helper/bunny_video_status.go`): `BunnyVideoStatus`, enum values, `StatusString()` — media/Bunny bounded domain (`docs/patterns.md` helper vs util).
+- Current Usage: `services/media/video_service.go`, `tests/sub04_media_pipeline_test.go`.
 
 ### Asset: Media provider typed error + HTTP mapping
 - Name: `ProviderError`, `AsProviderError`, `HTTPStatusForProviderCode`

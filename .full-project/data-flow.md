@@ -72,9 +72,9 @@
 
 ### Media Video Status + Webhook
 - `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
-- Numeric Bunny status is normalized by `pkg/logic/utils.BunnyVideoStatus.StatusString()` (`unknown` fallback for unsupported values).
+- Numeric Bunny status is normalized by `helper.BunnyVideoStatus.StatusString()` (`unknown` fallback for unsupported values).
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
-- Webhook applies metadata/duration sync when status matches finished (`utils.FinishedWebhookBunnyStatus`); idempotent when DB row missing.
+- Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); idempotent when DB row missing.
 
 ## Persistence Boundaries
 - PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).

@@ -40,7 +40,7 @@
   - Persists upload metadata in `media_files` and syncs create/update/delete + webhook duration updates.
   - DB model<->entity mapping is handled in `pkg/logic/mapping/media_model_mapping.go` (not inside service layer).
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).
-  - Converts Bunny numeric video status to stable API strings via `pkg/logic/utils/bunny_status.go`.
+  - Converts Bunny numeric video status to stable API strings via `pkg/logic/helper/bunny_video_status.go`; webhook literal `constants.FinishedWebhookBunnyStatus` in `constants/bunny_video.go`.
   - Enforces **2 GiB** max per uploaded `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); handler + service guards; HTTP **413** + `errcode.FileTooLarge` (**2003**) on violation (see `docs/modules/media.md`, `docs/deploy.md` for proxy sizing).
 
 ## Planned But Not Implemented (per docs/modules)

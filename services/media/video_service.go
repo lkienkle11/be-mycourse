@@ -10,7 +10,6 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/logic/helper"
-	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/repository"
 )
@@ -28,7 +27,7 @@ func GetVideoStatus(ctx context.Context, videoGUID string) (*dto.VideoStatusResp
 		return nil, err
 	}
 	return &dto.VideoStatusResponse{
-		Status: utils.BunnyVideoStatus(video.Status).StatusString(),
+		Status: helper.BunnyVideoStatus(video.Status).StatusString(),
 	}, nil
 }
 
@@ -36,7 +35,7 @@ func HandleBunnyVideoWebhook(ctx context.Context, req dto.BunnyVideoWebhookReque
 	if err := helper.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return err
 	}
-	if req.Status != utils.FinishedWebhookBunnyStatus {
+	if req.Status != constants.FinishedWebhookBunnyStatus {
 		return nil
 	}
 

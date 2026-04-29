@@ -16,19 +16,19 @@ import (
 func TestBunnyVideoStatus_StatusString(t *testing.T) {
 	cases := []struct {
 		name   string
-		status utils.BunnyVideoStatus
+		status helper.BunnyVideoStatus
 		want   string
 	}{
-		{name: "created", status: utils.Created, want: "created"},
-		{name: "uploaded", status: utils.Uploaded, want: "uploaded"},
-		{name: "processing", status: utils.Processing, want: "processing"},
-		{name: "transcoding", status: utils.Transcoding, want: "transcoding"},
-		{name: "finished", status: utils.Finished, want: "finished"},
-		{name: "resolutions_finished", status: utils.ResolutionsFinished, want: "resolutions_finished"},
-		{name: "failed", status: utils.Failed, want: "failed"},
-		{name: "presigned_upload", status: utils.PresignedUpload, want: "presigned_upload"},
-		{name: "transcribing", status: utils.Transcribing, want: "transcribing"},
-		{name: "unknown", status: utils.BunnyVideoStatus(999), want: "unknown"},
+		{name: "created", status: helper.Created, want: "created"},
+		{name: "uploaded", status: helper.Uploaded, want: "uploaded"},
+		{name: "processing", status: helper.Processing, want: "processing"},
+		{name: "transcoding", status: helper.Transcoding, want: "transcoding"},
+		{name: "finished", status: helper.Finished, want: "finished"},
+		{name: "resolutions_finished", status: helper.ResolutionsFinished, want: "resolutions_finished"},
+		{name: "failed", status: helper.Failed, want: "failed"},
+		{name: "presigned_upload", status: helper.PresignedUpload, want: "presigned_upload"},
+		{name: "transcribing", status: helper.Transcribing, want: "transcribing"},
+		{name: "unknown", status: helper.BunnyVideoStatus(999), want: "unknown"},
 	}
 
 	for _, tc := range cases {

@@ -1,6 +1,6 @@
-package utils
+package helper
 
-const FinishedWebhookBunnyStatus = 4
+// Bunny Stream numeric video statuses → stable API strings (bounded domain: media).
 
 type BunnyVideoStatus int
 

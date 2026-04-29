@@ -116,6 +116,19 @@ func (r *FileRepository) SaveWithRowVersionCheck(row *models.MediaFile, expected
 	})
 }
 
+// GetByURL returns the first non-deleted media_files row whose public URL or
+// origin URL matches the given value. Used by orphan-cleanup flows to resolve
+// stored provider/key information from a plain image URL field on another entity.
+func (r *FileRepository) GetByURL(url string) (*models.MediaFile, error) {
+	var row models.MediaFile
+	if err := r.db.
+		Where("(url = ? OR origin_url = ?) AND deleted_at IS NULL", url, url).
+		First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *FileRepository) SoftDeleteByObjectKey(objectKey string) error {
 	return r.db.Model(&models.MediaFile{}).
 		Where("object_key = ? AND deleted_at IS NULL", objectKey).

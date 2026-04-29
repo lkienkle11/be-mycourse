@@ -8,6 +8,7 @@ import (
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
 	repo "mycourse-io-be/repository/taxonomy"
+	mediasvc "mycourse-io-be/services/media"
 )
 
 func ListCategories(filter dto.CategoryFilter) ([]models.Category, int64, error) {
@@ -45,6 +46,8 @@ func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*models.Category, e
 	if req.Slug != nil && strings.TrimSpace(*req.Slug) != "" {
 		row.Slug = strings.TrimSpace(*req.Slug)
 	}
+	prevImageURL := row.ImageURL
+
 	if req.ImageURL != nil {
 		row.ImageURL = strings.TrimSpace(*req.ImageURL)
 	}
@@ -55,9 +58,27 @@ func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*models.Category, e
 	if err := r.UpdateCategory(row); err != nil {
 		return nil, err
 	}
+
+	// Enqueue orphan cleanup for superseded image_url after successful DB commit.
+	if req.ImageURL != nil && prevImageURL != "" && prevImageURL != row.ImageURL {
+		mediasvc.EnqueueOrphanImageCleanup(prevImageURL)
+	}
+
 	return row, nil
 }
 
 func DeleteCategory(id uint) error {
-	return repo.NewCategoryRepository(models.DB).DeleteCategory(id)
+	r := repo.NewCategoryRepository(models.DB)
+	row, err := r.GetCategoryByID(id)
+	if err != nil {
+		return err
+	}
+	if err := r.DeleteCategory(id); err != nil {
+		return err
+	}
+	// Enqueue orphan cleanup for image_url after successful DB delete.
+	if row.ImageURL != "" {
+		mediasvc.EnqueueOrphanImageCleanup(row.ImageURL)
+	}
+	return nil
 }

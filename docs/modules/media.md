@@ -25,7 +25,7 @@ SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
 Media kind/provider normalization is implemented as shared helper assets in `pkg/logic/helper/media_resolver.go`, keeping `services/media` orchestration-only.
 Metadata parsing and typed inference are handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
-Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`) are extracted to `pkg/logic/utils/media_metadata.go` and must be called through `utils.*` import alias in helper code.
+Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`), multipart loose-bool parsing (`ParseBoolLoose`), and upload-byte fingerprinting (`ContentFingerprint`) live in `pkg/logic/utils/parsing.go` and must be called through `utils.*` import alias in helper/service code.
 Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider details are removed from public payload.
 
 ---
@@ -140,5 +140,5 @@ Returned `dto.UploadFileResponse` fields:
 ## Testing
 
 - Add all tests for this API (unit/module-level/integration) under repository root **`tests/`** only (shared convention for the whole backend — see `README.md` **Testing** and `.full-project/patterns.md`).
-- Latest verification (2026-04-28, Sub 06): `go build ./...` and `go test ./tests/... -count=1` include `tests/sub06_media_orphan_safety_test.go` (helper-level fingerprint / merge / superseded guards).
+- Latest verification (2026-04-28, Sub 06): `go build ./...` and `go test ./tests/... -count=1` include `tests/sub06_media_orphan_safety_test.go` (`utils.ContentFingerprint` / merge / superseded guards).
 

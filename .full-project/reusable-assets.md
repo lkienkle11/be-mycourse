@@ -229,12 +229,12 @@
 
 ### Asset: Content fingerprint (SHA-256 hex)
 - Name: `ContentFingerprint`
-- Type: Helper
-- Path: `pkg/logic/helper/media_fingerprint.go`
+- Type: Util
+- Path: `pkg/logic/utils/parsing.go`
 - Purpose: Stable digest of upload bytes for skip-upload dedupe on `PUT /media/files/:id`.
-- Scope: Media replace/update flows.
+- Scope: Media replace/update flows; any binary fingerprint need.
 - Dependencies: `crypto/sha256`, `encoding/hex`.
-- Current Usage: `services/media/file_service.go`.
+- Current Usage: `services/media/file_service.go`, `tests/sub06_media_orphan_safety_test.go`.
 - Reuse Opportunity: Any feature needing cheap binary equality without storing raw bytes.
 
 ### Asset: MergeMediaMetadataJSON
@@ -260,7 +260,7 @@
 - Path: `pkg/logic/helper/media_multipart.go`
 - Purpose: Map Gin multipart text fields to `dto.CreateFileRequest` / `dto.UpdateFileRequest` (same layer as `ParseMetadataFromRaw`).
 - Scope: `api/v1/media/file_handler.go` only; keeps handlers thin.
-- Dependencies: `github.com/gin-gonic/gin`, `dto`.
+- Dependencies: `github.com/gin-gonic/gin`, `dto`, `pkg/logic/utils` (`ParseBoolLoose` for `skip_upload_if_unchanged`).
 
 ### Asset: DeleteStoredObject (unified cloud delete)
 - Name: `DeleteStoredObject`
@@ -330,13 +330,13 @@
 - Reuse Opportunity: Reference from tests and dashboards; keep messages only in `constants/error_msg.go`.
 
 ### Asset: Generic media metadata conversion primitives
-- Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`
+- Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`, `ParseBoolLoose`, `ContentFingerprint`
 - Type: Util
-- Path: `pkg/logic/utils/media_metadata.go`
-- Purpose: Provide generic metadata conversion primitives reusable beyond media helper orchestration.
-- Scope: Any module needing generic raw-metadata conversion helpers.
-- Dependencies: `pkg/entities`, Go stdlib (`image`, `bytes`, `strings`, `fmt`).
-- Current Usage: `pkg/logic/helper/media_metadata.go`.
+- Path: `pkg/logic/utils/parsing.go`
+- Purpose: Generic metadata conversion, loose bool parsing, SHA-256 hex fingerprint of payloads.
+- Scope: Any module needing generic parsing without domain coupling.
+- Dependencies: `pkg/entities`, Go stdlib (`image`, `bytes`, `strings`, `fmt`, `crypto/sha256`, `encoding/hex`).
+- Current Usage: `pkg/logic/helper/media_metadata.go`, `pkg/logic/helper/media_multipart.go`, `services/media/file_service.go`.
 - Integration Note (2026-04-27): media helper branch `FileKindFile` uses `utils.ImageSizeFromPayload` and `utils.IntFromRaw`; alias mismatch (`util.*`) is a compile-time risk.
 - Reuse Opportunity:
   - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.

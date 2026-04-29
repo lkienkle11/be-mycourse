@@ -272,14 +272,14 @@
 - Current Usage: `pkg/errors/provider_error.go`, `api/v1/media/file_handler.go`.
 - Reuse Opportunity: Reference from tests and dashboards; keep messages only in `constants/error_msg.go`.
 
-### Asset: Generic media metadata conversion primitives
-- Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`
+### Asset: Generic parsing / metadata primitives (utils)
+- Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`, `ParseBoolLoose`, `ContentFingerprint`
 - Type: Util
-- Path: `pkg/logic/utils/media_metadata.go`
-- Purpose: Provide generic metadata conversion primitives reusable beyond media helper orchestration.
-- Scope: Any module needing generic raw-metadata conversion helpers.
-- Dependencies: `pkg/entities`, Go stdlib (`image`, `bytes`, `strings`, `fmt`).
-- Current Usage: `pkg/logic/helper/media_metadata.go`.
+- Path: `pkg/logic/utils/parsing.go`
+- Purpose: Raw-metadata helpers, loose bool parsing for multipart text fields, SHA-256 hex fingerprint of byte payloads.
+- Scope: Any module needing generic conversion/parsing without domain coupling.
+- Dependencies: `pkg/entities`, Go stdlib (`image`, `bytes`, `strings`, `fmt`, `crypto/sha256`, `encoding/hex`).
+- Current Usage: `pkg/logic/helper/media_metadata.go`, `pkg/logic/helper/media_multipart.go`, `services/media/file_service.go`.
 - Integration Note (2026-04-27): media helper branch `FileKindFile` uses `utils.ImageSizeFromPayload` and `utils.IntFromRaw`; alias mismatch (`util.*`) is a compile-time risk.
 - Reuse Opportunity:
   - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.

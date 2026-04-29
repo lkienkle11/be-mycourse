@@ -305,7 +305,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Scope completed for tasks 01->10 in this cycle
 - Re-ran baseline/context/doc refresh and GitNexus indexing/status before edits.
 - Moved `defaultMediaProvider` out of `services/media/file_service.go` into helper layer (`pkg/logic/helper/media_metadata.go`) as `DefaultMediaProvider`.
-- Moved generic functions out of `pkg/logic/helper/media_metadata.go` into util layer (`pkg/logic/utils/media_metadata.go`):
+- Moved generic functions out of `pkg/logic/helper/media_metadata.go` into util layer (`pkg/logic/utils/parsing.go`; later additions include `ParseBoolLoose`, `ContentFingerprint`):
   - `DetectExtension`
   - `ImageSizeFromPayload`
   - `StringFromRaw`
@@ -1332,7 +1332,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 - **Superseded blob:** previous cloud identifiers queued in `media_pending_cloud_cleanup` until worker deletes.
 
 ### Task 03 — Reuse / dedupe strategy ✅
-- **Fingerprint:** SHA-256 hex (`helper.ContentFingerprint`) over uploaded bytes.
+- **Fingerprint:** SHA-256 hex (`utils.ContentFingerprint` in `pkg/logic/utils/parsing.go`) over uploaded bytes.
 - **Skip upload:** `skip_upload_if_unchanged` + matching fingerprint ⇒ metadata merge only (`MergeMediaMetadataJSON`).
 - **Fallback:** if fingerprint empty/missing, full replace path applies.
 
@@ -1385,7 +1385,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 - Models: `models/media_file.go`, `models/media_pending_cloud_cleanup.go`, `dbschema/media_pending_cloud_cleanup.go`
 - Constants: `constants/media_cleanup.go`, `constants/media_meta_keys.go`, `constants/error_msg.go`
 - Errors: `pkg/errors/media_errors.go`
-- Helpers: `pkg/logic/helper/media_fingerprint.go`, `media_metadata_merge.go`, `media_replace_policy.go`, `media_upload_entity.go`, `media_multipart.go`; input struct `pkg/entities/media_upload.go`
+- Helpers: `pkg/logic/helper/media_metadata_merge.go`, `media_replace_policy.go`, `media_upload_entity.go`, `media_multipart.go`; utils: `pkg/logic/utils/parsing.go` (`ContentFingerprint`); input struct `pkg/entities/media_upload.go`
 - Media delete routing: `pkg/media/stored_object_delete.go`
 - Repo: `repository/media/file_repository.go`, `repository/media/pending_cleanup_repo.go`
 - Services: `services/media/file_service.go`, `pending_cleanup.go`, `cleanup_metrics.go`

@@ -62,7 +62,7 @@
 - **Multipart parsing:** Gin engine `MaxMultipartMemory` (**64 MiB** in `api.InitRouter`) so large parts spill to temp disk during parse (see `docs/modules/media.md`).
 - Service normalizes metadata and dispatches by provider:
   - provider comes from server config (`setting.MediaSetting.AppMediaProvider`) and is not accepted from client API params.
-  - default provider resolution helper lives in `pkg/logic/helper/media_metadata.go` and generic conversion primitives are delegated to `pkg/logic/utils/media_metadata.go`.
+  - default provider resolution helper lives in `pkg/logic/helper/media_metadata.go` and generic conversion primitives are delegated to `pkg/logic/utils/parsing.go`.
   - service delegates metadata parsing/inference to helper layer; client metadata is optional and backend infers typed metadata from payload/provider outputs.
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL

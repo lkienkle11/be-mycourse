@@ -20,6 +20,7 @@ import (
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
+	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/setting"
 	"mycourse-io-be/repository"
@@ -148,7 +149,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	entity := helper.BuildMediaFileEntityFromUpload(input)
 	record := mapping.ToMediaModel(*entity)
 	record.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
-	record.ContentFingerprint = helper.ContentFingerprint(payload)
+	record.ContentFingerprint = utils.ContentFingerprint(payload)
 
 	repo := mediaRepository()
 	if err := repo.UpsertByObjectKey(record); err != nil {
@@ -213,7 +214,7 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
 	}
 
-	fp := helper.ContentFingerprint(payload)
+	fp := utils.ContentFingerprint(payload)
 	if req.SkipUploadIfUnchanged && prevRow.ContentFingerprint != "" && fp == prevRow.ContentFingerprint {
 		blob, err := helper.MergeMediaMetadataJSON(prevRow.MetadataJSON, meta)
 		if err != nil {

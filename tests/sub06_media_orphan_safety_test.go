@@ -7,12 +7,13 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
+	"mycourse-io-be/pkg/logic/utils"
 )
 
 func TestContentFingerprint_deterministic(t *testing.T) {
 	payload := []byte("hello sub06")
-	a := helper.ContentFingerprint(payload)
-	b := helper.ContentFingerprint(payload)
+	a := utils.ContentFingerprint(payload)
+	b := utils.ContentFingerprint(payload)
 	if a != b {
 		t.Fatalf("same bytes got different digests %q vs %q", a, b)
 	}

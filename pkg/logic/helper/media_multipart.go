@@ -8,12 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/logic/utils"
 )
-
-func parseBoolLoose(s string) bool {
-	v := strings.ToLower(strings.TrimSpace(s))
-	return v == "1" || v == "true" || v == "yes"
-}
 
 func BindCreateFileMultipart(c *gin.Context) (dto.CreateFileRequest, error) {
 	meta, err := ParseMetadataFromRaw(c.PostForm("metadata"))
@@ -36,7 +32,7 @@ func BindUpdateFileMultipart(c *gin.Context) (dto.UpdateFileRequest, error) {
 		Kind:                  c.PostForm("kind"),
 		Metadata:              meta,
 		ReuseMediaID:          strings.TrimSpace(c.PostForm("reuse_media_id")),
-		SkipUploadIfUnchanged: parseBoolLoose(c.PostForm("skip_upload_if_unchanged")),
+		SkipUploadIfUnchanged: utils.ParseBoolLoose(c.PostForm("skip_upload_if_unchanged")),
 	}
 	if ev := strings.TrimSpace(c.PostForm("expected_row_version")); ev != "" {
 		v, perr := strconv.ParseInt(ev, 10, 64)

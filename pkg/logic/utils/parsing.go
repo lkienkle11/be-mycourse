@@ -2,6 +2,8 @@ package utils
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -86,4 +88,16 @@ func NonEmpty(candidates ...string) string {
 		}
 	}
 	return ""
+}
+
+// ParseBoolLoose treats "1", "true", "yes" (case-insensitive) as true; anything else as false.
+func ParseBoolLoose(s string) bool {
+	v := strings.ToLower(strings.TrimSpace(s))
+	return v == "1" || v == "true" || v == "yes"
+}
+
+// ContentFingerprint returns SHA-256 hex of payload (e.g. media skip-upload dedupe).
+func ContentFingerprint(payload []byte) string {
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }

@@ -43,6 +43,12 @@
 - Import alias consistency: when helper modules use `pkg/logic/utils`, function calls must use the imported alias (`utils.*`) to avoid compile-time `undefined` errors from stale aliases such as `util.*`.
 - Naming rule: common-purpose function names (e.g. parse/url/normalize/generic transformers) belong in `pkg/logic/utils`; feature-intent function names (e.g. processLearning/decodeVideo and module-specific flows) belong in `pkg/logic/helper`.
 
+## Services layer file naming (Mandatory)
+
+- Under `services/` (including subpackages such as `services/media/`), **do not** name a `.go` source file with a **filename** prefix `helper_` or suffix `_helper` (examples to avoid: `helper_orphan.go`, `orphan_helper.go`).
+- **Why:** those patterns read as “helper package” material (`pkg/logic/helper/`) instead of the **service** layer, so people may assume the code is misplaced or belongs outside `services/`.
+- Put reusable non-orchestration logic in `pkg/logic/helper/` or `pkg/logic/utils/` per **Helper vs Util Convention** above; keep `services/` filenames aligned with domain or capability (e.g. `orphan_cleanup.go`, `file_service.go`).
+
 ## Type Placement Convention
 - From now on, for every new code written in any module under `pkg/*` that contains logic handling, all newly introduced reusable types must be created in `pkg/entities` (new file/module or existing entity module), not inline in that logic package file.
 - Do not declare new reusable types inside logic-orchestration layers such as `repository/*`, `services/*`, or ad-hoc feature logic files.

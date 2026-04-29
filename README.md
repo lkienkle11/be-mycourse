@@ -18,6 +18,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | Doc | Contents |
 |-----|----------|
 | [`docs/architecture.md`](docs/architecture.md) | HTTP layers, directory map, `/api/v1` vs internal routes, GitNexus graph snapshot |
+| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, **services file naming** vs `helper_` / `_helper`, helper vs util, tests layout) |
 | [`docs/deploy.md`](docs/deploy.md) | VPS + CI/CD runbook |
 | [`docs/database.md`](docs/database.md) | Database schema, tables, migration history |
 | [`docs/requirements.md`](docs/requirements.md) | Functional & non-functional requirements for all features |
@@ -62,7 +63,7 @@ curl http://localhost:8080/api/v1/health
 - **Module tests** (integration flows, black-box tests against `mycourse-io-be`, shared fixtures, or any test code you want outside production packages): add packages under **`tests/`** at the repository root (alongside `api/`, `services/`, …). `go test ./...` from the repo root includes those packages once they contain `*_test.go` files.
 - **All test code** (including unit, integration, black-box, fixtures, and shared harnesses) **MUST** be placed under repository root **`tests/`**.
 - On-disk pointer: [`tests/README.md`](tests/README.md).
-- Canonical convention text also lives in [`.full-project/patterns.md`](.full-project/patterns.md) and [`docs/requirements.md`](docs/requirements.md) (NFR on test layout).
+- Canonical convention text: [`docs/patterns.md`](docs/patterns.md) (mirrored in [`.full-project/patterns.md`](.full-project/patterns.md)) and [`docs/requirements.md`](docs/requirements.md) (NFR on test layout).
 
 ### CI deploy (`master`)
 

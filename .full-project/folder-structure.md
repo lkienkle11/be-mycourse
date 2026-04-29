@@ -132,7 +132,7 @@ be-mycourse/
 - `queues/`: queue consumer placeholder.
 - `runtime/`: runtime metadata structures.
 - `scripts/`: build/deploy helper scripts.
-- `services/`: core business logic and orchestration.
+- `services/`: core business logic and orchestration. **File naming:** do not use filename prefix `helper_` or suffix `_helper` under this tree (avoids confusion with `pkg/logic/helper/`); see `docs/patterns.md` — **Services layer file naming**.
 - `tests/`: **module-level / integration** Go test packages, shared harnesses, and fixtures (not production code); see `.full-project/patterns.md` and `README.md` (**Testing**).
 - `template/`: template root folder.
 - `template/html/`: HTML template grouping.

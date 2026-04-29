@@ -66,7 +66,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). |
 | `api/v1/` | Versioned handlers and route modules: `auth.go`, `me.go`, `routes.go`, `taxonomy/*`, `internal/*`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
-| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. |
+| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and put shared helpers under `pkg/logic/helper` or `pkg/logic/utils` (see `docs/patterns.md`). |
 | `internal/jobs/` | In-memory 12h RBAC sync tickers started/stopped via `/api/system` (not env-gated). |
 | `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |

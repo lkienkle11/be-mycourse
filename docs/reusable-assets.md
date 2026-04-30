@@ -174,10 +174,10 @@
   - Reuse for any endpoint needing reversible local object-key token decoding.
 
 ### Asset: Media kind/provider resolvers
-- Name: `ResolveMediaKind`, `ResolveMediaProvider`
+- Name: `ResolveMediaKind`, `ResolveMediaProvider`, `ResolveMediaKindFromServer`, `ResolveUploadProvider`
 - Type: Util/Helper
 - Path: `pkg/logic/helper/media_resolver.go`
-- Purpose: Normalize upload kind/provider with consistent fallback rules (video -> Bunny, file -> B2).
+- Purpose: Normalize upload kind/provider with consistent fallback rules and server-owned inference (`kind` from MIME/extension; fallback `Local` when unknown and no configured provider).
 - Scope: Media service orchestration and any future upload entrypoint requiring identical fallback behavior.
 - Dependencies: `constants/media.go`, `path/filepath`, `strings`.
 - Current Usage: `services/media/file_service.go`.
@@ -210,7 +210,7 @@
 - Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`, `DefaultMediaProvider`
 - Type: Util/Helper
 - Path: `pkg/logic/helper/media_metadata.go`
-- Purpose: Parse raw metadata JSON, normalize metadata payload, infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`), and resolve default provider from centralized media setting.
+- Purpose: Parse raw metadata JSON, normalize metadata payload, and infer typed metadata contract `UploadFileMetadata` with explicit fields/default values (including `width_bytes`, `height_bytes`, `has_password`, `archive_entries`).
 - Scope: Media handlers/services and any upload endpoint accepting metadata JSON.
 - Dependencies: `encoding/json`, `fmt`, `strings`, `pkg/entities`, `pkg/setting`.
 - Current Usage: `api/v1/media/file_handler.go`, `services/media/file_service.go`.
@@ -258,7 +258,7 @@
 - Name: `BindCreateFileMultipart`, `BindUpdateFileMultipart`
 - Type: Helper (transport parsing)
 - Path: `pkg/logic/helper/media_multipart.go`
-- Purpose: Map Gin multipart text fields to `dto.CreateFileRequest` / `dto.UpdateFileRequest` (same layer as `ParseMetadataFromRaw`).
+- Purpose: Parse multipart text fields for backward-compat validation and bind allowed update controls (`reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`); client `kind`/`metadata` are intentionally ignored by service flow.
 - Scope: `api/v1/media/file_handler.go` only; keeps handlers thin.
 - Dependencies: `github.com/gin-gonic/gin`, `dto`, `pkg/logic/utils` (`ParseBoolLoose` for `skip_upload_if_unchanged`).
 

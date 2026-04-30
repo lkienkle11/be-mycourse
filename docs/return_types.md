@@ -8,7 +8,7 @@
 - Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
 > This document catalogues the **Go return types** of every service function and the **JSON response shapes** of every API endpoint.  
-> **Last updated:** 2026-04-18
+> **Last updated:** 2026-04-30
 
 ---
 
@@ -695,17 +695,29 @@ Media endpoints are implemented and return the standard envelope. Public payload
   "origin_url": "https://...",
   "object_key": "path/to/object",
   "metadata": {
-    "mime_type": "video/mp4"
+    "size_bytes": 12345,
+    "width_bytes": 1920,
+    "height_bytes": 1080,
+    "mime_type": "video/mp4",
+    "extension": ".mp4",
+    "duration_seconds": 157.8,
+    "bitrate": 0,
+    "fps": 29.97,
+    "video_codec": "",
+    "audio_codec": "",
+    "has_audio": false,
+    "is_hdr": false,
+    "page_count": 0,
+    "has_password": false,
+    "archive_entries": 0
   }
 }
 ```
 
-Media metadata is inferred in backend and can be one of:
-- `ImageMetadata`
-- `VideoMetadata`
-- `DocumentMetadata`
+Media metadata is inferred in backend and returned with typed contract `UploadFileMetadata` (not `any`), with zero-value defaults when a field cannot be extracted.
 
 Provider is selected by server config (`setting.MediaSetting.AppMediaProvider`) and is not exposed as client-controlled request field.
+For multipart create/update, client-sent `kind` and `metadata` text fields are parsed only for backward-compat validation and ignored by business flow (server-owned policy).
 
 ---
 

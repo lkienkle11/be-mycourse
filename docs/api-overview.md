@@ -63,6 +63,7 @@
   - `OPTIONS /media/files/local/:token`
   - `GET /media/files/local/:token`
   - `GET /media/videos/:id/status`
+  - Note: multipart text fields `kind` and `metadata` are accepted for backward-compat parsing only and ignored in create/update business flow (server-owned policy).
 - Public webhook (registered before auth middleware):
   - `POST /webhook/bunny`
 
@@ -73,6 +74,10 @@
 
 ## Upload / body limits (media)
 - Media `POST/PUT /api/v1/media/files` enforces **2 GiB** max per `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); oversize JSON `message` / sentinel both use **`constants.MsgFileTooLargeUpload`**. HTTP **413** + app code **2003** when exceeded. Reverse proxies must allow **≥ 2G** request bodies on the API vhost (`docs/deploy.md`).
+- Media metadata and kind are server-owned:
+  - `kind` is inferred server-side from MIME/extension.
+  - if kind cannot be inferred and no configured provider exists, provider fallback is `Local`.
+  - response `metadata` uses typed contract `UploadFileMetadata` (not `any`) with zero-value defaults for unavailable fields.
 
 ## Middleware/Auth Matrix
 - Global: request/recovery/CORS/gzip.

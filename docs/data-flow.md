@@ -60,10 +60,11 @@
 - `/api/v1/media/files*` (JWT + permission protected) -> media handlers -> media services -> provider SDK/HTTP clients.
 - **Single-file size cap:** `constants.MaxMediaUploadFileBytes` (**2 GiB**, defined in **`constants/error_msg.go`**). Oversize user-facing copy is **`constants.MsgFileTooLargeUpload`** (used for both JSON `message` via `errcode.DefaultMessage(FileTooLarge)` and `pkg/errors.ErrFileExceedsMaxUploadSize`). Handler rejects declared `multipart.FileHeader.Size` over cap (**413** + `errcode.FileTooLarge`); service uses `io.LimitReader(max+1)` before buffering so streams cannot exceed the cap silently. Missing `file` remains **400** + `BadRequest` (distinct error path).
 - **Multipart parsing:** Gin engine `MaxMultipartMemory` (**64 MiB** in `api.InitRouter`) so large parts spill to temp disk during parse (see `docs/modules/media.md`).
-- Service normalizes metadata and dispatches by provider:
+- Service resolves kind/provider and metadata from server-owned inputs only:
   - provider comes from server config (`setting.MediaSetting.AppMediaProvider`) and is not accepted from client API params.
-  - default provider resolution helper lives in `pkg/logic/helper/media_metadata.go` and generic conversion primitives are delegated to `pkg/logic/utils/parsing.go`.
-  - service delegates metadata parsing/inference to helper layer; client metadata is optional and backend infers typed metadata from payload/provider outputs.
+  - `kind`/`metadata` multipart text fields are ignored after backward-compat parse validation.
+  - kind inference is server-side by MIME/extension; if inference is unknown and no configured provider exists, provider fallback is `Local`.
+  - service delegates typed metadata inference to helper layer (`BuildTypedMetadata`) and merges only provider/server-derived values.
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL
   - local branch: reversible signed token URL (`/media/files/local/:token`)

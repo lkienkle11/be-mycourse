@@ -196,6 +196,45 @@ components:
         video_library_id: { type: string }
         video_guid: { type: string }
         status: { type: integer }
+    UploadFileMetadata:
+      type: object
+      properties:
+        size_bytes: { type: integer, format: int64 }
+        width_bytes: { type: integer }
+        height_bytes: { type: integer }
+        mime_type: { type: string }
+        extension: { type: string }
+        duration_seconds: { type: number, format: double }
+        bitrate: { type: integer }
+        fps: { type: number, format: double }
+        video_codec: { type: string }
+        audio_codec: { type: string }
+        has_audio: { type: boolean }
+        is_hdr: { type: boolean }
+        page_count: { type: integer }
+        has_password: { type: boolean }
+        archive_entries: { type: integer }
+    UploadFileResponse:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [FILE, VIDEO] }
+        filename: { type: string }
+        mime_type: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        status: { type: string }
+        b2_bucket_name: { type: string }
+        url: { type: string }
+        origin_url: { type: string }
+        object_key: { type: string }
+        bunny_video_id: { type: string }
+        bunny_library_id: { type: string }
+        duration: { type: integer, format: int64 }
+        video_provider: { type: string }
+        metadata:
+          $ref: "#/components/schemas/UploadFileMetadata"
+        row_version: { type: integer, format: int64 }
+        content_fingerprint: { type: string }
 
 paths:
   /api/v1/health:
@@ -528,6 +567,11 @@ paths:
     post:
       tags: [Media]
       summary: Upload file or video (multipart)
+      description: |
+        Server-owned contract:
+        - multipart text field `kind` is ignored (kind inferred server-side from MIME/extension)
+        - multipart text field `metadata` is ignored (response metadata is server/provider extracted)
+        - if kind inference fails and no configured provider exists, provider fallback is Local
       security:
         - bearerJwt: []
       requestBody:
@@ -541,17 +585,15 @@ paths:
                 file:
                   type: string
                   format: binary
-                kind:
-                  type: string
-                  description: FILE or VIDEO
                 object_key:
                   type: string
-                metadata:
-                  type: string
-                  description: JSON object as string
       responses:
         "201":
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvelopeOK"
         "413":
           description: File too large
 
@@ -586,6 +628,11 @@ paths:
     put:
       tags: [Media]
       summary: Replace media object (multipart)
+      description: |
+        Server-owned contract:
+        - multipart text field `kind` is ignored
+        - multipart text field `metadata` is ignored
+        - service uses server/provider extraction only
       security:
         - bearerJwt: []
       requestBody:
@@ -597,8 +644,6 @@ paths:
               required: [file]
               properties:
                 file: { type: string, format: binary }
-                kind: { type: string }
-                metadata: { type: string, description: JSON string }
                 reuse_media_id: { type: string }
                 expected_row_version: { type: string }
                 skip_upload_if_unchanged: { type: string }

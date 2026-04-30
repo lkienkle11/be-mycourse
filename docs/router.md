@@ -42,6 +42,10 @@
 - `api/v1/taxonomy/routes.go` -> taxonomy CRUD endpoint registration (`levels`, `categories`, `tags`).
 - `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS + local token decode + video status route) and webhook route mount used by no-filter lane.
 
+## Media request contract notes
+- `POST/PUT /api/v1/media/files` reads multipart text fields through helper binders, but `kind` and `metadata` are ignored by service business flow (server-owned policy).
+- Effective kind/provider are resolved server-side (`ResolveMediaKindFromServer`, `ResolveUploadProvider`).
+
 ## Authorization Pattern
 - Authentication middleware on group level.
 - Fine-grained permission middleware (`RequirePermission`) is used at endpoint level, including taxonomy CRUD permissions.

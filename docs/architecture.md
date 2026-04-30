@@ -66,7 +66,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). |
 | `api/v1/` | Versioned handlers and route modules: `auth.go`, `me.go`, `routes.go`, `taxonomy/*`, `internal/*`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
-| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and put shared helpers under `pkg/logic/helper` or `pkg/logic/utils` (see `docs/patterns.md`). |
+| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and put shared helpers under `pkg/logic/helper` or `pkg/logic/utils` (see `docs/patterns.md`). Media service enforces server-owned upload contracts (kind/provider/metadata inference). |
 | `internal/jobs/` | In-memory 12h RBAC sync tickers started/stopped via `/api/system` (not env-gated). |
 | `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
@@ -78,6 +78,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `pkg/httperr` | Gin middleware for errors and panic recovery. |
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |
 | `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
+| `pkg/media/` | Provider adapters (Local/B2/Bunny upload + delete/status APIs). Adapter layer returns provider results and does not own transport DTO mapping. |
 | `config/` | System bootstrap (`InitSystem`, default configs). |
 | `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |

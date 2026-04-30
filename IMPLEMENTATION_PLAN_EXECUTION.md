@@ -1403,3 +1403,26 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 - Services: `services/media/file_service.go`, `pending_cleanup.go`, `cleanup_metrics.go`
 - Jobs: `internal/jobs/media_pending_cleanup_scheduler.go`; bootstrap `main.go`
 - API: `api/v1/media/file_handler.go`, `routes.go`
+
+## Phase Sub 08 — Server-owned metadata/kind reset (tasks 01–12, 2026-04-30)
+
+- Re-ran GitNexus analyze + impact before edits; **HIGH/CRITICAL** symbols (`BuildTypedMetadata`, `ToUploadFileResponse`) were edited in one coordinated pass with handler/service/mapper consistency.
+- Reworked media upload flow to enforce server ownership:
+  - Multipart `kind` and `metadata` from client are parsed only for backward-compat validation and then ignored.
+  - `services/media/file_service.go` now resolves kind from server-side MIME/extension (`ResolveMediaKindFromServer`) and provider from server policy (`ResolveUploadProvider`).
+  - Unknown kind inference with no configured provider now falls back to `Local`.
+- Removed DTO coupling from provider adapter layer:
+  - `pkg/media/clients.go` no longer returns `dto.UploadFileResponse`; it returns `entities.ProviderUploadResult`.
+  - Transport mapping stays in `pkg/logic/mapping/*`.
+- Typed metadata contract:
+  - Added `UploadFileMetadata` in `pkg/entities/file.go` and `dto/media_file.go`.
+  - `dto.UploadFileResponse.Metadata` is no longer `any`; now typed with explicit fields (`width_bytes`, `height_bytes`, `has_password`, `archive_entries`, etc.) and zero defaults.
+  - `helper.BuildTypedMetadata` returns typed metadata only from server/provider data.
+- Added tests for mandatory sub08 cases:
+  - `tests/sub08_media_server_owned_test.go` verifies client `kind`/`metadata` are ignored, default metadata values when unavailable, and local fallback policy when kind inference is unknown.
+- Quality gate:
+  - `gofmt -w ...`, `go test ./...`, `go build ./...` all pass.
+- Docs synced:
+  - `docs/modules/media.md`
+  - `docs/data-flow.md`
+  - `docs/reusable-assets.md`

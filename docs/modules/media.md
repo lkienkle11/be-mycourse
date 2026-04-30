@@ -25,6 +25,8 @@ SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
 Media kind/provider normalization is implemented as shared helper assets in `pkg/logic/helper/media_resolver.go`, keeping `services/media` orchestration-only.
 Metadata parsing and typed inference are handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
+`kind` and `metadata` values coming from multipart request text fields are parsed only for backward-compat validation and then ignored; server-side extractor/provider outputs are the only source for persisted and returned metadata.
+When server cannot infer kind from MIME/extension and no app-level provider override is configured, upload provider falls back to `Local` by policy.
 Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`), multipart loose-bool parsing (`ParseBoolLoose`), and upload-byte fingerprinting (`ContentFingerprint`) live in `pkg/logic/utils/parsing.go` and must be called through `utils.*` import alias in helper/service code.
 Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider details are removed from public payload.
 
@@ -40,7 +42,7 @@ Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileRespons
 | POST | `/media/files` | Upload multipart file and return file descriptor |
 | OPTIONS | `/media/files/:id` | CORS/preflight support |
 | GET | `/media/files/:id` | Build file detail from object key |
-| PUT | `/media/files/:id` | Re-upload/replace by logical row (`id` path param = `object_key`). Multipart text fields: `kind`, `metadata` (JSON string), optional `reuse_media_id` (must equal DB row UUID), optional `expected_row_version` (optimistic lock), optional `skip_upload_if_unchanged` (`1`/`true`/`yes`) with same-file fingerprint → metadata-only DB update without new upload. Conflict → HTTP **409** `Conflict`. |
+| PUT | `/media/files/:id` | Re-upload/replace by logical row (`id` path param = `object_key`). Optional multipart text fields: `reuse_media_id` (must equal DB row UUID), `expected_row_version` (optimistic lock), `skip_upload_if_unchanged` (`1`/`true`/`yes`) with same-file fingerprint → metadata-only DB update without new upload. `kind`/`metadata` fields are ignored if supplied by client. Conflict → HTTP **409** `Conflict`. |
 | DELETE | `/media/files/:id` | Delete object on configured provider |
 | OPTIONS | `/media/files/local/:token` | CORS/preflight support |
 | GET | `/media/files/local/:token` | Decode local signed token to object key |
@@ -73,10 +75,7 @@ Returned `dto.UploadFileResponse` fields:
 - `origin_url`: provider origin URL
 - `object_key`: storage key/object identifier
 - `provider` is intentionally **not returned** in public response to avoid exposing internal provider selection policy.
-- `metadata`: typed object inferred by backend:
-  - `ImageMetadata` for image files
-  - `VideoMetadata` for video files
-  - `DocumentMetadata` for non-image documents
+- `metadata`: typed object inferred by backend (`UploadFileMetadata`) with explicit fields and zero defaults when unavailable (`width_bytes`, `height_bytes`, `has_password`, `archive_entries`, etc.).
 
 `VideoMetadata` includes:
 - `duration`

@@ -172,12 +172,12 @@ func TestToUploadFileResponse_videoFieldsFromBunnyFixture(t *testing.T) {
 		BunnyLibraryID: "123",
 		Duration:       157,
 		VideoProvider:  "bunny_stream",
-		Metadata: entities.VideoMetadata{
-			FileMetadata: entities.FileMetadata{MimeType: "video/mp4"},
-			Width:        1920,
-			Height:       1080,
-			Duration:     157.8,
-			FPS:          29.97,
+		Metadata: entities.UploadFileMetadata{
+			MimeType:        "video/mp4",
+			WidthBytes:      1920,
+			HeightBytes:     1080,
+			DurationSeconds: 157.8,
+			FPS:             29.97,
 		},
 	}
 

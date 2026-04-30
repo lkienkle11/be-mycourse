@@ -8,6 +8,26 @@ import (
 	"mycourse-io-be/pkg/logic/helper"
 )
 
+func uploadMetadataToRaw(meta entities.UploadFileMetadata) entities.RawMetadata {
+	return entities.RawMetadata{
+		"size":            meta.SizeBytes,
+		"width":           meta.WidthBytes,
+		"height":          meta.HeightBytes,
+		"mime_type":       meta.MimeType,
+		"extension":       meta.Extension,
+		"duration":        meta.DurationSeconds,
+		"bitrate":         meta.Bitrate,
+		"fps":             meta.FPS,
+		"video_codec":     meta.VideoCodec,
+		"audio_codec":     meta.AudioCodec,
+		"has_audio":       meta.HasAudio,
+		"is_hdr":          meta.IsHDR,
+		"page_count":      meta.PageCount,
+		"has_password":    meta.HasPassword,
+		"archive_entries": meta.ArchiveEntries,
+	}
+}
+
 func ToMediaEntity(row models.MediaFile) entities.File {
 	raw := entities.RawMetadata{}
 	_ = json.Unmarshal(row.MetadataJSON, &raw)
@@ -36,13 +56,7 @@ func ToMediaEntity(row models.MediaFile) entities.File {
 }
 
 func ToMediaModel(row entities.File) *models.MediaFile {
-	meta := helper.NormalizeMetadata(nil)
-	if mm, ok := row.Metadata.(map[string]any); ok {
-		meta = helper.NormalizeMetadata(mm)
-	}
-	if raw, ok := row.Metadata.(entities.RawMetadata); ok {
-		meta = raw
-	}
+	meta := helper.NormalizeMetadata(uploadMetadataToRaw(row.Metadata))
 	if row.BunnyVideoID != "" {
 		meta["bunny_video_id"] = row.BunnyVideoID
 	}

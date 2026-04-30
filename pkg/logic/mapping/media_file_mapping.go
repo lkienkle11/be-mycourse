@@ -5,6 +5,26 @@ import (
 	"mycourse-io-be/pkg/entities"
 )
 
+func toUploadMetadataDTO(meta entities.UploadFileMetadata) dto.UploadFileMetadata {
+	return dto.UploadFileMetadata{
+		SizeBytes:       meta.SizeBytes,
+		WidthBytes:      meta.WidthBytes,
+		HeightBytes:     meta.HeightBytes,
+		MimeType:        meta.MimeType,
+		Extension:       meta.Extension,
+		DurationSeconds: meta.DurationSeconds,
+		Bitrate:         meta.Bitrate,
+		FPS:             meta.FPS,
+		VideoCodec:      meta.VideoCodec,
+		AudioCodec:      meta.AudioCodec,
+		HasAudio:        meta.HasAudio,
+		IsHDR:           meta.IsHDR,
+		PageCount:       meta.PageCount,
+		HasPassword:     meta.HasPassword,
+		ArchiveEntries:  meta.ArchiveEntries,
+	}
+}
+
 func ToUploadFileResponse(file entities.File) dto.UploadFileResponse {
 	return dto.UploadFileResponse{
 		ID:                 file.ID,
@@ -21,7 +41,7 @@ func ToUploadFileResponse(file entities.File) dto.UploadFileResponse {
 		BunnyLibraryID:     file.BunnyLibraryID,
 		Duration:           file.Duration,
 		VideoProvider:      file.VideoProvider,
-		Metadata:           file.Metadata,
+		Metadata:           toUploadMetadataDTO(file.Metadata),
 		RowVersion:         file.RowVersion,
 		ContentFingerprint: file.ContentFingerprint,
 	}

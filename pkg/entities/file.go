@@ -38,6 +38,24 @@ type DocumentMetadata struct {
 	PageCount int `json:"page_count,omitempty"`
 }
 
+type UploadFileMetadata struct {
+	SizeBytes       int64   `json:"size_bytes"`
+	WidthBytes      int     `json:"width_bytes"`
+	HeightBytes     int     `json:"height_bytes"`
+	MimeType        string  `json:"mime_type"`
+	Extension       string  `json:"extension"`
+	DurationSeconds float64 `json:"duration_seconds"`
+	Bitrate         int     `json:"bitrate"`
+	FPS             float64 `json:"fps"`
+	VideoCodec      string  `json:"video_codec"`
+	AudioCodec      string  `json:"audio_codec"`
+	HasAudio        bool    `json:"has_audio"`
+	IsHDR           bool    `json:"is_hdr"`
+	PageCount       int     `json:"page_count"`
+	HasPassword     bool    `json:"has_password"`
+	ArchiveEntries  int     `json:"archive_entries"`
+}
+
 type File struct {
 	ID                 string                 `json:"id"`
 	Kind               constants.FileKind     `json:"kind"`
@@ -56,7 +74,7 @@ type File struct {
 	VideoProvider      string                 `json:"video_provider"`
 	RowVersion         int64                  `json:"row_version,omitempty"`
 	ContentFingerprint string                 `json:"content_fingerprint,omitempty"`
-	Metadata           any                    `json:"metadata"`
+	Metadata           UploadFileMetadata     `json:"metadata"`
 	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
 }

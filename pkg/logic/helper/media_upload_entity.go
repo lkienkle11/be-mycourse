@@ -12,10 +12,7 @@ import (
 )
 
 func BuildMediaFileEntityFromUpload(in entities.MediaUploadEntityInput) *entities.File {
-	uploadedMeta := entities.RawMetadata{}
-	if metaMap, ok := in.Uploaded.Metadata.(map[string]any); ok {
-		uploadedMeta = NormalizeMetadata(metaMap)
-	}
+	uploadedMeta := NormalizeMetadata(in.Uploaded.Metadata)
 	merged := NormalizeMetadata(in.UploadedMeta)
 	for k, v := range uploadedMeta {
 		merged[k] = v
@@ -29,14 +26,13 @@ func BuildMediaFileEntityFromUpload(in entities.MediaUploadEntityInput) *entitie
 		in.Payload,
 		merged,
 	)
-	videoMeta, _ := typedMetadata.(entities.VideoMetadata)
 	bunnyVideoID := strings.TrimSpace(fmt.Sprintf("%v", merged["bunny_video_id"]))
 	if bunnyVideoID == "" {
 		bunnyVideoID = strings.TrimSpace(fmt.Sprintf("%v", merged["video_guid"]))
 	}
 	bunnyLibraryID := strings.TrimSpace(fmt.Sprintf("%v", merged["bunny_library_id"]))
 	videoProvider := strings.TrimSpace(fmt.Sprintf("%v", merged["video_provider"]))
-	duration := int64(videoMeta.Duration)
+	duration := int64(typedMetadata.DurationSeconds)
 	if duration <= 0 {
 		duration = int64(utils.FloatFromRaw(merged, "length"))
 	}

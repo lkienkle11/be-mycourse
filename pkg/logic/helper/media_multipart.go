@@ -12,25 +12,23 @@ import (
 )
 
 func BindCreateFileMultipart(c *gin.Context) (dto.CreateFileRequest, error) {
-	meta, err := ParseMetadataFromRaw(c.PostForm("metadata"))
-	if err != nil {
+	if _, err := ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
 		return dto.CreateFileRequest{}, err
 	}
 	return dto.CreateFileRequest{
-		Kind:      c.PostForm("kind"),
+		Kind:      "",
 		ObjectKey: c.PostForm("object_key"),
-		Metadata:  meta,
+		Metadata:  nil,
 	}, nil
 }
 
 func BindUpdateFileMultipart(c *gin.Context) (dto.UpdateFileRequest, error) {
-	meta, err := ParseMetadataFromRaw(c.PostForm("metadata"))
-	if err != nil {
+	if _, err := ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
 		return dto.UpdateFileRequest{}, err
 	}
 	req := dto.UpdateFileRequest{
-		Kind:                  c.PostForm("kind"),
-		Metadata:              meta,
+		Kind:                  "",
+		Metadata:              nil,
 		ReuseMediaID:          strings.TrimSpace(c.PostForm("reuse_media_id")),
 		SkipUploadIfUnchanged: utils.ParseBoolLoose(c.PostForm("skip_upload_if_unchanged")),
 	}

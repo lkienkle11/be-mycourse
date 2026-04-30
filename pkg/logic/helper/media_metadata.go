@@ -53,15 +53,14 @@ func BuildTypedMetadata(
 	sizeBytes int64,
 	payload []byte,
 	raw entities.RawMetadata,
-) any {
+) entities.UploadFileMetadata {
 	base := entities.FileMetadata{
 		Size:      sizeBytes,
 		MimeType:  strings.TrimSpace(mimeType),
 		Extension: utils.DetectExtension(filename, mimeType),
 	}
 
-	switch kind {
-	case constants.FileKindVideo:
+	if kind == constants.FileKindVideo {
 		duration := utils.FloatFromRaw(raw, "duration")
 		if duration == 0 {
 			duration = utils.FloatFromRaw(raw, "length")
@@ -70,51 +69,31 @@ func BuildTypedMetadata(
 		if fps == 0 {
 			fps = utils.FloatFromRaw(raw, "framerate")
 		}
-		hasAudio := false
-		if v, ok := raw["has_audio"]; ok {
-			switch typed := v.(type) {
-			case bool:
-				hasAudio = typed
-			default:
-				parsed, err := strconv.ParseBool(strings.TrimSpace(fmt.Sprintf("%v", typed)))
-				hasAudio = err == nil && parsed
-			}
+		return entities.UploadFileMetadata{
+			SizeBytes:       base.Size,
+			WidthBytes:      utils.IntFromRaw(raw, "width"),
+			HeightBytes:     utils.IntFromRaw(raw, "height"),
+			MimeType:        base.MimeType,
+			Extension:       base.Extension,
+			DurationSeconds: duration,
+			Bitrate:         utils.IntFromRaw(raw, "bitrate"),
+			FPS:             fps,
+			VideoCodec:      utils.StringFromRaw(raw, "video_codec"),
+			AudioCodec:      utils.StringFromRaw(raw, "audio_codec"),
+			HasAudio:        parseBoolMetadata(raw, "has_audio"),
+			IsHDR:           parseBoolMetadata(raw, "is_hdr"),
 		}
-		isHDR := false
-		if v, ok := raw["is_hdr"]; ok {
-			switch typed := v.(type) {
-			case bool:
-				isHDR = typed
-			default:
-				parsed, err := strconv.ParseBool(strings.TrimSpace(fmt.Sprintf("%v", typed)))
-				isHDR = err == nil && parsed
-			}
-		}
-		return entities.VideoMetadata{
-			FileMetadata: base,
-			Width:        utils.IntFromRaw(raw, "width"),
-			Height:       utils.IntFromRaw(raw, "height"),
-			Duration:     duration,
-			Bitrate:      utils.IntFromRaw(raw, "bitrate"),
-			FPS:          fps,
-			VideoCodec:   utils.StringFromRaw(raw, "video_codec"),
-			AudioCodec:   utils.StringFromRaw(raw, "audio_codec"),
-			HasAudio:     hasAudio,
-			IsHDR:        isHDR,
-		}
-	case constants.FileKindFile:
-		w, h := utils.ImageSizeFromPayload(payload)
-		if w > 0 && h > 0 {
-			base.Width = w
-			base.Height = h
-			return entities.ImageMetadata{FileMetadata: base}
-		}
-		return entities.DocumentMetadata{
-			FileMetadata: base,
-			PageCount:    utils.IntFromRaw(raw, "page_count"),
-		}
-	default:
-		return entities.DocumentMetadata{FileMetadata: base}
+	}
+	w, h := utils.ImageSizeFromPayload(payload)
+	return entities.UploadFileMetadata{
+		SizeBytes:      base.Size,
+		WidthBytes:     w,
+		HeightBytes:    h,
+		MimeType:       base.MimeType,
+		Extension:      base.Extension,
+		PageCount:      utils.IntFromRaw(raw, "page_count"),
+		HasPassword:    parseBoolMetadata(raw, "has_password"),
+		ArchiveEntries: utils.IntFromRaw(raw, "archive_entries"),
 	}
 }
 
@@ -124,4 +103,18 @@ func DefaultMediaProvider(kind constants.FileKind) constants.FileProvider {
 		return ResolveMediaProvider(kind, configured)
 	}
 	return ResolveMediaProvider(kind, "")
+}
+
+func parseBoolMetadata(raw entities.RawMetadata, key string) bool {
+	v, ok := raw[key]
+	if !ok {
+		return false
+	}
+	switch typed := v.(type) {
+	case bool:
+		return typed
+	default:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(fmt.Sprintf("%v", typed)))
+		return err == nil && parsed
+	}
 }

@@ -4,8 +4,14 @@ import (
 	"time"
 
 	"mycourse-io-be/constants"
-	"mycourse-io-be/dto"
 )
+
+type ProviderUploadResult struct {
+	URL       string
+	OriginURL string
+	ObjectKey string
+	Metadata  RawMetadata
+}
 
 type MediaUploadEntityInput struct {
 	Kind          constants.FileKind
@@ -14,7 +20,7 @@ type MediaUploadEntityInput struct {
 	ContentType   string
 	SizeBytes     int64
 	Payload       []byte
-	Uploaded      dto.UploadFileResponse
+	Uploaded      ProviderUploadResult
 	UploadedMeta  RawMetadata
 	B2Bucket      string
 	CreatedAt     time.Time

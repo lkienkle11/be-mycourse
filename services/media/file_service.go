@@ -76,7 +76,7 @@ func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) 
 		OriginURL: fileURL,
 		ObjectKey: key,
 		Status:    constants.FileStatusReady,
-		Metadata:  entities.DocumentMetadata{FileMetadata: entities.FileMetadata{}},
+		Metadata:  entities.UploadFileMetadata{},
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
@@ -89,9 +89,8 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	clients := pkgmedia.Cloud
 
 	filename := strings.TrimSpace(fileHeader.Filename)
-	meta := helper.NormalizeMetadata(req.Metadata)
-	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
-	provider := helper.DefaultMediaProvider(kind)
+	kind, kindInferred := helper.ResolveMediaKindFromServer(fileHeader.Header.Get("Content-Type"), filename)
+	provider := helper.ResolveUploadProvider(kind, kindInferred)
 	objectKey := helper.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
 
 	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
@@ -107,19 +106,13 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
 	}
 
-	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, meta)
+	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, entities.RawMetadata{})
 	if err != nil {
 		return nil, err
 	}
 
-	uploadedMeta := entities.RawMetadata{}
-	if metaMap, ok := uploaded.Metadata.(map[string]any); ok {
-		uploadedMeta = helper.NormalizeMetadata(metaMap)
-	}
-	merged := helper.NormalizeMetadata(meta)
-	for k, v := range uploadedMeta {
-		merged[k] = v
-	}
+	uploadedMeta := helper.NormalizeMetadata(uploaded.Metadata)
+	merged := helper.NormalizeMetadata(uploadedMeta)
 
 	sizeBytes := fileHeader.Size
 	if sizeBytes < 0 {
@@ -191,14 +184,8 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 	}
 	clients := pkgmedia.Cloud
 
-	meta := helper.NormalizeMetadata(req.Metadata)
 	prevRaw := entities.RawMetadata{}
 	_ = json.Unmarshal(prevRow.MetadataJSON, &prevRaw)
-	for k, v := range prevRaw {
-		if _, ok := meta[k]; !ok {
-			meta[k] = v
-		}
-	}
 
 	filename := strings.TrimSpace(fileHeader.Filename)
 	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
@@ -216,7 +203,7 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 
 	fp := utils.ContentFingerprint(payload)
 	if req.SkipUploadIfUnchanged && prevRow.ContentFingerprint != "" && fp == prevRow.ContentFingerprint {
-		blob, err := helper.MergeMediaMetadataJSON(prevRow.MetadataJSON, meta)
+		blob, err := helper.MergeMediaMetadataJSON(prevRow.MetadataJSON, entities.RawMetadata{})
 		if err != nil {
 			return nil, err
 		}
@@ -237,22 +224,21 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 		return &ent, nil
 	}
 
-	kind := helper.ResolveMediaKind(req.Kind, fileHeader.Header.Get("Content-Type"), filename)
-	provider := helper.DefaultMediaProvider(kind)
+	kind, kindInferred := helper.ResolveMediaKindFromServer(fileHeader.Header.Get("Content-Type"), filename)
+	provider := helper.ResolveUploadProvider(kind, kindInferred)
 	resolvedObjectKey := helper.ResolveMediaUploadObjectKey("", filename, provider)
 
-	uploaded, err := uploadToProvider(clients, provider, resolvedObjectKey, filename, payload, meta)
+	uploaded, err := uploadToProvider(clients, provider, resolvedObjectKey, filename, payload, entities.RawMetadata{})
 	if err != nil {
 		return nil, err
 	}
 
-	uploadedMeta := entities.RawMetadata{}
-	if metaMap, ok := uploaded.Metadata.(map[string]any); ok {
-		uploadedMeta = helper.NormalizeMetadata(metaMap)
-	}
-	merged := helper.NormalizeMetadata(meta)
-	for k, v := range uploadedMeta {
-		merged[k] = v
+	uploadedMeta := helper.NormalizeMetadata(uploaded.Metadata)
+	merged := helper.NormalizeMetadata(uploadedMeta)
+	for k, v := range prevRaw {
+		if _, ok := merged[k]; !ok {
+			merged[k] = v
+		}
 	}
 
 	sizeBytes := fileHeader.Size
@@ -326,7 +312,7 @@ func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 	return mediaRepository().SoftDeleteByObjectKey(key)
 }
 
-func uploadToProvider(clients *entities.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (dto.UploadFileResponse, error) {
+func uploadToProvider(clients *entities.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (entities.ProviderUploadResult, error) {
 	switch provider {
 	case constants.FileProviderLocal:
 		return pkgmedia.UploadLocal(clients, objectKey, meta)

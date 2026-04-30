@@ -189,38 +189,45 @@ If a `.context` folder exists in the project root, the agent MUST execute the fo
 
 ---
 
-## 4. Mandatory Project Documentation Snapshot
+## 4. Mandatory Project Documentation
 
-### 4.1 Create Temporary Folder
+### 4.1 Primary Documentation Folder
 
 ```
-.full-project/
+docs/
 ```
 
-### 4.2 Required Files in `.full-project/`
+The `docs/` folder is the **primary and authoritative** project documentation source. All agents MUST read from and update `docs/` exclusively.
 
-* architecture.md
-* folder-structure.md (FULL tree + purpose of EVERY folder + sub folder - summary EVERY FOLDER includes subfolder in project)
-* data-flow.md
-* api-overview.md
-* components.md (if exists)
-* pages.md (if exists)
-* logic-flow.md (if exists)
-* router.md (if exists)
-* api.md (if exists)
-* patterns.md
-* dependencies.md
-* modules.md
+### 4.2 Core Document Files in `docs/`
+
+* `architecture.md` → overall system design
+* `folder-structure.md` (FULL tree + purpose of EVERY folder + subfolder - summary EVERY FOLDER includes subfolder in project)
+* `data-flow.md` → how data moves through the system
+* `api-overview.md` → APIs and integrations (if applicable for backend)
+* `api-using.md` → frontend API usage patterns (if applicable for frontend)
+* `logic-flow.md` → control flow and execution paths (if applicable)
+* `router.md` → routing structure and navigation (if applicable)
+* `patterns.md` → coding patterns and conventions used
+* `dependencies.md` → key libraries, frameworks, and relationships
+* `modules/` → module-level documentation (one file per module)
+* `reusable-assets.md` → all reusable elements across the project
+* `database.md` → database schema and relationships (if applicable)
+* `requirements.md` → project requirements (if applicable)
+* `return_types.md` → API return types reference (if applicable)
+* `sequence_diagrams.md` → sequence diagrams (if applicable)
+* `components.md` → UI/components and responsibilities (if applicable)
+* `pages.md` → application pages/views (if applicable)
 
 ---
 
-### 4.2.1 ADDITIONAL REQUIRED FILE (NEW)
+### 4.2.1 ADDITIONAL REQUIRED FILE
 
-* reusable-assets.md
+* `docs/reusable-assets.md`
 
 ---
 
-### 4.2.2 reusable-assets.md REQUIREMENTS (NEW)
+### 4.2.2 reusable-assets.md REQUIREMENTS
 
 This file MUST aggregate all reusable elements across the project, including but not limited to:
 
@@ -236,7 +243,7 @@ This file MUST aggregate all reusable elements across the project, including but
 
 ---
 
-### 4.2.3 CONTENT STRUCTURE FOR reusable-assets.md (NEW)
+### 4.2.3 CONTENT STRUCTURE FOR reusable-assets.md
 
 Each item MUST include:
 
@@ -256,11 +263,11 @@ Each item MUST include:
 
 ---
 
-### 4.4 Snapshot Reuse Rule
+### 4.4 Documentation Reuse Rule
 
-* Check `.full-project/` BEFORE any task
-* If exists → reuse
-* If not → re-run discovery in Rule 5
+* Check `docs/` BEFORE any task
+* If documentation is current and complete → reuse
+* If outdated or missing → re-run discovery in Rule 5 and update `docs/`
 
 ---
 
@@ -296,7 +303,7 @@ Each item MUST include:
   * Data flow impact
   * Dependencies
 
-### 6.3 Cross-check with `.full-project/`
+### 6.3 Cross-check with `docs/`
 
 * Avoid redundant discovery
 * Ensure accuracy
@@ -304,9 +311,9 @@ Each item MUST include:
 
 ---
 
-### 6.3.1 REUSABILITY CHECK (NEW)
+### 6.3.1 REUSABILITY CHECK
 
-* MUST check `reusable-assets.md` before proposing any solution
+* MUST check `docs/reusable-assets.md` before proposing any solution
 * MUST identify any existing:
 
   * Utility functions
@@ -315,7 +322,7 @@ Each item MUST include:
 
 ---
 
-### 6.3.2 REUSE ENFORCEMENT (NEW)
+### 6.3.2 REUSE ENFORCEMENT
 
 * If reusable logic exists:
 
@@ -353,7 +360,7 @@ IMPLEMENTATION_PLAN_EXECUTION.md
 
 ---
 
-### ADDITIONAL REQUIRED SECTION (NEW)
+### ADDITIONAL REQUIRED SECTION
 
 * Reusability Strategy:
 
@@ -400,7 +407,7 @@ The implementation plan has been written to IMPLEMENTATION_PLAN_EXECUTION.md. Pl
 
 ---
 
-### ADDITIONAL RULE: SHARED LOGIC EXTRACTION (NEW)
+### ADDITIONAL RULE: SHARED LOGIC EXTRACTION
 
 When implementing:
 
@@ -411,7 +418,7 @@ When implementing:
 
 ---
 
-### STRICT PROHIBITIONS (NEW)
+### STRICT PROHIBITIONS
 
 * DO NOT centralize all utilities into a single module
 * DO NOT place shared logic in incorrect folders
@@ -421,14 +428,14 @@ When implementing:
 
 ## 9. Documentation Sync
 
-* MUST update markdown files
+* MUST update markdown files in `docs/`
 * NOT chat-only summaries
 
 ---
 
-### ADDITIONAL REQUIREMENT (NEW)
+### ADDITIONAL REQUIREMENT
 
-* MUST update `reusable-assets.md` whenever:
+* MUST update `docs/reusable-assets.md` whenever:
 
   * New reusable logic is created
   * Existing reusable logic is modified
@@ -461,17 +468,17 @@ Mandatory:
 4. Subagent exploration
 5. Context processing (.context if exists)
 6. Architecture discovery
-7. Documentation reading
+7. Documentation reading (from `docs/`)
 8. API discovery
 9. Data flow mapping
-10. Create `.full-project/`
-11. Snapshot reuse check
+10. Update `docs/` with new findings
+11. Docs review check (reuse if current)
 12. Targeted code reading
 13. Task analysis
 14. Create implementation plan
 15. WAIT approval
 16. Implement
-17. Update docs
+17. Update `docs/`
 18. Validate
 19. Claude review
 20. Re-analyze
@@ -481,9 +488,9 @@ Mandatory:
 
 ---
 
-### ADDITIONAL FLOW STEPS (NEW)
+### ADDITIONAL FLOW STEPS
 
-24. Aggregate reusable assets into `reusable-assets.md`
+24. Aggregate reusable assets into `docs/reusable-assets.md`
 25. Perform reusability validation before implementation
 26. Extract shared logic during implementation
 

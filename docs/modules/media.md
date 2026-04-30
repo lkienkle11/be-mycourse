@@ -139,6 +139,6 @@ Returned `dto.UploadFileResponse` fields:
 
 ## Testing
 
-- Add all tests for this API (unit/module-level/integration) under repository root **`tests/`** only (shared convention for the whole backend — see `README.md` **Testing** and `.full-project/patterns.md`).
+- Add all tests for this API (unit/module-level/integration) under repository root **`tests/`** only (shared convention for the whole backend — see `README.md` **Testing** and `docs/patterns.md`).
 - Latest verification (2026-04-28, Sub 06): `go build ./...` and `go test ./tests/... -count=1` include `tests/sub06_media_orphan_safety_test.go` (`utils.ContentFingerprint` / merge / superseded guards).
 

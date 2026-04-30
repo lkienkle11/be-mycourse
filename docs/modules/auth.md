@@ -303,4 +303,4 @@ The following custom headers are whitelisted in the CORS configuration:
 
 ## Testing
 
-- **All tests** for this domain (unit/module-level/integration) must be added under repository root **`tests/`** (see `tests/README.md`, root `README.md` **Testing**, `.full-project/patterns.md`).
+- **All tests** for this domain (unit/module-level/integration) must be added under repository root **`tests/`** (see `tests/README.md`, root `README.md` **Testing**, `docs/patterns.md`).

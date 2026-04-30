@@ -7,6 +7,12 @@
 - Do not declare new reusable/domain types inline inside logic implementation files.
 - Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
+## Global Constants Placement Rule (Mandatory)
+
+- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
+- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
+- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+
 ## Primary Request Flow
 1. HTTP request enters Gin router (`api/router.go`).
 2. Global middleware executes (`httperr`, recovery, CORS, gzip, interceptors).
@@ -61,13 +67,23 @@
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL
   - local branch: reversible signed token URL (`/media/files/local/:token`)
-- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal provider field) and is not persisted in local DB.
+- Persisted rows live in `media_files` (migration `000003_media_metadata`, extended by `000004_media_orphan_safety` with `row_version` + `content_fingerprint`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
+- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal provider field).
 
 ### Media Video Status + Webhook
 - `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
 - Numeric Bunny status is normalized by `helper.BunnyVideoStatus.StatusString()` (`unknown` fallback for unsupported values).
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
-- Webhook currently applies skeleton flow only for status `4` (`constants.FinishedWebhookBunnyStatus`) and defers DB persistence of duration to later lesson/media phase.
+- Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); idempotent when DB row missing.
+
+### Orphan Image Cleanup Flow (Sub 07)
+- Triggered when a business entity with an image URL field is deleted or has its URL replaced.
+- `services/taxonomy.DeleteCategory` / `UpdateCategory` → `mediasvc.EnqueueOrphanImageCleanup(url)`.
+- `EnqueueOrphanImageCleanup` (in `services/media/orphan_cleanup.go`):
+  1. DB lookup via `repository/media.FileRepository.GetByURL` → uses stored provider/key.
+  2. Fallback: `helper.ParseImageURLForOrphanCleanup` parses URL by pattern (Bunny prefix or B2/CDN prefix from `MediaSetting`).
+  3. Inserts `media_pending_cloud_cleanup` row for deferred worker deletion.
+- Future JSONB domains: `helper.ScanJSONBForImageURLs(raw)` collects URLs from nested JSONB payloads before cascade delete.
 
 ## Persistence Boundaries
 - PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).

@@ -35,7 +35,7 @@ This project is indexed by GitNexus as **be** (xxx symbols, xxx relationships, x
 
 ## Backend test layout
 
-- **Module-level / integration** Go tests, black-box packages, and shared harnesses **belong under `tests/`** at the repository root. See `README.md` (**Testing**), `.full-project/patterns.md`, and `docs/requirements.md` (NFR-1.6).
+- **Module-level / integration** Go tests, black-box packages, and shared harnesses **belong under `tests/`** at the repository root. See `README.md` (**Testing**), `docs/patterns.md`, and `docs/requirements.md` (NFR-1.6).
 
 ## Tools Quick Reference
 

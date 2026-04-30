@@ -24,7 +24,7 @@ be-mycourse/
 │   ├── rules/
 │   └── skills/
 │       └── session-context-handoff/
-├── .full-project/
+├── docs/
 ├── .github/
 │   └── workflows/
 ├── .gitnexus/
@@ -85,7 +85,7 @@ be-mycourse/
 - `.claude/`: local agent skills and assistant automation assets.
 - `.context/`: session continuity artifacts and timestamped handoff summaries.
 - `.cursor/`: workspace rules, skills, and editor agent metadata.
-- `.full-project/`: generated project discovery snapshot files.
+- `docs/`: generated project discovery snapshot files.
 - `.github/`: CI/CD workflows.
 - `.gitnexus/`: GitNexus graph index artifacts.
 - `api/`: route bootstrap and HTTP entry points.
@@ -133,7 +133,7 @@ be-mycourse/
 - `runtime/`: runtime metadata structures.
 - `scripts/`: build/deploy helper scripts.
 - `services/`: core business logic and orchestration. **File naming:** do not use filename prefix `helper_` or suffix `_helper` under this tree (avoids confusion with `pkg/logic/helper/`); see `docs/patterns.md` — **Services layer file naming**.
-- `tests/`: **module-level / integration** Go test packages, shared harnesses, and fixtures (not production code); see `.full-project/patterns.md` and `README.md` (**Testing**).
+- `tests/`: **module-level / integration** Go test packages, shared harnesses, and fixtures (not production code); see `docs/patterns.md` and `README.md` (**Testing**).
 - `template/`: template root folder.
 - `template/html/`: HTML template grouping.
 - `template/html/email/`: email templates.

@@ -227,6 +227,63 @@
 - Current Usage: `services/media/file_service.go`.
 - Reuse Opportunity: Reuse instead of duplicating filename sanitization or key rules in `pkg/media`.
 
+### Asset: Content fingerprint (SHA-256 hex)
+- Name: `ContentFingerprint`
+- Type: Util
+- Path: `pkg/logic/utils/parsing.go`
+- Purpose: Stable digest of upload bytes for skip-upload dedupe on `PUT /media/files/:id`.
+- Scope: Media replace/update flows; any binary fingerprint need.
+- Dependencies: `crypto/sha256`, `encoding/hex`.
+- Current Usage: `services/media/file_service.go`, `tests/sub06_media_orphan_safety_test.go`.
+- Reuse Opportunity: Any feature needing cheap binary equality without storing raw bytes.
+
+### Asset: MergeMediaMetadataJSON
+- Name: `MergeMediaMetadataJSON`
+- Type: Helper
+- Path: `pkg/logic/helper/media_metadata_merge.go`
+- Purpose: Merge JSONB metadata with overlay map for metadata-only updates.
+- Scope: Media row updates preserving unspecified keys.
+- Dependencies: `encoding/json`, `pkg/entities.RawMetadata`.
+- Current Usage: `services/media/file_service.go`.
+
+### Asset: Superseded cloud cleanup guard
+- Name: `ShouldEnqueueSupersededCloudCleanup`
+- Type: Helper
+- Path: `pkg/logic/helper/media_replace_policy.go`
+- Purpose: Decide whether replace produced a new cloud identity requiring deferred delete of the prior object.
+- Scope: Media replace branch after successful DB save.
+- Current Usage: `services/media/file_service.go`.
+
+### Asset: Multipart binders (media create/update)
+- Name: `BindCreateFileMultipart`, `BindUpdateFileMultipart`
+- Type: Helper (transport parsing)
+- Path: `pkg/logic/helper/media_multipart.go`
+- Purpose: Map Gin multipart text fields to `dto.CreateFileRequest` / `dto.UpdateFileRequest` (same layer as `ParseMetadataFromRaw`).
+- Scope: `api/v1/media/file_handler.go` only; keeps handlers thin.
+- Dependencies: `github.com/gin-gonic/gin`, `dto`, `pkg/logic/utils` (`ParseBoolLoose` for `skip_upload_if_unchanged`).
+
+### Asset: DeleteStoredObject (unified cloud delete)
+- Name: `DeleteStoredObject`
+- Type: Function (`pkg/media`)
+- Path: `pkg/media/stored_object_delete.go`
+- Purpose: Route delete by provider (B2 key vs Bunny GUID vs local noop).
+- Scope: Delete compensation, pending cleanup worker, avoids duplicating switch in callers.
+- Current Usage: `services/media/file_service.go`, `services/media/pending_cleanup.go`.
+
+### Asset: Media cleanup worker scheduler
+- Name: `StartMediaPendingCleanupJob`, `StopMediaPendingCleanupJob`
+- Type: Job (`internal/jobs`)
+- Path: `internal/jobs/media_pending_cleanup_scheduler.go`
+- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `permission_sync_scheduler.go`.
+- Scope: Process-wide background loop; interval from `MEDIA_CLEANUP_INTERVAL_SEC` or `constants.MediaCleanupDefaultIntervalSec`.
+
+### Asset: Media concurrency / reuse errors
+- Name: `ErrMediaOptimisticLock`, `ErrMediaReuseMismatch`
+- Type: Sentinel (`pkg/errors`)
+- Path: `pkg/errors/media_errors.go`
+- Purpose: Map to HTTP **409** + `errcode.Conflict` when row version or `reuse_media_id` mismatches.
+- Dependencies: `constants/error_msg.go` (`MsgMediaOptimisticLockConflict`, `MsgMediaReuseMismatch`).
+
 ### Asset: URL join helper (generic)
 - Name: `JoinURLPathSegments`
 - Type: Util
@@ -519,6 +576,45 @@
 - Scope: Any future upload endpoints that need the same client contract.
 - Dependencies: `response.Fail` callers supply HTTP 413 where appropriate; default **message** text for this code is **`constants.MsgFileTooLargeUpload`** (referenced from `messages.go`, not duplicated).
 
+### Asset: ParseImageURLForOrphanCleanup
+- Name: `ParseImageURLForOrphanCleanup`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/media_url_orphan.go`
+- Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, Gcore CDN + B2 bucket). Pure function — no I/O.
+- Scope: Orphan cleanup flows in any domain service that holds image URL strings.
+- Dependencies: `constants/media.go`, `pkg/logic/utils` (NormalizeBaseURL, JoinURLPathSegments), `pkg/setting`.
+- Current Usage: `services/media/orphan_cleanup.go`.
+- Reuse Opportunity: Call whenever a stored image URL must be mapped back to a cloud object for deletion.
+
+### Asset: ScanJSONBForImageURLs
+- Name: `ScanJSONBForImageURLs`
+- Type: Util/Helper
+- Path: `pkg/logic/helper/media_jsonb_scan.go`
+- Purpose: Walk a raw JSONB payload and collect all string values stored under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
+- Scope: Future lesson/quiz/section cascade delete flows where content images are embedded in JSONB.
+- Dependencies: `encoding/json`, `strings`.
+- Current Usage: Tests only (`tests/sub07_orphan_image_test.go`). TODO hooks in `media_jsonb_scan.go`.
+- Reuse Opportunity: Use in Phase 05+ when lesson/section/quiz content JSONB is added.
+
+### Asset: EnqueueOrphanImageCleanup
+- Name: `EnqueueOrphanImageCleanup`
+- Type: Function (service)
+- Path: `services/media/orphan_cleanup.go`
+- Purpose: Single entry-point to schedule deferred cloud-object deletion for any image URL field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
+- Scope: Any domain service that deletes or replaces an image URL field (taxonomy category, user avatar, future course cover).
+- Dependencies: `services/media.mediaRepository()`, `helper.ParseImageURLForOrphanCleanup`, `constants/media.go`, `models`.
+- Current Usage: `services/taxonomy/category_service.go` (`DeleteCategory`, `UpdateCategory`).
+- Reuse Opportunity: Wire into every future service that has an image URL field on delete/update.
+
+### Asset: GetByURL (FileRepository)
+- Name: `GetByURL`
+- Type: Repository method
+- Path: `repository/media/file_repository.go`
+- Purpose: Find a non-deleted `media_files` row by its public URL or origin URL. Used by orphan cleanup to resolve provider/key from a plain URL string.
+- Scope: Orphan cleanup and any future feature needing to look up a media row by URL.
+- Dependencies: GORM, `models.MediaFile`.
+- Current Usage: `services/media/orphan_cleanup.go`.
+
 ## Gap Analysis (What Must Be Created Later)
 - Missing reusable domain DTO/model/service packages for:
   - course shell/versioning
@@ -528,7 +624,7 @@
   - coupons/orders/enrollments
   - progress/reviews
 - Missing shared query helper namespaces beyond RBAC.
-- Missing test helper assets: place all test suites (unit/module-level/integration), fixtures, and harnesses under **`tests/`** only (see `.full-project/patterns.md`).
+- Missing test helper assets: place all test suites (unit/module-level/integration), fixtures, and harnesses under **`tests/`** only (see `docs/patterns.md`).
 - Missing generalized ownership-check helper utilities for instructor/learner/admin scopes.
 
 ## Immediate Reuse Plan by Phase Core

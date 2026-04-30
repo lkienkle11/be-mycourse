@@ -1,5 +1,35 @@
 # MyCourse Backend
 
+## Documentation Convention (Mandatory)
+
+The `docs/` folder is the **primary and authoritative documentation source** for this project.
+
+- **Before starting any task** (coding, planning, debugging, refactoring), read the relevant files in `docs/` first.
+- If `docs/` already contains sufficient and up-to-date information → **reuse it directly** without re-running full discovery.
+- If `docs/` is missing information or outdated → re-run discovery and **update `docs/` before proceeding**.
+- Always sync `docs/` after completing any task that changes architecture, APIs, data flow, patterns, or reusable assets.
+- `docs/reusable-assets.md` must be checked before proposing any new utility, type, or helper to avoid duplication.
+
+| Doc | Contents |
+|-----|----------|
+| [`docs/architecture.md`](docs/architecture.md) | HTTP layers, directory map, `/api/v1` vs internal routes, GitNexus graph snapshot |
+| [`docs/folder-structure.md`](docs/folder-structure.md) | Full directory tree with purpose of every folder and subfolder |
+| [`docs/data-flow.md`](docs/data-flow.md) | How data moves through the system end-to-end |
+| [`docs/api-overview.md`](docs/api-overview.md) | Full API surface: routes, handlers, request/response shapes |
+| [`docs/logic-flow.md`](docs/logic-flow.md) | Control flow and execution paths for key operations |
+| [`docs/router.md`](docs/router.md) | Routing structure and handler registration |
+| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, helper vs util, tests layout) |
+| [`docs/dependencies.md`](docs/dependencies.md) | Key libraries, frameworks, and their relationships |
+| [`docs/reusable-assets.md`](docs/reusable-assets.md) | All reusable utilities, types, DTOs, error codes, constants |
+| [`docs/database.md`](docs/database.md) | Database schema, tables, migration history |
+| [`docs/requirements.md`](docs/requirements.md) | Functional & non-functional requirements for all features |
+| [`docs/sequence_diagrams.md`](docs/sequence_diagrams.md) | Mermaid sequence diagrams for every system flow |
+| [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
+| [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
+| [`docs/modules.md`](docs/modules.md) | Module responsibilities overview — implemented modules, planned modules, ownership boundaries, and testing layout |
+| [`docs/modules/`](docs/modules/) | Per-domain module notes (auth, user, media, taxonomy, rbac, course, lesson, enrollment) |
+
+---
 
 ## Global Type Placement Rule (Mandatory)
 
@@ -25,7 +55,8 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/sequence_diagrams.md`](docs/sequence_diagrams.md) | Mermaid sequence diagrams for every system flow |
 | [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
-| [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, course, lesson, enrollment) |
+| [`docs/modules.md`](docs/modules.md) | Module responsibilities overview — implemented modules, planned modules, ownership boundaries |
+| [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, media, taxonomy, rbac, course, lesson, enrollment) |
 | [`docs/modules/media.md`](docs/modules/media.md) | Unified media upload API (file/video providers, B2+Gcore + Bunny Stream pipeline, persisted `media_files` metadata sync, Bunny status endpoint + webhook, helper-vs-util convention; **2 GiB max per uploaded file**, Gin multipart memory + proxy sizing notes) |
 | [`tests/`](tests/) | **All test code** (unit/module-level/integration) — place test packages, fixtures, and shared harnesses here (see **Testing** below). |
 
@@ -63,7 +94,7 @@ curl http://localhost:8080/api/v1/health
 - **Module tests** (integration flows, black-box tests against `mycourse-io-be`, shared fixtures, or any test code you want outside production packages): add packages under **`tests/`** at the repository root (alongside `api/`, `services/`, …). `go test ./...` from the repo root includes those packages once they contain `*_test.go` files.
 - **All test code** (including unit, integration, black-box, fixtures, and shared harnesses) **MUST** be placed under repository root **`tests/`**.
 - On-disk pointer: [`tests/README.md`](tests/README.md).
-- Canonical convention text: [`docs/patterns.md`](docs/patterns.md) (mirrored in [`.full-project/patterns.md`](.full-project/patterns.md)) and [`docs/requirements.md`](docs/requirements.md) (NFR on test layout).
+- Canonical convention text: [`docs/patterns.md`](docs/patterns.md) (mirrored in [`docs/patterns.md`](docs/patterns.md)) and [`docs/requirements.md`](docs/requirements.md) (NFR on test layout).
 
 ### CI deploy (`master`)
 

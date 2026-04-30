@@ -1,3 +1,15 @@
+## Documentation Convention (Mandatory)
+
+The `docs/` folder is the **primary and authoritative documentation source** for this project.
+
+- **Before starting any task**, read the relevant files in `docs/` (including `docs/architecture.md`, `docs/patterns.md`, `docs/reusable-assets.md`, `docs/data-flow.md`, `docs/api-overview.md`, and any applicable `docs/modules/*.md`).
+- If `docs/` already contains sufficient and up-to-date information → **reuse it directly** without re-running full discovery.
+- If `docs/` is missing information or outdated → re-run discovery and **update `docs/` before writing code**.
+- At the end of each task, sync `docs/` to reflect any changes made (architecture, APIs, reusable assets, patterns, sequences).
+- Always check `docs/reusable-assets.md` before proposing any new utility, type, DTO, or helper to avoid duplication.
+
+---
+
 ## Phase Sub 07 — Orphan image cleanup (tasks 01→10, closed 2026-04-29)
 
 Single authoritative checklist for plan ids `phase-sub-07-task-01` … `phase-sub-07-task-10`.
@@ -72,7 +84,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 ## Repository convention — `tests/` (module-level tests)
 
-- Add **module / integration** Go tests, black-box packages importing `mycourse-io-be`, shared fixtures, and cross-feature harnesses under repository root **`tests/`** (see `tests/README.md`, `README.md` **Testing**, `.full-project/patterns.md`, `docs/requirements.md` NFR-1.6, `docs/architecture.md` directory map).
+- Add **module / integration** Go tests, black-box packages importing `mycourse-io-be`, shared fixtures, and cross-feature harnesses under repository root **`tests/`** (see `tests/README.md`, `README.md` **Testing**, `docs/patterns.md`, `docs/requirements.md` NFR-1.6, `docs/architecture.md` directory map).
 - **All tests** (including narrow unit tests) must be added under repository root **`tests/`**.
 
 ## Phase Sub 05 Execution Update (2026-04-27 - tasks 01->15)
@@ -104,7 +116,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ## Phase Sub 03 — Upload cap 2 GiB per file (tasks 01–10, 2026-04-26)
 
 ### Task 01 — Baseline / discovery / multipart inventory
-- Re-read `.full-project/*`, `.context/*`, `docs/*`, `README.md`, this plan; ran `npx gitnexus analyze --force` + `npx gitnexus status` (index up-to-date).
+- Re-read `docs/*`, `.context/*`, `docs/*`, `README.md`, this plan; ran `npx gitnexus analyze --force` + `npx gitnexus status` (index up-to-date).
 - **Multipart upload entry points (repo grep `FormFile` / upload):** only `api/v1/media/file_handler.go` (`createFile`, `updateFile`) use `c.FormFile("file")`. No other handlers accept multipart file uploads.
 - **Service read path:** `services/media/file_service.go` `CreateFile` (and `UpdateFile` via `CreateFile`) reads the opened part into memory before provider dispatch; guarded by `io.LimitReader(..., MaxMediaUploadFileBytes+1)` + size checks (see tasks 04–05).
 - **Other `io.ReadAll`:** `pkg/media/clients.go` uses `io.ReadAll` on **HTTP response bodies** for Bunny/B2 error diagnostics — not a client upload entry point.
@@ -143,18 +155,18 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - **`constants.MsgFileTooLargeUpload`** is the only literal for upload oversize copy; **`pkg/errcode/messages.go`** uses `constants.MsgFileTooLargeUpload` for `FileTooLarge`; **`pkg/errors/upload_errors.go`** uses the same for `ErrFileExceedsMaxUploadSize`. Renamed from `MediaUploadErrFileExceedsMaxSize` to avoid two strings for one UX. Full docs + package comments updated for downstream AI agents.
 
 ### Phase Sub 03 — Constants layout (tasks 01–10 follow-up, 2026-04-26)
-- Merged **`constants/upload_limits.go` → `constants/error_msg.go`** so all agent-discoverable **error/sentinel message** literals (and co-located limits) live in one documented file. Updated architecture, README, `.full-project/*`, `docs/modules/media.md`, `pkg/errcode/messages.go` cross-reference, this plan, `.context` handoff.
+- Merged **`constants/upload_limits.go` → `constants/error_msg.go`** so all agent-discoverable **error/sentinel message** literals (and co-located limits) live in one documented file. Updated architecture, README, `docs/*`, `docs/modules/media.md`, `pkg/errcode/messages.go` cross-reference, this plan, `.context` handoff.
 
 ### Phase Sub 03 — Re-audit (sentinel + message constant, same tasks 01–10, 2026-04-26)
 - Re-validated: `FormFile` only in media handlers; policy unchanged (2 GiB, Gin 64 MiB, handler early reject, service `LimitReader`, deploy/nginx notes, errcode **2003**).
 - **Structural fix:** deleted `services/media/errors.go`. Upload oversize sentinel is **`pkg/errors.ErrFileExceedsMaxUploadSize`** in `pkg/errors/upload_errors.go`, built from **`constants.MsgFileTooLargeUpload`** in **`constants/error_msg.go`** — **same** constant as `pkg/errcode/messages.go` → `defaultMessages[FileTooLarge]` (no wording drift between JSON `message` and `errors.Is` sentinel).
 - **Import rule:** `api/v1/media` is `package media` → handler imports `mycourse-io-be/pkg/media` as **`pkgmedia`** so it does not collide with the handler’s own package name `media`.
-- Docs/snapshots updated again: this plan, `.full-project/reusable-assets.md`, `.context/session_summary_2026-04-26_phase_sub03_upload_cap.md`; `npx gitnexus analyze --force` after edits.
+- Docs/snapshots updated again: this plan, `docs/reusable-assets.md`, `.context/session_summary_2026-04-26_phase_sub03_upload_cap.md`; `npx gitnexus analyze --force` after edits.
 
 ## Phase Sub 04 — B2/CDN URL, object keys, Bunny split + provider errcodes (tasks 01–10, 2026-04-27)
 
 ### Task 01 — Đầu / Giữa / Cuối (baseline + scope) ✅
-- **Đầu:** Re-read `AGENTS.md`, `.full-project/patterns.md`, `docs/modules/media.md`, Sub04 intent: align with project layout (constants → errcode; media-specific keys in `pkg/logic/helper`; generic URL + random in `pkg/logic/utils`; tests under `tests/` only for this slice).
+- **Đầu:** Re-read `AGENTS.md`, `docs/patterns.md`, `docs/modules/media.md`, Sub04 intent: align with project layout (constants → errcode; media-specific keys in `pkg/logic/helper`; generic URL + random in `pkg/logic/utils`; tests under `tests/` only for this slice).
 - **Giữa:** Reference docs confirmed at `temporary-docs/chuc-nang-upload/openedu-core-arch.md` (§4.2/§5.5/§5.7) and `temporary-docs/chuc-nang-upload/chuc-nang-bo-sung.md`. Five baseline groups locked: (1) CDN URL `<cdn>/<bucket>/<key>` via `JoinURLPathSegments`; (2) B2 bucket from `setting.MediaSetting.B2Bucket` (not hardcoded); (3) 8-digit prefix for B2 objects only; (4) Bunny 2-step pipeline (CreateVideo POST + UploadContent PUT) — **poll/webhook (openedu-core §5.2/§5.7) deferred to tasks 11–20** per task scope ("2 bước" in task 09); (5) `VideoMetadata` entity has BunnyVideoID/LibraryID/Duration/VideoProvider.
 - **Cuối:** This section is the authoritative task checklist for Sub04; implementation matches rows below.
 
@@ -256,10 +268,10 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Synced docs:
   - `docs/modules/media.md`
   - `README.md`
-  - `.full-project/data-flow.md`
-  - `.full-project/modules.md`
-  - `.full-project/api-overview.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/data-flow.md`
+  - `docs/modules.md`
+  - `docs/api-overview.md`
+  - `docs/reusable-assets.md`
   - `IMPLEMENTATION_PLAN_EXECUTION.md` (this section)
 - Quality gate:
   - `go fmt ./...` ✅
@@ -275,7 +287,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - (e) Bunny pipeline + status endpoint + webhook outside auth middleware: PASS.
 - (f) Entity/DTO fields (`BunnyVideoID`, `BunnyLibraryID`, `Duration`, `VideoProvider`) + typed `VideoMetadata`: PASS.
 - (g) Five env example files synchronized: PASS.
-- (h) docs + `.full-project/*` + plan synchronized: PASS.
+- (h) docs + `docs/*` + plan synchronized: PASS.
 - (i) quality gate clean: PASS.
 
 ### Task 20 ✅
@@ -321,9 +333,9 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Synced docs:
   - `README.md`
   - `docs/modules/media.md`
-  - `.full-project/modules.md`
-  - `.full-project/patterns.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/modules.md`
+  - `docs/patterns.md`
+  - `docs/reusable-assets.md`
   - this plan file
 
 ## Phase Sub 02 RESET Update (2026-04-26 - mapper + provider-from-env contract)
@@ -332,7 +344,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Re-ran baseline and context/docs recovery before implementation:
   - `npx gitnexus analyze --force`
   - `npx gitnexus status`
-  - re-read `.context/*`, `.full-project/*`, `docs/*`, `README.md`, and this plan file.
+  - re-read `.context/*`, `docs/*`, `docs/*`, `README.md`, and this plan file.
 
 ### Media contract hardening
 - Added mapper layer in `pkg/logic/mapping/*_mapping.go` (`media_file_mapping.go`, `taxonomy_category_mapping.go`, `taxonomy_course_level_mapping.go`, `taxonomy_tag_mapping.go`) and routed media handler responses through `mapping.ToUploadFileResponse`.
@@ -359,9 +371,9 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `go build ./...` (pass)
 - Synced docs:
   - `docs/modules/media.md`
-  - `.full-project/modules.md`
-  - `.full-project/data-flow.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/modules.md`
+  - `docs/data-flow.md`
+  - `docs/reusable-assets.md`
   - this plan file
 # IMPLEMENTATION_PLAN_EXECUTION
 
@@ -398,7 +410,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 ## Folder Structure
 - Full root-to-deepest tree and per-folder purpose are documented in:
-  - `.full-project/folder-structure.md`
+  - `docs/folder-structure.md`
 - Coverage includes workspace-level hidden folders and all source/ops folders.
 
 ## Module Responsibilities
@@ -409,7 +421,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - system operations/synchronization
 - Planned domains (not yet implemented): course/lesson/enrollment + full e-learning/commerce interactions.
 - Detailed module map is in:
-  - `.full-project/modules.md`
+  - `docs/modules.md`
 
 ## Data Flow
 - Current verified end-to-end flows:
@@ -421,8 +433,8 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - permission check middleware fallback
   - system sync now/scheduler controls
 - Detailed flow artifacts are in:
-  - `.full-project/data-flow.md`
-  - `.full-project/logic-flow.md`
+  - `docs/data-flow.md`
+  - `docs/logic-flow.md`
 
 ## Related Features
 - Shared security/authorization core:
@@ -647,9 +659,9 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - system token middleware engine
 - queue placeholder logic
 
-### 6.3 Cross-check with `.full-project`
+### 6.3 Cross-check with `docs/`
 - Cross-checked all planning assumptions with newly written snapshot files.
-- Reuse baseline is anchored in `.full-project/reusable-assets.md`.
+- Reuse baseline is anchored in `docs/reusable-assets.md`.
 
 ### 6.3.1 Reusability Check (Mandatory)
 - Existing reusable foundations confirmed:
@@ -691,7 +703,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - For each phase core, map each CRUD/query to:
   - existing reusable asset (reuse),
   - or new reusable asset (create once, reuse later).
-- Update `.full-project/reusable-assets.md` whenever reusable logic is introduced/changed.
+- Update `docs/reusable-assets.md` whenever reusable logic is introduced/changed.
 
 ## CRUD/Query Mapping (Phase 01-12)
 
@@ -746,25 +758,25 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 3. Service logic (ownership, business constraints, repository orchestration).
 4. Route wiring + middleware permissions.
 5. Query optimization and list/filter behavior.
-6. Documentation sync (`.full-project` + `.context`).
+6. Documentation sync (`docs/ + `.context`).
 
 ## Discovery Phases (1->5) and Output Artifacts
 - Phase 1 Architecture (S1+S4):
-  - `.full-project/architecture.md`
-  - `.full-project/folder-structure.md`
+  - `docs/architecture.md`
+  - `docs/folder-structure.md`
 - Phase 2 Documentation (S7):
-  - `.full-project/modules.md`
-  - `.full-project/patterns.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/modules.md`
+  - `docs/patterns.md`
+  - `docs/reusable-assets.md`
 - Phase 3 API (S2+S6):
-  - `.full-project/api-overview.md`
-  - `.full-project/router.md`
-  - `.full-project/api.md`
+  - `docs/api-overview.md`
+  - `docs/router.md`
+  - `docs/api.md`
 - Phase 4 Data flow (S3+S8):
-  - `.full-project/data-flow.md`
-  - `.full-project/logic-flow.md`
+  - `docs/data-flow.md`
+  - `docs/logic-flow.md`
 - Phase 5 Targeted code reading (S5 + hot paths):
-  - `.full-project/dependencies.md`
+  - `docs/dependencies.md`
   - DB/RBAC impact captured in this plan and reusable inventory.
 
 ## Post-Approval Discipline (Reminder)
@@ -785,11 +797,11 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - Executed `go test ./...` successfully on 2026-04-23 after Phase 01 implementation.
   - Result: pass (no package test failures; most packages currently have no test files).
 - Documentation sync status:
-  - Updated `.full-project/api-overview.md` with taxonomy endpoint inventory.
-  - Updated `.full-project/router.md` with taxonomy route registration topology.
-  - Updated `.full-project/data-flow.md` with taxonomy CRUD flow.
-  - Updated `.full-project/modules.md` to mark taxonomy as implemented.
-  - Updated `.full-project/reusable-assets.md` with newly introduced reusable helpers.
+  - Updated `docs/api-overview.md` with taxonomy endpoint inventory.
+  - Updated `docs/router.md` with taxonomy route registration topology.
+  - Updated `docs/data-flow.md` with taxonomy CRUD flow.
+  - Updated `docs/modules.md` to mark taxonomy as implemented.
+  - Updated `docs/reusable-assets.md` with newly introduced reusable helpers.
 - Reusable-assets closure:
   - Added reusable assets for `pkg/query/filter_parser.go` and `pkg/requestutil/params.go`.
   - Updated gap analysis to remove taxonomy from missing-domain list.
@@ -843,7 +855,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Re-ran `gitnexus analyze --force`.
 - Re-read `.context` and execution plan documentation before rework.
 - Ran impact checks for touched symbols (`CourseLevel`, `Category`) and continued with LOW risk only.
-- Re-synchronized docs in `.full-project/*` and this execution plan to reflect corrected architecture boundary.
+- Re-synchronized docs in `docs/*` and this execution plan to reflect corrected architecture boundary.
 
 ### Validation for rework
 - `go test ./...` (pass)
@@ -869,8 +881,8 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - no DB persistence for media resources
 - Updated files:
   - `README.md`
-  - `.full-project/modules.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/modules.md`
+  - `docs/reusable-assets.md`
   - `docs/modules/media.md`
 - `go build ./...` (pass)
 
@@ -917,7 +929,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Task 01 + Task 04 loop for this cycle
 - Re-ran `gitnexus analyze --force`.
 - Re-ran impact checks and validated no behavior regression with test/build.
-- Synchronized `.full-project/reusable-assets.md` and this execution plan.
+- Synchronized `docs/reusable-assets.md` and this execution plan.
 
 ### Validation for this cycle
 - `go test ./...` (pass)
@@ -944,7 +956,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Task 01 + Task 04 loop for this cycle
 - Re-ran `gitnexus analyze --force` before edits.
 - Performed impact analysis for all modified symbols.
-- Updated `.full-project/reusable-assets.md` and this plan to keep docs synchronized with code changes.
+- Updated `docs/reusable-assets.md` and this plan to keep docs synchronized with code changes.
 
 ### Validation for this cycle
 - `go test ./...` (pass)
@@ -961,7 +973,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Task 01 + Task 04 loop for this redo
 - Re-ran `gitnexus analyze --force` before the refactor cycle.
 - Ran impact checks for `Tag`, `CreateTag`, and related model surfaces, then applied changes with scope control.
-- Re-synced `.full-project/reusable-assets.md` and this plan after code updates.
+- Re-synced `docs/reusable-assets.md` and this plan after code updates.
 
 ### Validation for this redo
 - `go test ./...` (pass)
@@ -987,7 +999,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Task 01 + Task 04 loop for this cycle
 - Re-ran `gitnexus analyze --force`.
 - Ran impact checks before edit (`RegisterInternalRoutes`, `parseUintParam`).
-- Re-synced `.full-project` docs and this execution plan after refactor.
+- Re-synced `docs/` and this execution plan after refactor.
 
 ### Validation for this cycle
 - `go test ./...` (pass)
@@ -996,7 +1008,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ## Phase Sub 01 Refactor Execution Update (2026-04-25 - core-to-pkg-entities cycle)
 
 ### Task 01 - Re-discovery and impact map (completed before code edits)
-- Re-read `.context/*`, `.full-project/*`, and this execution plan file.
+- Re-read `.context/*`, `docs/*`, and this execution plan file.
 - Re-ran `npx gitnexus analyze --force` before any source edits.
 - GitNexus refactor discovery focus:
   - package path migration from `mycourse-io-be/core/entities` to `mycourse-io-be/pkg/entities`
@@ -1010,7 +1022,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `services/taxonomy/category_service.go`
   - `services/taxonomy/tag_service.go`
 - Documentation impact map (paths mentioning `core/entities`):
-  - `.full-project/reusable-assets.md`
+  - `docs/reusable-assets.md`
   - `IMPLEMENTATION_PLAN_EXECUTION.md`
   - `.context/session_summary_2026-04-25_210429.md` (historical log, read-only snapshot)
 - Impact-risk conclusion for migration:
@@ -1028,7 +1040,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Task 04 planned verification for this cycle
 - Run final leftover scan for `core/entities` references.
 - Run `go test ./...` and `go build ./...`.
-- Sync `.full-project/*` and `.context/*` summary docs with final state.
+- Sync `docs/*` and `.context/*` summary docs with final state.
 
 ### Task 02 - Completed implementation
 - Moved shared entity files to `pkg/entities`:
@@ -1049,7 +1061,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Verified no remaining code imports reference `mycourse-io-be/core/entities`.
 
 ### Task 04 - Verification and documentation sync (completed)
-- Updated `.full-project/reusable-assets.md` to reflect new entity paths in `pkg/entities`.
+- Updated `docs/reusable-assets.md` to reflect new entity paths in `pkg/entities`.
 - Final leftover scan result:
   - no code files import `mycourse-io-be/core/entities`
   - remaining `core/entities` mentions are historical records in context/plan docs
@@ -1074,13 +1086,13 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - updated startup/deploy cache references to `pkg/cache_clients/redis.go`
 - `docs/requirements.md`
   - updated FR-6 source references from `api/v1/internal_rbac.go` to `api/v1/internal/*`
-- `.full-project/folder-structure.md`
+- `docs/folder-structure.md`
   - removed obsolete root `cache_clients/`
   - added/expanded `pkg/cache_clients`, `pkg/entities`, `pkg/logic`, `pkg/query`, `pkg/requestutil`
   - updated `.context/` purpose description to reflect active session summaries
-- `.full-project/architecture.md`
+- `docs/architecture.md`
   - added `pkg/entities` as active shared-entity layer in architecture snapshot
-- `.full-project/reusable-assets.md`
+- `docs/reusable-assets.md`
   - updated internal RBAC usage reference to `api/v1/internal/rbac_handler.go`
 
 ### Verification after doc sync
@@ -1098,7 +1110,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Re-ran strict reset baseline:
   - `npx gitnexus analyze --force`
   - `npx gitnexus status`
-  - re-read required context/doc sets: `.context/*`, `.full-project/*`, `docs/*`, `README.md`, `IMPLEMENTATION_PLAN_EXECUTION.md`.
+  - re-read required context/doc sets: `.context/*`, `docs/*`, `docs/*`, `README.md`, `IMPLEMENTATION_PLAN_EXECUTION.md`.
 - Re-validated media route surface and current transport contract against code:
   - methods kept: `GET/POST/PUT/DELETE/OPTIONS` on `/api/v1/media/files` and `/media/files/:id`, plus local decode route.
   - no request/response/status/error contract changes introduced in this reset cycle.
@@ -1127,8 +1139,8 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Updated:
   - `README.md`
   - `docs/modules/media.md`
-  - `.full-project/modules.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/modules.md`
+  - `docs/reusable-assets.md`
   - this execution plan file
 - Added reusable-assets entry for resolver relocation (`pkg/logic/helper/media_resolver.go`).
 
@@ -1194,12 +1206,12 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Documentation synchronization completed
 - Updated:
   - `README.md`
-  - `.full-project/architecture.md`
-  - `.full-project/api-overview.md`
-  - `.full-project/router.md`
-  - `.full-project/modules.md`
-  - `.full-project/data-flow.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/architecture.md`
+  - `docs/api-overview.md`
+  - `docs/router.md`
+  - `docs/modules.md`
+  - `docs/data-flow.md`
+  - `docs/reusable-assets.md`
   - `docs/modules/media.md` (new)
 
 ### Validation
@@ -1263,7 +1275,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - `npx gitnexus analyze --force` + `npx gitnexus status` -> up-to-date.
 
 ### Documentation sync
-- Updated `.full-project/data-flow.md`, `.full-project/reusable-assets.md` (new asset + corrected media metadata usage line), and this file.
+- Updated `docs/data-flow.md`, `docs/reusable-assets.md` (new asset + corrected media metadata usage line), and this file.
 
 ## Phase Sub 02 RESET Update (2026-04-26 - metadata typing + helper placement)
 
@@ -1271,7 +1283,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Re-ran reset baseline:
   - `npx gitnexus analyze --force`
   - `npx gitnexus status`
-- Re-read required sources (`.context/*`, `.full-project/*`, `docs/*`, `README.md`, this plan file) before edits.
+- Re-read required sources (`.context/*`, `docs/*`, `docs/*`, `README.md`, this plan file) before edits.
 - Revalidated media API method scope remains unchanged:
   - `GET/POST/PUT/DELETE/OPTIONS` on `/api/v1/media/files*`.
 
@@ -1310,9 +1322,9 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Updated:
   - `README.md`
   - `docs/modules/media.md`
-  - `.full-project/modules.md`
-  - `.full-project/data-flow.md`
-  - `.full-project/reusable-assets.md`
+  - `docs/modules.md`
+  - `docs/data-flow.md`
+  - `docs/reusable-assets.md`
   - this execution plan file.
 
 ---

@@ -4,4 +4,4 @@ Place **module / integration** Go test packages here (suites that import `mycour
 
 All tests (unit/integration/black-box/shared fixtures) must be placed under this `tests/` tree; do not place new tests next to production packages.
 
-Authoritative docs: `README.md` (**Testing**), `.full-project/patterns.md`, `docs/requirements.md` (NFR-1.6), `docs/architecture.md` (directory map).
+Authoritative docs: `README.md` (**Testing**), `docs/patterns.md`, `docs/requirements.md` (NFR-1.6), `docs/architecture.md` (directory map).

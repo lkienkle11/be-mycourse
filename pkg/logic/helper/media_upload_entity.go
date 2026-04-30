@@ -30,6 +30,12 @@ func BuildMediaFileEntityFromUpload(in entities.MediaUploadEntityInput) *entitie
 	if bunnyVideoID == "" {
 		bunnyVideoID = strings.TrimSpace(fmt.Sprintf("%v", merged["video_guid"]))
 	}
+	videoID := strings.TrimSpace(fmt.Sprintf("%v", merged[constants.MediaMetaKeyVideoID]))
+	if videoID == "" {
+		videoID = bunnyVideoID
+	}
+	thumbnailURL := strings.TrimSpace(fmt.Sprintf("%v", merged[constants.MediaMetaKeyThumbnailURL]))
+	embededHTML := strings.TrimSpace(fmt.Sprintf("%v", merged[constants.MediaMetaKeyEmbededHTML]))
 	bunnyLibraryID := strings.TrimSpace(fmt.Sprintf("%v", merged["bunny_library_id"]))
 	videoProvider := strings.TrimSpace(fmt.Sprintf("%v", merged["video_provider"]))
 	duration := int64(typedMetadata.DurationSeconds)
@@ -60,6 +66,9 @@ func BuildMediaFileEntityFromUpload(in entities.MediaUploadEntityInput) *entitie
 		B2BucketName:       b2Bucket,
 		BunnyVideoID:       bunnyVideoID,
 		BunnyLibraryID:     bunnyLibraryID,
+		VideoID:            videoID,
+		ThumbnailURL:       thumbnailURL,
+		EmbededHTML:        embededHTML,
 		Duration:           duration,
 		VideoProvider:      videoProvider,
 		Metadata:           typedMetadata,

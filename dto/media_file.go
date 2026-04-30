@@ -33,6 +33,9 @@ type UploadFileResponse struct {
 	ObjectKey          string             `json:"object_key"`
 	BunnyVideoID       string             `json:"bunny_video_id,omitempty"`
 	BunnyLibraryID     string             `json:"bunny_library_id,omitempty"`
+	VideoID            string             `json:"video_id,omitempty"`
+	ThumbnailURL       string             `json:"thumbnail_url,omitempty"`
+	EmbededHTML        string             `json:"embeded_html,omitempty"`
 	Duration           int64              `json:"duration,omitempty"`
 	VideoProvider      string             `json:"video_provider,omitempty"`
 	Metadata           UploadFileMetadata `json:"metadata"`

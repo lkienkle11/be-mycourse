@@ -20,6 +20,8 @@ type CloudClients struct {
 // BunnyVideoDetail mirrors Bunny Stream get-video payload fields used by service layer.
 type BunnyVideoDetail struct {
 	VideoLibraryID int     `json:"videoLibraryId"`
+	// BunnyNumericID is the numeric "id" field from the Stream API (distinct from guid).
+	BunnyNumericID int64   `json:"id"`
 	GUID           string  `json:"guid"`
 	Length         float64 `json:"length"`
 	Status         int     `json:"status"`
@@ -30,4 +32,7 @@ type BunnyVideoDetail struct {
 	VideoCodec     string  `json:"videoCodec"`
 	AudioCodec     string  `json:"audioCodec"`
 	HasMP4Fallback bool    `json:"hasMP4Fallback"`
+	ThumbnailURL   string  `json:"thumbnailUrl"`
+	// DefaultThumbnailURL is an alternate field name returned by some API versions.
+	DefaultThumbnailURL string `json:"defaultThumbnailUrl"`
 }

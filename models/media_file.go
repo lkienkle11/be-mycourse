@@ -21,6 +21,9 @@ type MediaFile struct {
 	B2BucketName       string                 `gorm:"column:b2_bucket_name;type:varchar(255);not null;default:''"`
 	BunnyVideoID       string                 `gorm:"column:bunny_video_id;type:varchar(255);index"`
 	BunnyLibraryID     string                 `gorm:"column:bunny_library_id;type:varchar(255)"`
+	VideoID            string                 `gorm:"column:video_id;type:varchar(255);not null;default:''"`
+	ThumbnailURL       string                 `gorm:"column:thumbnail_url;type:text;not null;default:''"`
+	EmbededHTML        string                 `gorm:"column:embeded_html;type:text;not null;default:''"`
 	Duration           int64                  `gorm:"column:duration;not null;default:0"`
 	VideoProvider      string                 `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
 	RowVersion         int64                  `gorm:"column:row_version;not null;default:1"`

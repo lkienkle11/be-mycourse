@@ -170,6 +170,9 @@ func TestToUploadFileResponse_videoFieldsFromBunnyFixture(t *testing.T) {
 		ObjectKey:      "abc",
 		BunnyVideoID:   "abc",
 		BunnyLibraryID: "123",
+		VideoID:        "999",
+		ThumbnailURL:   "https://cdn.example/thumb.jpg",
+		EmbededHTML:    `<iframe src="https://iframe.mediadelivery.net/embed/123/abc"></iframe>`,
 		Duration:       157,
 		VideoProvider:  "bunny_stream",
 		Metadata: entities.UploadFileMetadata{
@@ -184,5 +187,16 @@ func TestToUploadFileResponse_videoFieldsFromBunnyFixture(t *testing.T) {
 	got := mapping.ToUploadFileResponse(in)
 	if got.BunnyVideoID != "abc" || got.BunnyLibraryID != "123" || got.Duration != 157 || got.VideoProvider != "bunny_stream" {
 		t.Fatalf("unexpected mapped video fields: %+v", got)
+	}
+	if got.VideoID != "999" || got.ThumbnailURL != "https://cdn.example/thumb.jpg" || got.EmbededHTML != in.EmbededHTML {
+		t.Fatalf("unexpected Bunny parity fields: %+v", got)
+	}
+}
+
+func TestResolveBunnyEmbedURL_playBaseToEmbed(t *testing.T) {
+	got := helper.ResolveBunnyEmbedURL("123", "abc", "https://iframe.mediadelivery.net/play")
+	want := "https://iframe.mediadelivery.net/embed/123/abc"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
 	}
 }

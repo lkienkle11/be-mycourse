@@ -2,7 +2,10 @@ package mapping
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
+	"mycourse-io-be/constants"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/helper"
@@ -31,6 +34,21 @@ func uploadMetadataToRaw(meta entities.UploadFileMetadata) entities.RawMetadata 
 func ToMediaEntity(row models.MediaFile) entities.File {
 	raw := entities.RawMetadata{}
 	_ = json.Unmarshal(row.MetadataJSON, &raw)
+	videoID := strings.TrimSpace(row.VideoID)
+	if videoID == "" {
+		videoID = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyVideoID]))
+	}
+	if videoID == "" {
+		videoID = strings.TrimSpace(row.BunnyVideoID)
+	}
+	thumbnailURL := strings.TrimSpace(row.ThumbnailURL)
+	if thumbnailURL == "" {
+		thumbnailURL = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyThumbnailURL]))
+	}
+	embededHTML := strings.TrimSpace(row.EmbededHTML)
+	if embededHTML == "" {
+		embededHTML = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyEmbededHTML]))
+	}
 	return entities.File{
 		ID:                 row.ID,
 		Kind:               row.Kind,
@@ -45,6 +63,9 @@ func ToMediaEntity(row models.MediaFile) entities.File {
 		B2BucketName:       row.B2BucketName,
 		BunnyVideoID:       row.BunnyVideoID,
 		BunnyLibraryID:     row.BunnyLibraryID,
+		VideoID:            videoID,
+		ThumbnailURL:       thumbnailURL,
+		EmbededHTML:        embededHTML,
 		Duration:           row.Duration,
 		VideoProvider:      row.VideoProvider,
 		RowVersion:         row.RowVersion,
@@ -69,6 +90,15 @@ func ToMediaModel(row entities.File) *models.MediaFile {
 	if row.Duration > 0 {
 		meta["duration"] = row.Duration
 	}
+	if row.VideoID != "" {
+		meta[constants.MediaMetaKeyVideoID] = row.VideoID
+	}
+	if row.ThumbnailURL != "" {
+		meta[constants.MediaMetaKeyThumbnailURL] = row.ThumbnailURL
+	}
+	if row.EmbededHTML != "" {
+		meta[constants.MediaMetaKeyEmbededHTML] = row.EmbededHTML
+	}
 	blob, _ := json.Marshal(meta)
 	return &models.MediaFile{
 		ID:                 row.ID,
@@ -84,6 +114,9 @@ func ToMediaModel(row entities.File) *models.MediaFile {
 		B2BucketName:       row.B2BucketName,
 		BunnyVideoID:       row.BunnyVideoID,
 		BunnyLibraryID:     row.BunnyLibraryID,
+		VideoID:            row.VideoID,
+		ThumbnailURL:       row.ThumbnailURL,
+		EmbededHTML:        row.EmbededHTML,
 		Duration:           row.Duration,
 		VideoProvider:      row.VideoProvider,
 		RowVersion:         row.RowVersion,

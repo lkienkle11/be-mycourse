@@ -70,6 +70,9 @@ type File struct {
 	B2BucketName       string                 `json:"b2_bucket_name"`
 	BunnyVideoID       string                 `json:"bunny_video_id"`
 	BunnyLibraryID     string                 `json:"bunny_library_id"`
+	VideoID            string                 `json:"video_id"`
+	ThumbnailURL       string                 `json:"thumbnail_url"`
+	EmbededHTML        string                 `json:"embeded_html"`
 	Duration           int64                  `json:"duration"`
 	VideoProvider      string                 `json:"video_provider"`
 	RowVersion         int64                  `json:"row_version,omitempty"`

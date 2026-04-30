@@ -10,7 +10,9 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/logic/helper"
+	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
+	"mycourse-io-be/pkg/setting"
 	"mycourse-io-be/repository"
 )
 
@@ -58,6 +60,15 @@ func HandleBunnyVideoWebhook(ctx context.Context, req dto.BunnyVideoWebhookReque
 	raw["bitrate"] = video.Bitrate
 	raw["video_codec"] = video.VideoCodec
 	raw["audio_codec"] = video.AudioCodec
+	streamBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
+	libID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
+	helper.ApplyBunnyDetailToMetadata(raw, video, libID, streamBase)
+	row.VideoID = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyVideoID]))
+	if row.VideoID == "" {
+		row.VideoID = helper.FormatBunnyVideoIDString(video)
+	}
+	row.ThumbnailURL = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyThumbnailURL]))
+	row.EmbededHTML = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyEmbededHTML]))
 	blob, _ := json.Marshal(raw)
 	row.MetadataJSON = blob
 	row.Duration = int64(video.Length)

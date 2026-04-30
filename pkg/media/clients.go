@@ -206,6 +206,9 @@ func UploadBunnyVideo(c *entities.CloudClients, ctx context.Context, filename st
 	meta["bunny_video_id"] = created.GUID
 	meta["bunny_library_id"] = libraryID
 	meta["video_provider"] = "bunny_stream"
+	if detail, derr := GetBunnyVideoByID(c, ctx, created.GUID); derr == nil {
+		helper.ApplyBunnyDetailToMetadata(meta, detail, libraryID, stream)
+	}
 	return entities.ProviderUploadResult{
 		URL:       playURL,
 		OriginURL: playURL,
@@ -306,6 +309,7 @@ func GetBunnyVideoByID(c *entities.CloudClients, ctx context.Context, videoGUID 
 			Err:  errors.New("missing guid"),
 		}
 	}
+	helper.EnrichBunnyVideoDetail(&out)
 	return &out, nil
 }
 

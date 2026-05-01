@@ -68,14 +68,14 @@
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL
   - local branch: reversible signed token URL (`/media/files/local/:token`)
-- Persisted rows live in `media_files` (migration `000003_media_metadata`, extended by `000004_media_orphan_safety` with `row_version` + `content_fingerprint`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
-- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal provider field).
+- Persisted rows live in `media_files`: `000003_media_metadata`, `000004_media_orphan_safety` (`row_version`, `content_fingerprint`, `media_pending_cloud_cleanup`), **`000005_media_bunny_response_fields`** (`video_id`, `thumbnail_url`, `embeded_html`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
+- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal `provider`; Bunny parity top-level fields when populated — `docs/modules/media.md`).
 
 ### Media Video Status + Webhook
 - `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
 - Numeric Bunny status is normalized by `helper.BunnyVideoStatus.StatusString()` (`unknown` fallback for unsupported values).
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
-- Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); idempotent when DB row missing.
+- Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); **`ApplyBunnyDetailToMetadata`** refreshes **`video_id` / `thumbnail_url` / `embeded_html`** in JSON and ORM columns; idempotent when DB row missing.
 
 ### Orphan Image Cleanup Flow (Sub 07)
 - Triggered when a business entity with an image URL field is deleted or has its URL replaced.

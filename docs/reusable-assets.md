@@ -173,16 +173,25 @@
 - Reuse Opportunity:
   - Reuse for any endpoint needing reversible local object-key token decoding.
 
-### Asset: Media kind/provider resolvers
-- Name: `ResolveMediaKind`, `ResolveMediaProvider`, `ResolveMediaKindFromServer`, `ResolveUploadProvider`
+### Asset: Media kind/provider resolvers + Bunny metadata policy
+- Name: `ResolveMediaKind`, `ResolveMediaProvider`, `ResolveMediaKindFromServer`, `ResolveUploadProvider`, plus `EnrichBunnyVideoDetail`, `EffectiveBunnyThumbnailURL`, `FormatBunnyVideoIDString`, `ResolveBunnyEmbedURL`, `ResolveBunnyEmbedHTML`, `ApplyBunnyDetailToMetadata`
 - Type: Util/Helper
 - Path: `pkg/logic/helper/media_resolver.go`
-- Purpose: Normalize upload kind/provider with consistent fallback rules and server-owned inference (`kind` from MIME/extension; fallback `Local` when unknown and no configured provider).
-- Scope: Media service orchestration and any future upload entrypoint requiring identical fallback behavior.
-- Dependencies: `constants/media.go`, `path/filepath`, `strings`.
-- Current Usage: `services/media/file_service.go`.
+- Purpose: Normalize upload kind/provider with server-owned inference. Map Bunny GET-video payload into metadata keys **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (see `constants/media_meta_keys.go`).
+- Scope: Media upload + finished webhook; HTTP stays in `pkg/media/clients.go`.
+- Dependencies: `constants/media.go`, `constants/media_meta_keys.go`, `pkg/entities`, `fmt`, `html`, `path/filepath`, `strconv`, `strings`, `mycourse-io-be/pkg/setting` (resolver config).
+- Current Usage: `services/media/file_service.go`, `services/media/video_service.go`, `pkg/media/clients.go`.
 - Reuse Opportunity:
-  - Reuse for any future media ingestion endpoints to keep provider-kind resolution behavior identical.
+  - Reuse for any future media ingestion endpoints to keep provider-kind and Bunny contracts identical.
+
+### Asset: Media metadata JSON key constants
+- Name: `MediaMetaKeyVideoGUID`, `MediaMetaKeyBunnyVideoID`, `MediaMetaKeyVideoID`, `MediaMetaKeyThumbnailURL`, `MediaMetaKeyEmbededHTML`
+- Type: Constants
+- Path: `constants/media_meta_keys.go`
+- Purpose: Single source of truth for string keys used in `metadata_json` and merged raw maps (Bunny parity Sub 09).
+- Scope: Media helper, mapping, services; do not duplicate literal key strings elsewhere.
+- Current Usage: `pkg/logic/helper/media_resolver.go`, `pkg/logic/helper/media_upload_entity.go`, `pkg/logic/mapping/media_model_mapping.go`, `services/media/video_service.go`.
+- Reuse Opportunity: Any new writer of `metadata_json` for Bunny should import these constants.
 
 ### Asset: Mapping helpers for API DTO contracts
 - Name: `ToUploadFileResponse`, `ToCategoryResponse`, `ToCourseLevelResponse`, `ToTagResponse` (+ slice variants)

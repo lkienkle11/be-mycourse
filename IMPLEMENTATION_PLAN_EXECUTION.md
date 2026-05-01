@@ -10,6 +10,14 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 
 ---
 
+## Phase Sub 09 — Bunny `UploadFileResponse` parity (docs + contract sync)
+
+**Scope:** Public JSON / OpenAPI / all docs that describe `dto.UploadFileResponse` or `media_files` **must** list optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling `embeded_html`), migration **`000005_media_bunny_response_fields`**, keys in **`constants/media_meta_keys.go`**, and helper policy in **`pkg/logic/helper/media_resolver.go`** (`ApplyBunnyDetailToMetadata`, …). Upload path: optional `GetBunnyVideoByID` after Bunny PUT; webhook refreshes on finished.
+
+**Doc files touched in full sync:** `docs/modules/media.md`, `docs/patterns.md`, `docs/return_types.md`, `docs/api_swagger.yaml`, `docs/reusable-assets.md`, `docs/data-flow.md`, `docs/api-overview.md`, `docs/modules.md`, `docs/architecture.md`, `docs/database.md`, `docs/curl_api.md`, `docs/requirements.md` (FR-11), `docs/router.md`, `migrations/README.md`, `README.md`, this file.
+
+---
+
 ## Phase Sub 07 — Orphan image cleanup (tasks 01→10, closed 2026-04-29)
 
 Single authoritative checklist for plan ids `phase-sub-07-task-01` … `phase-sub-07-task-10`.
@@ -91,7 +99,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 - Completed reset baseline and impact analysis with GitNexus (`analyze --force`, `status`, symbol-level `impact`) before edits; all planned symbol changes reported **LOW** risk.
 - Implemented metadata persistence after cloud provider operations:
-  - Added migration `000003_media_metadata` for `media_files`.
+  - Added migration `000003_media_metadata` for `media_files`; later **`000005_media_bunny_response_fields`** adds **`video_id`**, **`thumbnail_url`**, **`embeded_html`** columns (see `docs/modules/media.md`, `docs/database.md`).
   - Added `models/media_file.go`, `dbschema/media_*`, `repository/media/file_repository.go`, and repository root wiring.
   - `services/media/file_service.go` now persists create/update metadata and soft-deletes DB row after successful cloud delete (with best-effort compensation when DB write fails after upload).
 - Finalized upload file path requirements:

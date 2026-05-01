@@ -64,6 +64,32 @@
 - Rule of placement: if logic can be reused across multiple modules, move to `utils`; keep orchestration-specific flow logic in `helper`.
 - Import alias consistency: when helper modules use `pkg/logic/utils`, function calls must use the imported alias (`utils.*`) to avoid compile-time `undefined` errors from stale aliases such as `util.*`.
 - Naming rule: common-purpose function names (e.g. parse/url/normalize/generic transformers) belong in `pkg/logic/utils`; feature-intent function names (e.g. processLearning/decodeVideo and module-specific flows) belong in `pkg/logic/helper`.
+- **Bunny Stream:** `pkg/media/*` = HTTP + JSON decode into `pkg/entities`. How `video_id` / `thumbnail_url` / `embeded_html` are filled belongs in **`pkg/logic/helper/media_resolver.go`** — do not duplicate that policy inside clients.
+
+### Documentation-only requests (Mandatory)
+
+If the user asks for **documentation only** (docs, markdown, OpenAPI):
+
+- Update files under **`docs/`** and **`docs/api_swagger.yaml`** as needed.
+- **Do not** change production **`*.go`** or **`tests/*.go`** unless the same request explicitly asks for code.
+
+### Full documentation sync when API or schema changes (Mandatory)
+
+When public JSON, DTOs, DB migrations, or persistence columns change for a documented feature, **update every maintained doc that references that feature**, not only `docs/modules/media.md`. Minimum checklist:
+
+1. `docs/modules/<domain>.md` — behaviour, migrations, field tables, code pointers.
+2. `docs/return_types.md` — example JSON / tables.
+3. `docs/api_swagger.yaml` — `components.schemas` and path response refs if used.
+4. `docs/reusable-assets.md` — helper/constants assets and usage.
+5. `docs/data-flow.md` — request/persistence flow bullets.
+6. `docs/api-overview.md` — route inventory / one-line contract.
+7. `docs/modules.md`, `README.md`, `docs/architecture.md` — module map and directory table.
+8. `docs/database.md` — table and/or migration history.
+9. `migrations/README.md` — version row for new SQL files.
+10. `docs/curl_api.md` — cURL sections and webhook notes where applicable.
+11. `docs/requirements.md` — FR bullets if behaviour is normative.
+12. `IMPLEMENTATION_PLAN_EXECUTION.md` (repo root) — execution / audit trail when the team uses it.
+13. `docs/router.md`, `docs/deploy.md` — only when routing or proxy behaviour for that API changes.
 
 ## Services layer file naming (Mandatory)
 

@@ -78,6 +78,7 @@
   - `kind` is inferred server-side from MIME/extension.
   - if kind cannot be inferred and no configured provider exists, provider fallback is `Local`.
   - response `metadata` uses typed contract `UploadFileMetadata` (not `any`) with zero-value defaults for unavailable fields.
+  - Bunny videos: success `data` may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** on `UploadFileResponse` (`docs/modules/media.md`, `docs/return_types.md`, `docs/api_swagger.yaml`).
 
 ## Middleware/Auth Matrix
 - Global: request/recovery/CORS/gzip.

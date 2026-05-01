@@ -40,7 +40,7 @@
 - `api/system/routes.go` -> system operations.
 - `api/v1/routes.go` -> auth/me, internal RBAC, and mounts taxonomy + media route groups.
 - `api/v1/taxonomy/routes.go` -> taxonomy CRUD endpoint registration (`levels`, `categories`, `tags`).
-- `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS + local token decode + video status route) and webhook route mount used by no-filter lane.
+- `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS + local token decode + video status route) and webhook route mount used by no-filter lane. Response schema for list/get/create/update: **`dto.UploadFileResponse`** including optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** — `docs/modules/media.md`, `docs/api_swagger.yaml`.
 
 ## Media request contract notes
 - `POST/PUT /api/v1/media/files` reads multipart text fields through helper binders, but `kind` and `metadata` are ignored by service business flow (server-owned policy).

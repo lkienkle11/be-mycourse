@@ -689,11 +689,18 @@ Media endpoints are implemented and return the standard envelope. Public payload
 
 `dto.UploadFileResponse`:
 
+Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling; `omitempty` when empty). Full behaviour: **`docs/modules/media.md`** (Sub 09).
+
 ```json
 {
   "url": "https://...",
   "origin_url": "https://...",
   "object_key": "path/to/object",
+  "bunny_video_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "bunny_library_id": "123456",
+  "video_id": "987654321",
+  "thumbnail_url": "https://...",
+  "embeded_html": "<iframe src=\"https://iframe.mediadelivery.net/embed/123456/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\" ...></iframe>",
   "metadata": {
     "size_bytes": 12345,
     "width_bytes": 1920,

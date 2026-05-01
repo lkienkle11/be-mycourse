@@ -229,6 +229,15 @@ components:
         object_key: { type: string }
         bunny_video_id: { type: string }
         bunny_library_id: { type: string }
+        video_id:
+          type: string
+          description: Bunny Stream numeric id when API returns it; else guid (see docs/modules/media.md)
+        thumbnail_url:
+          type: string
+          description: Thumbnail URL when Bunny API provides thumbnailUrl/defaultThumbnailUrl
+        embeded_html:
+          type: string
+          description: Escaped iframe HTML; JSON key spelling matches dto (embeded_html)
         duration: { type: integer, format: int64 }
         video_provider: { type: string }
         metadata:

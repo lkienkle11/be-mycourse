@@ -18,6 +18,7 @@ Run `MIGRATE=1 go run .` to apply pending migrations (see `migrations/README.md`
 - [Table `role_permissions`](#role_permissions)
 - [Table `user_roles`](#user_roles)
 - [Table `user_permissions`](#user_permissions)
+- [Table `media_files`](#media_files)
 - [System Tables](#system-tables)
 - [Effective Permissions](#effective-permissions)
 - [Migration History](#migration-history)
@@ -136,6 +137,28 @@ Direct permission grants (supplement role-based permissions).
 
 ---
 
+## `media_files`
+
+Product media uploads (files and Bunny Stream videos). Created in migration **`000003_media_metadata`**; extended by **`000004_media_orphan_safety`** and **`000005_media_bunny_response_fields`**. GORM model: `models/media_file.go`; entity: `pkg/entities/file.go`. Full API contract: **`docs/modules/media.md`**, **`docs/return_types.md`**.
+
+| Column | Type (summary) | Notes |
+|--------|----------------|-------|
+| `id` | UUID PK | Logical media row id |
+| `object_key` | VARCHAR(512) UNIQUE | B2 key or Bunny GUID |
+| `kind`, `provider`, `filename`, `mime_type`, `size_bytes` | | |
+| `url`, `origin_url`, `status` | TEXT / VARCHAR | Public vs origin URL |
+| `b2_bucket_name` | VARCHAR | B2 bucket when applicable |
+| `bunny_video_id`, `bunny_library_id` | VARCHAR | Bunny identifiers |
+| **`video_id`** | VARCHAR | Sub 09 — Bunny numeric id string or guid |
+| **`thumbnail_url`** | TEXT | Sub 09 — CDN/API thumbnail |
+| **`embeded_html`** | TEXT | Sub 09 — escaped iframe HTML (JSON key spelling `embeded_html`) |
+| `duration`, `video_provider` | BIGINT / VARCHAR | |
+| `row_version`, `content_fingerprint` | BIGINT / VARCHAR | Sub 06 |
+| `metadata_json` | JSONB | Includes keys from `constants/media_meta_keys.go` |
+| `created_at`, `updated_at`, `deleted_at` | TIMESTAMPTZ | Soft delete |
+
+---
+
 ## Effective Permissions
 
 A user's effective permissions = **union** of permissions from all assigned roles **plus** direct `user_permissions` grants.  
@@ -148,6 +171,10 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 | Version | File | Description |
 |---|---|---|
 | 000001 | `schema` | Create `permissions` (`permission_id` PK + `permission_name`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions`, and seed 13 permissions + 4 default roles + `role_permissions` matrix |
+| 000002 | `taxonomy_domain` | Taxonomy tables (`course_levels`, `categories`, `tags`, …) — see migration SQL |
+| 000003 | `media_metadata` | **`media_files`** table + indexes |
+| 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; **`media_pending_cloud_cleanup`** |
+| 000005 | `media_bunny_response_fields` | **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** |
 
 For details and notes on resetting the DB when changing the migration sequence, see `migrations/README.md`.
 
@@ -199,5 +226,7 @@ DROP TABLE public.users;
 ```
 
 **Maintenance note:** When adding a **new table** in a migration, update this list: insert `DROP TABLE public.<table_name>;` at the appropriate position (usually **before** any table it references via FK). Keep `schema_migrations` at the **top** of the list as it has no FK dependents.
+
+**Product tables (000002+):** A dev reset that applied taxonomy/media migrations must also `DROP` those tables (e.g. **`media_pending_cloud_cleanup`**, **`media_files`**, taxonomy tables) in an order that respects FKs — see each `migrations/*.up.sql`. The snippet above covers **000001** core RBAC/users only.
 
 **Automated tests:** DB-backed integration suites belong under repository root **`tests/`** (see `tests/README.md` and root `README.md` **Testing**).

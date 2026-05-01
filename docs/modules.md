@@ -30,14 +30,14 @@
   - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`, plus `GET /media/videos/:id/status` and public `POST /webhook/bunny`.
   - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
   - Provider source-of-truth is server config (`setting.MediaSetting.AppMediaProvider`), not client request payload/query.
-  - Uses shared resolver helpers in `pkg/logic/helper/media_resolver.go`; service layer remains orchestration-only.
+  - Uses `pkg/logic/helper/media_resolver.go` for kind/provider **and** Bunny **`video_id` / thumbnail / embed** policy; `pkg/media` is HTTP/SDK only; service layer remains orchestration-only.
   - Uses `helper.DefaultMediaProvider` from `pkg/logic/helper/media_metadata.go`; service no longer owns provider default helper.
   - Generic metadata parsing primitives (and related `ParseBoolLoose` / `ContentFingerprint`) are in `pkg/logic/utils/parsing.go` and reused by media helper / service.
   - Uses mapper helpers in `pkg/logic/mapping` so handlers always return DTO (`dto.UploadFileResponse`) instead of raw entity.
   - Uses helper `pkg/logic/helper/DecodeLocalURLToken` for local token decode (no non-CRUD decode utility in service layer).
   - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.
   - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
-  - Persists upload metadata in `media_files` and syncs create/update/delete + webhook duration updates.
+  - Persists `media_files` (Sub 09 columns `video_id`, `thumbnail_url`, `embeded_html` + JSON metadata keys) and syncs create/update/delete + webhook (duration + Bunny parity fields). See `docs/database.md`, `migrations/README.md`.
   - DB model<->entity mapping is handled in `pkg/logic/mapping/media_model_mapping.go` (not inside service layer).
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).
   - Converts Bunny numeric video status to stable API strings via `pkg/logic/helper/bunny_video_status.go`; webhook literal `constants.FinishedWebhookBunnyStatus` in `constants/bunny_video.go`.

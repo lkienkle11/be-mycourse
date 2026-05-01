@@ -1199,6 +1199,8 @@ curl -X GET "{{BASE_URL}}/api/v1/media/files/cleanup-metrics" \
 
 Form fields: `file` (required), optional `kind` (`FILE`/`VIDEO`), `object_key`, `metadata` (JSON string).
 
+Success envelope `data` = **`dto.UploadFileResponse`**. Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
+
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/media/files \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -1359,6 +1361,8 @@ JSON body:
 | `video_library_id` | string | yes |
 | `video_guid` | string | yes |
 | `status` | int | yes |
+
+On **finished** status the service refreshes persisted **`media_files`** duration/metadata and Bunny parity fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (see `docs/modules/media.md`).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \

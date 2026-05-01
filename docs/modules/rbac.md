@@ -9,7 +9,7 @@ Manages roles, permissions, and role-permission assignments. This is an **intern
 | Concern | Description |
 |---------|-------------|
 | Role management | Create and query roles (e.g. admin, instructor, student) |
-| Permission management | Define granular permissions (e.g. `course:create`, `media:delete`) |
+| Permission management | Define granular permissions (e.g. `course:create`, `media:delete`); media **response** shape and Bunny fields are **`docs/modules/media.md`** (not RBAC-owned) |
 | Role-permission assignment | Bind permissions to roles; query effective permissions for a role |
 | Seed | Pre-populate base roles and permissions at startup via `rbac_seed.go` |
 

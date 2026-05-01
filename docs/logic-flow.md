@@ -34,3 +34,6 @@
 - Authentication gates run before handlers.
 - Authorization decisions prefer JWT claim set; fallback to DB if claims absent.
 - Error handling is centralized through middleware and errcode mapping.
+
+## Media / Bunny (high level)
+- Upload and webhook paths persist **`media_files`** and map public JSON to **`dto.UploadFileResponse`** (optional **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when populated). There is no dedicated sequence diagram in this repo for media; see **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/router.md`** for the authoritative flow and layering (`media_resolver.go` vs `pkg/media`).

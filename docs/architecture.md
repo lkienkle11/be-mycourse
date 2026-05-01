@@ -78,7 +78,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `pkg/httperr` | Gin middleware for errors and panic recovery. |
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |
 | `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
-| `pkg/media/` | Provider adapters (Local/B2/Bunny upload + delete/status APIs). Adapter layer returns provider results and does not own transport DTO mapping. |
+| `pkg/media/` | Provider HTTP/SDK adapters (Local/B2/Bunny). Returns provider results; **Bunny `video_id` / thumbnail / embed HTML policy** lives in `pkg/logic/helper/media_resolver.go` (`ApplyBunnyDetailToMetadata`, …), not as duplicate logic in clients. |
 | `config/` | System bootstrap (`InitSystem`, default configs). |
 | `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |
@@ -146,7 +146,7 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 | [`docs/curl_api.md`](curl_api.md) | Complete API reference with cURL examples and Postman scripts. |
 | [`docs/modules/auth.md`](modules/auth.md) | Auth service and cache behaviour. |
 | [`docs/modules/user.md`](modules/user.md) | User profile endpoints — `GET /me`, `GET /me/permissions`. |
-| [`docs/modules/media.md`](modules/media.md) | Implemented media upload module (cloud gateway, helper/util split, config-driven provider, **2 GiB** per-file cap + Gin multipart memory tuning). |
+| [`docs/modules/media.md`](modules/media.md) | Media upload: cloud gateway, helper/util split, Bunny parity fields (**`video_id`**, **`thumbnail_url`**, **`embeded_html`**), **2 GiB** cap + multipart tuning. |
 | [`docs/modules/course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (planned features). |
 
 When this repository sits next to the Next.js app in a monorepo (e.g. **`mycourse-full`**), the frontend deploy runbook is at [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md).

@@ -9,7 +9,9 @@
 
 > All diagrams are written in **Mermaid** (`sequenceDiagram`).  
 > Render with: [mermaid.live](https://mermaid.live), the Mermaid CLI, GitHub markdown preview, or any Mermaid-compatible viewer.  
-> **Last updated:** 2026-04-18
+> **Last updated:** 2026-04-30
+
+**Media / Bunny:** This file does not include Mermaid sequences for multipart upload or the Bunny webhook. Those flows are described in **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/curl_api.md`** (Sub 09 parity fields on **`dto.UploadFileResponse`**).
 
 ---
 

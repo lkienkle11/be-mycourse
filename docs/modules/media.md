@@ -7,7 +7,7 @@
 - Do not declare new reusable/domain types inline inside logic implementation files.
 - Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
-> **Status:** Sub 04 (B2 URL, keys, Bunny status + webhook), Sub 06 (`row_version`, `content_fingerprint`, deferred cleanup), Sub 09 (Bunny parity: `video_id`, `thumbnail_url`, `embeded_html` on API + `media_files` + metadata JSON).
+> **Status:** Sub 04 (B2 URL, keys, Bunny status + webhook), Sub 06 (`row_version`, `content_fingerprint`, deferred cleanup), Sub 09 (Bunny parity: `video_id`, `thumbnail_url`, `embeded_html` on API + `media_files` + metadata JSON), Sub 10 (`NewCloudClientsFromSetting` — B2/Gcore/Bunny Storage SDK init from `setting.MediaSetting` only).
 
 **Cross-references:** `docs/return_types.md` (JSON examples), `docs/api_swagger.yaml` (`UploadFileResponse`), `docs/data-flow.md`, `docs/reusable-assets.md`, `docs/database.md` (`media_files`), `migrations/README.md` (000003–000005), `IMPLEMENTATION_PLAN_EXECUTION.md` (execution notes).
 
@@ -17,13 +17,13 @@
 
 Media module provides a unified API surface for file and video uploads with provider-aware URL behavior:
 
-- Non-video files: upload storage at B2, distribution URL through Gcore CDN as **`{CDN}/{bucket}/{object_key}`** (bucket from `setting.MediaSetting.B2Bucket` after `setting.Setup()`, falling back to the env bucket used when constructing the B2 client). Object keys for B2 default uploads: **8 random digits + `-` + sanitized filename** (`pkg/logic/helper/media_upload_keys.go`). Bunny Stream videos use the API **GUID** as `object_key`.
+- Non-video files: upload storage at B2, distribution URL through Gcore CDN as **`{CDN}/{bucket}/{object_key}`** (bucket from `setting.MediaSetting.B2Bucket` after `setting.Setup()`, falling back to `CloudClients.B2BucketName` from the same `MediaSetting` snapshot used at SDK init). Object keys for B2 default uploads: **8 random digits + `-` + sanitized filename** (`pkg/logic/helper/media_upload_keys.go`). Bunny Stream videos use the API **GUID** as `object_key`.
 - Videos: playback/distribution URL through Bunny Stream.
 - Local provider: reversible signed URL token that can be decoded back to object key.
 
 Media persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync. **Phase Sub 06** adds optimistic concurrency (`row_version`), SHA-256 hex `content_fingerprint`, deferred superseded-cloud deletes (`media_pending_cloud_cleanup` + worker in `internal/jobs/media_pending_cleanup_scheduler.go`), and multipart field binding via `pkg/logic/helper/media_multipart.go` (aligned with `ParseMetadataFromRaw`).
 
-SDK clients are initialized once at app startup (`pkg/media.Setup()` in `main.go`), then reused by media service flow.
+SDK clients are initialized once at app startup: `main.go` calls `setting.Setup()` first, then `pkg/media.Setup()` → **`NewCloudClientsFromSetting`** in `pkg/media/clients.go` (B2, Gcore API, Bunny **Storage** credentials from trimmed **`setting.MediaSetting`** — no direct `os.Getenv` in that constructor). Upload/delete/runtime URLs still read other `MediaSetting` fields the same way. Clients are then reused by the media service flow.
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
 
 **Layering:** Kind/provider resolution and **Bunny presentation policy** (thumbnail URL fields from GET-video JSON, `video_id` string from numeric `id` vs `guid`, embed URL + iframe HTML in metadata) live in **`pkg/logic/helper/media_resolver.go`** (`EnrichBunnyVideoDetail`, `ApplyBunnyDetailToMetadata`, `ResolveBunnyEmbedURL`, …). **`pkg/media/clients.go`** performs Bunny HTTP and `json.Unmarshal` into `pkg/entities.BunnyVideoDetail`, then invokes those helpers. **`services/media`** orchestrates only.

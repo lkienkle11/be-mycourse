@@ -18,6 +18,28 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 
 ---
 
+## Phase Sub 10 — Cloud SDK init from `MediaSetting` (tasks 01–06, 2026-05-01)
+
+**Scope:** `pkg/media/clients.go` — **`NewCloudClientsFromSetting`** (replaces **`NewCloudClientsFromEnv`**) wires Backblaze B2, Gcore CDN API client, and Bunny **Storage** (not Stream) from **`setting.MediaSetting`** after `setting.Setup()` loads `config/app*.yaml` (including `${MEDIA_*}` placeholders from `.env`). **This constructor does not call `os.Getenv`** for those providers.
+
+**Field map (`config/app.yaml` keys → `MediaSetting` → use):**
+
+| Provider | Struct fields | Typical env vars referenced in YAML |
+|----------|---------------|-------------------------------------|
+| B2 | `B2KeyID`, `B2AppKey`, `B2Bucket` | `MEDIA_B2_KEY_ID`, `MEDIA_B2_APP_KEY`, `MEDIA_B2_BUCKET` |
+| Gcore API | `GcoreAPIBaseURL`, `GcoreAPIToken` | `MEDIA_GCORE_API_BASE_URL`, `MEDIA_GCORE_API_TOKEN` |
+| Bunny Storage | `BunnyStorageEndpoint`, `BunnyStoragePassword` | `MEDIA_BUNNY_STORAGE_ENDPOINT`, `MEDIA_BUNNY_STORAGE_PASSWORD` |
+
+**Startup order:** `main.go` → `setting.Setup()` → … → `pkg/media.Setup()` → `NewCloudClientsFromSetting()`. **No import cycle:** `pkg/media` imports `pkg/setting`; `pkg/setting` does not import `pkg/media`.
+
+**Policy:** The Sub02 / Sub04-era **env-only** exception for this constructor **no longer applies** — credentials are read only from populated `MediaSetting` (same source as upload-time Stream/B2 URL settings).
+
+**GitNexus:** upstream impact on `NewCloudClientsFromSetting` is **LOW** (direct caller: `pkg/media.Setup` only).
+
+**Quality gate:** `gofmt`, `go vet ./...`, `go build ./...`, `go test ./...`; `gitnexus_detect_changes` before commit.
+
+---
+
 ## Phase Sub 07 — Orphan image cleanup (tasks 01→10, closed 2026-04-29)
 
 Single authoritative checklist for plan ids `phase-sub-07-task-01` … `phase-sub-07-task-10`.
@@ -184,7 +206,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - **Cuối:** No tests added under `pkg/logic/utils` (module tests live in `tests/`).
 
 ### Task 03 — B2 bucket after `setting.Setup()` ✅
-- **Đầu:** `NewCloudClientsFromEnv` stays **env-only** (approved) so blazer can authenticate at startup.
+- **Đầu:** (Historical Sub04) B2 **bucket name** at upload time prefers `setting.MediaSetting.B2Bucket`; SDK auth originally used `os.Getenv` in `NewCloudClientsFromEnv`. **Phase Sub 10** moved B2/Gcore/Bunny Storage SDK init to **`NewCloudClientsFromSetting`** reading **`setting.MediaSetting`** only (no `os.Getenv` in that constructor).
 - **Giữa:** `effectiveB2Bucket()` prefers `setting.MediaSetting.B2Bucket` (YAML / expanded env), else env bucket from constructor; used for `b2.Client.Bucket` and for URL path segment.
 - **Cuối:** Empty resolved bucket at upload/delete → `ProviderError` **9010** (`B2BucketNotConfigured`).
 
@@ -336,8 +358,8 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Updated `services/media/file_service.go` call-sites to use `helper.DefaultMediaProvider(...)` (service no longer owns default-provider helper).
 - Refactored `pkg/media/clients.go` runtime config reads to `setting.MediaSetting` after `setting.Setup()`:
   - `UploadLocal`, `UploadB2`, `UploadBunnyVideo`, `DeleteBunnyVideo`, `BuildPublicURL`
-  - kept approved env-only path in `NewCloudClientsFromEnv`.
-- Verified startup chain compatibility (`main.go` -> `setting.Setup()` -> `pkg/media.Setup()` -> `NewCloudClientsFromEnv`) remains intact.
+  - (Superseded by Phase Sub 10) `NewCloudClientsFromEnv` env-only SDK init → **`NewCloudClientsFromSetting`** uses `MediaSetting` for B2/Gcore/Bunny Storage.
+- Verified startup chain compatibility (`main.go` -> `setting.Setup()` -> `pkg/media.Setup()` -> `NewCloudClientsFromSetting`) remains intact.
 - Synced docs:
   - `README.md`
   - `docs/modules/media.md`

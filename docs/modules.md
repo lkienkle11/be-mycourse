@@ -36,7 +36,7 @@
   - Uses mapper helpers in `pkg/logic/mapping` so handlers always return DTO (`dto.UploadFileResponse`) instead of raw entity.
   - Uses helper `pkg/logic/helper/DecodeLocalURLToken` for local token decode (no non-CRUD decode utility in service layer).
   - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.
-  - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go`.
+  - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go` after `setting.Setup()`, using `NewCloudClientsFromSetting` (`pkg/media/clients.go`) and `setting.MediaSetting` for B2 / Gcore / Bunny Storage.
   - Persists `media_files` (Sub 09 columns `video_id`, `thumbnail_url`, `embeded_html` + JSON metadata keys) and syncs create/update/delete + webhook (duration + Bunny parity fields). See `docs/database.md`, `migrations/README.md`.
   - DB model<->entity mapping is handled in `pkg/logic/mapping/media_model_mapping.go` (not inside service layer).
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).

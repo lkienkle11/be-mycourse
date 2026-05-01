@@ -215,6 +215,16 @@
 - Reuse Opportunity:
   - Reuse as canonical provider control for all future media upload entry points.
 
+### Asset: Cloud SDK client bootstrap (`MediaSetting`)
+- Name: `NewCloudClientsFromSetting`
+- Type: Function (`pkg/media`)
+- Path: `pkg/media/clients.go`
+- Purpose: One-shot construction of `entities.CloudClients` (B2 client + bucket name, Gcore CDN API service, Bunny Storage client) from **`setting.MediaSetting`** fields: `B2KeyID`, `B2AppKey`, `B2Bucket`, `GcoreAPIBaseURL`, `GcoreAPIToken`, `BunnyStorageEndpoint`, `BunnyStoragePassword` (all `strings.TrimSpace`). No `os.Getenv` in this path — values arrive via `setting.Setup()` / YAML `${MEDIA_*}` expansion.
+- Scope: App startup only; caller `pkg/media.Setup()` (after `setting.Setup()` in `main.go`).
+- Dependencies: `pkg/setting`, `github.com/Backblaze/blazer/b2`, Gcore and Bunny Storage SDKs, `pkg/logic/utils.NormalizeBaseURL`.
+- Current Usage: `pkg/media/setup.go`.
+- Reuse Opportunity: Any new process that needs the same cloud handles should call `media.Setup` or reuse the global `media.Cloud` rather than duplicating env reads.
+
 ### Asset: Media metadata parser helpers
 - Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`, `DefaultMediaProvider`
 - Type: Util/Helper

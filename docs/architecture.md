@@ -78,7 +78,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `pkg/httperr` | Gin middleware for errors and panic recovery. |
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |
 | `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
-| `pkg/media/` | Provider HTTP/SDK adapters (Local/B2/Bunny). Returns provider results; **Bunny `video_id` / thumbnail / embed HTML policy** lives in `pkg/logic/helper/media_resolver.go` (`ApplyBunnyDetailToMetadata`, …), not as duplicate logic in clients. |
+| `pkg/media/` | Provider HTTP/SDK adapters (Local/B2/Bunny). **`NewCloudClientsFromSetting`** wires B2 / Gcore / Bunny Storage from **`setting.MediaSetting`** at startup (`pkg/media/setup.go` after `setting.Setup()`). **Bunny `video_id` / thumbnail / embed HTML policy** lives in `pkg/logic/helper/media_resolver.go` (`ApplyBunnyDetailToMetadata`, …), not as duplicate logic in clients. |
 | `config/` | System bootstrap (`InitSystem`, default configs). |
 | `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |

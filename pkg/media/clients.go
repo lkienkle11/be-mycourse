@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -27,14 +26,18 @@ import (
 	"mycourse-io-be/pkg/setting"
 )
 
-func NewCloudClientsFromEnv() (*entities.CloudClients, error) {
+// NewCloudClientsFromSetting builds B2, Gcore API, and Bunny Storage SDK handles from
+// setting.MediaSetting (YAML + .env resolved in setting.Setup). Call only after setting.Setup();
+// main.go orders setting.Setup before pkg/media.Setup.
+func NewCloudClientsFromSetting() (*entities.CloudClients, error) {
 	out := &entities.CloudClients{
 		HTTPClient: &http.Client{Timeout: 60 * time.Second},
 	}
 
-	keyID := strings.TrimSpace(os.Getenv("MEDIA_B2_KEY_ID"))
-	appKey := strings.TrimSpace(os.Getenv("MEDIA_B2_APP_KEY"))
-	bucket := strings.TrimSpace(os.Getenv("MEDIA_B2_BUCKET"))
+	ms := setting.MediaSetting
+	keyID := strings.TrimSpace(ms.B2KeyID)
+	appKey := strings.TrimSpace(ms.B2AppKey)
+	bucket := strings.TrimSpace(ms.B2Bucket)
 	if keyID != "" && appKey != "" && bucket != "" {
 		client, err := b2.NewClient(context.Background(), keyID, appKey)
 		if err != nil {
@@ -44,10 +47,10 @@ func NewCloudClientsFromEnv() (*entities.CloudClients, error) {
 		out.B2BucketName = bucket
 	}
 
-	gcoreAPIToken := strings.TrimSpace(os.Getenv("MEDIA_GCORE_API_TOKEN"))
+	gcoreAPIToken := strings.TrimSpace(ms.GcoreAPIToken)
 	if gcoreAPIToken != "" {
 		apiClient := provider.NewClient(
-			utils.NormalizeBaseURL(os.Getenv("MEDIA_GCORE_API_BASE_URL"), "https://api.gcore.com"),
+			utils.NormalizeBaseURL(ms.GcoreAPIBaseURL, "https://api.gcore.com"),
 			provider.WithSignerFunc(func(req *http.Request) error {
 				req.Header.Set("Authorization", "APIKey "+gcoreAPIToken)
 				return nil
@@ -56,8 +59,8 @@ func NewCloudClientsFromEnv() (*entities.CloudClients, error) {
 		out.GcoreService = gcdn.NewService(apiClient)
 	}
 
-	bunnyEndpoint := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_STORAGE_ENDPOINT"))
-	bunnyPassword := strings.TrimSpace(os.Getenv("MEDIA_BUNNY_STORAGE_PASSWORD"))
+	bunnyEndpoint := strings.TrimSpace(ms.BunnyStorageEndpoint)
+	bunnyPassword := strings.TrimSpace(ms.BunnyStoragePassword)
 	if bunnyEndpoint != "" && bunnyPassword != "" {
 		parsed, err := url.Parse("https://" + strings.TrimLeft(bunnyEndpoint, "/"))
 		if err != nil {
@@ -69,7 +72,7 @@ func NewCloudClientsFromEnv() (*entities.CloudClients, error) {
 	return out, nil
 }
 
-// effectiveB2Bucket prefers YAML/media.b2_bucket after setting.Setup(); falls back to env bucket from constructor.
+// effectiveB2Bucket prefers setting.MediaSetting.B2Bucket after setting.Setup(); falls back to B2BucketName from NewCloudClientsFromSetting.
 func effectiveB2Bucket(c *entities.CloudClients) string {
 	if b := strings.TrimSpace(setting.MediaSetting.B2Bucket); b != "" {
 		return b

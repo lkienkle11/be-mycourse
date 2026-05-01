@@ -10,7 +10,7 @@ var Cloud *entities.CloudClients
 
 // Setup initializes media SDK clients once at app startup.
 func Setup() error {
-	client, err := NewCloudClientsFromEnv()
+	client, err := NewCloudClientsFromSetting()
 	if err != nil {
 		return fmt.Errorf("setup media clients failed: %w", err)
 	}

@@ -7,7 +7,7 @@
 - Do not declare new reusable/domain types inline inside logic implementation files.
 - Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
-> **Status:** Sub 04 (B2 URL, keys, Bunny status + webhook), Sub 06 (`row_version`, `content_fingerprint`, deferred cleanup), Sub 09 (Bunny parity: `video_id`, `thumbnail_url`, `embeded_html` on API + `media_files` + metadata JSON), Sub 10 (`NewCloudClientsFromSetting` — B2/Gcore/Bunny Storage SDK init from `setting.MediaSetting` only).
+> **Status:** Sub 04 (B2 URL, keys, Bunny status + webhook), Sub 06 (`row_version`, `content_fingerprint`, deferred cleanup), Sub 09 (Bunny parity: `video_id`, `thumbnail_url`, `embeded_html` on API + `media_files` + metadata JSON), Sub 10 (`NewCloudClientsFromSetting` — B2/Gcore/Bunny Storage SDK init from `setting.MediaSetting` only), **Sub 12** (public **`dto.UploadFileResponse`** has **no** `origin_url` key — canonical URL is server-only in DB / `entities.File`; see below).
 
 **Cross-references:** `docs/return_types.md` (JSON examples), `docs/api_swagger.yaml` (`UploadFileResponse`), `docs/data-flow.md`, `docs/reusable-assets.md`, `docs/database.md` (`media_files`), `migrations/README.md` (000003–000005), `IMPLEMENTATION_PLAN_EXECUTION.md` (execution notes).
 
@@ -32,7 +32,7 @@ Metadata parsing and typed inference are handled in helper layer (`pkg/logic/hel
 `kind` and `metadata` values coming from multipart request text fields are parsed only for backward-compat validation and then ignored; server-side extractor/provider outputs are the only source for persisted and returned metadata.
 When server cannot infer kind from MIME/extension and no app-level provider override is configured, upload provider falls back to `Local` by policy.
 Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`), multipart loose-bool parsing (`ParseBoolLoose`), and upload-byte fingerprinting (`ContentFingerprint`) live in `pkg/logic/utils/parsing.go` and must be called through `utils.*` import alias in helper/service code.
-Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider selection is **not** exposed as a top-level field.
+Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider selection is **not** exposed as a top-level field. **`origin_url` is not part of the public contract** (removed from `dto.UploadFileResponse`); the DB column `media_files.origin_url` and `entities.File.OriginURL` (JSON `json:"-"`) still hold the provider-origin URL for persistence, orphan resolution, and delete operations.
 
 ---
 
@@ -70,7 +70,7 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 
 ## Runtime descriptor (`dto.UploadFileResponse`)
 
-- `url`, `origin_url`, `object_key`
+- `url`, `object_key` (no `origin_url` in public JSON — Sub 12)
 - `metadata`: typed **`UploadFileMetadata`** (nested), zero defaults when unknown
 - **Not returned:** internal `provider` string (server-owned routing)
 
@@ -144,7 +144,13 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 | 2004 | `ExecutableUploadRejected` | 400 | `MsgExecutableUploadRejected` |
 | 9017 | `ImageEncodeBusy` | 503 | `MsgImageEncodeBusy` |
 
+---
 
+## Phase Sub 12 — Public JSON omits `origin_url` (2026-05-02)
+
+- **`dto.UploadFileResponse`** has **no** `OriginURL` field — the JSON key **`origin_url`** does **not** appear in list/get/create/update media responses.
+- **`mapping.ToUploadFileResponse`** builds only public-safe fields; use **`url`** for the distribution/public link pattern.
+- **Persistence:** `media_files.origin_url` and in-memory **`entities.File.OriginURL`** remain for server-side orphan lookup, delete routing, and upload bookkeeping (`entities.File.OriginURL` uses **`json:"-"`** so raw entity JSON never exposes it).
 
 ---
 

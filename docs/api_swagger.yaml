@@ -225,7 +225,6 @@ components:
         status: { type: string }
         b2_bucket_name: { type: string }
         url: { type: string }
-        origin_url: { type: string }
         object_key: { type: string }
         bunny_video_id: { type: string }
         bunny_library_id: { type: string }

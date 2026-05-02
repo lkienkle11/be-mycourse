@@ -197,7 +197,7 @@
 - Name: `ToUploadFileResponse`, `ToCategoryResponse`, `ToCourseLevelResponse`, `ToTagResponse` (+ slice variants)
 - Type: Util/Helper
 - Path: `pkg/logic/mapping/media_file_mapping.go`, `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/taxonomy_course_level_mapping.go`, `pkg/logic/mapping/taxonomy_tag_mapping.go`
-- Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs.
+- Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs. **`ToUploadFileResponse`** omits canonical origin from the public DTO (Sub 12 — no `origin_url` on `dto.UploadFileResponse`); internal `entities.File.OriginURL` / DB `origin_url` still store it for server use.
 - Scope: Media and taxonomy transport responses.
 - Dependencies: `dto`, `models`, `pkg/entities`.
 - Current Usage: `api/v1/media/file_handler.go`, `api/v1/taxonomy/*_handler.go`.

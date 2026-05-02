@@ -56,6 +56,39 @@ Two upload policies:
 
 ---
 
+## Phase Sub 12 — Public media: no `origin_url` in API JSON (tasks 01–04, 2026-05-02; follow-up: remove field from DTO)
+
+### Scope
+
+- **`dto.UploadFileResponse`:** **No** `OriginURL` / **`origin_url`** in the public JSON contract (field removed from the DTO).
+- **Public API:** `mapping.ToUploadFileResponse` / `ToUploadFileResponses` do not emit canonical B2 (or other provider-origin) URLs. **`url`** remains the intended public/distribution URL where applicable.
+- **Internal:** `models.MediaFile`, `mapping.ToMediaEntity` / `ToMediaModel`, repositories, orphan cleanup, and upload helpers still read/write DB column **`origin_url`**. **`entities.File.OriginURL`** is kept with **`json:"-"`** so accidental JSON encoding of the entity never leaks origin URL.
+
+### Inventory (where `OriginURL` exists — internal only after Sub 12)
+
+| Layer | File / symbol | Role |
+|-------|----------------|------|
+| Response DTO | `dto/media_file.go` → `UploadFileResponse` | No `origin_url` key in JSON. |
+| Mapper | `pkg/logic/mapping/media_file_mapping.go` → `ToUploadFileResponse` | Builds `dto.UploadFileResponse` without origin field. |
+| Entity from DB | `pkg/logic/mapping/media_model_mapping.go` → `ToMediaEntity` | Maps DB `origin_url` into `entities.File` (internal). |
+| Entity from upload | `pkg/logic/helper/media_upload_entity.go` → `BuildMediaFileEntityFromUpload` | Copies `Uploaded.OriginURL` into entity for persist. |
+| Synthetic GET | `services/media/file_service.go` → `GetFile` (not-in-DB path) | May set entity `OriginURL` internally; not exposed on public DTO. |
+| Provider upload result | `pkg/media/clients.go` | `entities.ProviderUploadResult.OriginURL` — not a client DTO. |
+
+Handlers (`api/v1/media/file_handler.go`) only return media file bodies via `mapping.ToUploadFileResponse(s)`.
+
+### Docs / OpenAPI
+
+**Doc / code contract:** `dto/media_file.go` (field removed), `pkg/entities/file.go` (`OriginURL` with `json:"-"`), `pkg/logic/mapping/media_file_mapping.go`, `docs/modules/media.md`, `docs/api-overview.md`, `docs/return_types.md`, `docs/api_swagger.yaml`, `docs/database.md`, `docs/data-flow.md`, `docs/logic-flow.md`, `docs/router.md`, `docs/reusable-assets.md`, `docs/dependencies.md`, `docs/curl_api.md`, `README.md`, this file.
+
+Semantics: **no** `origin_url` in public media JSON; DB column still stores origin for server use.
+
+### Quality gate
+
+- `go fmt`, `go vet`, `go build`, `go test`; `gitnexus_detect_changes` before commit; re-analyze if index stale.
+
+---
+
 ## Phase Sub 09 — Bunny `UploadFileResponse` parity (docs + contract sync)
 
 **Scope:** Public JSON / OpenAPI / all docs that describe `dto.UploadFileResponse` or `media_files` **must** list optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling `embeded_html`), migration **`000005_media_bunny_response_fields`**, keys in **`constants/media_meta_keys.go`**, and helper policy in **`pkg/logic/helper/media_resolver.go`** (`ApplyBunnyDetailToMetadata`, …). Upload path: optional `GetBunnyVideoByID` after Bunny PUT; webhook refreshes on finished.

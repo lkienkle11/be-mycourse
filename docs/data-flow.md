@@ -72,7 +72,7 @@
   - For **image files** (`helper.IsImageMIMEOrExt`): acquire `utils.imageEncodeGate` slot, run `utils.EncodeWebP(payload)` (bimg/libvips, `CGO_ENABLED=1`), release slot. Payload, MIME, filename (`.webp`), and size updated before `uploadToProvider`. Encode failure → `ProviderError{Code: 9017}` → HTTP **503**.
   - For **non-image, non-video CREATE** files: first 16 bytes checked against extension + magic-byte denylist via `utils.IsExecutableUploadRejected`. Match → `ErrExecutableUploadRejected` → HTTP **400** + code **2004**.
 - Persisted rows live in `media_files`: `000003_media_metadata`, `000004_media_orphan_safety` (`row_version`, `content_fingerprint`, `media_pending_cloud_cleanup`), **`000005_media_bunny_response_fields`** (`video_id`, `thumbnail_url`, `embeded_html`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
-- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal `provider`; Bunny parity top-level fields when populated — `docs/modules/media.md`).
+- Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal `provider`; **no `origin_url` in JSON** (Sub 12); Bunny parity top-level fields when populated — `docs/modules/media.md`).
 
 ### Media Video Status + Webhook
 - `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.

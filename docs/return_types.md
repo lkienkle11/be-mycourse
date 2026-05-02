@@ -691,10 +691,11 @@ Media endpoints are implemented and return the standard envelope. Public payload
 
 Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling; `omitempty` when empty). Full behaviour: **`docs/modules/media.md`** (Sub 09).
 
+**Sub 12:** Public media responses **do not include** `origin_url` (`dto.UploadFileResponse` has no such field). Canonical storage URL exists only server-side (`media_files.origin_url`, `entities.File.OriginURL` with `json:"-"`).
+
 ```json
 {
   "url": "https://...",
-  "origin_url": "https://...",
   "object_key": "path/to/object",
   "bunny_video_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
   "bunny_library_id": "123456",

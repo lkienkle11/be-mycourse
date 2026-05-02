@@ -1199,7 +1199,7 @@ curl -X GET "{{BASE_URL}}/api/v1/media/files/cleanup-metrics" \
 
 Form fields: `file` (required), optional `kind` (`FILE`/`VIDEO`), `object_key`, `metadata` (JSON string).
 
-Success envelope `data` = **`dto.UploadFileResponse`**. Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
+Success envelope `data` = **`dto.UploadFileResponse`** (no **`origin_url`** — Sub 12). Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/media/files \

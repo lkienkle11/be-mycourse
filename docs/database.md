@@ -146,7 +146,7 @@ Product media uploads (files and Bunny Stream videos). Created in migration **`0
 | `id` | UUID PK | Logical media row id |
 | `object_key` | VARCHAR(512) UNIQUE | B2 key or Bunny GUID |
 | `kind`, `provider`, `filename`, `mime_type`, `size_bytes` | | |
-| `url`, `origin_url`, `status` | TEXT / VARCHAR | Public vs origin URL |
+| `url`, `origin_url`, `status` | TEXT / VARCHAR | `url` = distribution/public URL pattern; **`origin_url`** = provider canonical/origin (server-only: orphan/delete/persistence — **not** exposed on `dto.UploadFileResponse` / public JSON — Sub 12); `status` |
 | `b2_bucket_name` | VARCHAR | B2 bucket when applicable |
 | `bunny_video_id`, `bunny_library_id` | VARCHAR | Bunny identifiers |
 | **`video_id`** | VARCHAR | Sub 09 — Bunny numeric id string or guid |

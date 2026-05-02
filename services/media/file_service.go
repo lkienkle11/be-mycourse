@@ -139,6 +139,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		if ext := filepath.Ext(filename); ext != "" {
 			filename = strings.TrimSuffix(filename, ext) + ".webp"
 		}
+		objectKey = helper.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
 	}
 
 	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, entities.RawMetadata{})
@@ -284,6 +285,7 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 		if ext := filepath.Ext(filename); ext != "" {
 			filename = strings.TrimSuffix(filename, ext) + ".webp"
 		}
+		resolvedObjectKey = helper.ResolveMediaUploadObjectKey("", filename, provider)
 	}
 
 	uploaded, err := uploadToProvider(clients, provider, resolvedObjectKey, filename, payload, entities.RawMetadata{})

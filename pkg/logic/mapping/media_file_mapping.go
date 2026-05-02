@@ -26,6 +26,8 @@ func toUploadMetadataDTO(meta entities.UploadFileMetadata) dto.UploadFileMetadat
 }
 
 func ToUploadFileResponse(file entities.File) dto.UploadFileResponse {
+	// Sub 12: canonical/origin URL is not part of dto.UploadFileResponse (no origin_url in public JSON).
+	// entities.File / DB still carry OriginURL for persistence, orphan lookup, and cloud delete.
 	return dto.UploadFileResponse{
 		ID:                 file.ID,
 		Kind:               string(file.Kind),
@@ -35,7 +37,6 @@ func ToUploadFileResponse(file entities.File) dto.UploadFileResponse {
 		Status:             string(file.Status),
 		B2BucketName:       file.B2BucketName,
 		URL:                file.URL,
-		OriginURL:          file.OriginURL,
 		ObjectKey:          file.ObjectKey,
 		BunnyVideoID:       file.BunnyVideoID,
 		BunnyLibraryID:     file.BunnyLibraryID,

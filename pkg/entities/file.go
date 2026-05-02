@@ -64,7 +64,7 @@ type File struct {
 	MimeType           string                 `json:"mime_type"`
 	SizeBytes          int64                  `json:"size_bytes"`
 	URL                string                 `json:"url"`
-	OriginURL          string                 `json:"origin_url"`
+	OriginURL          string                 `json:"-"` // server-only; not on dto.UploadFileResponse (Sub 12)
 	ObjectKey          string                 `json:"object_key"`
 	Status             constants.FileStatus   `json:"status"`
 	B2BucketName       string                 `json:"b2_bucket_name"`

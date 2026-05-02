@@ -29,7 +29,6 @@ type UploadFileResponse struct {
 	Status             string             `json:"status,omitempty"`
 	B2BucketName       string             `json:"b2_bucket_name,omitempty"`
 	URL                string             `json:"url"`
-	OriginURL          string             `json:"origin_url"`
 	ObjectKey          string             `json:"object_key"`
 	BunnyVideoID       string             `json:"bunny_video_id,omitempty"`
 	BunnyLibraryID     string             `json:"bunny_library_id,omitempty"`

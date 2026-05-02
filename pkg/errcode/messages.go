@@ -22,6 +22,8 @@ var defaultMessages = map[int]string{
 	ValidationField:  "Field validation failed",
 	FileTooLarge:     constants.MsgFileTooLargeUpload,
 
+	ExecutableUploadRejected: constants.MsgExecutableUploadRejected,
+
 	BadRequest:      "Bad request",
 	Unauthorized:    "Unauthorized",
 	Forbidden:       "Forbidden",
@@ -48,4 +50,5 @@ var defaultMessages = map[int]string{
 	BunnyInvalidResponse:     constants.MsgMediaBunnyInvalidResponse,
 	BunnyVideoNotFound:       constants.MsgMediaBunnyVideoNotFound,
 	BunnyGetVideoFailed:      constants.MsgMediaBunnyGetVideoFailed,
+	ImageEncodeBusy:          constants.MsgImageEncodeBusy,
 }

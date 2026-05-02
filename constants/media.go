@@ -25,3 +25,8 @@ const (
 	FileStatusDeleted FileStatus = "DELETED"
 	FileStatusFailed  FileStatus = "FAILED"
 )
+
+// --- Sub 11: image encode concurrency gate ---
+
+// MaxConcurrentImageEncode caps simultaneous WebP encode workers (bimg/libvips) per process.
+const MaxConcurrentImageEncode = 4

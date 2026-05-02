@@ -83,6 +83,10 @@ func createFile(c *gin.Context) {
 			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
 			return
 		}
+		if errors.Is(err, pkgerrors.ErrExecutableUploadRejected) {
+			response.Fail(c, http.StatusBadRequest, errcode.ExecutableUploadRejected, errcode.DefaultMessage(errcode.ExecutableUploadRejected), nil)
+			return
+		}
 		if pe, ok := pkgerrors.AsProviderError(err); ok {
 			msg := pe.Error()
 			if strings.TrimSpace(msg) == "" {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
@@ -106,6 +108,39 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
 	}
 
+	mime := fileHeader.Header.Get("Content-Type")
+	isImage := helper.IsImageMIMEOrExt(mime, filename)
+
+	// Reject executable/script files (extension + magic bytes) for non-image, non-video uploads.
+	if kind == constants.FileKindFile && !isImage {
+		head := payload
+		if len(head) > 16 {
+			head = head[:16]
+		}
+		if utils.IsExecutableUploadRejected(filename, head) {
+			return nil, pkgerrors.ErrExecutableUploadRejected
+		}
+	}
+
+	// Convert image uploads to WebP before sending to the storage provider.
+	if isImage {
+		utils.AcquireEncodeGate()
+		encoded, newMime, encErr := utils.EncodeWebP(payload)
+		utils.ReleaseEncodeGate()
+		if encErr != nil {
+			return nil, &pkgerrors.ProviderError{
+				Code: errcode.ImageEncodeBusy,
+				Msg:  encErr.Error(),
+				Err:  encErr,
+			}
+		}
+		payload = encoded
+		mime = newMime
+		if ext := filepath.Ext(filename); ext != "" {
+			filename = strings.TrimSuffix(filename, ext) + ".webp"
+		}
+	}
+
 	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, entities.RawMetadata{})
 	if err != nil {
 		return nil, err
@@ -115,10 +150,11 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 	merged := helper.NormalizeMetadata(uploadedMeta)
 
 	sizeBytes := fileHeader.Size
-	if sizeBytes < 0 {
+	if sizeBytes < 0 || sizeBytes == 0 {
 		sizeBytes = int64(len(payload))
 	}
-	if sizeBytes == 0 {
+	if isImage {
+		// After WebP conversion payload length differs from original; use actual encoded size.
 		sizeBytes = int64(len(payload))
 	}
 
@@ -127,7 +163,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		Kind:          kind,
 		Provider:      provider,
 		Filename:      filename,
-		ContentType:   fileHeader.Header.Get("Content-Type"),
+		ContentType:   mime,
 		SizeBytes:     sizeBytes,
 		Payload:       payload,
 		Uploaded:      uploaded,
@@ -201,6 +237,9 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
 	}
 
+	mime := fileHeader.Header.Get("Content-Type")
+	isImage := helper.IsImageMIMEOrExt(mime, filename)
+
 	fp := utils.ContentFingerprint(payload)
 	if req.SkipUploadIfUnchanged && prevRow.ContentFingerprint != "" && fp == prevRow.ContentFingerprint {
 		blob, err := helper.MergeMediaMetadataJSON(prevRow.MetadataJSON, entities.RawMetadata{})
@@ -228,6 +267,25 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 	provider := helper.ResolveUploadProvider(kind, kindInferred)
 	resolvedObjectKey := helper.ResolveMediaUploadObjectKey("", filename, provider)
 
+	// Convert image uploads to WebP before sending to the storage provider.
+	if isImage {
+		utils.AcquireEncodeGate()
+		encoded, newMime, encErr := utils.EncodeWebP(payload)
+		utils.ReleaseEncodeGate()
+		if encErr != nil {
+			return nil, &pkgerrors.ProviderError{
+				Code: errcode.ImageEncodeBusy,
+				Msg:  encErr.Error(),
+				Err:  encErr,
+			}
+		}
+		payload = encoded
+		mime = newMime
+		if ext := filepath.Ext(filename); ext != "" {
+			filename = strings.TrimSuffix(filename, ext) + ".webp"
+		}
+	}
+
 	uploaded, err := uploadToProvider(clients, provider, resolvedObjectKey, filename, payload, entities.RawMetadata{})
 	if err != nil {
 		return nil, err
@@ -242,10 +300,10 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 	}
 
 	sizeBytes := fileHeader.Size
-	if sizeBytes < 0 {
+	if sizeBytes < 0 || sizeBytes == 0 {
 		sizeBytes = int64(len(payload))
 	}
-	if sizeBytes == 0 {
+	if isImage {
 		sizeBytes = int64(len(payload))
 	}
 
@@ -254,7 +312,7 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 		Kind:          kind,
 		Provider:      provider,
 		Filename:      filename,
-		ContentType:   fileHeader.Header.Get("Content-Type"),
+		ContentType:   mime,
 		SizeBytes:     sizeBytes,
 		Payload:       payload,
 		Uploaded:      uploaded,

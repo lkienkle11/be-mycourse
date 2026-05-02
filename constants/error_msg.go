@@ -48,4 +48,8 @@ const (
 	MsgMediaBunnyGetVideoFailed      = "Bunny Stream failed to get video details"
 	MsgMediaOptimisticLockConflict   = "Media row was modified by another request; refresh and retry"
 	MsgMediaReuseMismatch            = "reuse_media_id does not match this media row"
+
+	// --- Sub 11 ---
+	MsgExecutableUploadRejected = "File type is not allowed: executable and script files cannot be uploaded"
+	MsgImageEncodeBusy          = "Image encoder is at capacity; please retry (concurrent encode limit reached)"
 )

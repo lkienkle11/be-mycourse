@@ -55,6 +55,19 @@ func ResolveMediaKindFromServer(mime, filename string) (constants.FileKind, bool
 	}
 }
 
+// IsImageMIMEOrExt reports whether a file should be treated as an image based on its MIME type or
+// file extension. Used to decide whether WebP conversion should be applied before upload.
+func IsImageMIMEOrExt(mime, filename string) bool {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(mime)), "image/") {
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif", ".webp":
+		return true
+	}
+	return false
+}
+
 func ResolveUploadProvider(kind constants.FileKind, kindInferred bool) constants.FileProvider {
 	configured := strings.TrimSpace(setting.MediaSetting.AppMediaProvider)
 	if configured != "" {

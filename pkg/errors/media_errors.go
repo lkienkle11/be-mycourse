@@ -7,6 +7,8 @@ import (
 )
 
 var (
-	ErrMediaOptimisticLock = errors.New(constants.MsgMediaOptimisticLockConflict)
-	ErrMediaReuseMismatch  = errors.New(constants.MsgMediaReuseMismatch)
+	ErrMediaOptimisticLock      = errors.New(constants.MsgMediaOptimisticLockConflict)
+	ErrMediaReuseMismatch       = errors.New(constants.MsgMediaReuseMismatch)
+	ErrExecutableUploadRejected = errors.New(constants.MsgExecutableUploadRejected)
+	ErrImageEncodeBusy          = errors.New(constants.MsgImageEncodeBusy)
 )

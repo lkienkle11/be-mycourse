@@ -16,9 +16,10 @@ const (
 	InvalidJSON = 1001
 
 	// Validation (2xxx)
-	ValidationFailed = 2001
-	ValidationField  = 2002 // used per-field in details when applicable
-	FileTooLarge     = 2003 // single-file upload exceeds cap; default message = constants.MsgFileTooLargeUpload (see messages.go)
+	ValidationFailed         = 2001
+	ValidationField          = 2002 // used per-field in details when applicable
+	FileTooLarge             = 2003 // single-file upload exceeds cap; default message = constants.MsgFileTooLargeUpload (see messages.go)
+	ExecutableUploadRejected = 2004 // file extension or magic bytes match the executable/script denylist
 
 	// Client / HTTP-shaped (3xxx) — align loosely with HTTP family
 	BadRequest      = 3001
@@ -50,4 +51,5 @@ const (
 	BunnyInvalidResponse     = 9014
 	BunnyVideoNotFound       = 9015
 	BunnyGetVideoFailed      = 9016
+	ImageEncodeBusy          = 9017 // CGO/libvips encode gate full or encode failed; HTTP 503
 )

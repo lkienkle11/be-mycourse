@@ -32,6 +32,8 @@ func HTTPStatusForProviderCode(code int) int {
 		return http.StatusNotFound
 	case errcode.BunnyGetVideoFailed:
 		return http.StatusBadGateway
+	case errcode.ImageEncodeBusy:
+		return http.StatusServiceUnavailable // 503
 	default:
 		return http.StatusInternalServerError
 	}

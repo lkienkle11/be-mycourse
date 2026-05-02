@@ -332,16 +332,16 @@
 - Name: `ProviderError`, `AsProviderError`, `HTTPStatusForProviderCode`
 - Type: Error / helper
 - Path: `pkg/errors/provider_error.go`
-- Purpose: Carry `errcode` 9010–9014 for B2/Bunny client failures; map to HTTP 500 vs 502.
+- Purpose: Carry `errcode` 9010–9018 for B2/Bunny/encode client failures; map to HTTP 500/502/503/504.
 - Scope: Media handlers and provider clients.
 - Dependencies: `errors`, `net/http`, `pkg/errcode`.
-- Current Usage: `pkg/media/clients.go`, `api/v1/media/file_handler.go`.
+- Current Usage: `pkg/media/clients.go`, `api/v1/media/file_handler.go`, `services/media/file_service.go`.
 - Reuse Opportunity: Extend with more provider-specific codes without changing handler shape.
 
-### Asset: Media upstream errcodes (9010–9014)
-- Name: `B2BucketNotConfigured`, `BunnyStreamNotConfigured`, `BunnyCreateFailed`, `BunnyUploadFailed`, `BunnyInvalidResponse`
+### Asset: Media upstream errcodes (9010–9018)
+- Name: `B2BucketNotConfigured`, `BunnyStreamNotConfigured`, `BunnyCreateFailed`, `BunnyUploadFailed`, `BunnyInvalidResponse`, `BunnyVideoNotFound`, `BunnyGetVideoFailed`, **`ImageEncodeBusy`** (9017), **`VideoTranscodeTimeout`** (9018)
 - Type: Constant / API contract
-- Path: `pkg/errcode/codes.go`, `pkg/errcode/messages.go`, `constants/error_msg.go` (`MsgMedia*`)
+- Path: `pkg/errcode/codes.go`, `pkg/errcode/messages.go`, `constants/error_msg.go` (`MsgMedia*`, `MsgImageEncodeBusy`, `MsgVideoTranscodeTimeout`)
 - Purpose: Stable API codes + default JSON messages for media upstream failures.
 - Scope: Clients of `pkg/response` and observability.
 - Dependencies: `constants` for shared message literals.
@@ -586,6 +586,64 @@
 - Purpose: Stable `errors.Is` check in handlers for oversize uploads after service-side `LimitReader` / header validation.
 - Scope: Media upload flow; map to `errcode.FileTooLarge` + HTTP 413 in `api/v1/media/file_handler.go`; service returns same sentinel via `pkgmedia.ErrFileExceedsMaxUploadSize`.
 - Dependencies: `constants.MaxMediaUploadFileBytes`, `constants.MsgFileTooLargeUpload`.
+
+### Asset: ErrExecutableUploadRejected (Sub 11)
+- Name: `ErrExecutableUploadRejected`
+- Type: Sentinel error (`var`)
+- Path: `pkg/errors/media_errors.go`
+- Purpose: Stable `errors.Is` check for executable/script file denylist rejections on `POST /media/files`.
+- Scope: `services/media/file_service.go` (returns), `api/v1/media/file_handler.go` (maps to HTTP 400 + code 2004).
+- Dependencies: `constants.MsgExecutableUploadRejected`.
+
+### Asset: ErrImageEncodeBusy (Sub 11)
+- Name: `ErrImageEncodeBusy`
+- Type: Sentinel error (`var`)
+- Path: `pkg/errors/media_errors.go`
+- Purpose: Returned by `utils.EncodeWebP` stub (`//go:build !cgo`) when CGO is not available.
+- Scope: `pkg/logic/utils/webp_encode_stub.go`, wrapping in `ProviderError{Code: 9017}` in service.
+- Dependencies: `constants.MsgImageEncodeBusy`.
+
+### Asset: IsExecutableUploadRejected (Sub 11)
+- Name: `IsExecutableUploadRejected`
+- Type: Util (generic security check)
+- Path: `pkg/logic/utils/executable_check.go`
+- Purpose: Check file upload against extension denylist and magic-byte signatures. Returns true when file must be blocked.
+- Scope: `services/media/file_service.go` (CreateFile non-image non-video branch).
+- Dependencies: `path/filepath`, `strings`.
+- Reuse Opportunity: Any future upload endpoint needing the same executable filter.
+
+### Asset: EncodeWebP + AcquireEncodeGate / ReleaseEncodeGate (Sub 11)
+- Name: `EncodeWebP`, `AcquireEncodeGate`, `ReleaseEncodeGate`
+- Type: Util (image transformation)
+- Path: `pkg/logic/utils/webp_encode.go` (`//go:build cgo`), `pkg/logic/utils/webp_encode_stub.go` (`//go:build !cgo`), `pkg/logic/utils/image_encode_gate.go`
+- Purpose: Convert image bytes to WebP (bimg/libvips). Semaphore gate caps concurrent encode workers to `constants.MaxConcurrentImageEncode`.
+- Scope: `services/media/file_service.go` (CreateFile + UpdateFile image branch).
+- Dependencies: `github.com/h2non/bimg` (CGO build), `constants.MaxConcurrentImageEncode`, `pkg/errors.ErrImageEncodeBusy` (stub).
+- Reuse Opportunity: Any future service needing image conversion to WebP.
+
+### Asset: IsImageMIMEOrExt (Sub 11)
+- Name: `IsImageMIMEOrExt`
+- Type: Helper (media-domain image detection)
+- Path: `pkg/logic/helper/media_resolver.go`
+- Purpose: Detect whether a file is an image by MIME prefix or extension; controls WebP conversion branch.
+- Scope: `services/media/file_service.go`.
+- Dependencies: `path/filepath`, `strings`.
+
+### Asset: Is360pReady (Sub 11)
+- Name: `Is360pReady`
+- Type: Helper (Bunny domain)
+- Path: `pkg/logic/helper/bunny_video_status.go`
+- Purpose: Check `BunnyVideoDetail` for `status >= ResolutionsFinished` or `"360p"` in `availableResolutions`.
+- Scope: `pkg/media/bunny_transcode_wait.go`.
+- Dependencies: `pkg/entities.BunnyVideoDetail`.
+
+### Asset: WaitForBunny360p (Sub 11)
+- Name: `WaitForBunny360p`
+- Type: Function (`pkg/media`)
+- Path: `pkg/media/bunny_transcode_wait.go`
+- Purpose: Synchronous poll of Bunny GET-video API with exponential backoff until 360p is ready or timeout.
+- Scope: `pkg/media/clients.go:UploadBunnyVideo` (called after PUT succeeds).
+- Dependencies: `pkg/media.GetBunnyVideoByID`, `pkg/logic/helper.Is360pReady`, `constants.*BunnyTranscode*`, `pkg/errors.ProviderError`, `pkg/errcode.VideoTranscodeTimeout`.
 
 ### Asset: FileTooLarge (errcode)
 - Name: `FileTooLarge`

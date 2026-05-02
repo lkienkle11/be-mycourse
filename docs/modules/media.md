@@ -119,6 +119,35 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 
 ---
 
+## Phase Sub 11 — WebP encoding, executable denylist (2026-05-02)
+
+### WebP image encoding
+
+- All image uploads (`POST /media/files`, `PUT /media/files/:id`) are **synchronously converted to WebP** before upload to the storage provider using **`bimg`/libvips** (CGO).
+- Concurrency is bounded by a buffered-channel semaphore in **`pkg/logic/utils/image_encode_gate.go`** (`AcquireEncodeGate` / `ReleaseEncodeGate`); cap = **`constants.MaxConcurrentImageEncode`** (4).
+- The actual WebP conversion lives in **`pkg/logic/utils/webp_encode.go`** (`//go:build cgo`). A `//go:build !cgo` stub in **`pkg/logic/utils/webp_encode_stub.go`** returns `ErrImageEncodeBusy` (errcode **9017**) for `CGO_ENABLED=0` builds (CI, local review).
+- Image detection (`IsImageMIMEOrExt`) lives in **`pkg/logic/helper/media_resolver.go`** alongside the existing kind/provider resolvers.
+- After encoding: `payload`, `filename` (`.webp` extension), `mime` ("image/webp"), and `sizeBytes` are updated in service before the `uploadToProvider` call.
+- **Build requirement:** `CGO_ENABLED=1` and `libvips-dev pkg-config` on the build machine. `Makefile` `build` target and `.github/workflows/deploy-dev.yml` both set `CGO_ENABLED=1`.
+- **Errors:** encode failure → `ProviderError{Code: 9017}` → HTTP **503**.
+
+### Executable/script file denylist
+
+- `POST /media/files` rejects **non-image, non-video** files whose extension or magic-byte header matches the denylist.
+- Logic lives in **`pkg/logic/utils/executable_check.go`** (`IsExecutableUploadRejected`). Extension list: `.exe .msi .dmg .app .deb .rpm .sh .bash .zsh .fish .bat .cmd .com .ps1 .vbs .jse .scr .pif .jar .war .ear .dll .so .dylib .elf`. Magic bytes: PE/MZ, ELF, Mach-O variants, shebang (`#!`).
+- Returns sentinel **`ErrExecutableUploadRejected`** (`pkg/errors/media_errors.go`) → handler maps to HTTP **400** + errcode **2004**.
+
+### New error codes (Sub 11)
+
+| Code | Name | HTTP | Message constant |
+|------|------|------|-----------------|
+| 2004 | `ExecutableUploadRejected` | 400 | `MsgExecutableUploadRejected` |
+| 9017 | `ImageEncodeBusy` | 503 | `MsgImageEncodeBusy` |
+
+
+
+---
+
 ## Provider rules
 
 - `Local`, B2+Gcore, Bunny Stream — provider from server config only; `setting.MediaSetting` after `Setup()`.

@@ -79,6 +79,9 @@
   - if kind cannot be inferred and no configured provider exists, provider fallback is `Local`.
   - response `metadata` uses typed contract `UploadFileMetadata` (not `any`) with zero-value defaults for unavailable fields.
   - Bunny videos: success `data` may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** on `UploadFileResponse` (`docs/modules/media.md`, `docs/return_types.md`, `docs/api_swagger.yaml`).
+- **Sub 11 upload policies:**
+  - Image uploads are **converted to WebP** (bimg/libvips, `CGO_ENABLED=1`) before cloud upload. Concurrency gate: `constants.MaxConcurrentImageEncode` (4). Build requires `libvips-dev`. Encode failure → HTTP **503** + code **9017** (`ImageEncodeBusy`).
+  - Non-image, non-video `POST /media/files` files whose extension or magic bytes match the executable/script denylist are rejected → HTTP **400** + code **2004** (`ExecutableUploadRejected`).
 
 ## Middleware/Auth Matrix
 - Global: request/recovery/CORS/gzip.

@@ -10,6 +10,52 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 
 ---
 
+## Phase Sub 11 — WebP CGO+gate, executable denylist (tasks 01–12, 2026-05-02)
+
+### Scope
+
+Two upload policies:
+
+1. **Image uploads (create + update):** convert to WebP via `bimg`/libvips (`CGO_ENABLED=1`). Concurrency limited by semaphore `imageEncodeGate` (cap = `constants.MaxConcurrentImageEncode` = 4). No pure-Go fallback — CGO mandatory in production.
+2. **Non-image, non-video create:** reject files whose extension or magic bytes match the executable denylist. Returns HTTP 400 / errcode 2004 (`ExecutableUploadRejected`).
+
+> **Dropped from scope:** Bunny 360p transcode wait (tasks 10–11 original spec) — removed at user request after implementation. All related code (`bunny_transcode_wait.go`, `Is360pReady`, `AvailableResolutions`, `VideoTranscodeTimeout` / 9018, Bunny backoff constants) has been deleted.
+
+### New symbols (Sub 11)
+
+| Symbol | Package | File |
+|--------|---------|------|
+| `MaxConcurrentImageEncode` | `constants` | `constants/media.go` |
+| `MsgExecutableUploadRejected` | `constants` | `constants/error_msg.go` |
+| `MsgImageEncodeBusy` | `constants` | `constants/error_msg.go` |
+| `ExecutableUploadRejected` (2004) | `errcode` | `pkg/errcode/codes.go` |
+| `ImageEncodeBusy` (9017) | `errcode` | `pkg/errcode/codes.go` |
+| `ErrExecutableUploadRejected` | `errors` | `pkg/errors/media_errors.go` |
+| `ErrImageEncodeBusy` | `errors` | `pkg/errors/media_errors.go` |
+| `IsImageMIMEOrExt` | `helper` | `pkg/logic/helper/media_resolver.go` |
+| `IsExecutableUploadRejected` | `utils` | `pkg/logic/utils/executable_check.go` |
+| `EncodeWebP` (cgo) | `utils` | `pkg/logic/utils/webp_encode.go` |
+| `EncodeWebP` (stub) | `utils` | `pkg/logic/utils/webp_encode_stub.go` |
+| `AcquireEncodeGate` / `ReleaseEncodeGate` | `utils` | `pkg/logic/utils/image_encode_gate.go` |
+
+### Architecture decisions
+
+- **`webp_encode*.go` and `image_encode_gate.go`** placed in `pkg/logic/utils/` — image transformation is a generic utility with no cloud/domain coupling. `pkg/media/` is HTTP + JSON decode + cloud provider operations only.
+- **`executable_check.go`** placed in `pkg/logic/utils/` — generic security check without domain coupling.
+- **`IsImageMIMEOrExt`** in `pkg/logic/helper/media_resolver.go` — alongside existing MIME/extension resolvers, media-domain scoped.
+
+### Build / CI changes
+
+- `Makefile`: `build` target uses `CGO_ENABLED=1`; new `build-nocgo` target for pure-Go builds.
+- `.github/workflows/deploy-dev.yml`: installs `libvips-dev pkg-config` before `go build`, sets `CGO_ENABLED=1`.
+- `go.mod`: added `github.com/h2non/bimg v1.1.9`.
+
+### Quality gate
+
+- `gofmt`, `CGO_ENABLED=0 go build ./...`, `CGO_ENABLED=0 go vet ./...` — all pass.
+
+---
+
 ## Phase Sub 09 — Bunny `UploadFileResponse` parity (docs + contract sync)
 
 **Scope:** Public JSON / OpenAPI / all docs that describe `dto.UploadFileResponse` or `media_files` **must** list optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling `embeded_html`), migration **`000005_media_bunny_response_fields`**, keys in **`constants/media_meta_keys.go`**, and helper policy in **`pkg/logic/helper/media_resolver.go`** (`ApplyBunnyDetailToMetadata`, …). Upload path: optional `GetBunnyVideoByID` after Bunny PUT; webhook refreshes on finished.

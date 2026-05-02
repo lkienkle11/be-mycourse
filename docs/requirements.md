@@ -371,6 +371,8 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 - The system **MUST** restrict direct runtime `os.Getenv` reads in media runtime paths and use `setting.MediaSetting` as source-of-truth after `setting.Setup()`.
 - The system **MUST** expose Bunny Stream parity fields on successful media responses when available: **`video_id`**, **`thumbnail_url`**, **`embeded_html`** on `dto.UploadFileResponse`, persisted on **`media_files`** (migration **`000005_media_bunny_response_fields`**) and in **`metadata_json`** using keys from **`constants/media_meta_keys.go`** — see **`docs/modules/media.md`**.
 - The system **MUST** reject a single uploaded file larger than **2 GiB** (`2×1024×1024×1024` bytes) on media create/update (handler + service), returning HTTP **413** and application code **2003** (`FileTooLarge`). The byte cap and the **single** oversize message constant **`constants.MsgFileTooLargeUpload`** **MUST** live in **`constants/error_msg.go`** and **MUST** be the same string used for the default JSON `message` for `FileTooLarge` in `pkg/errcode/messages.go` and for `pkg/errors.ErrFileExceedsMaxUploadSize` (no duplicate literals). See `docs/architecture.md` directory map. Deployment **MUST** configure reverse proxies / load balancers with a body limit **at least** that large on API routes so requests are not dropped before the application (see `docs/deploy.md`).
+- The system **MUST** convert all image uploads (create + update) to **WebP** format using `bimg`/libvips (`CGO_ENABLED=1`) before sending to the storage provider. Concurrency **MUST** be bounded to `constants.MaxConcurrentImageEncode` simultaneous encode workers. Encode failure **MUST** return HTTP **503** + code **9017** (`ImageEncodeBusy`).
+- The system **MUST** reject non-image, non-video file uploads (`POST /media/files`) when the file extension or magic bytes match the executable/script denylist. Rejected uploads **MUST** return HTTP **400** + code **2004** (`ExecutableUploadRejected`). Denylist logic **MUST** reside in `pkg/logic/utils/executable_check.go`.
 
 ---
 
@@ -516,7 +518,8 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 #### NFR-3.7 CI/CD
 
 - Pushing to the `master` branch **MUST** trigger `.github/workflows/deploy-dev.yml`:
-  - Build the `mycourse-io-be-dev` binary on the runner.
+  - Install `libvips-dev pkg-config` on the runner (required for `CGO_ENABLED=1` / bimg WebP encoding).
+  - Build the `mycourse-io-be-dev` binary with `CGO_ENABLED=1`.
   - `rsync` the binary to the deploy host.
   - Reload the PM2 process with rollback on startup failure.
   - Health-check `GET /api/v1/health` before marking the deploy successful.

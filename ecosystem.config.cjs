@@ -9,7 +9,9 @@ module.exports = {
             instances: 1,
             autorestart: true,
             max_memory_restart: '1024M',
-            env: {},
+            env: {
+                CGO_ENABLED: "1",
+            },
             env_file: '/var/www/be-mycourse/.env', // Khai báo đường dẫn tuyệt đối tới file .env
         },
         {
@@ -21,6 +23,7 @@ module.exports = {
             max_memory_restart: '1024M',
             env: {
                 STAGE: 'staging',
+                CGO_ENABLED: "1",
             },
             env_file: '/var/www/be-mycourse/.env.staging', // Khai báo đường dẫn tuyệt đối tới file .env
         },
@@ -33,6 +36,7 @@ module.exports = {
             max_memory_restart: '1024M',
             env: {
                 STAGE: 'prod',
+                CGO_ENABLED: "1",
             },
             env_file: '/var/www/be-mycourse/.env.prod', // Khai báo đường dẫn tuyệt đối tới file .env
         }

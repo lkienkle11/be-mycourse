@@ -68,7 +68,8 @@ jobs:
           scp -q scripts/pm2-reload-with-binary-rollback.sh \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh"
 
-      - name: Backup current binary on server (rollback target)
+      # Binary must be backed up here (before rsync overwrites it). Ecosystem .prev is created only inside the deploy script.
+      - name: Backup current dev binary on server (rollback target)
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
             "cd ${{ secrets.DEPLOY_PATH_DEV }} && test -f bin/mycourse-io-be-dev && cp bin/mycourse-io-be-dev bin/mycourse-io-be-dev.prev || true"

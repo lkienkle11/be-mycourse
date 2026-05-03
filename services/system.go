@@ -12,7 +12,7 @@ import (
 
 var (
 	ErrSystemAppConfigMissing = errors.New("system_app_config row missing")
-	ErrSystemSecretsNotReady = errors.New("system secrets are not configured in database")
+	ErrSystemSecretsNotReady  = errors.New("system secrets are not configured in database")
 	ErrSystemLoginFailed      = errors.New("invalid system credentials")
 )
 

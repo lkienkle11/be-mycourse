@@ -14,9 +14,9 @@ import (
 const rolePermissionSyncJobInterval = 12 * time.Hour
 
 var (
-	rpJobMu      sync.Mutex
-	rpJobCancel  context.CancelFunc
-	rpJobWG      sync.WaitGroup
+	rpJobMu     sync.Mutex
+	rpJobCancel context.CancelFunc
+	rpJobWG     sync.WaitGroup
 )
 
 // StopRolePermissionSyncJob stops the in-memory role+permission sync ticker, if any.

@@ -1,17 +1,64 @@
 # MyCourse Backend
 
+## Documentation Convention (Mandatory)
+
+The `docs/` folder is the **primary and authoritative documentation source** for this project.
+
+- **Before starting any task** (coding, planning, debugging, refactoring), read the relevant files in `docs/` first.
+- If `docs/` already contains sufficient and up-to-date information → **reuse it directly** without re-running full discovery.
+- If `docs/` is missing information or outdated → re-run discovery and **update `docs/` before proceeding**.
+- Always sync `docs/` after completing any task that changes architecture, APIs, data flow, patterns, or reusable assets.
+- `docs/reusable-assets.md` must be checked before proposing any new utility, type, or helper to avoid duplication.
+
+| Doc | Contents |
+|-----|----------|
+| [`docs/architecture.md`](docs/architecture.md) | HTTP layers, directory map, `/api/v1` vs internal routes, GitNexus graph snapshot |
+| [`docs/folder-structure.md`](docs/folder-structure.md) | Full directory tree with purpose of every folder and subfolder |
+| [`docs/data-flow.md`](docs/data-flow.md) | How data moves through the system end-to-end |
+| [`docs/api-overview.md`](docs/api-overview.md) | Full API surface: routes, handlers, request/response shapes |
+| [`docs/logic-flow.md`](docs/logic-flow.md) | Control flow and execution paths for key operations |
+| [`docs/router.md`](docs/router.md) | Routing structure and handler registration |
+| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, helper vs util, tests layout) |
+| [`docs/dependencies.md`](docs/dependencies.md) | Key libraries, frameworks, and their relationships |
+| [`docs/reusable-assets.md`](docs/reusable-assets.md) | All reusable utilities, types, DTOs, error codes, constants |
+| [`docs/database.md`](docs/database.md) | Database schema, tables, migration history |
+| [`docs/requirements.md`](docs/requirements.md) | Functional & non-functional requirements for all features |
+| [`docs/sequence_diagrams.md`](docs/sequence_diagrams.md) | Mermaid sequence diagrams for every system flow |
+| [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
+| [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
+| [`docs/modules.md`](docs/modules.md) | Module responsibilities overview — implemented modules, planned modules, ownership boundaries, and testing layout |
+| [`docs/modules/`](docs/modules/) | Per-domain module notes (auth, user, media, taxonomy, rbac, course, lesson, enrollment) |
+
+---
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
+## Global Constants Placement Rule (Mandatory)
+
+- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
+- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
+- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+
 Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu-core`).
 
 | Doc | Contents |
 |-----|----------|
 | [`docs/architecture.md`](docs/architecture.md) | HTTP layers, directory map, `/api/v1` vs internal routes, GitNexus graph snapshot |
+| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, **services file naming** vs `helper_` / `_helper`, helper vs util, tests layout) |
 | [`docs/deploy.md`](docs/deploy.md) | VPS + CI/CD runbook |
 | [`docs/database.md`](docs/database.md) | Database schema, tables, migration history |
 | [`docs/requirements.md`](docs/requirements.md) | Functional & non-functional requirements for all features |
 | [`docs/sequence_diagrams.md`](docs/sequence_diagrams.md) | Mermaid sequence diagrams for every system flow |
 | [`docs/return_types.md`](docs/return_types.md) | Go service return types and full JSON response shapes per API |
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
-| [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, course, lesson, enrollment) |
+| [`docs/modules.md`](docs/modules.md) | Module responsibilities overview — implemented modules, planned modules, ownership boundaries |
+| [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, media, taxonomy, rbac, course, lesson, enrollment) |
+| [`docs/modules/media.md`](docs/modules/media.md) | Media: B2+Gcore+Bunny, `media_files`, **`video_id` / `thumbnail_url` / `embeded_html`**, webhook + status, policy in `media_resolver.go`; **2 GiB**, multipart + proxy (`docs/deploy.md`) |
+| [`tests/`](tests/) | **All test code** (unit/module-level/integration) — place test packages, fixtures, and shared harnesses here (see **Testing** below). |
 
 ## Quick Start
 
@@ -42,9 +89,16 @@ go run .
 curl http://localhost:8080/api/v1/health
 ```
 
+## Testing
+
+- **Module tests** (integration flows, black-box tests against `mycourse-io-be`, shared fixtures, or any test code you want outside production packages): add packages under **`tests/`** at the repository root (alongside `api/`, `services/`, …). `go test ./...` from the repo root includes those packages once they contain `*_test.go` files.
+- **All test code** (including unit, integration, black-box, fixtures, and shared harnesses) **MUST** be placed under repository root **`tests/`**.
+- On-disk pointer: [`tests/README.md`](tests/README.md).
+- Canonical convention text: [`docs/patterns.md`](docs/patterns.md) (mirrored in [`docs/patterns.md`](docs/patterns.md)) and [`docs/requirements.md`](docs/requirements.md) (NFR on test layout).
+
 ### CI deploy (`master`)
 
-Pushing to **`master`** runs `.github/workflows/deploy-dev.yml`: build the **`mycourse-io-be-dev`** binary in GitHub Actions, **`rsync`** it to **`${DEPLOY_PATH_DEV}/bin/`**, then run **`scripts/pm2-reload-with-binary-rollback.sh`**, which **`pm2 reload`s** **`mycourse-api-dev`**, waits for **`GET /api/v1/health`**, and **`git pull`s** only after the new process is listening; if startup fails, the previous binary is restored from **`bin/mycourse-io-be-dev.prev`** and the workflow fails. Secrets: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, **`DEPLOY_PATH_DEV`**. Full runbook: [`docs/deploy.md` — Appendix C (CI/CD)](docs/deploy.md#appendix-c--cicd-with-github-actions).
+Pushing to **`master`** runs `.github/workflows/deploy-dev.yml`: build **`mycourse-io-be-dev`** in Actions, on the server **copy the current dev binary to `bin/mycourse-io-be-dev.prev`** (only place that can run **before** `rsync` overwrites the file), **`rsync`** the new binary **to the same path** `bin/mycourse-io-be-dev`, then run **`scripts/pm2-reload-with-binary-rollback.sh`**. That script **alone** snapshots **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`**, pulls **only** that file from **`origin/master`**, **`pm2 reload`**, waits for **`GET /api/v1/health`** (and PM2 **`max_restarts` exhaustion** via `pm2 jlist`), then **full `git pull`** on success; on failure it restores **binary + ecosystem** from the two **`.prev`** files. No separate “`.new`” staging file. Secrets: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, **`DEPLOY_PATH_DEV`**. Runbook: [`docs/deploy.md` — Appendix C](docs/deploy.md#appendix-c--cicd-with-github-actions).
 
 ---
 
@@ -337,14 +391,17 @@ func listUsers(c *gin.Context) {
 - `main.go`: startup flow (settings, db, cache, migrate, bootstrap, queue, router).
 - `api/`: router, route groups (`public`, `api/v1`, `api/internal-v1`), API config.
 - `middleware/`: request interceptor for auth/permission/tenant hooks.
-- `services/`, `services/cache/`, `dto/`: business layer; `services/cache` holds Redis helpers (e.g. auth `/me` + login invalid cache). `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
-- `models/`, `models/migrations/`: persistence layer skeleton.
-- `cache_clients/`: Redis client bootstrap (used for auth profile + login negative cache — see `docs/modules/auth.md`).
+- `services/`, `services/cache/`, `services/media/`, `dto/`: business layer; `services/cache` holds Redis helpers (e.g. auth `/me` + login invalid cache), and `services/media` orchestrates the unified upload flow for non-video files and videos while shared feature helpers stay under `pkg/logic/helper` and generic cross-feature primitives live in `pkg/logic/utils`. Typed media metadata is inferred in backend (image/video/document), provider is selected from server config (`setting.MediaSetting.AppMediaProvider`), and public media response is mapped via `pkg/logic/mapping` to `dto.UploadFileResponse` (provider is not exposed; **no `origin_url` in JSON** — Sub 12; Bunny parity fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when populated — see `docs/modules/media.md`). `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
+- `models/`, `migrations/`: persistence layer (GORM models + SQL migrations).
+- `pkg/cache_clients/`: Redis client bootstrap (used for auth profile + login negative cache — see `docs/modules/auth.md`).
+- `pkg/entities/file.go`: shared media `File` entity descriptor used by media service responses, including base `FileMetadata` plus typed `ImageMetadata`, `VideoMetadata`, and `DocumentMetadata`.
 - `queues/`: async layer placeholder (RabbitMQ intentionally excluded).
 - `pkg/response`: **unified API response envelope** — use this in all handlers.
 - `pkg/errcode`: numeric application error codes and their default messages.
+- `constants/`: RBAC IDs, roles, domain enums; **`constants/error_msg.go`** holds reusable **error message / sentinel strings** (and small related numeric caps). If the same text is used in **`pkg/errcode/messages.go`** and in a sentinel (`errors.New`), define it **once** in `error_msg.go` and reference it from `messages.go` (see `MsgFileTooLargeUpload` + `FileTooLarge`). Numeric JSON `code` values stay in `pkg/errcode/codes.go`.
 - `pkg/httperr`: Gin middleware for centralised error handling (panic recovery, validation).
 - `pkg/setting`: YAML config with per-stage files and `.env` map substitution.
 - `pkg/envbool`: parsing common “truthy” environment variable values (`true`, `1`, `yes`, …) for feature flags.
 - `config/`: `app.yaml` + `app-<STAGE>.yaml` and env examples.
+- `tests/`: **all test code** (unit/module-level/integration) and harnesses (not application runtime code).
 - `tracing/`, `runtime/`: observability and runtime placeholders.

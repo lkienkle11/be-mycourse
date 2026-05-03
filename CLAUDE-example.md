@@ -33,6 +33,10 @@ This project is indexed by GitNexus as **be** (xxx symbols, xxx relationships, x
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 
+## Backend test layout
+
+- **Module-level / integration** Go tests, black-box packages, and shared harnesses **belong under `tests/`** at the repository root. See `README.md` (**Testing**), `docs/patterns.md`, and `docs/requirements.md` (NFR-1.6).
+
 ## Tools Quick Reference
 
 | Tool | When to use | Command |

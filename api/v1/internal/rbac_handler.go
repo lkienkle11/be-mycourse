@@ -1,10 +1,9 @@
-package v1
+package internal
 
 import (
 	"errors"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -13,29 +12,11 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/pkg/logic/helper"
+	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/services"
 )
-
-func parseUintParam(c *gin.Context, name string) (uint, bool) {
-	s := c.Param(name)
-	if s == "" {
-		return 0, false
-	}
-	v, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		return 0, false
-	}
-	return uint(v), true
-}
-
-func parsePermissionIDParam(c *gin.Context, name string) (string, bool) {
-	s := strings.TrimSpace(c.Param(name))
-	if s == "" || len(s) > 10 {
-		return "", false
-	}
-	return s, true
-}
 
 func listPermissionsInternal(c *gin.Context) {
 	var q dto.PermissionFilter
@@ -57,18 +38,7 @@ func listPermissionsInternal(c *gin.Context) {
 		return
 	}
 
-	perPage := q.GetPerPage()
-	totalPages := int((total + int64(perPage) - 1) / int64(perPage))
-	if totalPages == 0 {
-		totalPages = 1
-	}
-
-	response.OKPaginated(c, "ok", rows, response.PageInfo{
-		Page:       q.GetPage(),
-		PerPage:    perPage,
-		TotalPages: totalPages,
-		TotalItems: int(total),
-	})
+	response.OKPaginated(c, "ok", rows, utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
 }
 
 func createPermissionInternal(c *gin.Context) {
@@ -86,7 +56,7 @@ func createPermissionInternal(c *gin.Context) {
 }
 
 func updatePermissionInternal(c *gin.Context) {
-	permissionID, ok := parsePermissionIDParam(c, "permissionId")
+	permissionID, ok := helper.ParsePermissionIDParam(c, "permissionId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 		return
@@ -109,7 +79,7 @@ func updatePermissionInternal(c *gin.Context) {
 }
 
 func deletePermissionInternal(c *gin.Context) {
-	permissionID, ok := parsePermissionIDParam(c, "permissionId")
+	permissionID, ok := helper.ParsePermissionIDParam(c, "permissionId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 		return
@@ -132,7 +102,7 @@ func listRolesInternal(c *gin.Context) {
 }
 
 func getRoleInternal(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := utils.ParseUintPathParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
@@ -165,7 +135,7 @@ func createRoleInternal(c *gin.Context) {
 }
 
 func updateRoleInternal(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := utils.ParseUintPathParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
@@ -188,7 +158,7 @@ func updateRoleInternal(c *gin.Context) {
 }
 
 func setRolePermissionsInternal(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := utils.ParseUintPathParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
@@ -211,7 +181,7 @@ func setRolePermissionsInternal(c *gin.Context) {
 }
 
 func deleteRoleInternal(c *gin.Context) {
-	id, ok := parseUintParam(c, "id")
+	id, ok := utils.ParseUintPathParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid id", nil)
 		return
@@ -224,7 +194,7 @@ func deleteRoleInternal(c *gin.Context) {
 }
 
 func listUserRolesInternal(c *gin.Context) {
-	userID, ok := parseUintParam(c, "userId")
+	userID, ok := utils.ParseUintPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
@@ -238,7 +208,7 @@ func listUserRolesInternal(c *gin.Context) {
 }
 
 func listUserPermissionsInternal(c *gin.Context) {
-	userID, ok := parseUintParam(c, "userId")
+	userID, ok := utils.ParseUintPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
@@ -257,7 +227,7 @@ func listUserPermissionsInternal(c *gin.Context) {
 }
 
 func assignUserRoleInternal(c *gin.Context) {
-	userID, ok := parseUintParam(c, "userId")
+	userID, ok := utils.ParseUintPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
@@ -279,12 +249,12 @@ func assignUserRoleInternal(c *gin.Context) {
 }
 
 func removeUserRoleInternal(c *gin.Context) {
-	userID, ok := parseUintParam(c, "userId")
+	userID, ok := utils.ParseUintPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
-	roleID, ok := parseUintParam(c, "roleId")
+	roleID, ok := utils.ParseUintPathParam(c, "roleId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid role id", nil)
 		return
@@ -297,7 +267,7 @@ func removeUserRoleInternal(c *gin.Context) {
 }
 
 func listUserDirectPermissionsInternal(c *gin.Context) {
-	userID, ok := parseUintParam(c, "userId")
+	userID, ok := utils.ParseUintPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
@@ -311,7 +281,7 @@ func listUserDirectPermissionsInternal(c *gin.Context) {
 }
 
 func assignUserPermissionInternal(c *gin.Context) {
-	userID, ok := parseUintParam(c, "userId")
+	userID, ok := utils.ParseUintPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
@@ -343,12 +313,12 @@ func assignUserPermissionInternal(c *gin.Context) {
 }
 
 func removeUserPermissionInternal(c *gin.Context) {
-	userID, ok := parseUintParam(c, "userId")
+	userID, ok := utils.ParseUintPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid user id", nil)
 		return
 	}
-	permissionID, ok := parsePermissionIDParam(c, "permissionId")
+	permissionID, ok := helper.ParsePermissionIDParam(c, "permissionId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid permission id", nil)
 		return

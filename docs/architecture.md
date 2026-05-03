@@ -1,5 +1,18 @@
 # Backend Architecture
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
+## Global Constants Placement Rule (Mandatory)
+
+- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
+- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
+- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+
 ## Overview
 
 The **MyCourse** backend is a **Go 1.25** monolith (`module mycourse-io-be`): **Gin** for HTTP, **GORM** (and **sqlx** where needed) for PostgreSQL, **Redis** for auth-related caching, optional **Supabase** HTTP + DB helpers, **golang-migrate** SQL files under `migrations/`, and a **unified JSON envelope** via `pkg/response` plus numeric codes in `pkg/errcode`.
@@ -32,9 +45,11 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 1. **`main.go`** loads settings, DB, optional privileged-user **CLI** when `CLI_REGISTER_NEW_SYSTEM_USER` is truthy (then exits), Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, queue consumers, then **`api.InitRouter()`**.
 2. **`api/router.go`** attaches global middleware: `pkg/httperr` (validation + recovery), **CORS**, **gzip**, then groups under **`/api`**.
 3. **`/api/system`** — `BeforeInterceptor`, **`RateLimitSystemIP(10, 3)`** (overridable per IP via `middleware.SetSystemRateLimitOverride`), short-lived system JWT for privileged operators: login + permission / role-permission sync and in-memory 12h jobs (`api/system`, `services/system.go`, `internal/jobs/*`).
-4. **`/api/v1`** uses `middleware.BeforeInterceptor()` on all routes, then splits into:
-   - **Authenticated subtree** — `RateLimitLocal` + **`middleware.AuthJWT()`** → `api/v1.RegisterAuthenRoutes`.
-   - **Unauthenticated subtree** — `RateLimitLocal` only → `api/v1.RegisterNotAuthenRoutes`.
+4. **`/api/v1`** has two registration lanes:
+   - **No-filter lane** (mounted first, no `BeforeInterceptor`) → `api/v1.RegisterNoFilterRoutes` (currently `POST /api/v1/webhook/bunny`).
+   - **Standard lane** uses `middleware.BeforeInterceptor()`, then splits into:
+     - **Authenticated subtree** — `RateLimitLocal` + **`middleware.AuthJWT()`** → `api/v1.RegisterAuthenRoutes`.
+     - **Unauthenticated subtree** — `RateLimitLocal` only → `api/v1.RegisterNotAuthenRoutes`.
 5. **`/api/internal-v1`** — `RateLimitLocal`, `BeforeInterceptor`, **`middleware.RequireInternalAPIKey()`** → internal RBAC HTTP API (`api/v1.RegisterInternalRoutes`).
 6. **Handlers** in `api/v1/*.go` parse/bind DTOs, call **`services/*`**, and respond with **`pkg/response`** helpers (never ad-hoc `gin.H` envelopes).
 
@@ -49,27 +64,30 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `main.go` | Process entry: settings, DB, cache, migrate flag, bootstrap, queues, router, listen on `setting.ServerSetting.Port` (default **8080**). |
 | `api/router.go` | Gin engine, global middleware, `/api/system`, `/api/v1`, `/api/internal-v1` groups. |
 | `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). |
-| `api/v1/` | Versioned handlers: `auth.go`, `me.go`, `routes.go`, `internal_rbac.go`, … |
+| `api/v1/` | Versioned handlers and route modules: `auth.go`, `me.go`, `routes.go`, `taxonomy/*`, `internal/*`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
-| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. |
+| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and put shared helpers under `pkg/logic/helper` or `pkg/logic/utils` (see `docs/patterns.md`). Media service enforces server-owned upload contracts (kind/provider/metadata inference). |
 | `internal/jobs/` | In-memory 12h RBAC sync tickers started/stopped via `/api/system` (not env-gated). |
 | `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
-| `models/` | GORM models and DB setup (`setup.go`, `repository.go`, …). |
+| `models/` | GORM models and DB setup (`setup.go`, taxonomy models, …). |
 | `migrations/` | Versioned SQL migrations (embedded / migrate tooling). |
 | `pkg/response` | Unified `{ code, message, data }` (and health shape). |
+| `pkg/errors` | Shared functional/sentinel errors and typed feature errors (e.g. provider errors, upload sentinel errors). New reusable `Err*` and typed errors must be declared here, then imported by handlers/services/repositories. |
 | `pkg/errcode` | Application error codes. |
 | `pkg/httperr` | Gin middleware for errors and panic recovery. |
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |
 | `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
+| `pkg/media/` | Provider HTTP/SDK adapters (Local/B2/Bunny). **`NewCloudClientsFromSetting`** wires B2 / Gcore / Bunny Storage from **`setting.MediaSetting`** at startup (`pkg/media/setup.go` after `setting.Setup()`). **Bunny `video_id` / thumbnail / embed HTML policy** lives in `pkg/logic/helper/media_resolver.go` (`ApplyBunnyDetailToMetadata`, …), not as duplicate logic in clients. |
 | `config/` | System bootstrap (`InitSystem`, default configs). |
-| `cache_clients/` | Redis client wiring. |
+| `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |
-| `constants/` | Role names and permission catalog (`AllPermissions`, `RolePermissions`) for RBAC. |
+| `constants/` | RBAC (`roles.go`, `permissions.go`, `roles_permission.go`), domain enums (e.g. `media.go`), and **`error_msg.go`** — canonical **string literals for errors/sentinels** (and tightly coupled numeric caps such as `MaxMediaUploadFileBytes`). **`pkg/errcode/messages.go`** holds the code→message map but **must import** string constants from here when the same wording is used for sentinels (e.g. **`MsgFileTooLargeUpload`** for `FileTooLarge` + `ErrFileExceedsMaxUploadSize`) so copy cannot drift. |
 | `dbschema/` | RBAC-related schema helpers. |
 | `cmd/syncpermissions/` | Upsert `permissions.permission_name` by `permission_id` (`//go:generate` from `main.go`). |
 | `cmd/syncrolepermissions/` | Rebuild `role_permissions` from `constants/roles_permission.go`. |
 | `tracing/`, `runtime/` | Observability / runtime placeholders. |
+| `tests/` | **All tests (unit/module-level/integration)** — Go test packages, shared harnesses, and fixtures must live in this tree and should not live next to production code. See `docs/patterns.md` and `README.md` (**Testing**). |
 
 ---
 
@@ -84,6 +102,17 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | POST | `/api/v1/auth/refresh` | No |
 | GET | `/api/v1/me` | JWT |
 | GET | `/api/v1/me/permissions` | JWT + permission middleware |
+| OPTIONS | `/api/v1/media/files` | JWT + permission middleware |
+| GET | `/api/v1/media/files` | JWT + permission middleware |
+| POST | `/api/v1/media/files` | JWT + permission middleware |
+| OPTIONS | `/api/v1/media/files/:id` | JWT + permission middleware |
+| GET | `/api/v1/media/files/:id` | JWT + permission middleware |
+| PUT | `/api/v1/media/files/:id` | JWT + permission middleware |
+| DELETE | `/api/v1/media/files/:id` | JWT + permission middleware |
+| OPTIONS | `/api/v1/media/files/local/:token` | JWT + permission middleware |
+| GET | `/api/v1/media/files/local/:token` | JWT + permission middleware |
+| GET | `/api/v1/media/videos/:id/status` | JWT + permission middleware |
+| POST | `/api/v1/webhook/bunny` | No-filter lane (outside `BeforeInterceptor`, no JWT/permission middleware) |
 
 Exact permission constants for `/me/permissions` are wired in `api/v1/routes.go`.
 
@@ -91,7 +120,7 @@ Exact permission constants for `/me/permissions` are wired in `api/v1/routes.go`
 
 ## Internal API (`/api/internal-v1`)
 
-RBAC administration (permissions, roles, user-role and user-direct-permission assignments) is exposed under **`/api/internal-v1/rbac/...`** and protected by **`RequireInternalAPIKey`**. See `api/v1/internal_rbac.go` and `api/v1/routes.go` for the full route table.
+RBAC administration (permissions, roles, user-role and user-direct-permission assignments) is exposed under **`/api/internal-v1/rbac/...`** and protected by **`RequireInternalAPIKey`**. See `api/v1/internal/rbac_handler.go`, `api/v1/internal/routes.go`, and `api/v1/routes.go` for the full route table.
 
 ---
 
@@ -117,6 +146,7 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 | [`docs/curl_api.md`](curl_api.md) | Complete API reference with cURL examples and Postman scripts. |
 | [`docs/modules/auth.md`](modules/auth.md) | Auth service and cache behaviour. |
 | [`docs/modules/user.md`](modules/user.md) | User profile endpoints — `GET /me`, `GET /me/permissions`. |
+| [`docs/modules/media.md`](modules/media.md) | Media upload: cloud gateway, helper/util split, Bunny parity fields (**`video_id`**, **`thumbnail_url`**, **`embeded_html`**), **2 GiB** cap + multipart tuning. |
 | [`docs/modules/course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (planned features). |
 
 When this repository sits next to the Next.js app in a monorepo (e.g. **`mycourse-full`**), the frontend deploy runbook is at [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md).

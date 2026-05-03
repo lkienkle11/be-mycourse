@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"mycourse-io-be/cache_clients"
 	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/cache_clients"
 )
 
 // UserMeTTL is the Redis TTL for cached GET /api/v1/me payloads and login invalid-credentials keys.

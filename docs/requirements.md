@@ -1,5 +1,18 @@
 # MyCourse Backend — Requirements
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
+## Global Constants Placement Rule (Mandatory)
+
+- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
+- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
+- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+
 > **Module:** `mycourse-io-be`  
 > **Language:** Go 1.25 · Gin · GORM · PostgreSQL · Redis  
 > **Last updated:** 2026-04-18
@@ -19,6 +32,7 @@
    - [FR-8 Planned: Course Management](#fr-8-planned-course-management)
    - [FR-9 Planned: Lesson Management](#fr-9-planned-lesson-management)
    - [FR-10 Planned: Enrollment](#fr-10-planned-enrollment)
+   - [FR-11 Media Upload Gateway](#fr-11-media-upload-gateway)
 2. [Non-Functional Requirements](#non-functional-requirements)
    - [NFR-1 Performance & Availability](#nfr-1-performance--availability)
    - [NFR-2 Security](#nfr-2-security)
@@ -261,7 +275,7 @@
 
 ### FR-6 Internal RBAC HTTP API
 
-> **Source:** `api/v1/internal_rbac.go`, `api/v1/routes.go`, `services/rbac.go`  
+> **Source:** `api/v1/internal/rbac_handler.go`, `api/v1/internal/routes.go`, `api/v1/routes.go`, `services/rbac.go`  
 > **Auth:** `X-API-Key` header (via `middleware.RequireInternalAPIKey`)
 
 All endpoints under `/api/internal-v1/rbac/` are protected by an internal API key and intended for back-office tooling, not end-user clients.
@@ -345,6 +359,23 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 
 ---
 
+### FR-11 Media Upload Gateway
+
+> **Status: Implemented.** See `docs/modules/media.md`.
+
+- The system **MUST** provide unified media endpoints under `/api/v1/media/files` for `GET/POST/PUT/DELETE/OPTIONS`.
+- The system **MUST** persist media cloud metadata in local DB (`media_files`) after successful create/update/delete sync while keeping provider upload execution in cloud services.
+- The system **MUST** select provider from server configuration (`setting.MediaSetting.AppMediaProvider`), not client request fields.
+- The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
+- The system **MUST** keep feature-specific helpers in `pkg/logic/helper` and generic reusable primitives in `pkg/logic/utils`.
+- The system **MUST** restrict direct runtime `os.Getenv` reads in media runtime paths and use `setting.MediaSetting` as source-of-truth after `setting.Setup()`.
+- The system **MUST** expose Bunny Stream parity fields on successful media responses when available: **`video_id`**, **`thumbnail_url`**, **`embeded_html`** on `dto.UploadFileResponse`, persisted on **`media_files`** (migration **`000005_media_bunny_response_fields`**) and in **`metadata_json`** using keys from **`constants/media_meta_keys.go`** — see **`docs/modules/media.md`**.
+- The system **MUST** reject a single uploaded file larger than **2 GiB** (`2×1024×1024×1024` bytes) on media create/update (handler + service), returning HTTP **413** and application code **2003** (`FileTooLarge`). The byte cap and the **single** oversize message constant **`constants.MsgFileTooLargeUpload`** **MUST** live in **`constants/error_msg.go`** and **MUST** be the same string used for the default JSON `message` for `FileTooLarge` in `pkg/errcode/messages.go` and for `pkg/errors.ErrFileExceedsMaxUploadSize` (no duplicate literals). See `docs/architecture.md` directory map. Deployment **MUST** configure reverse proxies / load balancers with a body limit **at least** that large on API routes so requests are not dropped before the application (see `docs/deploy.md`).
+- The system **MUST** convert all image uploads (create + update) to **WebP** format using `bimg`/libvips (`CGO_ENABLED=1`) before sending to the storage provider. Concurrency **MUST** be bounded to `constants.MaxConcurrentImageEncode` simultaneous encode workers. Encode failure **MUST** return HTTP **503** + code **9017** (`ImageEncodeBusy`).
+- The system **MUST** reject non-image, non-video file uploads (`POST /media/files`) when the file extension or magic bytes match the executable/script denylist. Rejected uploads **MUST** return HTTP **400** + code **2004** (`ExecutableUploadRejected`). Denylist logic **MUST** reside in `pkg/logic/utils/executable_check.go`.
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1 Performance & Availability
@@ -385,6 +416,11 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 - The server **MUST** listen on the port defined by `setting.ServerSetting.Port` (default **8080**).
 - Database migrations are applied with `MIGRATE=1 go run .` (not auto-run on startup).
 - The binary supports a one-shot CLI flow for privileged user registration (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
+
+#### NFR-1.6 Test code layout
+
+- All new test code (**unit**, integration suites, black-box packages importing `mycourse-io-be`, cross-feature harnesses, and shared fixtures) **MUST** be added under repository root **`tests/`** and **MUST NOT** be placed under `api/`, `services/`, or `pkg/`.
+- The canonical description of this split lives in **`docs/patterns.md`** and **`README.md`** (section **Testing**).
 
 ---
 
@@ -446,6 +482,19 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 
 - All error scenarios **MUST** use the numeric application error codes defined in `pkg/errcode/codes.go`.
 - Default messages for each code are defined in `pkg/errcode/messages.go`.
+- Reusable functional/sentinel errors (`Err*`) and typed feature errors **MUST** be defined in `pkg/errors` (not inside `services/*`, `repository/*`, or feature runtime packages).
+
+#### NFR-3.2.1 Shared Type Placement
+
+- For all new code from now on, if a module under `pkg/*` contains logic handling, newly introduced reusable types **MUST** be declared in `pkg/entities` instead of inline declaration in that logic module file.
+- New reusable types **MUST NOT** be introduced in logic-orchestration layers (`services/*`, `repository/*`, or other business-flow files).
+- New and reused domain types **MUST** be placed under `pkg/entities` (new module file or existing module file), then imported where needed.
+
+#### NFR-3.2.2 Helper vs Util Placement
+
+- Cross-feature generic logic/functions (e.g. parse/url/normalize/general transformers) **MUST** be implemented under `pkg/logic/utils`.
+- Feature-specific logic/functions (e.g. domain processing helpers such as decode/process flows tied to one module) **MUST** be implemented under `pkg/logic/helper`.
+- For functions created inside `services/*` / `repository/*`: if the logic is standalone or expected to be reused/expanded, it **MUST** be extracted to `pkg/logic/utils` (generic) or `pkg/logic/helper` (feature-specific).
 
 #### NFR-3.3 Structured Logging
 
@@ -469,7 +518,8 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 #### NFR-3.7 CI/CD
 
 - Pushing to the `master` branch **MUST** trigger `.github/workflows/deploy-dev.yml`:
-  - Build the `mycourse-io-be-dev` binary on the runner.
-  - `rsync` the binary to the deploy host.
-  - Reload the PM2 process with rollback on startup failure.
-  - Health-check `GET /api/v1/health` before marking the deploy successful.
+  - Install `libvips-dev pkg-config` on the runner (required for `CGO_ENABLED=1` / bimg WebP encoding).
+  - Build the `mycourse-io-be-dev` binary with `CGO_ENABLED=1`.
+  - On the deploy host, back up **only** the current dev binary to `bin/mycourse-io-be-dev.prev`, then `rsync` the new binary onto `bin/mycourse-io-be-dev` (ecosystem is **not** backed up in CI; the script owns `ecosystem.config.cjs.prev`).
+  - Run `scripts/pm2-reload-with-binary-rollback.sh`: snapshot `ecosystem.config.cjs`, pull **only** that file from `origin/master`, reload PM2, health-check `GET /api/v1/health`, treat PM2 autorestart exhaustion as failure; on success, full `git pull`; on failure, restore previous binary **and** ecosystem from `.prev`, reload, and health-check again.
+  - `ecosystem.config.cjs` **MUST** cap crash loops with `min_uptime` and `max_restarts: 3` for every PM2 app entry (dev, staging, prod).

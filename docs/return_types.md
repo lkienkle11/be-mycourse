@@ -1,7 +1,14 @@
 # MyCourse Backend — Return Types
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 > This document catalogues the **Go return types** of every service function and the **JSON response shapes** of every API endpoint.  
-> **Last updated:** 2026-04-18
+> **Last updated:** 2026-04-30
 
 ---
 
@@ -15,9 +22,12 @@
    - [services/system.go](#servicessystemgo)
 4. [API Layer Return Types](#4-api-layer-return-types)
    - [Public API `/api/v1`](#public-api-apiv1)
+   - [Media API `/api/v1/media/files`](#media-api-apiv1mediafiles)
    - [System API `/api/system`](#system-api-apisystem)
    - [Internal API `/api/internal-v1`](#internal-api-apiinternal-v1)
 5. [Error Response Type](#5-error-response-type)
+
+**Test code layout:** module-level / integration tests live under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
 
 ---
 
@@ -654,6 +664,68 @@ All endpoints return `application/json`. The outer envelope is always `Response`
   "data": ["course:read", "profile:read", "user:read"]
 }
 ```
+
+---
+
+### Media API `/api/v1/media/files`
+
+Media endpoints are implemented and return the standard envelope. Public payloads are mapped to `dto.UploadFileResponse`.
+
+**Upload errors (create/replace):**
+
+| Condition | HTTP status | `code` | Typical `message` |
+|-----------|-------------|--------|-------------------|
+| Missing multipart field `file` | 400 | `3001` (`BadRequest`) | `file is required (multipart field: file)` |
+| Single file exceeds **2 GiB** (`constants.MaxMediaUploadFileBytes` in `constants/error_msg.go`) | 413 | `2003` (`FileTooLarge`) | `errcode.DefaultMessage(FileTooLarge)` = **`constants.MsgFileTooLargeUpload`** (single literal; also used for `pkg/errors.ErrFileExceedsMaxUploadSize`) |
+
+| Endpoint | Success `data` |
+|----------|-----------------|
+| `POST /api/v1/media/files` | `dto.UploadFileResponse` |
+| `GET /api/v1/media/files/:id` | `dto.UploadFileResponse` |
+| `PUT /api/v1/media/files/:id` | `dto.UploadFileResponse` |
+| `DELETE /api/v1/media/files/:id` | `null` |
+| `GET /api/v1/media/files` | `[]dto.UploadFileResponse` (current placeholder may be empty) |
+| `GET /api/v1/media/files/local/:token` | `{ "object_key": string }` |
+
+`dto.UploadFileResponse`:
+
+Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling; `omitempty` when empty). Full behaviour: **`docs/modules/media.md`** (Sub 09).
+
+**Sub 12:** Public media responses **do not include** `origin_url` (`dto.UploadFileResponse` has no such field). Canonical storage URL exists only server-side (`media_files.origin_url`, `entities.File.OriginURL` with `json:"-"`).
+
+```json
+{
+  "url": "https://...",
+  "object_key": "path/to/object",
+  "bunny_video_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "bunny_library_id": "123456",
+  "video_id": "987654321",
+  "thumbnail_url": "https://...",
+  "embeded_html": "<iframe src=\"https://iframe.mediadelivery.net/embed/123456/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\" ...></iframe>",
+  "metadata": {
+    "size_bytes": 12345,
+    "width_bytes": 1920,
+    "height_bytes": 1080,
+    "mime_type": "video/mp4",
+    "extension": ".mp4",
+    "duration_seconds": 157.8,
+    "bitrate": 0,
+    "fps": 29.97,
+    "video_codec": "",
+    "audio_codec": "",
+    "has_audio": false,
+    "is_hdr": false,
+    "page_count": 0,
+    "has_password": false,
+    "archive_entries": 0
+  }
+}
+```
+
+Media metadata is inferred in backend and returned with typed contract `UploadFileMetadata` (not `any`), with zero-value defaults when a field cannot be extracted.
+
+Provider is selected by server config (`setting.MediaSetting.AppMediaProvider`) and is not exposed as client-controlled request field.
+For multipart create/update, client-sent `kind` and `metadata` text fields are parsed only for backward-compat validation and ignored by business flow (server-owned policy).
 
 ---
 

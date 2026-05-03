@@ -42,9 +42,29 @@ Scan through ALL messages in the current session and extract:
 | **Key decisions** | Architecture choices, trade-offs made, reasons for choosing an approach |
 | **Next steps** | Concrete actions to take when resuming — ordered by priority |
 | **Blockers** | Anything preventing progress (missing info, waiting on review, etc.) |
+| **Conversation log** | Each message turn: what user asked / said, what AI responded, how user reacted |
+| **Interaction patterns** | Did the AI take user feedback seriously? Did it learn from mistakes? Did it dismiss requests? |
 
 > Do **NOT** copy-paste raw file contents or long code blocks into the summary.
 > Summarize changes in plain language (e.g., "Added JWT middleware to auth routes").
+
+**Additional extraction rules for Conversation Log & Interaction Analysis:**
+
+For **Conversation Log**:
+- Number each turn sequentially (Turn 1, Turn 2, …).
+- For **User**: capture the intent, tone, and clarity of the request — not just a keyword. E.g., "Yêu cầu tạo API upload file, chưa rõ storage backend cần dùng S3 hay local."
+- For **AI**: describe concretely what was produced or decided — files written, plan proposed, question asked. E.g., "Đề xuất 2 phương án storage, viết draft file_service.go với local strategy."
+- For **User reaction**: be honest. Examples:
+  - "Hài lòng, confirm tiếp tục."
+  - "Chỉ trích: AI viết sai tên field, yêu cầu sửa lại."
+  - "Im lặng / không phản hồi rõ ràng."
+  - "Bổ sung thêm yêu cầu chưa đề cập trước đó."
+
+For **Interaction Analysis — AI Behavior**:
+- Be **honest and self-critical**. Do not default to "Có" for positive traits.
+- "Rút kinh nghiệm" = true only if AI fixed the exact issue raised on the **next** response, not just acknowledged it.
+- "Xem nhẹ yêu cầu" = true if AI said it would do something but the output didn't reflect it, or if AI skipped steps the user explicitly asked for.
+- "Tự ý thêm / bớt" = true if AI added unrequested features OR omitted explicitly requested parts.
 
 #### Step 2 — Determine the save path
 
@@ -111,6 +131,37 @@ Also show a one-line summary of what was captured (e.g., "3 tasks completed, 2 i
 1. <Most urgent action — include file/function/command if relevant>
 2. ...
 3. ...
+
+## Conversation Log
+<!-- Record ALL exchange turns in the session. Each turn has 3 parts. -->
+<!-- Ghi lại TẤT CẢ các lượt trao đổi trong session. Mỗi lượt gồm 3 phần. -->
+
+### Turn 1
+- **User:** <Summarize the user's intent, tone, and clarity of request — not just keywords. / Tóm tắt ý định, cảm xúc, mức độ rõ ràng của yêu cầu — không chỉ ghi từ khóa>
+- **AI:** <Describe concretely what was produced or decided — files written, plan proposed, question asked. / Mô tả cụ thể output đã tạo ra — file nào được viết, kế hoạch nào được đề xuất, câu hỏi nào được đặt ra>
+- **User reaction:** <How did the user respond? Satisfied / requested fix / criticized / silent / confirmed to continue. / Người dùng phản ứng thế nào? Hài lòng / yêu cầu sửa lại / chỉ trích / im lặng / xác nhận tiếp tục>
+
+### Turn 2
+- **User:** ...
+- **AI:** ...
+- **User reaction:** ...
+
+<!-- Repeat for every exchange turn. Even if session is short (< 3 turns), still record all. -->
+<!-- Lặp lại cho mỗi lượt trao đổi. Dù session ngắn (< 3 lượt), vẫn ghi đủ. -->
+
+## Interaction Analysis
+<!-- Đánh giá tổng thể về chất lượng tương tác trong session này. Phải trung thực, không tô hồng. -->
+
+### AI Behavior
+- **Nghiêm túc thực hiện yêu cầu:** <Có/Không — ví dụ cụ thể trong session>
+- **Rút kinh nghiệm từ sai lầm:** <Có/Không — khi bị chỉ ra lỗi, AI có thực sự sửa đúng hướng không? Hay lặp lại lỗi cũ?>
+- **Xem nhẹ / bỏ qua yêu cầu người dùng:** <Có/Không — ví dụ nếu có: AI nói "đã làm" nhưng thực ra không làm, hoặc làm khác với yêu cầu>
+- **Tự ý thêm / bớt so với yêu cầu:** <Có/Không — ví dụ cụ thể>
+
+### Lessons Learned for Next Session
+- <Điều AI nên nhớ để không lặp lại sai lầm trong session tiếp theo>
+- <Phong cách giao tiếp người dùng: chi tiết / ngắn gọn / hay thay đổi yêu cầu / ưa giải thích>
+- <Bất kỳ pattern nào trong cách người dùng phản hồi giúp AI phục vụ tốt hơn>
 
 ## Notes
 <!-- Technical constraints, env-specific details, important reminders -->
@@ -179,8 +230,14 @@ Read the selected file and present a structured recap to the user using this exa
 2. <step 2>
 ...
 
+**Lessons from last session (AI self-reflection):**
+- <Paste Lessons Learned for Next Session content verbatim>
+- AI behavior flags: Nghiêm túc=<Yes/No> | Rút kinh nghiệm=<Yes/No> | Xem nhẹ=<Yes/No> | Tự ý thêm bớt=<Yes/No>
+
 Ready to continue. Where would you like to start?
 ```
+
+> The "Lessons from last session" block reminds the AI of behavioral pitfalls from the previous session so it can avoid repeating them.
 
 #### Step 4 — Wait for user instruction
 

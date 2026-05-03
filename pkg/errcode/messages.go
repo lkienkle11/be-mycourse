@@ -1,4 +1,10 @@
+// Package errcode — numeric API codes and default JSON "message" strings per code.
+//
+// Rule: when a default message must match a sentinel or shared literal (e.g. upload size),
+// the string lives once in constants/error_msg.go and this file references it — never duplicate the literal.
 package errcode
+
+import "mycourse-io-be/constants"
 
 // DefaultMessage returns the canonical description for an application error code.
 // Unknown codes fall back to Unknown (9999): "Unknown Error".
@@ -14,6 +20,9 @@ var defaultMessages = map[int]string{
 	InvalidJSON:      "Request body is not valid JSON",
 	ValidationFailed: "Validation failed",
 	ValidationField:  "Field validation failed",
+	FileTooLarge:     constants.MsgFileTooLargeUpload,
+
+	ExecutableUploadRejected: constants.MsgExecutableUploadRejected,
 
 	BadRequest:      "Bad request",
 	Unauthorized:    "Unauthorized",
@@ -33,4 +42,13 @@ var defaultMessages = map[int]string{
 
 	InternalError: "Internal server error",
 	Panic:         "Internal server error",
+
+	B2BucketNotConfigured:    constants.MsgMediaB2BucketNotConfigured,
+	BunnyStreamNotConfigured: constants.MsgMediaBunnyStreamNotConfigured,
+	BunnyCreateFailed:        constants.MsgMediaBunnyCreateFailed,
+	BunnyUploadFailed:        constants.MsgMediaBunnyUploadFailed,
+	BunnyInvalidResponse:     constants.MsgMediaBunnyInvalidResponse,
+	BunnyVideoNotFound:       constants.MsgMediaBunnyVideoNotFound,
+	BunnyGetVideoFailed:      constants.MsgMediaBunnyGetVideoFailed,
+	ImageEncodeBusy:          constants.MsgImageEncodeBusy,
 }

@@ -1,8 +1,17 @@
 # MyCourse Backend — Sequence Diagrams
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 > All diagrams are written in **Mermaid** (`sequenceDiagram`).  
 > Render with: [mermaid.live](https://mermaid.live), the Mermaid CLI, GitHub markdown preview, or any Mermaid-compatible viewer.  
-> **Last updated:** 2026-04-18
+> **Last updated:** 2026-04-30
+
+**Media / Bunny:** This file does not include Mermaid sequences for multipart upload or the Bunny webhook. Those flows are described in **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/curl_api.md`** (Sub 09 parity fields on **`dto.UploadFileResponse`**).
 
 ---
 
@@ -31,6 +40,8 @@
 21. [RBAC — Assign / Remove User Direct Permission (Internal)](#21-rbac--assign--remove-user-direct-permission-internal)
 22. [JWT Auth Middleware Flow](#22-jwt-auth-middleware-flow)
 23. [RequirePermission Middleware Flow](#23-requirepermission-middleware-flow)
+
+**Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
 
 ---
 

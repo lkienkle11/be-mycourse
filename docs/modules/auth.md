@@ -1,5 +1,12 @@
 # Auth Module
 
+
+## Global Type Placement Rule (Mandatory)
+
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- Do not declare new reusable/domain types inline inside logic implementation files.
+- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+
 ## Overview
 
 Authentication uses **stateful JWT sessions** backed by Postgres.  
@@ -291,3 +298,9 @@ The following custom headers are whitelisted in the CORS configuration:
 - Session rotation updates the **existing session entry in-place** — the session count does not increase on rotation.
 - All session writes that change the session count use a **DB transaction** to prevent concurrent logins from exceeding the limit.
 - Cookies are **non-HttpOnly**: protected against CSRF via `SameSite=Lax` and the use of custom headers (`Authorization`, `X-Refresh-Token`, `X-Session-Id`) which cannot be set by cross-site form submissions.
+
+---
+
+## Testing
+
+- **All tests** for this domain (unit/module-level/integration) must be added under repository root **`tests/`** (see `tests/README.md`, root `README.md` **Testing**, `docs/patterns.md`).

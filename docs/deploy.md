@@ -188,13 +188,15 @@ In `.env` for local Redis: `REDIS_ADDR=127.0.0.1:6379` (and `REDIS_PASSWORD` if 
 ```text
 /var/www/be-mycourse/        ← backend root (cwd for all PM2 app entries)
   bin/
-    mycourse-io-be-dev       ← dev binary (rsync'd by CI)
+    mycourse-io-be-dev       ← dev binary (rsync overwrites in place; CI copies previous to .prev first)
+    mycourse-io-be-dev.prev  ← previous dev binary (written by CI before each rsync)
     mycourse-io-be-staging   ← staging binary
     mycourse-io-be-prod      ← production binary
   .env                       ← dev environment variables
   .env.staging               ← staging environment variables
   .env.prod                  ← production environment variables
   ecosystem.config.cjs       ← PM2 multi-environment config
+  ecosystem.config.cjs.prev  ← last good ecosystem (written only by scripts/pm2-reload-with-binary-rollback.sh)
   config/                    ← app.yaml + stage overrides
   migrations/                ← SQL migration files
 ```
@@ -261,7 +263,7 @@ go mod download
 go build -trimpath -ldflags="-s -w" -o bin/mycourse-io-be-dev .
 ```
 
-**CI builds** (see Appendix C) produce the binary in the GitHub Actions runner and `rsync` it directly to `DEPLOY_PATH_DEV/bin/`. You do **not** need Go installed on the server if you always deploy via CI.
+**CI builds** (see Appendix C) produce the binary on the runner; the workflow copies the server’s current `bin/mycourse-io-be-dev` to **`bin/mycourse-io-be-dev.prev`**, then **`rsync`** overwrites **`bin/mycourse-io-be-dev`** in place (no intermediate `*.new` file). You do **not** need Go on the server if you always deploy via CI.
 
 > **Go version:** The project requires **Go 1.25.0** (match `go.mod` and the `go-version` in `.github/workflows/deploy-dev.yml`).
 
@@ -389,6 +391,8 @@ module.exports = {
       script: './bin/mycourse-io-be-dev',
       instances: 1,
       autorestart: true,
+      min_uptime: '5s',
+      max_restarts: 3,
       max_memory_restart: '1024M',
       env: {},
       env_file: '/var/www/be-mycourse/.env',
@@ -399,6 +403,8 @@ module.exports = {
       script: './bin/mycourse-io-be-staging',
       instances: 1,
       autorestart: true,
+      min_uptime: '5s',
+      max_restarts: 3,
       max_memory_restart: '1024M',
       env: { STAGE: 'staging' },
       env_file: '/var/www/be-mycourse/.env.staging',
@@ -409,6 +415,8 @@ module.exports = {
       script: './bin/mycourse-io-be-prod',
       instances: 1,
       autorestart: true,
+      min_uptime: '5s',
+      max_restarts: 3,
       max_memory_restart: '1024M',
       env: { STAGE: 'prod' },
       env_file: '/var/www/be-mycourse/.env.prod',
@@ -425,6 +433,8 @@ module.exports = {
 | `script` | `./bin/mycourse-io-be-{env}` | Binary in the `bin/` subdirectory |
 | `env_file` | Absolute path to `.env`, `.env.staging`, `.env.prod` | Loaded by PM2 v5+ at startup |
 | `max_memory_restart` | `1024M` | Process is restarted if it exceeds 1 GB RAM |
+| `min_uptime` | `5s` | Restarts that happen before this uptime count as “unstable” toward `max_restarts` |
+| `max_restarts` | `3` | After three unstable exits, PM2 stops autorestarting (crash loop cap; same for all three apps) |
 | `env.STAGE` | `staging` / `prod` | Inline env overrides merged on top of `env_file` |
 
 **Starting and persisting:**
@@ -447,9 +457,9 @@ pm2 save
 **Reload (zero-downtime) after a binary update:**
 
 ```bash
-pm2 reload mycourse-api-dev
+pm2 reload ecosystem.config.cjs --only mycourse-api-dev
 # If the process does not exist yet, start it:
-pm2 reload mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev
+pm2 reload ecosystem.config.cjs --only mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev
 ```
 
 > **`env_file` requires PM2 v5+.** Run `pm2 --version` to verify. If you use an older PM2, inline the variables directly into the `env` block or use a systemd `EnvironmentFile=`.
@@ -524,7 +534,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ## Appendix C — CI/CD with GitHub Actions
 
-The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to **`master`**, builds the Go binary in CI (no Go installation needed on the server), and deploys via **`rsync`** of the binary into **`${DEPLOY_PATH_DEV}/bin/`**. Before replacing the binary, the server keeps a copy at **`bin/mycourse-io-be-dev.prev`**. After **`pm2 reload`**, CI runs **`scripts/pm2-reload-with-binary-rollback.sh`**, which polls **`GET /api/v1/health`** until the new process has finished startup (including everything in `main.go` before `router.Run`) and is listening. If the check times out, the script restores **`mycourse-io-be-dev.prev`** over the new binary, reloads PM2 again, prints **`pm2 logs`**, and exits with a failure so GitHub Actions shows a red deploy. **`git stash -u`**, **`git checkout master`**, and **`git pull`** run only after a successful health check, so a rolled-back server keeps the previous repo tree until a fixed binary deploys successfully.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to **`master`**, builds the Go binary in CI (no Go on the server required), then on the VPS **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
 
 ### C.1 — Required GitHub Secrets
 
@@ -614,7 +624,7 @@ jobs:
           scp -q scripts/pm2-reload-with-binary-rollback.sh \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh"
 
-      - name: Backup current binary on server (rollback target)
+      - name: Backup current dev binary on server (rollback target)
         run: |
           ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
             "cd ${{ secrets.DEPLOY_PATH_DEV }} && test -f bin/mycourse-io-be-dev && cp bin/mycourse-io-be-dev bin/mycourse-io-be-dev.prev || true"
@@ -647,9 +657,9 @@ jobs:
 | **known_hosts** | `ssh-keyscan` prevents interactive host-key prompt |
 | **mkdir -p** | Ensures `DEPLOY_PATH_DEV/bin/` and `DEPLOY_PATH_DEV/scripts/` exist |
 | **scp rollback script** | Latest `scripts/pm2-reload-with-binary-rollback.sh` on the runner is pushed to the server (no need to `git pull` the script first). |
-| **Backup binary** | If `bin/mycourse-io-be-dev` exists, copy to `bin/mycourse-io-be-dev.prev` for rollback. |
-| **rsync** | Transfers `mycourse-io-be-dev` → `DEPLOY_PATH_DEV/bin/`, sets `chmod 755` |
-| **PM2 + health + git** | Runs the rollback script: `pm2 reload` (or `pm2 start --only` if missing), polls `GET /api/v1/health` (default `http://127.0.0.1:8080/api/v1/health`, 90s). On success: `git stash -u && git checkout master && git pull`. On failure: restore `.prev` over the binary, reload PM2, print logs, exit non-zero. |
+| **Backup binary** | If `bin/mycourse-io-be-dev` exists, copy → `bin/mycourse-io-be-dev.prev` (required before `rsync` overwrites the live path). |
+| **rsync** | Overwrites `DEPLOY_PATH_DEV/bin/mycourse-io-be-dev` with the CI-built artifact (`chmod 755`). |
+| **PM2 + health + git** | Script snapshots `ecosystem.config.cjs` → `.prev`, ecosystem-only `git checkout` from `origin/master`, `pm2 reload ecosystem.config.cjs --only <app>`, health + `pm2 jlist` exhaustion. Success → full `git pull`. Failure → restore **both** `.prev` files, reload, health-check, logs, exit non-zero. |
 
 **Script environment (optional overrides on the server SSH line):**
 
@@ -658,25 +668,28 @@ jobs:
 | `HEALTHCHECK_URL` | `http://127.0.0.1:8080/api/v1/health` | Must match bind address/port and API base path (`/api/v1` from Gin). |
 | `ROLLBACK_HEALTH_TIMEOUT_SEC` | `90` | How long to wait for the process to survive startup and answer HTTP 200. |
 | `BINARY_REL` | `bin/mycourse-io-be-dev` | Relative path to the binary under `DEPLOY_PATH`. |
+| `ECOSYSTEM_FILE` | `ecosystem.config.cjs` | PM2 ecosystem file path (relative to `DEPLOY_PATH`). |
+| `GIT_REMOTE_BRANCH` | `master` | Remote branch used for ecosystem-only checkout and for the post-success full sync (`git fetch` / `git checkout origin/<branch>` / `git pull`). |
+| `PM2_EXHAUSTED_GRACE_SEC` | `12` | Seconds after reload before treating PM2 `stopped`/`errored` as deploy failure (avoids false positives during reload). |
 
-### C.4 — Post-reload git pull (why?)
+### C.4 — Why ecosystem is pulled before the full `git pull`
 
-The final SSH command also syncs the repository on the server:
+The script intentionally updates **`ecosystem.config.cjs` from `origin/master` alone** (via **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**) **before** reloading PM2 with the **new CI-built binary**. That way the running process is validated against the **latest committed PM2 options** (including **`max_restarts` / `min_uptime`**) without pulling the rest of the repo first. Only after **`GET /api/v1/health`** succeeds does it run:
 
 ```bash
 git stash -u   # stash any local changes (including untracked files)
-git checkout master
-git pull
+git checkout master   # branch name matches GIT_REMOTE_BRANCH default
+git pull origin master
 ```
 
-This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in sync with the `master` branch — so new YAML config files or SQL migrations are available without a separate manual pull.
+so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**. If the new binary + pulled ecosystem never becomes healthy, the script restores **`bin/mycourse-io-be-dev.prev`** and **`ecosystem.config.cjs.prev`** and does **not** perform that full pull—keeping the server on the previous source tree until a good deploy lands.
 
 ### C.5 — Pipeline principles and future extensions
 
 - **Build in CI, not on server:** The VPS does not need Go installed for normal deploys. The binary is built reproducibly in the GitHub Actions runner.
 - **`cancel-in-progress: true`:** Rapid successive pushes to `master` only deploy the latest commit, avoiding partial deploys.
 - **Migrations:** Currently not automated in CI. Recommended approach: stop PM2, run binary once with `MIGRATE=1`, restart. Add a separate `migrate` workflow with `environment: production-migrate` (requires manual approval) when you need controlled migrations.
-- **Staging / Production:** To extend CI for staging/production environments, add jobs that build `mycourse-io-be-staging` / `mycourse-io-be-prod` and reload `mycourse-api-staging` / `mycourse-api-prod` respectively — following the same `rsync` + `pm2 reload --only <name>` pattern.
+- **Staging / Production:** To extend CI for staging/production environments, add jobs that build `mycourse-io-be-staging` / `mycourse-io-be-prod` and reload `mycourse-api-staging` / `mycourse-api-prod` respectively — following the same `rsync` + `pm2 reload ecosystem.config.cjs --only <name>` + rollback script pattern (with `PM2_APP_NAME` / `BINARY_REL` overrides).
 - **Frontend CI:** Separate repo/workflow — push to **`dev`**, secret **`DEPLOY_PATH_DEV`** (FE checkout path), server **`npm ci` + `npm run build`** + PM2 **`mycourse-web-dev`** — see [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md) Appendix G.
 
 ---
@@ -693,8 +706,8 @@ This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in
 | Error codes | `pkg/errcode/codes.go`, `pkg/errcode/messages.go` | Mirrors `src/types/api.ts` (ApiErrorCode) in the FE |
 | HTTP errors | `pkg/httperr/middleware.go` | Global Gin error handler |
 | CI/CD | `.github/workflows/deploy-dev.yml` | Active 2-job workflow (build → deploy on master) |
-| Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Health-gated `pm2 reload`; restores `bin/mycourse-io-be-dev.prev` on failure |
-| PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) |
+| Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
+| PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |
 | Docs | `docs/modules/auth.md`, `docs/architecture.md` | Module-level docs |
 
 **Server paths (matching `ecosystem.config.cjs`):**
@@ -702,7 +715,9 @@ This keeps `config/`, `migrations/`, and `ecosystem.config.cjs` on the server in
 | File/Dir | Server path |
 |----------|------------|
 | Backend root (`cwd`) | `/var/www/be-mycourse/` |
+| PM2 ecosystem rollback | `/var/www/be-mycourse/ecosystem.config.cjs.prev` |
 | Dev binary | `/var/www/be-mycourse/bin/mycourse-io-be-dev` |
+| Dev binary rollback | `/var/www/be-mycourse/bin/mycourse-io-be-dev.prev` |
 | Staging binary | `/var/www/be-mycourse/bin/mycourse-io-be-staging` |
 | Production binary | `/var/www/be-mycourse/bin/mycourse-io-be-prod` |
 | Dev env file | `/var/www/be-mycourse/.env` |

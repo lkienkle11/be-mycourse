@@ -520,6 +520,6 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 - Pushing to the `master` branch **MUST** trigger `.github/workflows/deploy-dev.yml`:
   - Install `libvips-dev pkg-config` on the runner (required for `CGO_ENABLED=1` / bimg WebP encoding).
   - Build the `mycourse-io-be-dev` binary with `CGO_ENABLED=1`.
-  - `rsync` the binary to the deploy host.
-  - Reload the PM2 process with rollback on startup failure.
-  - Health-check `GET /api/v1/health` before marking the deploy successful.
+  - On the deploy host, back up **only** the current dev binary to `bin/mycourse-io-be-dev.prev`, then `rsync` the new binary onto `bin/mycourse-io-be-dev` (ecosystem is **not** backed up in CI; the script owns `ecosystem.config.cjs.prev`).
+  - Run `scripts/pm2-reload-with-binary-rollback.sh`: snapshot `ecosystem.config.cjs`, pull **only** that file from `origin/master`, reload PM2, health-check `GET /api/v1/health`, treat PM2 autorestart exhaustion as failure; on success, full `git pull`; on failure, restore previous binary **and** ecosystem from `.prev`, reload, and health-check again.
+  - `ecosystem.config.cjs` **MUST** cap crash loops with `min_uptime` and `max_restarts: 3` for every PM2 app entry (dev, staging, prod).

@@ -98,7 +98,7 @@ curl http://localhost:8080/api/v1/health
 
 ### CI deploy (`master`)
 
-Pushing to **`master`** runs `.github/workflows/deploy-dev.yml`: build the **`mycourse-io-be-dev`** binary in GitHub Actions, **`rsync`** it to **`${DEPLOY_PATH_DEV}/bin/`**, then run **`scripts/pm2-reload-with-binary-rollback.sh`**, which **`pm2 reload`s** **`mycourse-api-dev`**, waits for **`GET /api/v1/health`**, and **`git pull`s** only after the new process is listening; if startup fails, the previous binary is restored from **`bin/mycourse-io-be-dev.prev`** and the workflow fails. Secrets: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, **`DEPLOY_PATH_DEV`**. Full runbook: [`docs/deploy.md` — Appendix C (CI/CD)](docs/deploy.md#appendix-c--cicd-with-github-actions).
+Pushing to **`master`** runs `.github/workflows/deploy-dev.yml`: build **`mycourse-io-be-dev`** in Actions, on the server **copy the current dev binary to `bin/mycourse-io-be-dev.prev`** (only place that can run **before** `rsync` overwrites the file), **`rsync`** the new binary **to the same path** `bin/mycourse-io-be-dev`, then run **`scripts/pm2-reload-with-binary-rollback.sh`**. That script **alone** snapshots **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`**, pulls **only** that file from **`origin/master`**, **`pm2 reload`**, waits for **`GET /api/v1/health`** (and PM2 **`max_restarts` exhaustion** via `pm2 jlist`), then **full `git pull`** on success; on failure it restores **binary + ecosystem** from the two **`.prev`** files. No separate “`.new`” staging file. Secrets: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`, **`DEPLOY_PATH_DEV`**. Runbook: [`docs/deploy.md` — Appendix C](docs/deploy.md#appendix-c--cicd-with-github-actions).
 
 ---
 

@@ -56,6 +56,14 @@ Two upload policies:
 
 ---
 
+## Deploy / PM2 rollback (2026-05-03)
+
+- **`ecosystem.config.cjs`:** `min_uptime: '5s'` and `max_restarts: 3` on every app (dev, staging, prod) so PM2 stops autorestarting after repeated crash-before-uptime exits.
+- **`.github/workflows/deploy-dev.yml`:** backs up **only** `bin/mycourse-io-be-dev` → `.prev`, then `rsync` overwrites `bin/mycourse-io-be-dev` (no `.new` staging file).
+- **`scripts/pm2-reload-with-binary-rollback.sh`:** backs up **ecosystem** to `.prev`, ecosystem-only `git checkout` from `origin/<branch>`, `pm2 reload`, health + `pm2 jlist` exhaustion, full `git pull` on success; on failure restores **binary** (from CI’s `.prev`) **and ecosystem** (from script’s `.prev`). Details: `docs/deploy.md` Appendix C.
+
+---
+
 ## Phase Sub 12 — Public media: no `origin_url` in API JSON (tasks 01–04, 2026-05-02; follow-up: remove field from DTO)
 
 ### Scope

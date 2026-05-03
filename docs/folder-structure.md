@@ -95,8 +95,8 @@ be-mycourse/
 - `cmd/syncpermissions/`: permission catalog sync command.
 - `cmd/syncrolepermissions/`: role-permission sync command.
 - `config/`: stage-specific app configuration and initialization glue.
-- `constants/`: role/permission constants, domain enums, **`media_meta_keys.go`** (JSON keys for Bunny parity: `video_id`, `thumbnail_url`, `embeded_html`), and **`error_msg.go`** (central error-message / sentinel strings + related limits such as media upload max bytes; **`MsgFileTooLargeUpload`** is shared with `pkg/errcode/messages.go` and `pkg/errors/upload_errors.go` — see file header).
-- `dbschema/`: shared DB table-name namespace helpers.
+- `constants/`: role/permission constants, domain enums, **`dbschema_name.go`** (PostgreSQL **table/relation names** — single source of truth for `dbschema` + raw SQL), **`media_meta_keys.go`** (JSON keys for Bunny parity: `video_id`, `thumbnail_url`, `embeded_html`), and **`error_msg.go`** (central error-message / sentinel strings + related limits such as media upload max bytes; **`MsgFileTooLargeUpload`** is shared with `pkg/errcode/messages.go` and `pkg/errors/upload_errors.go` — see file header).
+- `dbschema/`: typed namespaces (`RBAC`, `Media`, `Taxonomy`, `System`, `AppUser`) that **return** names from `constants/dbschema_name.go` — no duplicate string literals here; use from `models` `TableName()` and services (e.g. RBAC SQL).
 - `docs/`: maintained architecture/API/deploy requirements docs.
 - `docs/modules/`: module-level functional docs.
 - `docs-will-be-delete/`: moved out of `be-mycourse` to `../temporary-docs/docs-sample-chucnang/docs-will-be-delete/` as shared external docs storage.

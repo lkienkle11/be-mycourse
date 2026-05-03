@@ -10,6 +10,52 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 
 ---
 
+## Phase Sub 13 — DB table names: `constants/dbschema_name.go` + `dbschema` + models (tasks 01–10, 2026-05-03) ✅
+
+### Baseline (single source of truth)
+
+- **Literals:** All PostgreSQL relation names used by the app are defined in **`constants/dbschema_name.go`** (`TableRBAC*`, `TableMedia*`, `TableTaxonomy*`, `TableSystem*`, `TableAppUsers`). **`constants` must not import `dbschema`** (avoids cycles).
+- **Accessors:** Package **`dbschema`** only returns those constants via namespaces: **`RBAC`**, **`Media`**, **`Taxonomy`**, **`System`**, **`AppUser`** (end-user `users` table). No scattered table string literals inside `dbschema/*.go`.
+- **GORM models:** Every `TableName()` in **`models/*.go`** uses `dbschema.*` (same pattern as `models/media_file.go`, `models/rbac.go`). Raw SQL in **`models/user.go`** builds `UPDATE …` with `fmt.Sprintf` + `dbschema.AppUser.Table()`.
+- **Migrations:** Canonical SQL migrations live only under **`migrations/`** (embedded via `migrations/embed.go`). The duplicate empty folder **`models/migrations/`** was removed (was only `.gitkeep`).
+
+### Inventory — `dbschema/*.go` → table → constant symbol
+
+| File | Accessor | DB relation | `constants` symbol |
+|------|----------|-------------|----------------------|
+| `dbschema/rbac.go` | `RBAC.Permissions()` | `permissions` | `TableRBACPermissions` |
+| `dbschema/rbac.go` | `RBAC.Roles()` | `roles` | `TableRBACRoles` |
+| `dbschema/rbac.go` | `RBAC.RolePermissions()` | `role_permissions` | `TableRBACRolePermissions` |
+| `dbschema/rbac.go` | `RBAC.UserRoles()` | `user_roles` | `TableRBACUserRoles` |
+| `dbschema/rbac.go` | `RBAC.UserPermissions()` | `user_permissions` | `TableRBACUserPermissions` |
+| `dbschema/media_files.go` | `Media.Files()` | `media_files` | `TableMediaFiles` |
+| `dbschema/media_pending_cloud_cleanup.go` | `Media.PendingCloudCleanup()` | `media_pending_cloud_cleanup` | `TableMediaPendingCloudCleanup` |
+| `dbschema/taxonomy_tags.go` | `Taxonomy.Tags()` | `tags` | `TableTaxonomyTags` |
+| `dbschema/taxonomy_categories.go` | `Taxonomy.Categories()` | `categories` | `TableTaxonomyCategories` |
+| `dbschema/taxonomy_course_levels.go` | `Taxonomy.CourseLevels()` | `course_levels` | `TableTaxonomyCourseLevels` |
+| `dbschema/system.go` | `System.AppConfig()` | `system_app_config` | `TableSystemAppConfig` |
+| `dbschema/system.go` | `System.PrivilegedUsers()` | `system_privileged_users` | `TableSystemPrivilegedUsers` |
+| `dbschema/app_user.go` | `AppUser.Table()` | `users` | `TableAppUsers` |
+
+### Checklist (phase-sub-13-task-01 … 10)
+
+- [x] **01** — Baseline documented; literals moved out of `dbschema` into `constants/dbschema_name.go`; models use `dbschema.*`; removed `models/migrations/`.
+- [x] **02** — Inventory table above + symbol map in this file.
+- [x] **03** — `constants/dbschema_name.go` created with grouped exports + comments.
+- [x] **04** — All `dbschema/*.go` return values from constants only.
+- [x] **05** — `System` + `AppUser` namespaces for previously hardcoded system/user tables.
+- [x] **06** — Full `models` scan: no remaining `TableName()` string literals for relations; raw `UPDATE users` replaced with dynamic table from `dbschema.AppUser.Table()`.
+- [x] **07** — `system_app_config`, `system_privileged_users`, `user.go` migrated.
+- [x] **08** — Remaining models already on `dbschema` (taxonomy, media, rbac); verified by grep.
+- [x] **09** — `models/migrations` tree removed; no repo references to that path.
+- [x] **10** — `go fmt` / `go vet` / `go build` / `go test`; docs + README sync; `gitnexus analyze --force` when index stale; `gitnexus detect_changes` before commit.
+
+### Handoff
+
+Sub 13 closed. Safe to open **`phase-02-start`** for course-domain work per main plan.
+
+---
+
 ## Phase Sub 11 — WebP CGO+gate, executable denylist (tasks 01–12, 2026-05-02)
 
 ### Scope

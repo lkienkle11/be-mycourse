@@ -57,6 +57,7 @@
 - GORM as primary ORM.
 - Raw SQL only when needed (RBAC joins/deletes), with named-param helper (`pkg/sqlnamed`).
 - Embedded SQL migrations using `golang-migrate`.
+- **PostgreSQL table (relation) names in Go:** keep string literals only in **`constants/dbschema_name.go`**. Call sites use **`dbschema`** accessors — e.g. `dbschema.RBAC.Permissions()`, `dbschema.Media.Files()`, `dbschema.Taxonomy.Tags()`, `dbschema.System.AppConfig()`, `dbschema.AppUser.Table()` — in GORM `TableName()`, dynamic `fmt.Sprintf` SQL, and service templates. Do **not** scatter hardcoded table names in `models/*`, `dbschema/*`, or `services/*`. **`constants` must not import `dbschema`** (prevents import cycles; `dbschema` imports `constants`).
 
 ## Helper vs Util Convention
 - `pkg/logic/helper/*`: feature-scoped helpers tied to one bounded domain (e.g., media resolver/provider flow).

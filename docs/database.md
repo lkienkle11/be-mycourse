@@ -10,6 +10,8 @@
 All tables are managed via **golang-migrate** with embedded SQL files in `migrations/`.  
 Run `MIGRATE=1 go run .` to apply pending migrations (see `migrations/README.md`).
 
+**Code ↔ table names:** Relation names used in Go (GORM `TableName()`, parameterized raw SQL) are defined in **`constants/dbschema_name.go`** and exposed via **`dbschema`** namespaces — do not hardcode table strings in `models` or `dbschema` packages.
+
 ## Table of Contents
 
 - [Table `users`](#users)

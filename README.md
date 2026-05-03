@@ -42,6 +42,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 - All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
 - Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
 - If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+- **Postgres table names** for GORM / SQL live in **`constants/dbschema_name.go`**; **`dbschema/`** provides typed accessors (`RBAC`, `Media`, `Taxonomy`, `System`, `AppUser`) — see `IMPLEMENTATION_PLAN_EXECUTION.md` (Phase Sub 13).
 
 Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu-core`).
 

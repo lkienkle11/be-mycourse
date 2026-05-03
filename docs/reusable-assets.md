@@ -553,15 +553,15 @@
   - Reuse pattern for advanced domain queries requiring controlled SQL.
 
 ### Asset: DB schema namespace
-- Name: `dbschema.RBAC.*`
-- Type: Query helper
-- Path: `dbschema/rbac.go`
-- Purpose: Centralized table names for SQL safety and consistency.
-- Scope: RBAC services and sync internals.
-- Dependencies: none.
-- Current Usage: `services/rbac.go`, `models/rbac.go`, `internal/rbacsync/*`.
+- Name: `dbschema.RBAC.*`, `dbschema.Media.*`, `dbschema.Taxonomy.*`, `dbschema.System.*`, `dbschema.AppUser.Table()`
+- Type: Query helper / GORM `TableName()` indirection
+- Path: `dbschema/*.go` (per domain file); literals in **`constants/dbschema_name.go`**
+- Purpose: Centralized table names for SQL safety and consistency; **`constants`** holds strings, **`dbschema`** exposes typed accessors (no import cycle: `constants` does not import `dbschema`).
+- Scope: RBAC services/sync, media/taxonomy models, system models, user model + raw session SQL.
+- Dependencies: `constants` (`TableRBAC*`, `TableMedia*`, `TableTaxonomy*`, `TableSystem*`, `TableAppUsers`).
+- Current Usage: `services/rbac.go`, `models/*.go`, `internal/rbacsync/*`.
 - Reuse Opportunity:
-  - Create equivalent namespaces per new module (`dbschema/course`, etc.) as new reusable assets.
+  - Add new `dbschema/<domain>.go` files + new `constants` `Table*` entries for future modules (`course`, etc.).
 
 ### Asset: MaxMediaUploadFileBytes
 - Name: `MaxMediaUploadFileBytes`

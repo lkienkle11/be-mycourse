@@ -82,8 +82,8 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | `config/` | System bootstrap (`InitSystem`, default configs). |
 | `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |
-| `constants/` | RBAC (`roles.go`, `permissions.go`, `roles_permission.go`), domain enums (e.g. `media.go`), and **`error_msg.go`** — canonical **string literals for errors/sentinels** (and tightly coupled numeric caps such as `MaxMediaUploadFileBytes`). **`pkg/errcode/messages.go`** holds the code→message map but **must import** string constants from here when the same wording is used for sentinels (e.g. **`MsgFileTooLargeUpload`** for `FileTooLarge` + `ErrFileExceedsMaxUploadSize`) so copy cannot drift. |
-| `dbschema/` | RBAC-related schema helpers. |
+| `constants/` | RBAC (`roles.go`, `permissions.go`, `roles_permission.go`), domain enums (e.g. `media.go`), **`dbschema_name.go`** (Postgres **relation names** used by GORM/`dbschema`/raw SQL), and **`error_msg.go`** — canonical **string literals for errors/sentinels** (and tightly coupled numeric caps such as `MaxMediaUploadFileBytes`). **`pkg/errcode/messages.go`** holds the code→message map but **must import** string constants from here when the same wording is used for sentinels (e.g. **`MsgFileTooLargeUpload`** for `FileTooLarge` + `ErrFileExceedsMaxUploadSize`) so copy cannot drift. |
+| `dbschema/` | Table-name accessors per domain (`RBAC`, `Media`, `Taxonomy`, `System`, `AppUser`); values come from **`constants/dbschema_name.go`** only — models’ `TableName()` and RBAC raw SQL should use these, not hardcoded table strings. |
 | `cmd/syncpermissions/` | Upsert `permissions.permission_name` by `permission_id` (`//go:generate` from `main.go`). |
 | `cmd/syncrolepermissions/` | Rebuild `role_permissions` from `constants/roles_permission.go`. |
 | `tracing/`, `runtime/` | Observability / runtime placeholders. |

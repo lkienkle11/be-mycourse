@@ -1,0 +1,18 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - dupl        # Bắt code trùng lặp (dùng cây cú pháp AST, bất chấp AI đổi tên biến)
+    - gocyclo     # Đo độ phức tạp của if/else, switch/case
+    - funlen      # Báo đỏ nếu AI viết hàm dài dằng dặc thay vì chia nhỏ
+    - depguard    # Chặn import ngược (ví dụ: cấm pkg/helpers import services)
+    - errcheck    # Bắt buộc xử lý lỗi
+    - staticcheck # Kế thừa gosimple: Gợi ý đơn giản hóa code & bắt lỗi tĩnh
+    - govet       # Bắt lỗi logic cơ bản của Go
+
+  settings:
+    funlen:
+      lines: 60      # Quá 60 dòng là báo đỏ
+      statements: 40 # Quá 40 câu lệnh là báo đỏ
+    gocyclo:
+      min-complexity: 15 # Logic rẽ nhánh quá phức tạp sẽ bị gạch đỏ

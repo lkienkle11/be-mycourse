@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"mycourse-io-be/dbschema"
+)
 
 // SystemAppConfig is the singleton row (id must be 1) holding isolated system secrets.
 // Not related to process .env keys of the same conceptual name.
@@ -12,4 +16,4 @@ type SystemAppConfig struct {
 	UpdatedAt            time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 }
 
-func (SystemAppConfig) TableName() string { return "system_app_config" }
+func (SystemAppConfig) TableName() string { return dbschema.System.AppConfig() }

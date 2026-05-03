@@ -1,5 +1,5 @@
 package dbschema
 
-const taxonomyTags = "tags"
+import "mycourse-io-be/constants"
 
-func (taxonomyNS) Tags() string { return taxonomyTags }
+func (taxonomyNS) Tags() string { return constants.TableTaxonomyTags }

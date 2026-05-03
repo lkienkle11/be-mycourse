@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"mycourse-io-be/dbschema"
 )
 
 // RefreshSessionEntry holds metadata for a single authenticated device session.
@@ -70,11 +72,12 @@ func SaveRefreshSession(userID uint, sessionStr string, entry RefreshSessionEntr
 	if err != nil {
 		return err
 	}
-	return DB.Exec(
-		`UPDATE users
+	q := fmt.Sprintf(`UPDATE %s
 		 SET refresh_token_session = jsonb_set(refresh_token_session, ARRAY[?], ?::jsonb, true),
 		     updated_at = NOW()
-		 WHERE id = ? AND deleted_at IS NULL`,
+		 WHERE id = ? AND deleted_at IS NULL`, dbschema.AppUser.Table())
+	return DB.Exec(
+		q,
 		sessionStr,
 		string(data),
 		userID,
@@ -119,8 +122,10 @@ func AddRefreshSession(userID uint, sessionStr string, entry RefreshSessionEntry
 		if err != nil {
 			return err
 		}
+		q := fmt.Sprintf(`UPDATE %s SET refresh_token_session = ?::jsonb, updated_at = NOW() WHERE id = ?`,
+			dbschema.AppUser.Table())
 		return tx.Exec(
-			`UPDATE users SET refresh_token_session = ?::jsonb, updated_at = NOW() WHERE id = ?`,
+			q,
 			string(data),
 			userID,
 		).Error
@@ -147,4 +152,4 @@ type User struct {
 	DeletedAt           gorm.DeletedAt         `gorm:"index"                            json:"deleted_at,omitempty"`
 }
 
-func (User) TableName() string { return "users" }
+func (User) TableName() string { return dbschema.AppUser.Table() }

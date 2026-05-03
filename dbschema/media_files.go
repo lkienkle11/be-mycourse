@@ -1,3 +1,5 @@
 package dbschema
 
-func (mediaNS) Files() string { return "media_files" }
+import "mycourse-io-be/constants"
+
+func (mediaNS) Files() string { return constants.TableMediaFiles }

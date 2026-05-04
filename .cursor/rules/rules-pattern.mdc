@@ -26,7 +26,10 @@ alwaysApply: false
 4. **Test Placement**
    All test code (including `*_test.go` files, test packages, and test-only modules) MUST reside exclusively under the top-level `tests/` directory. Tests MUST NOT be placed under `api/`, `services/`, `pkg/`, `repository/`, `models/`, `dbschema/`, or any of their subfolders.
 
-5. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
+5. **Error Variable Messages (No Hardcoded Strings)**
+   For any sentinel error declarations — single (`var ErrFoo = errors.New(...)`) or grouped (`var ( ErrBar = errors.New(...) )`) — anywhere they appear (including under `pkg/errors/`), the argument to `errors.New` (or `fmt.Errorf` patterns used for the same purpose) MUST NOT be a raw string literal. The message MUST be supplied via a named constant from `constants/` (e.g., `constants.MsgMediaOptimisticLockConflict`), following the same pattern as `pkg/errors/media_errors.go` and `pkg/errors/rbac.go`. Hardcoded string literals such as `errors.New("invalid profile...")` are strictly prohibited.
+
+6. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Before writing ANY new function, examine its inputs and outputs:
 
 * **Mechanism Logic (belongs to `pkg/<feature01>/*.go`):**
@@ -36,7 +39,7 @@ alwaysApply: false
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
 
-6. **No “Homeless Functions” & No “Fake Methods” in Services**
+7. **No “Homeless Functions” & No “Fake Methods” in Services**
 
 * **No Homeless Functions:**
   Standalone utility (stateless) functions are STRICTLY PROHIBITED inside the `services/` directory (except for `New...` constructors).
@@ -46,7 +49,7 @@ alwaysApply: false
   If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
   If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature01>/*.go`.
 
-7. **Strict One-Way Dependency Direction for `pkg/`**
+8. **Strict One-Way Dependency Direction for `pkg/`**
 
 * Code inside `pkg/<feature01>/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.

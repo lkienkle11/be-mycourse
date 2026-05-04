@@ -7,7 +7,7 @@ alwaysApply: false
 Feature: media, taxnomy, auth
 
 1. **Constants Placement**
-   All constants within the directories `api`, `services`, `repository`, and `pkg/<feature>/*.go` — including both single declarations (`const A = 1`) and grouped blocks (`const ( A = 1 ... )`) — MUST be placed in the `constants/` directory. A corresponding module must be created for each.
+   All constants within the directories `api`, `services`, `repository`, `pkg/**/*.go` and `pkg/*.go` — including both single declarations (`const A = 1`) and grouped blocks (`const ( A = 1 ... )`) — MUST be placed in the `constants/` directory. A corresponding module must be created for each.
    Using `const` blocks to bypass this rule is strictly prohibited.
 
 2. **Errors Placement**

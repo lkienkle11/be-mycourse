@@ -23,7 +23,10 @@ alwaysApply: false
 * Structs used strictly as database ORM models MUST be placed in `models/` or `dbschema/`.
 * Response structures MUST be placed in `dto/` and named using the `TypeResponse` convention.
 
-4. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
+4. **Test Placement**
+   All test code (including `*_test.go` files, test packages, and test-only modules) MUST reside exclusively under the top-level `tests/` directory. Tests MUST NOT be placed under `api/`, `services/`, `pkg/`, `repository/`, `models/`, `dbschema/`, or any of their subfolders.
+
+5. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Before writing ANY new function, examine its inputs and outputs:
 
 * **Mechanism Logic (belongs to `pkg/<feature01>/*.go`):**
@@ -33,7 +36,7 @@ alwaysApply: false
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
 
-5. **No “Homeless Functions” & No “Fake Methods” in Services**
+6. **No “Homeless Functions” & No “Fake Methods” in Services**
 
 * **No Homeless Functions:**
   Standalone utility (stateless) functions are STRICTLY PROHIBITED inside the `services/` directory (except for `New...` constructors).
@@ -43,7 +46,7 @@ alwaysApply: false
   If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
   If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature01>/*.go`.
 
-6. **Strict One-Way Dependency Direction for `pkg/`**
+7. **Strict One-Way Dependency Direction for `pkg/`**
 
 * Code inside `pkg/<feature01>/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.

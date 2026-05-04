@@ -80,13 +80,12 @@
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
 - Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); **`ApplyBunnyDetailToMetadata`** refreshes **`video_id` / `thumbnail_url` / `embeded_html`** in JSON and ORM columns; idempotent when DB row missing.
 
-### Orphan Image Cleanup Flow (Sub 07)
-- Triggered when a business entity with an image URL field is deleted or has its URL replaced.
-- `services/taxonomy.DeleteCategory` / `UpdateCategory` → `mediasvc.EnqueueOrphanImageCleanup(url)`.
-- `EnqueueOrphanImageCleanup` (in `services/media/orphan_cleanup.go`):
+### Orphan Image Cleanup Flow (Sub 07 + Sub 14 FK path)
+- **URL-based (Sub 07):** `mediasvc.EnqueueOrphanImageCleanup(url)` — used for legacy URL fields and JSONB URL harvesting.
   1. DB lookup via `repository/media.FileRepository.GetByURL` → uses stored provider/key.
   2. Fallback: **`pkg/media.ParseImageURLForOrphanCleanup`** parses URL by pattern (Bunny prefix or B2/CDN prefix from `MediaSetting`).
   3. Inserts `media_pending_cloud_cleanup` row for deferred worker deletion.
+- **FK-based (Sub 14):** taxonomy categories and user avatars store **`image_file_id`** / **`avatar_file_id`** → `media_files.id`. On **replace** or **delete**, `mediasvc.EnqueueOrphanCleanupForMediaFileID` loads the row and enqueues the same pending cleanup pipeline (skips **Local** provider rows with no cloud object).
 - Future JSONB domains: **`pkg/media.ScanJSONBForImageURLs(raw)`** collects URLs from nested JSONB payloads before cascade delete.
 
 ## Persistence Boundaries

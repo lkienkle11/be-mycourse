@@ -22,7 +22,7 @@ Returns the non-sensitive profile fields for the authenticated user together wit
 **Auth:** Bearer JWT (required)  
 **Rate limit:** 120 requests / 1 minute
 
-**Response shape:** `dto.MeResponse`
+**Response shape:** `dto.MeResponse` — when an avatar file is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** object (subset of `pkg/entities.File`: `id`, `kind`, `provider`, `filename`, `mime_type`, `size_bytes`, `width`, `height`, `url`, `duration`, `content_fingerprint`, `status`). Omitted when unset.
 
 ```json
 {
@@ -33,7 +33,6 @@ Returns the non-sensitive profile fields for the authenticated user together wit
     "user_code":       "01960000-0000-7000-0000-000000000001",
     "email":           "user@example.com",
     "display_name":    "Alice",
-    "avatar_url":      "",
     "email_confirmed": true,
     "is_disabled":     false,
     "created_at":      1713456789,
@@ -42,14 +41,24 @@ Returns the non-sensitive profile fields for the authenticated user together wit
 }
 ```
 
-**Caching:** The response is cached in Redis at `mycourse:user:me:{user_id}` with a TTL of **1 minute**. Writes to the user profile or RBAC assignments may therefore take up to 1 minute to be reflected here.
+### `PATCH /api/v1/me`
 
-**Errors:**
+Updates the authenticated user’s profile fields. Currently supports **`avatar_file_id`** (optional UUID string referencing **`media_files.id`**). Empty string clears the avatar FK. Invalid / non-image / non-ready files return **400** + `errcode.ValidationFailed` (`pkg/errors.ErrInvalidProfileMediaFile`, text from **`constants.MsgInvalidProfileMediaFile`**).
+
+**Caching:** `DelCachedUserMe` runs after a successful PATCH so the next `GET /me` reloads from Postgres.
+
+---
+
+**Caching (GET):** The response is cached in Redis at `mycourse:user:me:{user_id}` with a TTL of **1 minute**. RBAC-only changes may therefore take up to 1 minute to be reflected here; **`PATCH /me`** invalidates the cache immediately.
+
+**Errors (`GET /me`):**
 | HTTP | App Code | When |
 |------|----------|------|
 | 401 | 3002 | Missing or invalid JWT |
 | 404 | 3004 | User record deleted from DB |
 | 500 | 9001 | DB or Redis error |
+
+**Errors (`PATCH /me`):** same as above, plus **400** / **2001** (`ValidationFailed`) when **`avatar_file_id`** is not a usable image **`media_files`** row.
 
 ---
 

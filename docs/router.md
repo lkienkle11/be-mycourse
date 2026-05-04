@@ -41,7 +41,7 @@
 For **per-domain contracts** (handlers, DTOs, provider policy), see **`docs/api-overview.md`** and the module deep-dives **`docs/modules/taxonomy.md`** / **`docs/modules/media.md`**.
 
 - `api/system/routes.go` → system operations (`RegisterRoutes` receives the Gin group only; handlers use **`internal/appdb.Conn()`** for the shared GORM handle so **`api/`** does not import **`mycourse-io-be/models`** or **GORM** — see `docs/patterns.md` / depguard `restrict_api`).
-- `api/v1/routes.go` -> auth/me, internal RBAC, and mounts taxonomy + media route groups.
+- `api/v1/routes.go` -> **`GET`/`PATCH` `/me`**, me permissions, and mounts taxonomy + media route groups.
 - `api/v1/taxonomy/routes.go` -> taxonomy CRUD endpoint registration (`levels`, `categories`, `tags`).
 - `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS + local token decode + video status route) and webhook route mount used by no-filter lane. Response schema for list/get/create/update: **`dto.UploadFileResponse`** (no **`origin_url`** — Sub 12) including optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** — `docs/modules/media.md`, `docs/api_swagger.yaml`.
 

@@ -29,7 +29,7 @@ repository/taxonomy/
 └── repositories.go            # CategoryRepository, TagRepository, CourseLevelRepository
 
 services/taxonomy/
-├── category_service.go            # Business logic for categories (image URL + orphan cleanup)
+├── category_service.go            # Business logic for categories (image_file_id FK + orphan cleanup via media_files)
 ├── fields.go                      # Trimmed name/slug/status helpers for tag/course level + category PATCH fields
 └── tag_course_level_services.go   # Tag + course level list/create/update/delete services
 
@@ -37,7 +37,9 @@ pkg/taxonomy/
 └── status.go                      # NormalizeTaxonomyStatus — maps request strings → constants.TaxonomyStatus
 ```
 
-`services/taxonomy/fields.go` imports **`mycourse-io-be/pkg/taxonomy`** (alias `taxonomypkg`) so HTTP `status` strings are normalized before repository writes; it also maps **`models.*`** rows to **`pkg/entities`** for list/create/update return types so **`api/v1/taxonomy`** does not import **`models`** (depguard `restrict_api`). **`pkg/logic/helper` does not exist**; do not add taxonomy policy there.
+`services/taxonomy/fields.go` imports **`mycourse-io-be/pkg/taxonomy`** (alias `taxonomypkg`) so HTTP `status` strings are normalized before repository writes. **Category** HTTP handlers (`api/v1/taxonomy/category_handler.go`) import only **`dto`** — **`services/taxonomy/category_service.go`** maps `models.Category` → **`dto.CategoryResponse`** (with nested **`image`**) so **`api/`** stays free of **`models`** (depguard `restrict_api`).
+
+**Category image contract:** create/update JSON uses **`image_file_id`** (UUID of a **`media_files`** row). Responses expose nested **`image`** (`dto.MediaFilePublic`). The server validates file kind/status/MIME via **`services/media.LoadValidatedProfileImageFile`**; failures return **`pkg/errors.ErrInvalidProfileMediaFile`** (**`constants.MsgInvalidProfileMediaFile`**). Replacing or deleting a category enqueues **`mediasvc.EnqueueOrphanCleanupForMediaFileID`** for the superseded or removed file id.
 
 ---
 

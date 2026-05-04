@@ -112,7 +112,8 @@ type User struct {
     Email               string                             `json:"email"`
     HashPassword        string                             `json:"-"`               // never serialized
     DisplayName         string                             `json:"display_name"`
-    AvatarURL           string                             `json:"avatar_url"`
+    AvatarFileID        *string                            `json:"-"`
+    AvatarFile          *MediaFile                         `gorm:"foreignKey:AvatarFileID;references:ID"`
     IsDisable           bool                               `json:"is_disable"`
     EmailConfirmed      bool                               `json:"email_confirmed"`
     ConfirmationToken   *string                            `json:"-"`               // never serialized
@@ -129,17 +130,17 @@ type User struct {
 Returned by `GET /api/v1/me`:
 
 ```go
-// dto/auth.go
+// dto/auth.go — nested avatar uses dto.MediaFilePublic (dto/media_public.go)
 type MeResponse struct {
-    UserID         uint     `json:"user_id"`
-    UserCode       string   `json:"user_code"`       // UUIDv7 string
-    Email          string   `json:"email"`
-    DisplayName    string   `json:"display_name"`
-    AvatarURL      string   `json:"avatar_url"`
-    EmailConfirmed bool     `json:"email_confirmed"`
-    IsDisabled     bool     `json:"is_disabled"`
-    CreatedAt      int64    `json:"created_at"`      // Unix epoch seconds
-    Permissions    []string `json:"permissions"`     // sorted permission_name strings
+    UserID         uint               `json:"user_id"`
+    UserCode       string             `json:"user_code"` // UUIDv7 string
+    Email          string             `json:"email"`
+    DisplayName    string             `json:"display_name"`
+    Avatar         *MediaFilePublic   `json:"avatar,omitempty"`
+    EmailConfirmed bool               `json:"email_confirmed"`
+    IsDisabled     bool               `json:"is_disabled"`
+    CreatedAt      int64              `json:"created_at"`      // Unix epoch seconds
+    Permissions    []string           `json:"permissions"`     // sorted permission_name strings
 }
 ```
 
@@ -151,7 +152,6 @@ type MeResponse struct {
   "user_code":       "01960000-0000-7000-0000-000000000001",
   "email":           "user@example.com",
   "display_name":    "Alice",
-  "avatar_url":      "",
   "email_confirmed": true,
   "is_disabled":     false,
   "created_at":      1713456789,
@@ -610,7 +610,6 @@ All endpoints return `application/json`. The outer envelope is always `Response`
   "user_code":       "01960000-0000-7000-0000-000000000001",
   "email":           "user@example.com",
   "display_name":    "Alice",
-  "avatar_url":      "",
   "email_confirmed": true,
   "is_disabled":     false,
   "created_at":      1713456789,

@@ -10,6 +10,41 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 
 ---
 
+## Phase Sub 14 — Taxonomy image + user avatar via `media_files` FK (tasks 01–10, 2026-05-04) ✅
+
+### Baseline / contract
+
+- **DB:** Migration **`000006_taxonomy_user_media_refs`** — `categories.image_file_id` (UUID, FK → `media_files.id`, ON DELETE SET NULL), `users.avatar_file_id` (same). Legacy **`image_url`** / **`avatar_url`** removed after best-effort **backfill** (`UPDATE … FROM media_files` matching `url` or `origin_url`). Rows with URLs that never matched a `media_files` row end with **NULL** FK until the client re-attaches an uploaded file.
+- **Write API:** Clients send **`image_file_id`** (taxonomy category create/update) and **`avatar_file_id`** (PATCH `/api/v1/me`). The server **never** trusts a raw storage URL from JSON to set FKs; it loads `media_files`, validates **FILE** kind, **READY** status, and **image** MIME (or common raster extensions); errors wrap **`pkg/errors.ErrInvalidProfileMediaFile`** → HTTP **400** + `errcode.ValidationFailed` where applicable.
+- **Read API:** Responses expose nested **`image`** / **`avatar`** objects shaped like **`dto.MediaFilePublic`** (subset of `pkg/entities.File`: `id`, `kind`, `provider`, `filename`, `mime_type`, `size_bytes`, `width`, `height`, `url`, `duration`, `content_fingerprint`, `status` — width/height from persisted upload metadata).
+- **Orphan cleanup:** Replacing or clearing an FK enqueues **`mediasvc.EnqueueOrphanCleanupForMediaFileID`** (pending cloud cleanup from the resolved `media_files` row). **Delete category** and **`SoftDeleteUserWithAvatarCleanup`** (admin/tests) do the same after the parent row is removed. **`EnqueueOrphanImageCleanup(string)`** remains for URL-based domains (JSONB scan, legacy patterns).
+
+### Inventory (blast radius)
+
+| Area | Files / symbols |
+|------|------------------|
+| Migration | `migrations/000006_taxonomy_user_media_refs.{up,down}.sql` |
+| Models | `pkg/entities/category.go`, `models/taxonomy_category.go` (+`ImageFile` assoc), `models/user.go` (+`AvatarFile`) |
+| DTO | `dto/taxonomy_category.go`, `dto/auth.go`, `dto/media_public.go` |
+| Services | `services/taxonomy/category_service.go`, `services/media/profile_media_validate.go`, `services/media/orphan_cleanup.go`, `services/auth/me_update.go`, `services/auth/user_delete.go` |
+| HTTP | `api/v1/me.go` (`PATCH /me`), `api/v1/routes.go`, `api/v1/taxonomy/category_handler.go` (DTO-only — no `models` import), `api/v1/taxonomy/handlers_common.go` |
+| Mapping | `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/media_public_mapping.go` |
+| Repo | `repository/taxonomy/repositories.go` (`Preload("ImageFile")` on category list/get) |
+| Cache | `services/cache/auth_user.go` — `DelCachedUserMe` after profile / delete |
+
+### Quality gate
+
+- `gofmt`, `go vet ./...`, `go build ./...`, `go test ./...` (includes root **`tests/`** packages — mapping + media helpers live in `tests/sub04*.go`, `tests/sub06*.go`; no colocated `*_test.go` under `pkg/` / `services/` per `docs/patterns.md`).
+- **`golangci-lint run`** (0 issues) + **`make check-architecture`** (services/repository layout).
+- **`gitnexus analyze --force`** when the local index can be refreshed (sandbox EPERM may block; MCP `impact` used for `CreateCategory` / `buildMeResponseFromUser` — both **LOW**).
+- **`gitnexus_detect_changes`** before commit.
+
+### Handoff
+
+Sub **14** closed. **`phase-02-start`** remains the next plan gate for course-domain work; profile/taxonomy media contract is now file-id based.
+
+---
+
 ## Phase Sub 13 — DB table names: `constants/dbschema_name.go` + `dbschema` + models (tasks 01–10, 2026-05-03) ✅
 
 ### Baseline (single source of truth)
@@ -180,8 +215,8 @@ Single authoritative checklist for plan ids `phase-sub-07-task-01` … `phase-su
 ### Image field inventory (Task 01) ✅
 | Domain | Field | Type | Has CRUD delete/update |
 |--------|-------|------|------------------------|
-| `categories` | `image_url` VARCHAR(512) | URL string (no FK to media_files) | ✅ DELETE + PATCH |
-| `users` | `avatar_url` TEXT | URL string (no FK to media_files) | No update endpoint yet |
+| `categories` | ~~`image_url`~~ → **`image_file_id`** UUID FK | **Sub 14** — file id + nested `image` in API | ✅ DELETE + PATCH |
+| `users` | ~~`avatar_url`~~ → **`avatar_file_id`** UUID FK | **Sub 14** — `PATCH /me` + nested `avatar` | ✅ |
 | `course_levels` | — | No image field | N/A |
 | `tags` | — | No image field | N/A |
 | Future courses | `cover_image`, `thumbnail`, `banner` | URL strings | To be added in Phase 02+ |
@@ -205,11 +240,10 @@ Already implemented in sub06: `services/media.DeleteFile` calls `pkg/media.Delet
 ### Course domain skeleton (Task 05) ✅
 Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `course_edits.thumbnail` etc., call `mediasvc.EnqueueOrphanImageCleanup(oldURL)` after each DELETE/PATCH commit. See `services/media/orphan_cleanup.go` doc comment.
 
-### Taxonomy + user/profile hooks (Task 06) ✅
+### Taxonomy + user/profile hooks (Task 06) ✅ *(URLs → FKs in Sub 14)*
 - `services/taxonomy/category_service.go`:
-  - `DeleteCategory`: reads `image_url` before delete, enqueues cleanup after successful DB delete.
-  - `UpdateCategory`: captures `prevImageURL` before mutation, enqueues cleanup if `image_url` is replaced.
-- `users.avatar_url`: no update endpoint yet — hook must be added to the future `UpdateProfile` service function following the same pattern.
+  - `DeleteCategory` / `UpdateCategory`: **`EnqueueOrphanCleanupForMediaFileID`** on removed/replaced **`image_file_id`** (Sub 14).
+- `services/auth`: **`PATCH /api/v1/me`** + **`SoftDeleteUserWithAvatarCleanup`** — avatar replace/delete uses the same FK orphan enqueue pattern.
 - External/3rd-party URLs (not matching configured CDN/Bunny) are silently skipped (no-op).
 
 ### JSONB/nested skeleton (Task 07) ✅
@@ -227,9 +261,9 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - `tests/sub07_orphan_image_test.go`: 11 tests covering `ParseImageURLForOrphanCleanup` (empty, local, external, Bunny with/without query params, B2 CDN, B2 without bucket) and `ScanJSONBForImageURLs` (nil, flat, nested, no-url-keys). All PASS.
 - `go build ./...` ✅ `go test ./...` ✅
 
-### Final audit (Task 10) ✅
-- `categories.image_url` DELETE hook ✅ UPDATE replace hook ✅
-- `users.avatar_url` — no update endpoint yet; hook TODO documented in `services/taxonomy/category_service.go` pattern and this section.
+### Final audit (Task 10) ✅ *(FK hooks — Sub 14)*
+- `categories.image_file_id` DELETE / UPDATE replace → **`EnqueueOrphanCleanupForMediaFileID`** ✅
+- `users.avatar_file_id` — **`PATCH /me`** + **`SoftDeleteUserWithAvatarCleanup`** ✅
 - `media_files` DELETE — already covered by sub06 `DeleteFile`.
 - Future domains (courses, lessons, quiz) — pattern documented + `ScanJSONBForImageURLs` skeleton ready.
 - Transaction policy documented above.

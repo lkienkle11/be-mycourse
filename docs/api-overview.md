@@ -40,6 +40,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 
 ### `/api/v1` (auth subgroup)
 - `GET /me`
+- `PATCH /me` — partial profile update; body supports **`avatar_file_id`** (UUID of an existing **`media_files`** row). Response uses nested **`avatar`** (`dto.MediaFilePublic`) instead of a raw URL string.
 - `GET /me/permissions` (currently guarded with `RequirePermission(user:read)`).
 - Taxonomy (admin CRUD):
   - `GET /taxonomy/levels`

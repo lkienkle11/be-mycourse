@@ -93,6 +93,10 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 
 ---
 
+## Phase Sub 14 — FK-based orphan enqueue (taxonomy + user avatar)
+
+When **`categories.image_file_id`** or **`users.avatar_file_id`** is replaced or the parent row is removed, **`services/media.EnqueueOrphanCleanupForMediaFileID`** resolves the **`media_files`** row and inserts **`media_pending_cloud_cleanup`** (skips **Local** rows with no cloud object). This complements the Sub 07 **URL-string** path (`EnqueueOrphanImageCleanup`).
+
 ## Phase Sub 06 — orphan / reuse / deferred cleanup (summary)
 
 - **Migration:** `000004_media_orphan_safety.up.sql` — `row_version`, `content_fingerprint`; table `media_pending_cloud_cleanup`.

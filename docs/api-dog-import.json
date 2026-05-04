@@ -580,7 +580,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"string\",\n  \"slug\": \"string\",\n  \"image_url\": \"string\"\n}",
+              "raw": "{\n  \"name\": \"string\",\n  \"slug\": \"string\",\n  \"image_file_id\": \"uuid\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

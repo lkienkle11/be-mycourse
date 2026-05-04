@@ -136,7 +136,7 @@
 
 #### FR-2.1 Get My Profile (`GET /api/v1/me`)
 
-- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, `avatar_url`, `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), and `permissions` (sorted `permission_name` strings).
+- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), and `permissions` (sorted `permission_name` strings).
 - Sensitive fields (`hash_password`, `confirmation_token`, `confirmation_sent_at`, `refresh_token_session`) **MUST NOT** be returned.
 - The system **SHOULD** serve the response from Redis cache (`mycourse:user:me:{user_id}`, TTL 1 min) on cache hit.
 - On a cache miss the system **MUST** read from Postgres, build the response, and populate the cache.
@@ -149,6 +149,13 @@
 | Missing or invalid JWT | 401 | 3002 `Unauthorized` |
 | User not found in DB | 404 | 3004 `NotFound` |
 | DB error | 500 | 9001 `InternalError` |
+
+#### FR-2.1b Patch My Profile (`PATCH /api/v1/me`)
+
+- The system **MUST** accept partial updates with optional **`avatar_file_id`** (UUID of an existing **`media_files`** row suitable as a raster image). Empty string **MUST** clear the FK.
+- The system **MUST** validate the file (kind **FILE**, status **READY**, image MIME or common raster extension) and **MUST NOT** accept arbitrary URLs from the client to set storage.
+- On success the system **MUST** invalidate the Redis `/me` cache entry for that user.
+- Invalid file id **MUST** return HTTP **400** with application code **2001** (`ValidationFailed`) and **`ErrInvalidProfileMediaFile`** semantics.
 
 ---
 

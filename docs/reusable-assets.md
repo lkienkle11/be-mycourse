@@ -687,11 +687,39 @@
 - Name: `EnqueueOrphanImageCleanup`
 - Type: Function (service)
 - Path: `services/media/orphan_cleanup.go`
-- Purpose: Single entry-point to schedule deferred cloud-object deletion for any image URL field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
-- Scope: Any domain service that deletes or replaces an image URL field (taxonomy category, user avatar, future course cover).
+- Purpose: Single entry-point to schedule deferred cloud-object deletion for any **plain image URL** field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
+- Scope: Legacy URL fields, JSONB-harvested URLs (`ScanJSONBForImageURLs`), future course cover strings — **not** used for taxonomy/user after Sub 14 (those use **`EnqueueOrphanCleanupForMediaFileID`**).
 - Dependencies: `services/media.mediaRepository()`, **`pkg/media.ParseImageURLForOrphanCleanup`**, `constants/media.go`, `models`.
-- Current Usage: `services/taxonomy/category_service.go` (`DeleteCategory`, `UpdateCategory`).
-- Reuse Opportunity: Wire into every future service that has an image URL field on delete/update.
+- Current Usage: Reserved for URL-shaped domains; see `docs/data-flow.md` (Sub 07 path).
+- Reuse Opportunity: Wire into every future service that stores a **URL string** (not `media_files` FK) on delete/update.
+
+### Asset: EnqueueOrphanCleanupForMediaFileID
+- Name: `EnqueueOrphanCleanupForMediaFileID` / `EnqueueOrphanCleanupForMediaFileRow`
+- Type: Function (service)
+- Path: `services/media/orphan_cleanup.go`
+- Purpose: Schedule **`media_pending_cloud_cleanup`** from a **`media_files.id`** (or in-memory row) after a referencing FK is cleared or the parent entity is deleted.
+- Current Usage: `services/taxonomy/category_service.go`, `services/auth/me_update.go`, `services/auth/user_delete.go`.
+
+### Asset: LoadValidatedProfileImageFile
+- Name: `LoadValidatedProfileImageFile`
+- Type: Function (service)
+- Path: `services/media/profile_media_validate.go`
+- Purpose: Resolve UUID → **`media_files`** row; enforce **FILE** kind, **READY** status, raster image MIME/extension via **`mapping.ProfileImageFileAcceptable`**.
+- Current Usage: `services/taxonomy/category_service.go`, `services/auth/me_update.go`.
+- Errors: any validation failure returns **`pkg/errors.ErrInvalidProfileMediaFile`** only (sentinel text **`constants.MsgInvalidProfileMediaFile`**; no `fmt.Errorf` wrappers); DB errors propagate unchanged. HTTP **400** + `ValidationFailed` at **`PATCH /me`** and taxonomy category create/update boundaries.
+
+### Asset: MediaFilePublic mapping
+- Name: `ToMediaFilePublicFromModel`, `ToMediaFilePublicFromEntity`, `ProfileImageFileAcceptable`
+- Type: Mapper / policy
+- Path: `pkg/logic/mapping/media_public_mapping.go`
+- Purpose: Build **`dto.MediaFilePublic`** for API responses; shared image-kind acceptance rules.
+
+### Asset: DelCachedUserMe
+- Name: `DelCachedUserMe`
+- Type: Cache helper
+- Path: `services/cache/auth_user.go`
+- Purpose: Invalidate Redis **`mycourse:user:me:{id}`** after profile-changing writes.
+- Current Usage: `services/auth/me_update.go`, `services/auth/user_delete.go`.
 
 ### Asset: GetByURL (FileRepository)
 - Name: `GetByURL`

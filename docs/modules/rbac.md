@@ -54,7 +54,7 @@ All endpoints are under `/api/v1/internal/` and require **internal/admin** autho
 HTTP Request
   └─ middleware/rbac.go  (RequirePermission → checks token claims)
        └─ api/v1/internal/rbac_handler.go  (bind DTO, validate)
-            └─ services/rbac.go  (business logic, DB operations)
+            └─ services/rbac/  (package `rbac`: business logic, DB operations)
                  └─ database (roles, permissions, role_permissions tables)
                       └─ HTTP Response
 ```
@@ -63,7 +63,7 @@ HTTP Request
 
 ```
 Application boot
-  └─ services/rbac_seed.go  (SeedRBACData)
+  └─ services/rbac/rbac_seed.go  (SeedRBACDefaults)
        └─ Upsert base roles: admin, instructor, student
        └─ Upsert base permissions (P1–P13 fixed, P14+ extensible)
        └─ Bind permissions to roles (additive only — never removes existing bindings)
@@ -141,4 +141,4 @@ Examples:
 |-------|------|----------|-------|
 | `RequirePermission` | Middleware | `middleware/rbac.go` | Use on any route requiring access control |
 | Role/Permission DTOs | Data type | `dto/` | Request/response shapes for RBAC operations |
-| RBAC seed function | Utility | `services/rbac_seed.go` | Call at startup to ensure base data exists |
+| RBAC seed function | Utility | `services/rbac/rbac_seed.go` | Call at startup to ensure base data exists |

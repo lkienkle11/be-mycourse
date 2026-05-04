@@ -95,7 +95,7 @@ Returns a **sorted** list of permission code strings (`permission_name` values) 
 |---------|----------|
 | Handler (`getMe`, `getMyPermissions`) | `api/v1/me.go` |
 | Route registration | `api/v1/routes.go` — `RegisterAuthenRoutes` |
-| Service (`GetMe`, `PermissionCodesForUser`) | `services/auth.go`, `services/rbac.go` |
+| Service (`GetMe`, `PermissionCodesForUser`) | `services/auth/auth.go`, `services/rbac/rbac.go` |
 | Redis cache (`GetCachedUserMe`, `SetCachedUserMe`) | `services/cache/auth_user.go` |
 | DTO (`MeResponse`) | `dto/auth.go` |
 | Permission constant (`UserRead`) | `constants/permissions.go` |

@@ -24,35 +24,35 @@
 ## End-to-End Flows (Current)
 
 ### Auth Register
-- `POST /api/v1/auth/register` -> `api/v1/auth.go:register` -> `services.Register`.
+- `POST /api/v1/auth/register` -> `api/v1/auth.go:register` -> `auth.Register` (`services/auth`).
 - DB uniqueness check and user create in `models.DB`.
 - Confirmation email side effect through `pkg/brevo`.
 
 ### Auth Login
-- `POST /api/v1/auth/login` -> `services.Login`.
+- `POST /api/v1/auth/login` -> `auth.Login` (`services/auth`).
 - Reads cache (login invalid/email->user) then DB user lookup/password verify.
 - Issues access/refresh tokens, persists refresh session JSONB (`users.refresh_token_session`), updates cache.
 
 ### Auth Refresh
-- `POST /api/v1/auth/refresh` -> `services.RefreshSession`.
+- `POST /api/v1/auth/refresh` -> `auth.RefreshSession` (`services/auth`).
 - Parses refresh token, validates session in DB JSONB, refreshes permission list, rotates token/session metadata.
 
 ### Me/Profile
-- `GET /api/v1/me` (JWT) -> `services.GetMe`.
+- `GET /api/v1/me` (JWT) -> `auth.GetMe` (`services/auth`).
 - Cache-first `me` fetch, fallback to DB + permission resolution, then cache write.
 
 ### Permission Check
 - `middleware.RequirePermission` checks JWT embedded permission set.
-- If absent, falls back to `services.UserHasAllPermissions` -> DB permission resolution.
+- If absent, falls back to `rbac.UserHasAllPermissions` (`services/rbac`) -> DB permission resolution.
 
 ### System Sync
 - `/api/system/*` routes (system token protected except login).
 - Trigger immediate RBAC sync (`internal/rbacsync`) or start/stop in-memory periodic jobs (`internal/jobs`).
 
 ### Taxonomy CRUD
-- `/api/v1/taxonomy/*` (JWT + permission protected) -> taxonomy handlers -> taxonomy services -> taxonomy repositories.
+- `/api/v1/taxonomy/*` (JWT + permission protected) → taxonomy handlers → taxonomy services → `repository/taxonomy` (GORM repos).
 - List endpoints apply shared filter parsing (`pkg/query/filter_parser.go`) with whitelist sorting/search.
-- Mutations normalize taxonomy status via `helper.NormalizeTaxonomyStatus` (`pkg/logic/helper/taxonomy_status.go`) before repository writes.
+- Mutations normalize taxonomy status via **`pkg/taxonomy.NormalizeTaxonomyStatus`** (`pkg/taxonomy/status.go`; `services/taxonomy` imports that package) before repository writes.
 - Public responses are mapped via `pkg/logic/mapping` into DTO contracts (`CategoryResponse`, `CourseLevelResponse`, `TagResponse`).
 - Persistence targets new taxonomy tables from migration `000002_taxonomy_domain.*`.
 
@@ -64,19 +64,19 @@
   - provider comes from server config (`setting.MediaSetting.AppMediaProvider`) and is not accepted from client API params.
   - `kind`/`metadata` multipart text fields are ignored after backward-compat parse validation.
   - kind inference is server-side by MIME/extension; if inference is unknown and no configured provider exists, provider fallback is `Local`.
-  - service delegates typed metadata inference to helper layer (`BuildTypedMetadata`) and merges only provider/server-derived values.
+  - service delegates typed metadata inference to **`pkg/media.BuildTypedMetadata`** and merges only provider/server-derived values.
   - non-video file branch: B2 origin URL + Gcore CDN URL
   - video branch: Bunny Stream playback URL
   - local branch: reversible signed token URL (`/media/files/local/:token`)
 - **Sub 11 upload pipeline (create/update):**
-  - For **image files** (`helper.IsImageMIMEOrExt`): acquire `utils.imageEncodeGate` slot, run `utils.EncodeWebP(payload)` (bimg/libvips, `CGO_ENABLED=1`), release slot. Payload, MIME, filename (`.webp`), and size updated before `uploadToProvider`. Encode failure → `ProviderError{Code: 9017}` → HTTP **503**.
+  - For **image files** (`pkg/media.IsImageMIMEOrExt`): acquire `utils.imageEncodeGate` slot, run `utils.EncodeWebP(payload)` (bimg/libvips, `CGO_ENABLED=1`), release slot. Payload, MIME, filename (`.webp`), and size updated before `uploadToProvider`. Encode failure → `ProviderError{Code: 9017}` → HTTP **503**.
   - For **non-image, non-video CREATE** files: first 16 bytes checked against extension + magic-byte denylist via `utils.IsExecutableUploadRejected`. Match → `ErrExecutableUploadRejected` → HTTP **400** + code **2004**.
 - Persisted rows live in `media_files`: `000003_media_metadata`, `000004_media_orphan_safety` (`row_version`, `content_fingerprint`, `media_pending_cloud_cleanup`), **`000005_media_bunny_response_fields`** (`video_id`, `thumbnail_url`, `embeded_html`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
 - Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal `provider`; **no `origin_url` in JSON** (Sub 12); Bunny parity top-level fields when populated — `docs/modules/media.md`).
 
 ### Media Video Status + Webhook
 - `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
-- Numeric Bunny status is normalized by `helper.BunnyVideoStatus.StatusString()` (`unknown` fallback for unsupported values).
+- Numeric Bunny status is normalized by **`constants.BunnyVideoStatus.StatusString()`** (also callable on **`pkg/media.BunnyVideoStatus`**, which aliases the same type; `unknown` fallback for unsupported values).
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
 - Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); **`ApplyBunnyDetailToMetadata`** refreshes **`video_id` / `thumbnail_url` / `embeded_html`** in JSON and ORM columns; idempotent when DB row missing.
 
@@ -85,12 +85,12 @@
 - `services/taxonomy.DeleteCategory` / `UpdateCategory` → `mediasvc.EnqueueOrphanImageCleanup(url)`.
 - `EnqueueOrphanImageCleanup` (in `services/media/orphan_cleanup.go`):
   1. DB lookup via `repository/media.FileRepository.GetByURL` → uses stored provider/key.
-  2. Fallback: `helper.ParseImageURLForOrphanCleanup` parses URL by pattern (Bunny prefix or B2/CDN prefix from `MediaSetting`).
+  2. Fallback: **`pkg/media.ParseImageURLForOrphanCleanup`** parses URL by pattern (Bunny prefix or B2/CDN prefix from `MediaSetting`).
   3. Inserts `media_pending_cloud_cleanup` row for deferred worker deletion.
-- Future JSONB domains: `helper.ScanJSONBForImageURLs(raw)` collects URLs from nested JSONB payloads before cascade delete.
+- Future JSONB domains: **`pkg/media.ScanJSONBForImageURLs(raw)`** collects URLs from nested JSONB payloads before cascade delete.
 
 ## Persistence Boundaries
-- PostgreSQL via GORM and selected raw SQL (`services/rbac.go`).
+- PostgreSQL via GORM and selected raw SQL (`services/rbac/rbac.go`).
 - Redis optional cache (auth and me payload optimization).
 - SQL migrations via embedded files and `golang-migrate`.
 

@@ -3,9 +3,9 @@
 
 ## Global Type Placement Rule (Mandatory)
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in `pkg/entities` (no `gorm` / `database/sql` there).
+- Types that exist only to satisfy **GORM columns** or **`database/sql/driver`** (`Valuer`/`Scanner`) on `models/*.go` — e.g. refresh JSONB, soft-delete alias — belong in **`pkg/sqlmodel`**, not **`pkg/entities`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
 ## Overview
 
@@ -276,16 +276,17 @@ The following custom headers are whitelisted in the CORS configuration:
 | Concern | Location |
 |---|---|
 | Token generation (access, refresh, session string) | `pkg/token/jwt.go` |
-| Login / ConfirmEmail / RefreshSession business logic | `services/auth.go` |
+| Login / ConfirmEmail / RefreshSession business logic | `services/auth/auth.go` (+ `auth_session_tokens.go`, `auth_refresh_rotation.go`) |
 | Auth middleware (Bearer header only, X-Token-Expired signal) | `middleware/auth_jwt.go` — `requireJWT`, `extractBearerToken` |
 | Cookie issuance (non-HttpOnly, SameSite=Lax) | `api/v1/auth.go` — `setAuthCookies` |
 | Refresh endpoint handler | `api/v1/auth.go` — `refreshToken` |
 | Route registration | `api/v1/routes.go` — `RegisterNotAuthenRoutes` |
 | CORS config (AllowHeaders, ExposeHeaders) | `api/router.go` |
-| Session entry persistence | `models/user.go` — `AddRefreshSession`, `SaveRefreshSession` |
+| Session entry persistence | `repository/user_refresh_session.go` — `AddRefreshSession`, `SaveRefreshSession` (called from `services/auth/auth_session_tokens.go` / `services/auth/auth_refresh_rotation.go`) |
 | Redis keys + TTL | `services/cache/auth_user.go` |
-| Session limit constant (`MaxActiveSessions = 5`) | `models/user.go` |
-| Token TTL constants | `services/auth.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` |
+| Session limit constant (`MaxActiveSessions = 5`) | `constants/user_session.go` |
+| JSONB session map types (`RefreshTokenSessionMap`, `RefreshSessionEntry`) + `DeletedAt` alias | `pkg/sqlmodel` (`refresh_session.go`, `deleted_at.go`) |
+| Token TTL constants | `constants/auth_token.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` (used by `services/*` and `api/v1/auth.go` cookie max-age) |
 | DB schema / sessions column | `migrations/000001_schema.up.sql` |
 
 ---

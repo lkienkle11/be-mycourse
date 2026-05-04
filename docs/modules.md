@@ -14,15 +14,15 @@
 - If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
 
 ## Implemented Modules
-- **Auth module** (`api/v1/auth.go`, `services/auth.go`, `pkg/token`):
+- **Auth module** (`api/v1/auth.go`, `services/auth/`, `pkg/token`):
   - Register/login/confirm/refresh lifecycle.
 - **User self module** (`api/v1/me.go`):
   - Profile and permission introspection for current user.
-- **RBAC admin module** (`api/v1/internal/*`, `services/rbac.go`):
+- **RBAC admin module** (`api/v1/internal/*`, `services/rbac/`):
   - Internal CRUD for permissions/roles/user grants.
-- **System operations module** (`api/system/routes.go`, `internal/jobs`, `internal/rbacsync`):
-  - Privileged login, sync-now, and scheduler management.
-- **Taxonomy module** (`api/v1/taxonomy/*`, `services/taxonomy/*`, `repository/taxonomy/*`, `models/taxonomy_*.go`, `dto/taxonomy_*.go`):
+- **System operations module** (`api/system/routes.go`, `internal/appdb`, `internal/jobs`, `internal/rbacsync`):
+  - Privileged login, sync-now, and scheduler management (`api/system` uses **`internal/appdb.Conn()`** so **`api/`** does not import **`models`**).
+- **Taxonomy module** (`api/v1/taxonomy/*`, `services/taxonomy/*`, `repository/taxonomy/*`, **`pkg/taxonomy/`** (`NormalizeTaxonomyStatus`), `models/taxonomy_*.go`, `dto/taxonomy_*.go`):
   - CRUD and list/filter for `course_levels`, `categories`, `tags`.
   - Uses shared list parsing helper (`pkg/query/filter_parser.go`) and shared request helpers (`pkg/requestutil/params.go`).
   - Uses permission middleware with taxonomy-specific RBAC entries (`P14`-`P25`).
@@ -30,17 +30,17 @@
   - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`, plus `GET /media/videos/:id/status` and public `POST /webhook/bunny`.
   - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
   - Provider source-of-truth is server config (`setting.MediaSetting.AppMediaProvider`), not client request payload/query.
-  - Uses `pkg/logic/helper/media_resolver.go` for kind/provider **and** Bunny **`video_id` / thumbnail / embed** policy; `pkg/media` is HTTP/SDK only; service layer remains orchestration-only.
-  - Uses `helper.DefaultMediaProvider` from `pkg/logic/helper/media_metadata.go`; service no longer owns provider default helper.
-  - Generic metadata parsing primitives (and related `ParseBoolLoose` / `ContentFingerprint`) are in `pkg/logic/utils/parsing.go` and reused by media helper / service.
+  - Uses **`pkg/media`** for provider HTTP/SDK **and** domain policy (`media_resolver.go`, `media_metadata.go`, multipart bind, orphan helpers, …); **`services/media`** remains orchestration-only.
+  - Uses **`pkg/media.DefaultMediaProvider`** from `media_metadata.go`; service does not own provider default selection.
+  - Generic metadata parsing primitives (and related `ParseBoolLoose` / `ContentFingerprint`) are in `pkg/logic/utils/parsing.go` and reused by **`pkg/media`** / service.
   - Uses mapper helpers in `pkg/logic/mapping` so handlers always return DTO (`dto.UploadFileResponse`) instead of raw entity.
-  - Uses helper `pkg/logic/helper/DecodeLocalURLToken` for local token decode (no non-CRUD decode utility in service layer).
+  - Uses **`pkg/media.DecodeLocalURLToken`** for local token decode (no non-CRUD decode utility in service layer).
   - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.
-  - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go` after `setting.Setup()`, using `NewCloudClientsFromSetting` (`pkg/media/clients.go`) and `setting.MediaSetting` for B2 / Gcore / Bunny Storage.
+  - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go` after `setting.Setup()`, using `NewCloudClientsFromSetting` (`pkg/media/clients_setting_attach.go`) and `setting.MediaSetting` for B2 / Gcore / Bunny Storage.
   - Persists `media_files` (Sub 09 columns `video_id`, `thumbnail_url`, `embeded_html` + JSON metadata keys) and syncs create/update/delete + webhook (duration + Bunny parity fields). See `docs/database.md`, `migrations/README.md`.
   - DB model<->entity mapping is handled in `pkg/logic/mapping/media_model_mapping.go` (not inside service layer).
   - Uses permission middleware with media RBAC entries (`P26`-`P29`).
-  - Converts Bunny numeric video status to stable API strings via `pkg/logic/helper/bunny_video_status.go`; webhook literal `constants.FinishedWebhookBunnyStatus` in `constants/bunny_video.go`.
+  - Converts Bunny numeric video status to stable API strings via `pkg/media/bunny_video_status.go`; webhook literal `constants.FinishedWebhookBunnyStatus` in `constants/bunny_video.go`.
   - Enforces **2 GiB** max per uploaded `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); handler + service guards; HTTP **413** + `errcode.FileTooLarge` (**2003**) on violation (see `docs/modules/media.md`, `docs/deploy.md` for proxy sizing).
 
 ## Planned But Not Implemented (per docs/modules)

@@ -44,7 +44,7 @@
 
 ### FR-1 Authentication
 
-> **Source:** `services/auth.go`, `api/v1/auth.go`, `api/v1/routes.go`
+> **Source:** `services/auth/auth.go`, `api/v1/auth.go`, `api/v1/routes.go`
 
 #### FR-1.1 User Registration
 
@@ -132,7 +132,7 @@
 
 ### FR-2 User Profile
 
-> **Source:** `api/v1/me.go`, `services/auth.go`, `services/cache/auth_user.go`
+> **Source:** `api/v1/me.go`, `services/auth/auth.go`, `services/cache/auth_user.go`
 
 #### FR-2.1 Get My Profile (`GET /api/v1/me`)
 
@@ -169,7 +169,7 @@
 
 ### FR-3 Role-Based Access Control (RBAC)
 
-> **Source:** `services/rbac.go`, `models/rbac.go`, `constants/permissions.go`, `constants/roles.go`, `constants/roles_permission.go`
+> **Source:** `services/rbac/rbac.go`, `models/rbac.go`, `constants/permissions.go`, `constants/roles.go`, `constants/roles_permission.go`
 
 #### FR-3.1 Permission Catalog
 
@@ -275,7 +275,7 @@
 
 ### FR-6 Internal RBAC HTTP API
 
-> **Source:** `api/v1/internal/rbac_handler.go`, `api/v1/internal/routes.go`, `api/v1/routes.go`, `services/rbac.go`  
+> **Source:** `api/v1/internal/rbac_handler.go`, `api/v1/internal/routes.go`, `api/v1/routes.go`, `services/rbac/rbac.go`  
 > **Auth:** `X-API-Key` header (via `middleware.RequireInternalAPIKey`)
 
 All endpoints under `/api/internal-v1/rbac/` are protected by an internal API key and intended for back-office tooling, not end-user clients.
@@ -367,7 +367,7 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 - The system **MUST** persist media cloud metadata in local DB (`media_files`) after successful create/update/delete sync while keeping provider upload execution in cloud services.
 - The system **MUST** select provider from server configuration (`setting.MediaSetting.AppMediaProvider`), not client request fields.
 - The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
-- The system **MUST** keep feature-specific helpers in `pkg/logic/helper` and generic reusable primitives in `pkg/logic/utils`.
+- The system **MUST** keep **media** feature helpers in **`pkg/media`**, **taxonomy** helpers in **`pkg/taxonomy`**, transport param helpers in **`pkg/requestutil`**, and generic reusable primitives in **`pkg/logic/utils`**. The former **`pkg/logic/helper`** tree **MUST NOT** be reintroduced.
 - The system **MUST** restrict direct runtime `os.Getenv` reads in media runtime paths and use `setting.MediaSetting` as source-of-truth after `setting.Setup()`.
 - The system **MUST** expose Bunny Stream parity fields on successful media responses when available: **`video_id`**, **`thumbnail_url`**, **`embeded_html`** on `dto.UploadFileResponse`, persisted on **`media_files`** (migration **`000005_media_bunny_response_fields`**) and in **`metadata_json`** using keys from **`constants/media_meta_keys.go`** — see **`docs/modules/media.md`**.
 - The system **MUST** reject a single uploaded file larger than **2 GiB** (`2×1024×1024×1024` bytes) on media create/update (handler + service), returning HTTP **413** and application code **2003** (`FileTooLarge`). The byte cap and the **single** oversize message constant **`constants.MsgFileTooLargeUpload`** **MUST** live in **`constants/error_msg.go`** and **MUST** be the same string used for the default JSON `message` for `FileTooLarge` in `pkg/errcode/messages.go` and for `pkg/errors.ErrFileExceedsMaxUploadSize` (no duplicate literals). See `docs/architecture.md` directory map. Deployment **MUST** configure reverse proxies / load balancers with a body limit **at least** that large on API routes so requests are not dropped before the application (see `docs/deploy.md`).
@@ -493,8 +493,8 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 #### NFR-3.2.2 Helper vs Util Placement
 
 - Cross-feature generic logic/functions (e.g. parse/url/normalize/general transformers) **MUST** be implemented under `pkg/logic/utils`.
-- Feature-specific logic/functions (e.g. domain processing helpers such as decode/process flows tied to one module) **MUST** be implemented under `pkg/logic/helper`.
-- For functions created inside `services/*` / `repository/*`: if the logic is standalone or expected to be reused/expanded, it **MUST** be extracted to `pkg/logic/utils` (generic) or `pkg/logic/helper` (feature-specific).
+- Feature-specific logic tied to **media** (resolver, metadata, multipart bind, orphan URL policy, …) **MUST** live under **`pkg/media`** (not under `pkg/logic/*`). Feature-specific logic tied to **taxonomy** **MUST** live under **`pkg/taxonomy`** when small and shared by `services/taxonomy`.
+- For functions created inside `services/*` / `repository/*`: if the logic is standalone or expected to be reused/expanded, it **MUST** be extracted to `pkg/logic/utils` (generic), **`pkg/media`** (media domain), **`pkg/taxonomy`** (taxonomy), or **`pkg/requestutil`** (HTTP parsing), as appropriate.
 
 #### NFR-3.3 Structured Logging
 

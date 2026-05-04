@@ -78,7 +78,7 @@ Two upload policies:
 | `ImageEncodeBusy` (9017) | `errcode` | `pkg/errcode/codes.go` |
 | `ErrExecutableUploadRejected` | `errors` | `pkg/errors/media_errors.go` |
 | `ErrImageEncodeBusy` | `errors` | `pkg/errors/media_errors.go` |
-| `IsImageMIMEOrExt` | `helper` | `pkg/logic/helper/media_resolver.go` |
+| `IsImageMIMEOrExt` | `pkg/media` | `pkg/media/media_resolver.go` |
 | `IsExecutableUploadRejected` | `utils` | `pkg/logic/utils/executable_check.go` |
 | `EncodeWebP` (cgo) | `utils` | `pkg/logic/utils/webp_encode.go` |
 | `EncodeWebP` (stub) | `utils` | `pkg/logic/utils/webp_encode_stub.go` |
@@ -88,7 +88,7 @@ Two upload policies:
 
 - **`webp_encode*.go` and `image_encode_gate.go`** placed in `pkg/logic/utils/` — image transformation is a generic utility with no cloud/domain coupling. `pkg/media/` is HTTP + JSON decode + cloud provider operations only.
 - **`executable_check.go`** placed in `pkg/logic/utils/` — generic security check without domain coupling.
-- **`IsImageMIMEOrExt`** in `pkg/logic/helper/media_resolver.go` — alongside existing MIME/extension resolvers, media-domain scoped.
+- **`IsImageMIMEOrExt`** in `pkg/media/media_resolver.go` — alongside existing MIME/extension resolvers, media-domain scoped.
 
 ### Build / CI changes
 
@@ -125,7 +125,7 @@ Two upload policies:
 | Response DTO | `dto/media_file.go` → `UploadFileResponse` | No `origin_url` key in JSON. |
 | Mapper | `pkg/logic/mapping/media_file_mapping.go` → `ToUploadFileResponse` | Builds `dto.UploadFileResponse` without origin field. |
 | Entity from DB | `pkg/logic/mapping/media_model_mapping.go` → `ToMediaEntity` | Maps DB `origin_url` into `entities.File` (internal). |
-| Entity from upload | `pkg/logic/helper/media_upload_entity.go` → `BuildMediaFileEntityFromUpload` | Copies `Uploaded.OriginURL` into entity for persist. |
+| Entity from upload | `pkg/media/media_upload_entity.go` → `BuildMediaFileEntityFromUpload` | Copies `Uploaded.OriginURL` into entity for persist. |
 | Synthetic GET | `services/media/file_service.go` → `GetFile` (not-in-DB path) | May set entity `OriginURL` internally; not exposed on public DTO. |
 | Provider upload result | `pkg/media/clients.go` | `entities.ProviderUploadResult.OriginURL` — not a client DTO. |
 
@@ -145,7 +145,7 @@ Semantics: **no** `origin_url` in public media JSON; DB column still stores orig
 
 ## Phase Sub 09 — Bunny `UploadFileResponse` parity (docs + contract sync)
 
-**Scope:** Public JSON / OpenAPI / all docs that describe `dto.UploadFileResponse` or `media_files` **must** list optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling `embeded_html`), migration **`000005_media_bunny_response_fields`**, keys in **`constants/media_meta_keys.go`**, and helper policy in **`pkg/logic/helper/media_resolver.go`** (`ApplyBunnyDetailToMetadata`, …). Upload path: optional `GetBunnyVideoByID` after Bunny PUT; webhook refreshes on finished.
+**Scope:** Public JSON / OpenAPI / all docs that describe `dto.UploadFileResponse` or `media_files` **must** list optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling `embeded_html`), migration **`000005_media_bunny_response_fields`**, keys in **`constants/media_meta_keys.go`**, and helper policy in **`pkg/media/media_resolver.go`** (`ApplyBunnyDetailToMetadata`, …). Upload path: optional `GetBunnyVideoByID` after Bunny PUT; webhook refreshes on finished.
 
 **Doc files touched in full sync:** `docs/modules/media.md`, `docs/patterns.md`, `docs/return_types.md`, `docs/api_swagger.yaml`, `docs/reusable-assets.md`, `docs/data-flow.md`, `docs/api-overview.md`, `docs/modules.md`, `docs/architecture.md`, `docs/database.md`, `docs/curl_api.md`, `docs/requirements.md` (FR-11), `docs/router.md`, `migrations/README.md`, `README.md`, this file.
 
@@ -153,7 +153,7 @@ Semantics: **no** `origin_url` in public media JSON; DB column still stores orig
 
 ## Phase Sub 10 — Cloud SDK init from `MediaSetting` (tasks 01–06, 2026-05-01)
 
-**Scope:** `pkg/media/clients.go` — **`NewCloudClientsFromSetting`** (replaces **`NewCloudClientsFromEnv`**) wires Backblaze B2, Gcore CDN API client, and Bunny **Storage** (not Stream) from **`setting.MediaSetting`** after `setting.Setup()` loads `config/app*.yaml` (including `${MEDIA_*}` placeholders from `.env`). **This constructor does not call `os.Getenv`** for those providers.
+**Scope:** `pkg/media/clients_setting_attach.go` (same package as `clients.go`) — **`NewCloudClientsFromSetting`** (replaces **`NewCloudClientsFromEnv`**) wires Backblaze B2, Gcore CDN API client, and Bunny **Storage** (not Stream) from **`setting.MediaSetting`** after `setting.Setup()` loads `config/app*.yaml` (including `${MEDIA_*}` placeholders from `.env`). **This constructor does not call `os.Getenv`** for those providers.
 
 **Field map (`config/app.yaml` keys → `MediaSetting` → use):**
 
@@ -213,7 +213,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - External/3rd-party URLs (not matching configured CDN/Bunny) are silently skipped (no-op).
 
 ### JSONB/nested skeleton (Task 07) ✅
-- `pkg/logic/helper/media_jsonb_scan.go`: `ScanJSONBForImageURLs(raw []byte) []string` — recursive walker that collects values under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
+- `pkg/media/media_jsonb_scan.go`: `ScanJSONBForImageURLs(raw []byte) []string` — recursive walker that collects values under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
 - Future lesson/quiz domain: call `ScanJSONBForImageURLs(row.ContentJSON)` before cascade delete, then `mediasvc.EnqueueOrphanImageCleanup` for each URL. See TODO comment in the file.
 
 ### Transaction + compensation policy (Task 08) ✅
@@ -237,7 +237,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - `gitnexus_detect_changes` to be run pre-commit.
 
 ### Files reference (Sub 07)
-- Helpers: `pkg/logic/helper/media_url_orphan.go`, `pkg/logic/helper/media_jsonb_scan.go`
+- Helpers: `pkg/media/media_url_orphan.go`, `pkg/media/media_jsonb_scan.go`
 - Service: `services/media/orphan_cleanup.go`
 - Repository: `repository/media/file_repository.go` (added `GetByURL`)
 - Modified services: `services/taxonomy/category_service.go`
@@ -329,12 +329,12 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ## Phase Sub 04 — B2/CDN URL, object keys, Bunny split + provider errcodes (tasks 01–10, 2026-04-27)
 
 ### Task 01 — Đầu / Giữa / Cuối (baseline + scope) ✅
-- **Đầu:** Re-read `AGENTS.md`, `docs/patterns.md`, `docs/modules/media.md`, Sub04 intent: align with project layout (constants → errcode; media-specific keys in `pkg/logic/helper`; generic URL + random in `pkg/logic/utils`; tests under `tests/` only for this slice).
+- **Đầu:** Re-read `AGENTS.md`, `docs/patterns.md`, `docs/modules/media.md`, Sub04 intent: align with project layout (constants → errcode; media-specific keys in **`pkg/media`**; generic URL + random in `pkg/logic/utils`; tests under `tests/` only for this slice).
 - **Giữa:** Reference docs confirmed at `temporary-docs/chuc-nang-upload/openedu-core-arch.md` (§4.2/§5.5/§5.7) and `temporary-docs/chuc-nang-upload/chuc-nang-bo-sung.md`. Five baseline groups locked: (1) CDN URL `<cdn>/<bucket>/<key>` via `JoinURLPathSegments`; (2) B2 bucket from `setting.MediaSetting.B2Bucket` (not hardcoded); (3) 8-digit prefix for B2 objects only; (4) Bunny 2-step pipeline (CreateVideo POST + UploadContent PUT) — **poll/webhook (openedu-core §5.2/§5.7) deferred to tasks 11–20** per task scope ("2 bước" in task 09); (5) `VideoMetadata` entity has BunnyVideoID/LibraryID/Duration/VideoProvider.
 - **Cuối:** This section is the authoritative task checklist for Sub04; implementation matches rows below.
 
 ### Task 02 — Đầu / Giữa / Cuối (inventory) ✅
-- **Đầu:** Touch list: `pkg/media/clients.go`, `pkg/errors/provider_error.go`, `services/media/file_service.go`, `api/v1/media/file_handler.go`, `pkg/logic/helper/media_upload_keys.go`, `pkg/logic/helper/media_metadata.go`, `pkg/logic/utils/url.go`, `pkg/logic/utils/random.go`, `pkg/entities/file.go`, `pkg/errcode/{codes,messages}.go`, `constants/error_msg.go`, five `.env*.example`, `tests/sub04_media_pipeline_test.go`, `docs/modules/media.md`.
+- **Đầu:** Touch list: `pkg/media/clients.go`, `pkg/errors/provider_error.go`, `services/media/file_service.go`, `api/v1/media/file_handler.go`, `pkg/media/media_upload_keys.go`, `pkg/media/media_metadata.go`, `pkg/logic/utils/url.go`, `pkg/logic/utils/random.go`, `pkg/entities/file.go`, `pkg/errcode/{codes,messages}.go`, `constants/error_msg.go`, five `.env*.example`, `tests/sub04_media_pipeline_test.go`, `docs/modules/media.md`.
 - **Giữa:** GitNexus `impact` on `UploadB2` / `CreateFile` / `UploadBunnyVideo` → LOW blast radius (orchestration + single handler). `api/router.go` webhook group noted in inventory; implementation deferred to tasks 11–20.
 - **Cuối:** No tests added under `pkg/logic/utils` (module tests live in `tests/`).
 
@@ -354,12 +354,12 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 ### Task 07 — Eight random digits (B2 key prefix) ✅
 - **Đầu:** Cryptographic decimal digits, length 8, using `crypto/rand`.
-- **Giữa:** `pkg/logic/utils.GenerateRandomDigits`; `helper.BuildB2ObjectKey` = `digits + "-" + sanitized filename` (B2 only). Bunny path uses empty objectKey (filename becomes title, GUID returned from API).
+- **Giữa:** `pkg/logic/utils.GenerateRandomDigits`; `pkg/media.BuildB2ObjectKey` = `digits + "-" + sanitized filename` (B2 only). Bunny path uses empty objectKey (filename becomes title, GUID returned from API).
 - **Cuối:** `TestGenerateRandomDigits`: n=8, length check, all-digit check, 20-sample uniqueness check. PASS.
 
 ### Task 08 — Resolve upload object key in service ✅
 - **Đầu:** Bunny default key remains empty until API returns GUID; local keeps nano-based key; explicit `object_key` still wins.
-- **Giữa:** `helper.ResolveMediaUploadObjectKey` used from `CreateFile`; B2 path → `BuildB2ObjectKey`; Bunny path → `""` (Bunny self-generates GUID); Local path → nano-based. `uploadToProvider` routes correctly per provider.
+- **Giữa:** `pkg/media.ResolveMediaUploadObjectKey` used from `CreateFile`; B2 path → `BuildB2ObjectKey`; Bunny path → `""` (Bunny self-generates GUID); Local path → nano-based. `uploadToProvider` routes correctly per provider.
 - **Cuối:** `uploadToProvider` receives correct key per provider; `TestResolveMediaUploadObjectKey_byProvider` PASS.
 
 ### Task 09 — Bunny Stream create vs upload ✅
@@ -381,6 +381,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `StatusString() string`
   - `FinishedWebhookBunnyStatus = 4`
 - Added full-case unit tests (including invalid -> `unknown`) in `tests/sub04_media_pipeline_test.go`.
+- **Superseded layout (current tree):** enum + `StatusString()` live in **`constants/bunny_video_status.go`**; **`pkg/media/bunny_video_status.go`** is a type alias; **`FinishedWebhookBunnyStatus`** is tied to **`BunnyFinished`** in **`constants/bunny_video.go`** (ruleguard: no package-level `const (` under `pkg/media` except via `constants/`).
 
 ### Task 12 ✅
 - Added endpoint: `GET /api/v1/media/videos/:id/status`.
@@ -411,7 +412,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
     - `Width`, `Height`, `Duration`, `Bitrate`, `FPS`, `VideoCodec`, `AudioCodec`, `HasAudio`, `IsHDR`.
 
 ### Task 16 ✅
-- Updated `helper.BuildTypedMetadata` for `kind=video`:
+- Updated `pkg/media.BuildTypedMetadata` for `kind=video`:
   - reads Bunny metadata keys (`length`, `width`, `height`, `framerate`, etc.).
   - missing data stays zero-value (no fabricated values).
 - Updated `mapping.ToUploadFileResponse` to include top-level video fields from `entities.File`.
@@ -479,8 +480,8 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 ### Scope completed for tasks 01->10 in this cycle
 - Re-ran baseline/context/doc refresh and GitNexus indexing/status before edits.
-- Moved `defaultMediaProvider` out of `services/media/file_service.go` into helper layer (`pkg/logic/helper/media_metadata.go`) as `DefaultMediaProvider`.
-- Moved generic functions out of `pkg/logic/helper/media_metadata.go` into util layer (`pkg/logic/utils/parsing.go`; later additions include `ParseBoolLoose`, `ContentFingerprint`):
+- Moved `defaultMediaProvider` out of `services/media/file_service.go` into **`pkg/media/media_metadata.go`** as `DefaultMediaProvider`.
+- Moved generic functions out of `pkg/media/media_metadata.go` into util layer (`pkg/logic/utils/parsing.go`; later additions include `ParseBoolLoose`, `ContentFingerprint`):
   - `DetectExtension`
   - `ImageSizeFromPayload`
   - `StringFromRaw`
@@ -488,7 +489,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `FloatFromRaw`
   - `NonEmpty`
 - Updated media metadata helper to consume util primitives and remain media-feature focused.
-- Updated `services/media/file_service.go` call-sites to use `helper.DefaultMediaProvider(...)` (service no longer owns default-provider helper).
+- Updated `services/media/file_service.go` call-sites to use `pkg/media.DefaultMediaProvider(...)` (service no longer owns default-provider helper).
 - Refactored `pkg/media/clients.go` runtime config reads to `setting.MediaSetting` after `setting.Setup()`:
   - `UploadLocal`, `UploadB2`, `UploadBunnyVideo`, `DeleteBunnyVideo`, `BuildPublicURL`
   - (Superseded by Phase Sub 10) `NewCloudClientsFromEnv` env-only SDK init → **`NewCloudClientsFromSetting`** uses `MediaSetting` for B2/Gcore/Bunny Storage.
@@ -746,7 +747,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
     - `dto.BaseFilter`, response/error stack, permission middleware, `pkg/query/filter_parser.go`
   - Nếu thiếu reusable asset:
     - tạo mới ở `pkg/policy/course_policy.go` (shared policy layer);
-    - service chỉ gọi policy + repository, không chứa reusable policy helper.
+    - service chỉ gọi policy + repository, không nhét reusable policy vào tầng service (dùng `pkg/policy` hoặc gói domain tương ứng).
 
 #### Phase 03 - Course edits/versioning (draft/edit lifecycle)
 - **Files to add (planned):**
@@ -1040,7 +1041,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 - Re-synced canonical docs to match final media architecture:
   - startup SDK init in `pkg/media.Setup()` (no runtime lazy constructor in service)
-  - runtime dependency check via `pkg/logic/helper/runtime_guard.go`
+  - runtime dependency check via `pkg/media/runtime_guard.go`
   - no DB persistence for media resources
 - Updated files:
   - `README.md`
@@ -1080,7 +1081,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `parsePermissionIDParam(...)`
 - Updated all call-sites in the same file to call shared helpers directly:
   - `utils.ParseUintPathParam(...)`
-  - `helper.ParsePermissionIDParam(...)`
+  - `requestutil.ParsePermissionIDParam(...)` *(later: `pkg/requestutil/params.go` — was `pkg/logic/helper/permission.go`.)*
 - This keeps one source of truth and avoids thin pass-through wrappers.
 
 ### Risk handling note
@@ -1103,7 +1104,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Task 02 + Task 03 (redefined for this cycle) - Extract repeated param parsing logic
 - User-requested logic from old `api/v1/internal_rbac.go` was extracted and reused in current internal module:
   - uint path param parser -> `pkg/logic/utils/params.go` (`ParseUintPathParam`)
-  - permission id parser -> `pkg/logic/helper/permission.go` (`ParsePermissionIDParam`)
+  - permission id parser -> `pkg/requestutil/params.go` (`ParsePermissionIDParam`)
 - Refactored internal RBAC handlers to use shared helpers:
   - `api/v1/internal/rbac_handler.go`
 - Refactored existing shared request util to delegate to new common parser:
@@ -1282,15 +1283,15 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Resolver relocation and service cleanup
 - Moved resolver logic out of service layer:
   - removed `resolveKind` and `resolveProvider` from `services/media/file_service.go`
-  - added shared helpers in `pkg/logic/helper/media_resolver.go`:
+  - added shared helpers in `pkg/media/media_resolver.go`:
     - `ResolveMediaKind(...)`
     - `ResolveMediaProvider(...)`
-- Updated media service call-sites to use helper resolvers.
-- Service layer remains orchestration-only; no util/helper media resolution logic remains in `services/media`.
+- Updated media service call-sites to use **`pkg/media`** resolvers.
+- Service layer remains orchestration-only; no util or media resolution logic remains in `services/media`.
 
 ### Verification and quality gates
 - Ran full formatting/build/test gate:
-  - `gofmt -w services/media/file_service.go pkg/logic/helper/media_resolver.go`
+  - `gofmt -w services/media/file_service.go pkg/media/media_resolver.go`
   - `go test ./...`
   - `go build ./...`
 - Lint status for edited files: clean.
@@ -1305,7 +1306,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `docs/modules.md`
   - `docs/reusable-assets.md`
   - this execution plan file
-- Added reusable-assets entry for resolver relocation (`pkg/logic/helper/media_resolver.go`).
+- Added reusable-assets entry for resolver relocation (`pkg/media/media_resolver.go`).
 
 ## Phase Sub 02 RESET Update (2026-04-25 - service tail cleanup)
 
@@ -1316,17 +1317,17 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 - Re-validated media transport contracts and method scope remain unchanged.
 
 ### Core correction requested in this cycle
-- Removed remaining non-orchestration helper functions from `services/media/file_service.go` tail:
+- Removed remaining non-orchestration functions from `services/media/file_service.go` tail:
   - `contextBackground()`
   - `ParseMetadataFromRaw(...)`
-- Replaced service-local context helper calls with direct `context.Background()`.
-- Relocated metadata raw parsing entrypoint to helper layer:
-  - added `helper.ParseMetadataFromRaw(...)` in `pkg/logic/helper/media_metadata.go`.
-- Updated API handler call-sites to use helper directly instead of calling service utility.
+- Replaced service-local `contextBackground()` with direct `context.Background()`.
+- Relocated metadata raw parsing entrypoint to **`pkg/media`**:
+  - added `pkg/media.ParseMetadataFromRaw(...)` in `pkg/media/media_metadata.go`.
+- Updated API handler call-sites to call **`pkg/media.ParseMetadataFromRaw`** directly instead of going through the service.
 
 ### Verification
 - Executed:
-  - `gofmt -w pkg/logic/helper/media_metadata.go services/media/file_service.go api/v1/media/file_handler.go`
+  - `gofmt -w pkg/media/media_metadata.go services/media/file_service.go api/v1/media/file_handler.go`
   - `go test ./...`
   - `go build ./...`
 - Lint diagnostics on touched files: clean.
@@ -1361,7 +1362,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `api/v1/media/file_handler.go`
   - `api/v1/routes.go` (media route mount)
 - Security utility:
-  - `pkg/logic/helper/local_url_codec.go`
+  - `pkg/media/local_url_codec.go`
 - RBAC extension:
   - `constants/permissions.go` (`P26`-`P29`)
   - `constants/roles_permission.go` (role mapping for `P26`-`P29`)
@@ -1398,7 +1399,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - new `constants/media.go` contains `FileProvider`, `FileKind`, `FileStatus`
 - Kept `pkg/entities/file.go` as pure descriptor type only (no util/scan/value logic).
 - Moved metadata normalization/parsing to helpers:
-  - `pkg/logic/helper/media_metadata.go`
+  - `pkg/media/media_metadata.go`
 - Moved service-local types out of provider logic file:
   - `services/media/types.go`
 
@@ -1429,8 +1430,8 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 ### Core correction
 - Taxonomy status string normalization must not live under `services/taxonomy` as a shared util file.
-- Added `helper.NormalizeTaxonomyStatus` in `pkg/logic/helper/taxonomy_status.go` (same layer pattern as media resolvers/metadata).
-- Updated `services/taxonomy/category_service.go`, `course_level_service.go`, and `tag_service.go` to call the helper.
+- **Current (2026-05):** `NormalizeTaxonomyStatus` lives in **`pkg/taxonomy/status.go`**; `services/taxonomy` imports that package. *(Historical note: was briefly under `pkg/logic/helper/taxonomy_status.go`, then consolidated out of `pkg/logic/`.)*
+- Updated `services/taxonomy/category_service.go`, `course_level_service.go`, and `tag_service.go` to call **`pkg/taxonomy.NormalizeTaxonomyStatus`** (import package `mycourse-io-be/pkg/taxonomy`).
 - Removed `services/taxonomy/common.go`.
 
 ### Verification
@@ -1440,7 +1441,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Documentation sync
 - Updated `docs/data-flow.md`, `docs/reusable-assets.md` (new asset + corrected media metadata usage line), and this file.
 
-## Phase Sub 02 RESET Update (2026-04-26 - metadata typing + helper placement)
+## Phase Sub 02 RESET Update (2026-04-26 - metadata typing + `pkg/media` placement)
 
 ### Scope completed for tasks 01->10
 - Re-ran reset baseline:
@@ -1453,7 +1454,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 ### Core implementation in this cycle
 - Refactored non-CRUD decode utility out of service layer:
   - removed `DecodeLocalURLToken` from `services/media/file_service.go`
-  - added/reused helper placement at `pkg/logic/helper/local_url_codec.go` (`DecodeLocalURLToken`).
+  - added/reused implementation at `pkg/media/local_url_codec.go` (`DecodeLocalURLToken`).
 - Extended media entity metadata model:
   - `pkg/entities/file.go` now includes base `FileMetadata` plus typed metadata structs:
     - `ImageMetadata`
@@ -1462,11 +1463,11 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
   - `VideoMetadata` includes required fields:
     - `duration`, `thumbnail_url`, `bunny_video_id`, `bunny_library_id`, `size`, `width`, `height`.
 - Implemented backend metadata inference flow:
-  - `services/media/file_service.go` reads payload once, uploads by provider, and maps response metadata through helper inference.
-  - `pkg/logic/helper/media_metadata.go` adds typed inference helper (`BuildTypedMetadata`) and keeps raw parse helpers.
+  - `services/media/file_service.go` reads payload once, uploads by provider, and maps response metadata through **`pkg/media`** inference.
+  - `pkg/media/media_metadata.go` adds typed inference (`BuildTypedMetadata`) and keeps raw parse helpers.
   - `pkg/media/clients.go` now enriches Bunny metadata with `bunny_video_id` and `bunny_library_id`.
-- Updated media handler decode flow to call helper directly:
-  - `api/v1/media/file_handler.go` uses `helper.DecodeLocalURLToken`.
+- Updated media handler decode flow to call **`pkg/media`** directly:
+  - `api/v1/media/file_handler.go` uses `pkg/media.DecodeLocalURLToken`.
 
 ### Contract/behavior verification
 - Preserved response envelope/status/error behavior (`pkg/response` and existing handler status codes unchanged).
@@ -1513,7 +1514,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 
 ### Task 04 — API contract (reuse fields) ✅
 - `PUT /api/v1/media/files/:id` multipart: `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`; errors **409** + `errcode.Conflict` on mismatch (`pkg/errors/media_errors.go`).
-- Binding centralized in `pkg/logic/helper/media_multipart.go` (not inlined in handler).
+- Binding centralized in `pkg/media/media_multipart.go` (not inlined in handler).
 
 ### Task 05 — DTO/data types ✅
 - `dto.UpdateFileRequest` extended; `dto.UploadFileResponse` includes `row_version`, `content_fingerprint`; `entities.File` aligned; `mapping/*` wired.
@@ -1560,7 +1561,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 - Models: `models/media_file.go`, `models/media_pending_cloud_cleanup.go`, `dbschema/media_pending_cloud_cleanup.go`
 - Constants: `constants/media_cleanup.go`, `constants/media_meta_keys.go`, `constants/error_msg.go`
 - Errors: `pkg/errors/media_errors.go`
-- Helpers: `pkg/logic/helper/media_metadata_merge.go`, `media_replace_policy.go`, `media_upload_entity.go`, `media_multipart.go`; utils: `pkg/logic/utils/parsing.go` (`ContentFingerprint`); input struct `pkg/entities/media_upload.go`
+- Helpers: `pkg/media/media_metadata_merge.go`, `media_replace_policy.go`, `media_upload_entity.go`, `media_multipart.go`; utils: `pkg/logic/utils/parsing.go` (`ContentFingerprint`); input struct `pkg/entities/media_upload.go`
 - Media delete routing: `pkg/media/stored_object_delete.go`
 - Repo: `repository/media/file_repository.go`, `repository/media/pending_cleanup_repo.go`
 - Services: `services/media/file_service.go`, `pending_cleanup.go`, `cleanup_metrics.go`
@@ -1580,7 +1581,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 - Typed metadata contract:
   - Added `UploadFileMetadata` in `pkg/entities/file.go` and `dto/media_file.go`.
   - `dto.UploadFileResponse.Metadata` is no longer `any`; now typed with explicit fields (`width_bytes`, `height_bytes`, `has_password`, `archive_entries`, etc.) and zero defaults.
-  - `helper.BuildTypedMetadata` returns typed metadata only from server/provider data.
+  - `pkg/media.BuildTypedMetadata` returns typed metadata only from server/provider data.
 - Added tests for mandatory sub08 cases:
   - `tests/sub08_media_server_owned_test.go` verifies client `kind`/`metadata` are ignored, default metadata values when unavailable, and local fallback policy when kind inference is unknown.
 - Quality gate:

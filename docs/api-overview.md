@@ -20,6 +20,8 @@
 
 ## Implemented Endpoint Inventory
 
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — categories, tags, course levels, **`pkg/taxonomy`** (`NormalizeTaxonomyStatus`); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, **`pkg/media`** (resolver, metadata, multipart). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+
 ### `/api/system`
 - `POST /login`
 - `POST /permission-sync-now`

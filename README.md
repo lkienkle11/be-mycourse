@@ -18,7 +18,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 | [`docs/api-overview.md`](docs/api-overview.md) | Full API surface: routes, handlers, request/response shapes |
 | [`docs/logic-flow.md`](docs/logic-flow.md) | Control flow and execution paths for key operations |
 | [`docs/router.md`](docs/router.md) | Routing structure and handler registration |
-| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, helper vs util, tests layout) |
+| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, **`pkg/media`** / **`pkg/taxonomy`** / **`pkg/logic/utils`** layout, tests layout) |
 | [`docs/dependencies.md`](docs/dependencies.md) | Key libraries, frameworks, and their relationships |
 | [`docs/reusable-assets.md`](docs/reusable-assets.md) | All reusable utilities, types, DTOs, error codes, constants |
 | [`docs/database.md`](docs/database.md) | Database schema, tables, migration history |
@@ -28,14 +28,16 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
 | [`docs/modules.md`](docs/modules.md) | Module responsibilities overview — implemented modules, planned modules, ownership boundaries, and testing layout |
 | [`docs/modules/`](docs/modules/) | Per-domain module notes (auth, user, media, taxonomy, rbac, course, lesson, enrollment) |
+| [`docs/modules/media.md`](docs/modules/media.md) | Media module deep-dive (`pkg/media`, webhooks, multipart limits) |
+| [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy module deep-dive (`pkg/taxonomy`, `services/taxonomy`) |
 
 ---
 
 ## Global Type Placement Rule (Mandatory)
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql` imports there — same depguard rule as **`models/*.go`**).
+- GORM/JSONB **column** types used on models (e.g. refresh session JSONB, `DeletedAt` alias) go in **`pkg/sqlmodel`**, not **`pkg/entities`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
 ## Global Constants Placement Rule (Mandatory)
 
@@ -49,7 +51,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | Doc | Contents |
 |-----|----------|
 | [`docs/architecture.md`](docs/architecture.md) | HTTP layers, directory map, `/api/v1` vs internal routes, GitNexus graph snapshot |
-| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, **services file naming** vs `helper_` / `_helper`, helper vs util, tests layout) |
+| [`docs/patterns.md`](docs/patterns.md) | Coding patterns and conventions (errors, constants, **services file naming** vs `helper_` / `_helper`, **`pkg/media`** / **`pkg/taxonomy`** / utils, tests layout) |
 | [`docs/deploy.md`](docs/deploy.md) | VPS + CI/CD runbook |
 | [`docs/database.md`](docs/database.md) | Database schema, tables, migration history |
 | [`docs/requirements.md`](docs/requirements.md) | Functional & non-functional requirements for all features |
@@ -59,6 +61,9 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/modules.md`](docs/modules.md) | Module responsibilities overview — implemented modules, planned modules, ownership boundaries |
 | [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, media, taxonomy, rbac, course, lesson, enrollment) |
 | [`docs/modules/media.md`](docs/modules/media.md) | Media: B2+Gcore+Bunny, `media_files`, **`video_id` / `thumbnail_url` / `embeded_html`**, webhook + status, policy in `media_resolver.go`; **2 GiB**, multipart + proxy (`docs/deploy.md`) |
+| [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy: categories / tags / course levels; shared **`pkg/taxonomy`** (`NormalizeTaxonomyStatus`) + `services/taxonomy` |
+| `pkg/entities/` | Shared **domain** structs (no `gorm` / `database/sql`); depguard **`restrict_models_pkg_entity_schema_only`** — see **`docs/patterns.md`** |
+| `pkg/sqlmodel/` | GORM/JSONB **column** types (**`RefreshTokenSessionMap`**, **`RefreshSessionEntry`**, **`DeletedAt`**) used from **`models/user.go`** — see **`docs/patterns.md`** |
 | [`tests/`](tests/) | **All test code** (unit/module-level/integration) — place test packages, fixtures, and shared harnesses here (see **Testing** below). |
 
 ## Quick Start
@@ -96,6 +101,20 @@ curl http://localhost:8080/api/v1/health
 - **All test code** (including unit, integration, black-box, fixtures, and shared harnesses) **MUST** be placed under repository root **`tests/`**.
 - On-disk pointer: [`tests/README.md`](tests/README.md).
 - Canonical convention text: [`docs/patterns.md`](docs/patterns.md) (mirrored in [`docs/patterns.md`](docs/patterns.md)) and [`docs/requirements.md`](docs/requirements.md) (NFR on test layout).
+
+### Local verification (fmt / vet / test / lint / build)
+
+```bash
+gofmt -w .
+go vet ./...
+go test ./...
+golangci-lint run
+make build-nocgo
+```
+
+`golangci-lint` enables **revive** `file-length-limit` (**300** logical lines per file) and **funlen** (**30** lines / **25** statements per function). Oversized **files** are split by cohesive concern in the same package (see **`docs/patterns.md`**). Some legacy functions still exceed **funlen**; extract small unexported helpers when you touch them, or treat cleanup as a follow-up pass.
+
+Use `make build` when `CGO_ENABLED=1` and `libvips-dev` are available (see Makefile).
 
 ### CI deploy (`master`)
 
@@ -392,7 +411,7 @@ func listUsers(c *gin.Context) {
 - `main.go`: startup flow (settings, db, cache, migrate, bootstrap, queue, router).
 - `api/`: router, route groups (`public`, `api/v1`, `api/internal-v1`), API config.
 - `middleware/`: request interceptor for auth/permission/tenant hooks.
-- `services/`, `services/cache/`, `services/media/`, `dto/`: business layer; `services/cache` holds Redis helpers (e.g. auth `/me` + login invalid cache), and `services/media` orchestrates the unified upload flow for non-video files and videos while shared feature helpers stay under `pkg/logic/helper` and generic cross-feature primitives live in `pkg/logic/utils`. Typed media metadata is inferred in backend (image/video/document), provider is selected from server config (`setting.MediaSetting.AppMediaProvider`), and public media response is mapped via `pkg/logic/mapping` to `dto.UploadFileResponse` (provider is not exposed; **no `origin_url` in JSON** — Sub 12; Bunny parity fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when populated — see `docs/modules/media.md`). `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
+- `services/`, `services/cache/`, `services/media/`, `dto/`: business layer; `services/cache` holds Redis helpers (e.g. auth `/me` + login invalid cache), and `services/media` orchestrates the unified upload flow for non-video files and videos while shared **media** helpers live in **`pkg/media`** (same package as provider clients), taxonomy status normalization in **`pkg/taxonomy`**, and generic cross-feature primitives in **`pkg/logic/utils`**. Typed media metadata is inferred in backend (image/video/document), provider is selected from server config (`setting.MediaSetting.AppMediaProvider`), and public media response is mapped via `pkg/logic/mapping` to `dto.UploadFileResponse` (provider is not exposed; **no `origin_url` in JSON** — Sub 12; Bunny parity fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when populated — see `docs/modules/media.md`). `dto.BaseFilter` is the mandatory base for all GET list query-param DTOs.
 - `models/`, `migrations/`: persistence layer (GORM models + SQL migrations).
 - `pkg/cache_clients/`: Redis client bootstrap (used for auth profile + login negative cache — see `docs/modules/auth.md`).
 - `pkg/entities/file.go`: shared media `File` entity descriptor used by media service responses, including base `FileMetadata` plus typed `ImageMetadata`, `VideoMetadata`, and `DocumentMetadata`.

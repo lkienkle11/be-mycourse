@@ -63,22 +63,24 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 |------|------|
 | `main.go` | Process entry: settings, DB, cache, migrate flag, bootstrap, queues, router, listen on `setting.ServerSetting.Port` (default **8080**). |
 | `api/router.go` | Gin engine, global middleware, `/api/system`, `/api/v1`, `/api/internal-v1` groups. |
-| `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). |
+| `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). Handlers use **`internal/appdb.Conn()`** (wired from `main` after `models.Setup`); **`api/`** does not import **`models`** or **`gorm.io/gorm`** (depguard `restrict_api`). |
 | `api/v1/` | Versioned handlers and route modules: `auth.go`, `me.go`, `routes.go`, `taxonomy/*`, `internal/*`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
-| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and put shared helpers under `pkg/logic/helper` or `pkg/logic/utils` (see `docs/patterns.md`). Media service enforces server-owned upload contracts (kind/provider/metadata inference). |
-| `internal/jobs/` | In-memory 12h RBAC sync tickers started/stopped via `/api/system` (not env-gated). |
+| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and delegate reusable pieces to **`pkg/media`**, **`pkg/taxonomy`**, **`pkg/logic/utils`**, or **`pkg/requestutil`** (see `docs/patterns.md`). Media service enforces server-owned upload contracts (kind/provider/metadata inference). |
+| `internal/jobs/` | In-memory 12h RBAC sync tickers (`rbac_sync_schedulers.go`, `interval_sync_loop.go`) started/stopped via `/api/system` (not env-gated). |
 | `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
 | `models/` | GORM models and DB setup (`setup.go`, taxonomy models, …). |
 | `migrations/` | Versioned SQL migrations (embedded / migrate tooling). |
 | `pkg/response` | Unified `{ code, message, data }` (and health shape). |
-| `pkg/errors` | Shared functional/sentinel errors and typed feature errors (e.g. provider errors, upload sentinel errors). New reusable `Err*` and typed errors must be declared here, then imported by handlers/services/repositories. |
+| `pkg/errors` | Shared functional/sentinel errors and typed feature errors (e.g. provider errors, upload sentinel errors). New reusable `Err*` and typed errors must be declared here, then imported by handlers, services, and `repository/`. |
 | `pkg/errcode` | Application error codes. |
 | `pkg/httperr` | Gin middleware for errors and panic recovery. |
 | `pkg/setting` | YAML config with per-stage files and `.env` substitution. |
 | `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
-| `pkg/media/` | Provider HTTP/SDK adapters (Local/B2/Bunny). **`NewCloudClientsFromSetting`** wires B2 / Gcore / Bunny Storage from **`setting.MediaSetting`** at startup (`pkg/media/setup.go` after `setting.Setup()`). **Bunny `video_id` / thumbnail / embed HTML policy** lives in `pkg/logic/helper/media_resolver.go` (`ApplyBunnyDetailToMetadata`, …), not as duplicate logic in clients. |
+| `pkg/media/` | Media provider HTTP/SDK (`clients.go`, `clients_setting_attach.go` for `NewCloudClientsFromSetting`, `setup.go`, …) **and** domain helpers in the same package (`media_resolver.go`, `media_metadata.go`, `media_multipart.go`, orphan cleanup URL helpers, local URL codec, `RequireInitialized`, …). **`NewCloudClientsFromSetting`** wires B2 / Gcore / Bunny Storage from **`setting.MediaSetting`** at startup. **Bunny `video_id` / thumbnail / embed HTML policy** lives in `media_resolver.go` — do not duplicate in callers. |
+| `pkg/taxonomy/` | Taxonomy-only helpers (e.g. `NormalizeTaxonomyStatus` in `status.go`). |
+| `pkg/logic/mapping/`, `pkg/logic/utils/` | Model ↔ entity mapping and generic cross-feature primitives. **`pkg/logic/helper/` was removed** — do not reintroduce. |
 | `config/` | System bootstrap (`InitSystem`, default configs). |
 | `pkg/cache_clients/` | Redis client wiring. |
 | `queues/` | Async consumer placeholder. |
@@ -146,7 +148,7 @@ RBAC administration (permissions, roles, user-role and user-direct-permission as
 | [`docs/curl_api.md`](curl_api.md) | Complete API reference with cURL examples and Postman scripts. |
 | [`docs/modules/auth.md`](modules/auth.md) | Auth service and cache behaviour. |
 | [`docs/modules/user.md`](modules/user.md) | User profile endpoints — `GET /me`, `GET /me/permissions`. |
-| [`docs/modules/media.md`](modules/media.md) | Media upload: cloud gateway, helper/util split, Bunny parity fields (**`video_id`**, **`thumbnail_url`**, **`embeded_html`**), **2 GiB** cap + multipart tuning. |
+| [`docs/modules/media.md`](modules/media.md) | Media upload: cloud gateway, **`pkg/media`** (clients + policy) vs **`pkg/logic/utils`** (generic primitives), Bunny parity fields (**`video_id`**, **`thumbnail_url`**, **`embeded_html`**), **2 GiB** cap + multipart tuning. |
 | [`docs/modules/course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (planned features). |
 
 When this repository sits next to the Next.js app in a monorepo (e.g. **`mycourse-full`**), the frontend deploy runbook is at [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md).

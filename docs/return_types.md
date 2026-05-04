@@ -17,8 +17,8 @@
 1. [Response Envelope](#1-response-envelope)
 2. [Core Types (Models / DTOs)](#2-core-types-models--dtos)
 3. [Service Layer Return Types](#3-service-layer-return-types)
-   - [services/auth.go](#servicesauthgo)
-   - [services/rbac.go](#servicesrbacgo)
+   - [services/auth](#servicesauth)
+   - [services/rbac](#servicesrbac)
    - [services/system.go](#servicessystemgo)
 4. [API Layer Return Types](#4-api-layer-return-types)
    - [Public API `/api/v1`](#public-api-apiv1)
@@ -105,22 +105,22 @@ type PageInfo struct {
 ### `models.User`
 
 ```go
-// models/user.go
+// models/user.go — JSONB + soft-delete column types from pkg/sqlmodel (see depguard restrict_models_schema_only + restrict_models_pkg_entity_schema_only).
 type User struct {
-    ID                  uint                   `json:"id"`
-    UserCode            string                 `json:"user_code"`       // UUIDv7
-    Email               string                 `json:"email"`
-    HashPassword        string                 `json:"-"`               // never serialized
-    DisplayName         string                 `json:"display_name"`
-    AvatarURL           string                 `json:"avatar_url"`
-    IsDisable           bool                   `json:"is_disable"`
-    EmailConfirmed      bool                   `json:"email_confirmed"`
-    ConfirmationToken   *string                `json:"-"`               // never serialized
-    ConfirmationSentAt  *time.Time             `json:"-"`               // never serialized
-    RefreshTokenSession RefreshTokenSessionMap `json:"-"`               // never serialized
-    CreatedAt           time.Time              `json:"created_at"`
-    UpdatedAt           time.Time              `json:"updated_at"`
-    DeletedAt           gorm.DeletedAt         `json:"deleted_at,omitempty"`
+    ID                  uint                               `json:"id"`
+    UserCode            string                             `json:"user_code"`       // UUIDv7
+    Email               string                             `json:"email"`
+    HashPassword        string                             `json:"-"`               // never serialized
+    DisplayName         string                             `json:"display_name"`
+    AvatarURL           string                             `json:"avatar_url"`
+    IsDisable           bool                               `json:"is_disable"`
+    EmailConfirmed      bool                               `json:"email_confirmed"`
+    ConfirmationToken   *string                            `json:"-"`               // never serialized
+    ConfirmationSentAt  *time.Time                         `json:"-"`               // never serialized
+    RefreshTokenSession sqlmodel.RefreshTokenSessionMap   `json:"-"`               // never serialized
+    CreatedAt           time.Time                          `json:"created_at"`
+    UpdatedAt           time.Time                          `json:"updated_at"`
+    DeletedAt           sqlmodel.DeletedAt                 `json:"deleted_at,omitempty"`
 }
 ```
 
@@ -164,10 +164,10 @@ type MeResponse struct {
 Returned by `Login`, `ConfirmEmail`, `RefreshSession`:
 
 ```go
-// services/auth.go
+// services/auth/auth.go (shared with auth_session_tokens.go / auth_refresh_rotation.go)
 type TokenPairResult struct {
-    AccessToken  string        // HS256 JWT, TTL=15min
-    RefreshToken string        // HS256 JWT, TTL=30d/14d
+    AccessToken  string        // HS256 JWT, TTL = constants.AccessTokenTTL
+    RefreshToken string        // HS256 JWT, TTL = constants.RefreshTokenTTL / RememberMeRefreshTTL
     SessionStr   string        // 128-char hex string (session_id)
     RefreshTTL   time.Duration // used to compute cookie MaxAge
 }
@@ -221,9 +221,9 @@ type UserPermission struct {
 }
 ```
 
-### `models.RefreshSessionEntry`
+### `sqlmodel.RefreshSessionEntry`
 
-Stored as JSONB in `users.refresh_token_session`:
+Defined in **`pkg/sqlmodel/refresh_session.go`**. Stored as JSONB in `users.refresh_token_session`:
 
 ```go
 type RefreshSessionEntry struct {
@@ -363,38 +363,24 @@ type AssignUserPermissionRequest struct {
 
 ## 3. Service Layer Return Types
 
-### services/auth.go
+### services/auth (package `auth`)
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
 | `Register` | `Register(email, password, displayName string) error` | `nil` on success; `ErrWeakPassword`, `ErrEmailAlreadyExists`, or a DB/email error |
 | `Login` | `Login(email, password string, rememberMe bool) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidCredentials`, `ErrEmailNotConfirmed`, `ErrUserDisabled`, or DB error |
 | `ConfirmEmail` | `ConfirmEmail(confirmToken string) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidConfirmToken` or DB error |
-| `RefreshSession` | `RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidSession`, `ErrUserNotFound`, `ErrUserDisabled`, `ErrRefreshTokenExpired`, or DB error |
+| `RefreshSession` | `RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error)` in **`services/auth/auth_refresh_rotation.go`** | `TokenPairResult` on success; `ErrInvalidSession`, `ErrUserNotFound`, `ErrUserDisabled`, `ErrRefreshTokenExpired`, or DB error |
 | `GetMe` | `GetMe(userID uint) (*dto.MeResponse, error)` | `*dto.MeResponse` on success; `ErrUserNotFound` or DB error |
 | `issueTokenPair` _(internal)_ | `issueTokenPair(user User, rememberMe bool, refreshTTL time.Duration) (TokenPairResult, error)` | `TokenPairResult` or error |
 | `buildMeResponseFromUser` _(internal)_ | `buildMeResponseFromUser(user User) (*dto.MeResponse, error)` | `*dto.MeResponse` or error from `PermissionCodesForUser` |
 | `userPermissionSlice` _(internal)_ | `userPermissionSlice(userID uint) ([]string, error)` | Sorted `[]string` of `permission_name` values |
 
-**Sentinel errors:**
-
-```go
-var (
-    ErrEmailAlreadyExists  = errors.New("email already registered")
-    ErrInvalidCredentials  = errors.New("invalid email or password")
-    ErrWeakPassword        = errors.New("password does not meet requirements")
-    ErrEmailNotConfirmed   = errors.New("email not confirmed")
-    ErrUserDisabled        = errors.New("user account is disabled")
-    ErrInvalidConfirmToken = errors.New("invalid or expired confirmation token")
-    ErrUserNotFound        = errors.New("user not found")
-    ErrInvalidSession      = errors.New("invalid session")
-    ErrRefreshTokenExpired = errors.New("refresh token expired")
-)
-```
+**Sentinel errors:** defined in **`pkg/errors/auth.go`** using **`constants.MsgAuth*`** message constants (ruleguard / ST1005). **`services/auth`** returns those variables; **`api/v1`** compares with **`errors.Is(err, pkgerrors.ErrWeakPassword)`** (same pointer identity as `pkg/errors`).
 
 ---
 
-### services/rbac.go
+### services/rbac (package `rbac`)
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
@@ -402,20 +388,20 @@ var (
 | `UserHasAllPermissions` | `UserHasAllPermissions(userID uint, requiredActions []string) (bool, string, error)` | `(true, "", nil)` if all granted; `(false, missingAction, nil)` if one is missing; `(false, "", err)` on DB error |
 | `ListPermissions` | `ListPermissions(p ListPermissionsParams) ([]models.Permission, int64, error)` | `[]Permission` (current page), `int64` (total count), error |
 | `CreatePermission` | `CreatePermission(permissionID, permissionName, description string) (*models.Permission, error)` | `*Permission` on success, or validation/DB error |
-| `UpdatePermission` | `UpdatePermission(permissionID string, newPermissionID, permissionName, description *string) (*models.Permission, error)` | `*Permission` on success; `gorm.ErrRecordNotFound` if ID not found; validation/DB error |
+| `UpdatePermission` | `UpdatePermission(permissionID string, newPermissionID, permissionName, description *string) (*models.Permission, error)` | `*Permission` on success; **`pkg/errors.ErrNotFound`** if ID not found; validation/DB error |
 | `DeletePermission` | `DeletePermission(permissionID string) error` | `nil` on success, DB error |
 | `ListRoles` | `ListRoles(withPerms bool) ([]models.Role, error)` | `[]Role`; roles include `Permissions []Permission` when `withPerms=true` |
-| `GetRole` | `GetRole(id uint, withPerms bool) (*models.Role, error)` | `*Role`; `gorm.ErrRecordNotFound` if not found |
+| `GetRole` | `GetRole(id uint, withPerms bool) (*models.Role, error)` | `*Role`; **`pkg/errors.ErrNotFound`** if not found |
 | `CreateRole` | `CreateRole(name, description string) (*models.Role, error)` | `*Role` on success, validation/DB error |
-| `UpdateRole` | `UpdateRole(id uint, name, description *string) (*models.Role, error)` | `*Role` (with permissions preloaded); `gorm.ErrRecordNotFound` if not found |
+| `UpdateRole` | `UpdateRole(id uint, name, description *string) (*models.Role, error)` | `*Role` (with permissions preloaded); **`pkg/errors.ErrNotFound`** if not found |
 | `DeleteRole` | `DeleteRole(id uint) error` | `nil` on success, DB error |
-| `SetRolePermissions` | `SetRolePermissions(roleID uint, permissionIDs []string) (*models.Role, error)` | `*Role` (with permissions); `gorm.ErrRecordNotFound` if role not found; error on unknown permission ID |
+| `SetRolePermissions` | `SetRolePermissions(roleID uint, permissionIDs []string) (*models.Role, error)` | `*Role` (with permissions); **`pkg/errors.ErrNotFound`** if role not found; error on unknown permission ID |
 | `ListUserRoles` | `ListUserRoles(userID uint) ([]models.Role, error)` | `[]Role` (with permissions preloaded), or DB error |
-| `AssignUserRole` | `AssignUserRole(userID, roleID uint) error` | `nil` (idempotent); `gorm.ErrRecordNotFound` if role not found |
+| `AssignUserRole` | `AssignUserRole(userID, roleID uint) error` | `nil` (idempotent); **`pkg/errors.ErrNotFound`** if role not found |
 | `RemoveUserRole` | `RemoveUserRole(userID, roleID uint) error` | `nil` on success, DB error |
 | `ListUserDirectPermissions` | `ListUserDirectPermissions(userID uint) ([]models.Permission, error)` | `[]Permission` (direct grants only) |
-| `AssignUserPermission` | `AssignUserPermission(userID uint, permissionID string) error` | `nil` (idempotent); `gorm.ErrRecordNotFound` if permission not found |
-| `AssignUserPermissionByPermissionName` | `AssignUserPermissionByPermissionName(userID uint, permissionName string) error` | `nil`; `gorm.ErrRecordNotFound` if `permission_name` not found |
+| `AssignUserPermission` | `AssignUserPermission(userID uint, permissionID string) error` | `nil` (idempotent); **`pkg/errors.ErrNotFound`** if permission not found |
+| `AssignUserPermissionByPermissionName` | `AssignUserPermissionByPermissionName(userID uint, permissionName string) error` | `nil`; **`pkg/errors.ErrNotFound`** if `permission_name` not found |
 | `RemoveUserPermission` | `RemoveUserPermission(userID uint, permissionID string) error` | `nil` on success, DB error |
 
 **`ListPermissionsParams`:**
@@ -442,15 +428,7 @@ type ListPermissionsParams struct {
 | `SystemLogin` | `SystemLogin(db *gorm.DB, username, password string) (accessToken string, err error)` | `string` (JWT) on success; `ErrSystemLoginFailed`, `ErrSystemSecretsNotReady`, or DB error |
 | `VerifySystemAccessToken` | `VerifySystemAccessToken(db *gorm.DB, tokenStr string) error` | `nil` if valid; JWT parse error or `ErrSystemSecretsNotReady` |
 
-**Sentinel errors:**
-
-```go
-var (
-    ErrSystemAppConfigMissing = errors.New("system_app_config row missing")
-    ErrSystemSecretsNotReady  = errors.New("system secrets are not configured in database")
-    ErrSystemLoginFailed      = errors.New("invalid system credentials")
-)
-```
+**Sentinel errors:** defined in **`pkg/errors/system.go`** using **`constants.MsgSystem*`** text. **`services/system.go`** assigns the same error values to **`services.ErrSystem*`** so existing **`errors.Is(err, services.ErrSystemLoginFailed)`** checks (e.g. in `api/system`) keep working.
 
 ---
 
@@ -471,12 +449,12 @@ All cache functions return nothing on error (graceful no-op):
 
 ---
 
-### models/user.go
+### repository/user_refresh_session.go
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `SaveRefreshSession` | `SaveRefreshSession(userID uint, sessionStr string, entry RefreshSessionEntry) error` | `nil` on success, DB error |
-| `AddRefreshSession` | `AddRefreshSession(userID uint, sessionStr string, entry RefreshSessionEntry) error` | `nil` on success; DB error; evicts oldest session if cap (5) is reached, inside a transaction |
+| `SaveRefreshSession` | `SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error` | `nil` on success, DB error |
+| `AddRefreshSession` | `AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error` | `nil` on success; DB error; evicts oldest session if cap (**`constants.MaxActiveSessions`**) is reached, inside a transaction |
 
 ---
 

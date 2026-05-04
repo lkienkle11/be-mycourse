@@ -65,8 +65,8 @@ A JSONB map where each key is a **128-char hex session string** and each value i
 ```
 
 - Maximum **5 entries** per user. On overflow the entry with the earliest `refresh_token_expired` is evicted.
-- Writes that change the entry count run inside a **transaction** (`models.AddRefreshSession`).
-- In-place rotation (same key, new UUID + expiry) uses a lockless `jsonb_set` update (`models.SaveRefreshSession`).
+- Writes that change the entry count run inside a **transaction** (`repository.AddRefreshSession`).
+- In-place rotation (same key, new UUID + expiry) uses a lockless `jsonb_set` update (`repository.SaveRefreshSession`).
 
 The `refresh_token_session` column schema is defined in migration `000001_schema` (see `migrations/README.md`).
 

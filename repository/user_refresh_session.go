@@ -2,7 +2,6 @@ package repository
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dbschema"
 	"mycourse-io-be/models"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/sqlmodel"
 )
 
@@ -19,7 +19,7 @@ import (
 // Use this for in-place rotation (the session key stays the same, only metadata changes).
 func SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error {
 	if db == nil {
-		return errors.New("nil database")
+		return pkgerrors.ErrNilDatabase
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
@@ -69,7 +69,7 @@ func mergeNewRefreshSession(sessions sqlmodel.RefreshTokenSessionMap, sessionStr
 // exceeding the limit.
 func AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error {
 	if db == nil {
-		return errors.New("nil database")
+		return pkgerrors.ErrNilDatabase
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		var u models.User

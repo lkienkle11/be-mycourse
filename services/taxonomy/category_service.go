@@ -6,38 +6,74 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/logic/mapping"
 	repo "mycourse-io-be/repository/taxonomy"
 	mediasvc "mycourse-io-be/services/media"
 )
 
-func ListCategories(filter dto.CategoryFilter) ([]entities.Category, int64, error) {
+func ListCategories(filter dto.CategoryFilter) ([]dto.CategoryResponse, int64, error) {
 	rows, total, err := repo.NewCategoryRepository(models.DB).ListCategories(filter)
 	if err != nil {
 		return nil, 0, err
 	}
-	return categoryEntities(rows), total, nil
+	return mapping.ToCategoryResponseModels(rows), total, nil
 }
 
-func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*entities.Category, error) {
+func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*dto.CategoryResponse, error) {
+	fileID := strings.TrimSpace(req.ImageFileID)
+	if _, err := mediasvc.LoadValidatedProfileImageFile(fileID); err != nil {
+		return nil, err
+	}
 	n, s, st := trimmedTaxonomyFields(req.Name, req.Slug, req.Status)
+	fid := fileID
 	row := &models.Category{
 		Category: entities.Category{
-			Name:     n,
-			Slug:     s,
-			ImageURL: strings.TrimSpace(req.ImageURL),
-			Status:   st,
+			Name:        n,
+			Slug:        s,
+			Status:      st,
+			ImageFileID: &fid,
 		},
 	}
 	if actorID > 0 {
 		row.CreatedBy = &actorID
 	}
-	if err := repo.NewCategoryRepository(models.DB).CreateCategory(row); err != nil {
+	r := repo.NewCategoryRepository(models.DB)
+	if err := r.CreateCategory(row); err != nil {
 		return nil, err
 	}
-	return &row.Category, nil
+	out, err := r.GetCategoryByID(row.ID)
+	if err != nil {
+		dtoRow := mapping.ToCategoryResponseModel(*row)
+		return &dtoRow, nil
+	}
+	dtoRow := mapping.ToCategoryResponseModel(*out)
+	return &dtoRow, nil
 }
 
-func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*entities.Category, error) {
+func mutateCategoryImageFileID(row *models.Category, imageFileID *string) error {
+	if imageFileID == nil {
+		return nil
+	}
+	next := strings.TrimSpace(*imageFileID)
+	if next == "" {
+		row.ImageFileID = nil
+		return nil
+	}
+	if _, err := mediasvc.LoadValidatedProfileImageFile(next); err != nil {
+		return err
+	}
+	row.ImageFileID = &next
+	return nil
+}
+
+func categoryImageFileIDString(row *models.Category) string {
+	if row.ImageFileID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*row.ImageFileID)
+}
+
+func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*dto.CategoryResponse, error) {
 	r := repo.NewCategoryRepository(models.DB)
 	row, err := r.GetCategoryByID(id)
 	if err != nil {
@@ -45,22 +81,27 @@ func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*entities.Category,
 	}
 
 	applyOptionalTaxonomyNameSlugStatus(&row.Name, &row.Slug, &row.Status, req.Name, req.Slug, req.Status)
-	prevImageURL := row.ImageURL
 
-	if req.ImageURL != nil {
-		row.ImageURL = strings.TrimSpace(*req.ImageURL)
+	prevFileID := categoryImageFileIDString(row)
+	if err := mutateCategoryImageFileID(row, req.ImageFileID); err != nil {
+		return nil, err
 	}
 
 	if err := r.UpdateCategory(row); err != nil {
 		return nil, err
 	}
 
-	// Enqueue orphan cleanup for superseded image_url after successful DB commit.
-	if req.ImageURL != nil && prevImageURL != "" && prevImageURL != row.ImageURL {
-		mediasvc.EnqueueOrphanImageCleanup(prevImageURL)
+	nextFileID := categoryImageFileIDString(row)
+	if req.ImageFileID != nil && prevFileID != "" && prevFileID != nextFileID {
+		mediasvc.EnqueueOrphanCleanupForMediaFileID(prevFileID)
 	}
 
-	return &row.Category, nil
+	out, err := r.GetCategoryByID(id)
+	if err != nil {
+		return nil, err
+	}
+	dtoRow := mapping.ToCategoryResponseModel(*out)
+	return &dtoRow, nil
 }
 
 func DeleteCategory(id uint) error {
@@ -69,12 +110,12 @@ func DeleteCategory(id uint) error {
 	if err != nil {
 		return err
 	}
+	imageFID := categoryImageFileIDString(row)
 	if err := r.DeleteCategory(id); err != nil {
 		return err
 	}
-	// Enqueue orphan cleanup for image_url after successful DB delete.
-	if row.ImageURL != "" {
-		mediasvc.EnqueueOrphanImageCleanup(row.ImageURL)
+	if imageFID != "" {
+		mediasvc.EnqueueOrphanCleanupForMediaFileID(imageFID)
 	}
 	return nil
 }

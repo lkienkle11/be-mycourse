@@ -32,6 +32,7 @@ func RegisterNotAuthenRoutes(rg *gin.RouterGroup) {
 // RegisterAuthenRoutes mounts /api/v1 routes that require a valid Bearer JWT (user_id in context).
 func RegisterAuthenRoutes(rg *gin.RouterGroup) {
 	rg.GET("/me", getMe)
+	rg.PATCH("/me", patchMe)
 	rg.GET("/me/permissions",
 		middleware.RequirePermission(constants.AllPermissions.UserRead),
 		getMyPermissions,

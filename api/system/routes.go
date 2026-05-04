@@ -13,6 +13,7 @@ import (
 	"mycourse-io-be/internal/systemauth"
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/errcode"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/services"
 )
@@ -45,9 +46,9 @@ func systemLogin(c *gin.Context) {
 	tok, err := services.SystemLogin(appdb.Conn(), req.Username, req.Password)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrSystemLoginFailed):
+		case errors.Is(err, pkgerrors.ErrSystemLoginFailed):
 			response.Fail(c, http.StatusUnauthorized, errcode.InvalidCredentials, errcode.DefaultMessage(errcode.InvalidCredentials), nil)
-		case errors.Is(err, services.ErrSystemSecretsNotReady):
+		case errors.Is(err, pkgerrors.ErrSystemSecretsNotReady):
 			response.Fail(c, http.StatusServiceUnavailable, errcode.InternalError, "system token secrets are not configured", nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)

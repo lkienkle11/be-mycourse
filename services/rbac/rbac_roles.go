@@ -1,8 +1,6 @@
 package rbac
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 
 	"gorm.io/gorm"
@@ -52,7 +50,7 @@ func CreateRole(name, description string) (*models.Role, error) {
 		return nil, err
 	}
 	if name == "" {
-		return nil, errors.New("role name required")
+		return nil, pkgerrors.ErrRBACRoleNameRequired
 	}
 	out := models.Role{Name: name, Description: description}
 	if err := db.Create(&out).Error; err != nil {
@@ -116,7 +114,7 @@ func replaceRolePermissionRows(tx *gorm.DB, roleID uint, permissionIDs []string)
 			return err
 		}
 		if n == 0 {
-			return fmt.Errorf("unknown permission_id %q", pid)
+			return pkgerrors.WrapRBACUnknownPermissionID(pid)
 		}
 		if err := tx.Create(&models.RolePermission{RoleID: roleID, PermissionID: pid}).Error; err != nil {
 			return err

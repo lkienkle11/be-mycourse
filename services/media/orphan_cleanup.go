@@ -63,3 +63,44 @@ func EnqueueOrphanImageCleanup(imageURL string) bool {
 	}
 	return repo.InsertPendingCleanup(row) == nil
 }
+
+// enqueuePendingCleanupFromMediaRow schedules cloud deletion from a concrete media_files row.
+func enqueuePendingCleanupFromMediaRow(row *models.MediaFile) bool {
+	if row == nil {
+		return false
+	}
+	if row.Provider == constants.FileProviderLocal {
+		return false
+	}
+	key := strings.TrimSpace(row.ObjectKey)
+	bid := strings.TrimSpace(row.BunnyVideoID)
+	if key == "" && bid == "" {
+		return false
+	}
+	pending := &models.MediaPendingCloudCleanup{
+		Provider:     row.Provider,
+		ObjectKey:    key,
+		BunnyVideoID: bid,
+	}
+	return mediaRepository().InsertPendingCleanup(pending) == nil
+}
+
+// EnqueueOrphanCleanupForMediaFileRow schedules deferred cleanup from an in-memory media row
+// (used after DB unlink when the row is still readable).
+func EnqueueOrphanCleanupForMediaFileRow(row *models.MediaFile) bool {
+	return enqueuePendingCleanupFromMediaRow(row)
+}
+
+// EnqueueOrphanCleanupForMediaFileID loads media_files by id and enqueues cloud cleanup.
+// Safe to call after the referencing user/category row is removed; idempotent inserts are acceptable.
+func EnqueueOrphanCleanupForMediaFileID(fileID string) bool {
+	id := strings.TrimSpace(fileID)
+	if id == "" {
+		return false
+	}
+	row, err := mediaRepository().GetByID(id)
+	if err != nil || row == nil {
+		return false
+	}
+	return enqueuePendingCleanupFromMediaRow(row)
+}

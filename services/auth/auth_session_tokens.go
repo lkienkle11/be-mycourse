@@ -8,6 +8,7 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/setting"
 	"mycourse-io-be/pkg/sqlmodel"
 	"mycourse-io-be/pkg/token"
@@ -26,20 +27,20 @@ func generateAccessRefreshForUser(secret string, user models.User, perms []strin
 
 // issueTokenPair generates a new session string, access token and refresh token for the
 // given user, persists the session entry in the DB, and returns a TokenPairResult.
-func issueTokenPair(user models.User, rememberMe bool, refreshTTL time.Duration) (TokenPairResult, error) {
+func issueTokenPair(user models.User, rememberMe bool, refreshTTL time.Duration) (entities.TokenPairResult, error) {
 	secret := setting.AppSetting.JWTSecret
 	sessionStr, err := token.GenerateSessionString(secret)
 	if err != nil {
-		return TokenPairResult{}, err
+		return entities.TokenPairResult{}, err
 	}
 	sessionUUID := uuid.New().String()
 	perms, err := userPermissionSlice(user.ID)
 	if err != nil {
-		return TokenPairResult{}, err
+		return entities.TokenPairResult{}, err
 	}
 	at, rt, err := generateAccessRefreshForUser(secret, user, perms, sessionUUID, refreshTTL)
 	if err != nil {
-		return TokenPairResult{}, err
+		return entities.TokenPairResult{}, err
 	}
 	entry := sqlmodel.RefreshSessionEntry{
 		RefreshTokenUUID:    sessionUUID,
@@ -47,9 +48,9 @@ func issueTokenPair(user models.User, rememberMe bool, refreshTTL time.Duration)
 		RefreshTokenExpired: time.Now().Add(refreshTTL),
 	}
 	if err := repository.AddRefreshSession(models.DB, user.ID, sessionStr, entry); err != nil {
-		return TokenPairResult{}, err
+		return entities.TokenPairResult{}, err
 	}
-	return TokenPairResult{AccessToken: at, RefreshToken: rt, SessionStr: sessionStr, RefreshTTL: refreshTTL}, nil
+	return entities.TokenPairResult{AccessToken: at, RefreshToken: rt, SessionStr: sessionStr, RefreshTTL: refreshTTL}, nil
 }
 
 // userPermissionSlice returns a sorted slice of permission action strings for the user (via roles + direct grants).

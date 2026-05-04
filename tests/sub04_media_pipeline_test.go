@@ -15,7 +15,7 @@ import (
 func TestBunnyVideoStatus_StatusString(t *testing.T) {
 	cases := []struct {
 		name   string
-		status pkgmedia.BunnyVideoStatus
+		status constants.BunnyVideoStatus
 		want   string
 	}{
 		{name: "created", status: constants.BunnyCreated, want: "created"},
@@ -27,7 +27,7 @@ func TestBunnyVideoStatus_StatusString(t *testing.T) {
 		{name: "failed", status: constants.BunnyFailed, want: "failed"},
 		{name: "presigned_upload", status: constants.BunnyPresignedUpload, want: "presigned_upload"},
 		{name: "transcribing", status: constants.BunnyTranscribing, want: "transcribing"},
-		{name: "unknown", status: pkgmedia.BunnyVideoStatus(999), want: "unknown"},
+		{name: "unknown", status: constants.BunnyVideoStatus(999), want: "unknown"},
 	}
 
 	for _, tc := range cases {
@@ -197,5 +197,45 @@ func TestResolveBunnyEmbedURL_playBaseToEmbed(t *testing.T) {
 	want := "https://iframe.mediadelivery.net/embed/123/abc"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestProfileImageFileAcceptable(t *testing.T) {
+	if !mapping.ProfileImageFileAcceptable("FILE", "image/png", "x.png") {
+		t.Fatal("expected png acceptable")
+	}
+	if mapping.ProfileImageFileAcceptable("VIDEO", "image/png", "x.png") {
+		t.Fatal("video kind must reject")
+	}
+	if mapping.ProfileImageFileAcceptable("FILE", "image/svg+xml", "x.svg") {
+		t.Fatal("svg must reject")
+	}
+	if !mapping.ProfileImageFileAcceptable("FILE", "", "photo.JPG") {
+		t.Fatal("jpg extension fallback")
+	}
+}
+
+func TestToMediaFilePublicFromEntity_Nil(t *testing.T) {
+	if mapping.ToMediaFilePublicFromEntity(nil) != nil {
+		t.Fatal("nil entity -> nil dto")
+	}
+}
+
+func TestToMediaFilePublicFromEntity_WidthHeight(t *testing.T) {
+	ent := &entities.File{
+		ID:        "550e8400-e29b-41d4-a716-446655440000",
+		Kind:      constants.FileKindFile,
+		Filename:  "a.png",
+		MimeType:  "image/png",
+		SizeBytes: 12,
+		URL:       "https://cdn.example/a.png",
+		Metadata: entities.UploadFileMetadata{
+			WidthBytes:  100,
+			HeightBytes: 50,
+		},
+	}
+	pub := mapping.ToMediaFilePublicFromEntity(ent)
+	if pub == nil || pub.Width != 100 || pub.Height != 50 {
+		t.Fatalf("unexpected public mapping: %+v", pub)
 	}
 }

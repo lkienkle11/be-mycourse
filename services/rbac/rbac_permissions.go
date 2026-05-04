@@ -1,12 +1,12 @@
 package rbac
 
 import (
-	"errors"
 	"strings"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/sqlnamed"
 )
@@ -26,17 +26,7 @@ var allowedPermissionSearchCols = map[string]string{
 	"description":     "description",
 }
 
-// ListPermissionsParams carries the validated filter values from the handler.
-type ListPermissionsParams struct {
-	Offset     int
-	Limit      int
-	SortBy     string
-	SortOrder  string // "asc" | "desc"
-	SearchBy   string
-	SearchData string
-}
-
-func listPermissionsOrderExpr(p ListPermissionsParams) string {
+func listPermissionsOrderExpr(p entities.ListPermissionsParams) string {
 	col := "permission_id"
 	if c, ok := allowedPermissionSortCols[p.SortBy]; ok {
 		col = c
@@ -49,7 +39,7 @@ func listPermissionsOrderExpr(p ListPermissionsParams) string {
 
 // ListPermissions returns a filtered, sorted, paginated page of permissions and the total
 // count of matching rows (before pagination).
-func ListPermissions(p ListPermissionsParams) ([]models.Permission, int64, error) {
+func ListPermissions(p entities.ListPermissionsParams) ([]models.Permission, int64, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, 0, err
@@ -79,16 +69,16 @@ func CreatePermission(permissionID, permissionName, description string) (*models
 	permissionID = strings.TrimSpace(permissionID)
 	permissionName = strings.TrimSpace(permissionName)
 	if permissionID == "" {
-		return nil, errors.New("permission_id required")
+		return nil, pkgerrors.ErrRBACPermissionIDRequired
 	}
 	if permissionName == "" {
-		return nil, errors.New("permission_name required")
+		return nil, pkgerrors.ErrRBACPermissionNameRequired
 	}
 	if len(permissionID) > 10 {
-		return nil, errors.New("permission_id too long (max 10)")
+		return nil, pkgerrors.ErrRBACPermissionIDTooLong
 	}
 	if len(permissionName) > 50 {
-		return nil, errors.New("permission_name too long (max 50)")
+		return nil, pkgerrors.ErrRBACPermissionNameTooLong
 	}
 	p := models.Permission{
 		PermissionID:   permissionID,
@@ -110,7 +100,7 @@ func rbacApplyRenamedPermissionID(db *gorm.DB, p *models.Permission, newPermissi
 		return nil
 	}
 	if len(n) > 10 {
-		return errors.New("permission_id too long (max 10)")
+		return pkgerrors.ErrRBACPermissionIDTooLong
 	}
 	if err := db.Model(&models.Permission{}).Where("permission_id = ?", p.PermissionID).Update("permission_id", n).Error; err != nil {
 		return err
@@ -128,7 +118,7 @@ func rbacApplyPermissionNameUpdate(p *models.Permission, permissionName *string)
 		return nil
 	}
 	if len(v) > 50 {
-		return errors.New("permission_name too long (max 50)")
+		return pkgerrors.ErrRBACPermissionNameTooLong
 	}
 	p.PermissionName = v
 	return nil
@@ -143,7 +133,7 @@ func UpdatePermission(permissionID string, newPermissionID *string, permissionNa
 	}
 	permissionID = strings.TrimSpace(permissionID)
 	if permissionID == "" {
-		return nil, errors.New("permission_id required")
+		return nil, pkgerrors.ErrRBACPermissionIDRequired
 	}
 	var p models.Permission
 	if err := db.Where("permission_id = ?", permissionID).First(&p).Error; err != nil {
@@ -171,7 +161,7 @@ func DeletePermission(permissionID string) error {
 	}
 	permissionID = strings.TrimSpace(permissionID)
 	if permissionID == "" {
-		return errors.New("permission_id required")
+		return pkgerrors.ErrRBACPermissionIDRequired
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		q, args, err := sqlnamed.Postgres(rbacSQLDeleteRolePermissionsByPermissionID, map[string]interface{}{"permission_id": permissionID})

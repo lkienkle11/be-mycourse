@@ -126,7 +126,7 @@ func ListFiles(filter dto.FileFilter) ([]entities.File, int64, error) {
 func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) {
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
-		return nil, fmt.Errorf("object key is required")
+		return nil, pkgerrors.ErrMediaObjectKeyRequired
 	}
 	row, err := mediaRepository().GetByObjectKey(key)
 	if err == nil {
@@ -234,13 +234,13 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 func loadUpdateFileTarget(objectKey string, req dto.UpdateFileRequest) (*mediarepo.FileRepository, *models.MediaFile, error) {
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
-		return nil, nil, fmt.Errorf("object key is required")
+		return nil, nil, pkgerrors.ErrMediaObjectKeyRequired
 	}
 	repo := mediaRepository()
 	prevRow, err := repo.GetByObjectKey(key)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil, fmt.Errorf("media file not found for object_key")
+			return nil, nil, pkgerrors.ErrMediaFileNotFoundForObjectKey
 		}
 		return nil, nil, err
 	}
@@ -274,7 +274,7 @@ func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 	clients := pkgmedia.Cloud
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
-		return fmt.Errorf("object key is required")
+		return pkgerrors.ErrMediaObjectKeyRequired
 	}
 	provider := pkgmedia.DefaultMediaProvider(constants.FileKindFile)
 	bunnyID := strings.TrimSpace(fmt.Sprintf("%v", metadata[constants.MediaMetaKeyVideoGUID]))

@@ -11,22 +11,15 @@ import (
 	pkgerrors "mycourse-io-be/pkg/errors"
 )
 
-// Re-export system sentinel errors from pkg/errors for callers that compare via services.*.
-var (
-	ErrSystemAppConfigMissing = pkgerrors.ErrSystemAppConfigMissing
-	ErrSystemSecretsNotReady  = pkgerrors.ErrSystemSecretsNotReady
-	ErrSystemLoginFailed      = pkgerrors.ErrSystemLoginFailed
-)
-
 // GetSystemAppConfig returns the singleton system_app_config row (id=1).
 func GetSystemAppConfig(db *gorm.DB) (*models.SystemAppConfig, error) {
 	if db == nil {
-		return nil, errors.New("nil database")
+		return nil, pkgerrors.ErrNilDatabase
 	}
 	var row models.SystemAppConfig
 	if err := db.Where("id = ?", 1).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrSystemAppConfigMissing
+			return nil, pkgerrors.ErrSystemAppConfigMissing
 		}
 		return nil, err
 	}
@@ -36,19 +29,19 @@ func GetSystemAppConfig(db *gorm.DB) (*models.SystemAppConfig, error) {
 // RegisterSystemPrivilegedUser stores HMAC-derived secrets using app_system_env from DB.
 func RegisterSystemPrivilegedUser(db *gorm.DB, username, password string) error {
 	if db == nil {
-		return errors.New("nil database")
+		return pkgerrors.ErrNilDatabase
 	}
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
 	if username == "" || password == "" {
-		return errors.New("username and password required")
+		return pkgerrors.ErrSystemUsernamePasswordRequired
 	}
 	cfg, err := GetSystemAppConfig(db)
 	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(cfg.AppSystemEnv) == "" {
-		return ErrSystemSecretsNotReady
+		return pkgerrors.ErrSystemSecretsNotReady
 	}
 	uh := systemauth.CredentialHMACHex(cfg.AppSystemEnv, username)
 	ph := systemauth.CredentialHMACHex(cfg.AppSystemEnv, password)
@@ -70,19 +63,19 @@ func systemPrivilegedUserMatchCount(db *gorm.DB, usernameSecret, passwordSecret 
 // SystemLogin validates privileged user credentials and returns a short-lived system access token.
 func SystemLogin(db *gorm.DB, username, password string) (accessToken string, err error) {
 	if db == nil {
-		return "", errors.New("nil database")
+		return "", pkgerrors.ErrNilDatabase
 	}
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
 	if username == "" || password == "" {
-		return "", ErrSystemLoginFailed
+		return "", pkgerrors.ErrSystemLoginFailed
 	}
 	cfg, err := GetSystemAppConfig(db)
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(cfg.AppSystemEnv) == "" || strings.TrimSpace(cfg.AppTokenEnv) == "" {
-		return "", ErrSystemSecretsNotReady
+		return "", pkgerrors.ErrSystemSecretsNotReady
 	}
 	uh := systemauth.CredentialHMACHex(cfg.AppSystemEnv, username)
 	ph := systemauth.CredentialHMACHex(cfg.AppSystemEnv, password)
@@ -91,7 +84,7 @@ func SystemLogin(db *gorm.DB, username, password string) (accessToken string, er
 		return "", err
 	}
 	if n == 0 {
-		return "", ErrSystemLoginFailed
+		return "", pkgerrors.ErrSystemLoginFailed
 	}
 	return systemauth.MintSystemAccessToken(cfg.AppTokenEnv, uh)
 }
@@ -99,14 +92,14 @@ func SystemLogin(db *gorm.DB, username, password string) (accessToken string, er
 // VerifySystemAccessToken checks the bearer token against app_token_env in DB.
 func VerifySystemAccessToken(db *gorm.DB, tokenStr string) error {
 	if db == nil {
-		return errors.New("nil database")
+		return pkgerrors.ErrNilDatabase
 	}
 	cfg, err := GetSystemAppConfig(db)
 	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(cfg.AppTokenEnv) == "" {
-		return ErrSystemSecretsNotReady
+		return pkgerrors.ErrSystemSecretsNotReady
 	}
 	_, err = systemauth.ParseSystemAccessToken(cfg.AppTokenEnv, strings.TrimSpace(tokenStr))
 	return err

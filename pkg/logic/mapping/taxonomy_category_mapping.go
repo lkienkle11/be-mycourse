@@ -4,15 +4,15 @@ import (
 	"time"
 
 	"mycourse-io-be/dto"
-	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/models"
 )
 
-func ToCategoryResponse(row entities.Category) dto.CategoryResponse {
+func ToCategoryResponseModel(row models.Category) dto.CategoryResponse {
 	return dto.CategoryResponse{
 		ID:        row.ID,
 		Name:      row.Name,
 		Slug:      row.Slug,
-		ImageURL:  row.ImageURL,
+		Image:     ToMediaFilePublicFromModel(row.ImageFile),
 		Status:    string(row.Status),
 		CreatedBy: row.CreatedBy,
 		CreatedAt: row.CreatedAt.Format(time.RFC3339),
@@ -20,10 +20,10 @@ func ToCategoryResponse(row entities.Category) dto.CategoryResponse {
 	}
 }
 
-func ToCategoryResponses(rows []entities.Category) []dto.CategoryResponse {
+func ToCategoryResponseModels(rows []models.Category) []dto.CategoryResponse {
 	out := make([]dto.CategoryResponse, 0, len(rows))
 	for _, item := range rows {
-		out = append(out, ToCategoryResponse(item))
+		out = append(out, ToCategoryResponseModel(item))
 	}
 	return out
 }

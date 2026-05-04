@@ -3,7 +3,6 @@ package media
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,7 +53,7 @@ func decodeBunnyVideoDetailBody(body []byte) (*entities.BunnyVideoDetail, error)
 		return nil, &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
 			Msg:  "bunny stream did not return video guid",
-			Err:  errors.New("missing guid"),
+			Err:  pkgerrors.ErrBunnyStreamResponseMissingGUID,
 		}
 	}
 	EnrichBunnyVideoDetail(&out)

@@ -14,22 +14,12 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/brevo"
+	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/setting"
 	authcache "mycourse-io-be/services/cache"
 )
-
-// TokenPairResult carries all token issuance output needed by the HTTP layer.
-type TokenPairResult struct {
-	AccessToken  string
-	RefreshToken string
-	// SessionStr is the 128-char hex string that identifies this session.
-	// It is delivered to the client via the session_id HttpOnly cookie.
-	SessionStr string
-	// RefreshTTL is the lifetime of the newly issued refresh token.
-	// The HTTP layer uses this to compute the correct cookie MaxAge.
-	RefreshTTL time.Duration
-}
 
 // Register creates a new user and sends a confirmation email.
 // Returns ErrEmailAlreadyExists when the email is already taken.
@@ -90,12 +80,12 @@ func Register(email, password, displayName string) error {
 func loadUserForLogin(ctx context.Context, email, normEmail string) (models.User, error) {
 	if uid, ok := authcache.GetCachedLoginUserID(ctx, normEmail); ok {
 		var u models.User
-		if err := models.DB.First(&u, uid).Error; err == nil && authcache.NormalizeLoginEmail(u.Email) == normEmail {
+		if err := models.DB.Preload("AvatarFile").First(&u, uid).Error; err == nil && authcache.NormalizeLoginEmail(u.Email) == normEmail {
 			return u, nil
 		}
 	}
 	var user models.User
-	if err := models.DB.Where("email = ?", email).First(&user).Error; err != nil {
+	if err := models.DB.Preload("AvatarFile").Where("email = ?", email).First(&user).Error; err != nil {
 		return models.User{}, err
 	}
 	authcache.SetCachedLoginUserID(ctx, normEmail, user.ID)
@@ -105,43 +95,43 @@ func loadUserForLogin(ctx context.Context, email, normEmail string) (models.User
 // Login validates credentials and returns a signed token pair plus a session string.
 // rememberMe controls whether subsequent token rotations extend the refresh TTL (14 days)
 // or preserve the remaining lifetime of the previous token.
-func Login(email, password string, rememberMe bool) (TokenPairResult, error) {
+func Login(email, password string, rememberMe bool) (entities.TokenPairResult, error) {
 	ctx := context.Background()
 	normEmail := authcache.NormalizeLoginEmail(email)
 	if authcache.LoginInvalidCached(ctx, normEmail) {
-		return TokenPairResult{}, pkgerrors.ErrInvalidCredentials
+		return entities.TokenPairResult{}, pkgerrors.ErrInvalidCredentials
 	}
 
 	user, dbErr := loadUserForLogin(ctx, email, normEmail)
 	if dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
 			authcache.SetLoginInvalidCache(ctx, normEmail)
-			return TokenPairResult{}, pkgerrors.ErrInvalidCredentials
+			return entities.TokenPairResult{}, pkgerrors.ErrInvalidCredentials
 		}
-		return TokenPairResult{}, dbErr
+		return entities.TokenPairResult{}, dbErr
 	}
 
 	if user.IsDisable {
-		return TokenPairResult{}, pkgerrors.ErrUserDisabled
+		return entities.TokenPairResult{}, pkgerrors.ErrUserDisabled
 	}
 	if !user.EmailConfirmed {
-		return TokenPairResult{}, pkgerrors.ErrEmailNotConfirmed
+		return entities.TokenPairResult{}, pkgerrors.ErrEmailNotConfirmed
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.HashPassword), []byte(password)) != nil {
 		authcache.SetLoginInvalidCache(ctx, normEmail)
-		return TokenPairResult{}, pkgerrors.ErrInvalidCredentials
+		return entities.TokenPairResult{}, pkgerrors.ErrInvalidCredentials
 	}
 	return completeLoginSuccess(ctx, normEmail, user, rememberMe)
 }
 
-func completeLoginSuccess(ctx context.Context, normEmail string, user models.User, rememberMe bool) (TokenPairResult, error) {
+func completeLoginSuccess(ctx context.Context, normEmail string, user models.User, rememberMe bool) (entities.TokenPairResult, error) {
 	refreshTTL := constants.RefreshTokenTTL
 	if rememberMe {
 		refreshTTL = constants.RememberMeRefreshTTL
 	}
 	result, err := issueTokenPair(user, rememberMe, refreshTTL)
 	if err != nil {
-		return TokenPairResult{}, err
+		return entities.TokenPairResult{}, err
 	}
 	authcache.DelLoginInvalidCache(ctx, normEmail)
 	if me, berr := buildMeResponseFromUser(user); berr == nil {
@@ -152,13 +142,13 @@ func completeLoginSuccess(ctx context.Context, normEmail string, user models.Use
 
 // ConfirmEmail marks the user's email as confirmed and returns a token pair.
 // remember_me is always false for email-confirmation sessions.
-func ConfirmEmail(confirmToken string) (TokenPairResult, error) {
+func ConfirmEmail(confirmToken string) (entities.TokenPairResult, error) {
 	var user models.User
 	if dbErr := models.DB.Where("confirmation_token = ?", confirmToken).First(&user).Error; dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
-			return TokenPairResult{}, pkgerrors.ErrInvalidConfirmToken
+			return entities.TokenPairResult{}, pkgerrors.ErrInvalidConfirmToken
 		}
-		return TokenPairResult{}, dbErr
+		return entities.TokenPairResult{}, dbErr
 	}
 
 	updates := map[string]interface{}{
@@ -176,7 +166,7 @@ func ConfirmEmail(confirmToken string) (TokenPairResult, error) {
 		ur := models.UserRole{UserID: user.ID, RoleID: learner.ID}
 		return tx.FirstOrCreate(&ur, models.UserRole{UserID: user.ID, RoleID: learner.ID}).Error
 	}); dbErr != nil {
-		return TokenPairResult{}, dbErr
+		return entities.TokenPairResult{}, dbErr
 	}
 	user.EmailConfirmed = true
 	user.ConfirmationToken = nil
@@ -195,7 +185,7 @@ func buildMeResponseFromUser(user models.User) (*dto.MeResponse, error) {
 		UserCode:       user.UserCode,
 		Email:          user.Email,
 		DisplayName:    user.DisplayName,
-		AvatarURL:      user.AvatarURL,
+		Avatar:         mapping.ToMediaFilePublicFromModel(user.AvatarFile),
 		EmailConfirmed: user.EmailConfirmed,
 		IsDisabled:     user.IsDisable,
 		CreatedAt:      user.CreatedAt.Unix(),
@@ -212,7 +202,7 @@ func GetMe(userID uint) (*dto.MeResponse, error) {
 	}
 
 	var user models.User
-	if err := models.DB.First(&user, userID).Error; err != nil {
+	if err := models.DB.Preload("AvatarFile").First(&user, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, pkgerrors.ErrUserNotFound
 		}

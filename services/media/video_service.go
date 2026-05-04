@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/setting"
@@ -22,7 +23,7 @@ func GetVideoStatus(ctx context.Context, videoGUID string) (*dto.VideoStatusResp
 	}
 	guid := strings.TrimSpace(videoGUID)
 	if guid == "" {
-		return nil, fmt.Errorf("video guid is required")
+		return nil, pkgerrors.ErrMediaVideoGUIDRequired
 	}
 	video, err := pkgmedia.GetBunnyVideoByID(pkgmedia.Cloud, ctx, guid)
 	if err != nil {

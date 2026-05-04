@@ -5,6 +5,7 @@ import (
 
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
+	pkgerrors "mycourse-io-be/pkg/errors"
 )
 
 type CategoryRepository struct {
@@ -16,7 +17,15 @@ func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
 }
 
 func (r *CategoryRepository) ListCategories(filter dto.CategoryFilter) ([]models.Category, int64, error) {
-	return listTaxonomyModels[models.Category](r.db, &models.Category{}, filter.Status, filter.BaseFilter)
+	q, total, err := taxonomyFilteredQuery(r.db.Preload("ImageFile"), &models.Category{}, filter.Status, filter.BaseFilter, taxonomyListSearchCols)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := taxonomyOrderedFind[models.Category](q, filter.BaseFilter, taxonomyListSortCols)
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
 }
 
 func (r *CategoryRepository) CreateCategory(row *models.Category) error {
@@ -24,7 +33,11 @@ func (r *CategoryRepository) CreateCategory(row *models.Category) error {
 }
 
 func (r *CategoryRepository) GetCategoryByID(id uint) (*models.Category, error) {
-	return gormGetByID[models.Category](r.db, id)
+	var row models.Category
+	if err := r.db.Preload("ImageFile").First(&row, id).Error; err != nil {
+		return nil, pkgerrors.MapRecordNotFound(err)
+	}
+	return &row, nil
 }
 
 func (r *CategoryRepository) UpdateCategory(row *models.Category) error {

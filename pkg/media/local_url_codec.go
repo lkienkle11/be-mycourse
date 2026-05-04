@@ -7,6 +7,8 @@ import (
 	"errors"
 	"os"
 	"strings"
+
+	pkgerrors "mycourse-io-be/pkg/errors"
 )
 
 func EncodeLocalObjectKey(secret, objectKey string) string {
@@ -21,15 +23,15 @@ func EncodeLocalObjectKey(secret, objectKey string) string {
 func DecodeLocalObjectKey(secret, token string) (string, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 2 {
-		return "", errors.New("invalid token format")
+		return "", pkgerrors.ErrLocalMediaTokenInvalidFormat
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return "", errors.New("invalid token payload")
+		return "", pkgerrors.ErrLocalMediaTokenInvalidPayload
 	}
 	expected := EncodeLocalObjectKey(secret, string(payload))
 	if expected != token {
-		return "", errors.New("invalid token signature")
+		return "", pkgerrors.ErrLocalMediaTokenInvalidSignature
 	}
 	return string(payload), nil
 }
@@ -41,7 +43,7 @@ func DecodeLocalURLToken(token string) (string, error) {
 	}
 	objectKey, err := DecodeLocalObjectKey(secret, token)
 	if err != nil {
-		return "", errors.New("invalid local media token")
+		return "", errors.Join(pkgerrors.ErrLocalMediaTokenInvalid, err)
 	}
 	return objectKey, nil
 }

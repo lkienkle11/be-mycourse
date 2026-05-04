@@ -46,6 +46,10 @@ func respondTaxonomyCreate[Req any, Row any](
 	}
 	row, err := create(requestutil.CurrentUserID(c), req)
 	if err != nil {
+		if errors.Is(err, pkgerrors.ErrInvalidProfileMediaFile) {
+			response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, err.Error(), nil)
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
@@ -71,6 +75,10 @@ func respondTaxonomyUpdate[Req any, Row any](
 	if err != nil {
 		if errors.Is(err, pkgerrors.ErrNotFound) {
 			response.Fail(c, http.StatusNotFound, errcode.NotFound, "not found", nil)
+			return
+		}
+		if errors.Is(err, pkgerrors.ErrInvalidProfileMediaFile) {
+			response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, err.Error(), nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)

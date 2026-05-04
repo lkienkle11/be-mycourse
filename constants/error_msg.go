@@ -54,6 +54,10 @@ const (
 	MsgImageEncodeBusy          = "image encoder is at capacity; please retry (concurrent encode limit reached)"
 )
 
+// MsgInvalidProfileMediaFile is the sentinel text for pkg/errors.ErrInvalidProfileMediaFile
+// (taxonomy category image_file_id, PATCH /me avatar_file_id — READY non-video raster image).
+const MsgInvalidProfileMediaFile = "invalid profile or taxonomy image media file"
+
 // --- pkg/errors sentinels (single source for message text; do not duplicate in errors.New) ---
 
 // MsgNotFound is the sentinel text for pkg/errors.ErrNotFound (maps from gorm.ErrRecordNotFound).
@@ -82,3 +86,45 @@ const (
 // MsgMediaDependencyNotConfigured is returned when media cloud clients are nil (RequireInitialized).
 // JSON handlers still map this to errcode.InternalError + DefaultMessage(InternalError).
 const MsgMediaDependencyNotConfigured = "internal server error"
+
+// --- Repository / services nil DB guard (pkg/errors/common.go) ---
+
+// MsgNilDatabase is returned when a function requires *gorm.DB but receives nil.
+const MsgNilDatabase = "nil database"
+
+// --- System privileged user registration (pkg/errors) ---
+
+// MsgSystemUsernamePasswordRequired is returned when RegisterSystemPrivilegedUser receives empty credentials.
+const MsgSystemUsernamePasswordRequired = "username and password required"
+
+// --- RBAC (pkg/errors/rbac.go) ---
+
+const (
+	MsgRBACDatabaseNotConfigured         = "rbac database not configured"
+	MsgRBACInvalidUserID                 = "invalid user id"
+	MsgRBACPermissionIDRequired          = "permission_id required"
+	MsgRBACUserAndPermissionNameRequired = "user id and permission_name required"
+	MsgRBACRoleNameRequired              = "role name required"
+	MsgRBACUnknownPermissionID           = "unknown permission_id"
+	MsgRBACPermissionIDTooLong           = "permission_id too long (max 10)"
+	MsgRBACPermissionNameRequired        = "permission_name required"
+	MsgRBACPermissionNameTooLong         = "permission_name too long (max 50)"
+)
+
+// --- Media services / Bunny decode (pkg/errors) ---
+
+const (
+	MsgMediaVideoGUIDRequired              = "video guid is required"
+	MsgMediaObjectKeyRequired              = "object key is required"
+	MsgMediaFileNotFoundForObjectKey       = "media file not found for object_key"
+	MsgBunnyStreamResponseMissingVideoGUID = "bunny stream did not return video guid"
+)
+
+// --- Signed local media URL token (pkg/errors/local_media_token.go) ---
+
+const (
+	MsgLocalMediaTokenInvalidFormat    = "invalid token format"
+	MsgLocalMediaTokenInvalidPayload   = "invalid token payload"
+	MsgLocalMediaTokenInvalidSignature = "invalid token signature"
+	MsgLocalMediaTokenInvalid          = "invalid local media token"
+)

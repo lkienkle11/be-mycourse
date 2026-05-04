@@ -8,6 +8,7 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/response"
@@ -138,7 +139,7 @@ func refreshToken(c *gin.Context) {
 // setAuthCookies writes access_token, refresh_token, and session_id as non-HttpOnly
 // SameSite=Lax cookies so the client-side JavaScript layer can read them and attach
 // them to requests as Authorization / X-Refresh-Token / X-Session-Id headers.
-func setAuthCookies(c *gin.Context, result auth.TokenPairResult) {
+func setAuthCookies(c *gin.Context, result entities.TokenPairResult) {
 	secure := setting.ServerSetting.RunMode == "release"
 	refreshMaxAge := int(result.RefreshTTL.Seconds())
 

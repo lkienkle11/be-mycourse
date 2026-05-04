@@ -1,7 +1,6 @@
 package rbac
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +41,7 @@ func SetRBACDB(db *gorm.DB) {
 
 func rbacOrErr() (*gorm.DB, error) {
 	if rbacDB == nil {
-		return nil, errors.New("rbac database not configured")
+		return nil, pkgerrors.ErrRBACDatabaseNotConfigured
 	}
 	return rbacDB, nil
 }
@@ -55,7 +54,7 @@ func PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
 		return nil, err
 	}
 	if userID == 0 {
-		return nil, errors.New("invalid user id")
+		return nil, pkgerrors.ErrRBACInvalidUserID
 	}
 	var codes []string
 	q, args, err := sqlnamed.Postgres(rbacSQLPermissionCodesForUser, map[string]interface{}{"user_id": userID})
@@ -116,7 +115,7 @@ func AssignUserRole(userID uint, roleID uint) error {
 		return err
 	}
 	if userID == 0 {
-		return errors.New("invalid user id")
+		return pkgerrors.ErrRBACInvalidUserID
 	}
 	var n int64
 	if err := db.Model(&models.Role{}).Where("id = ?", roleID).Count(&n).Error; err != nil {
@@ -145,7 +144,7 @@ func ListUserDirectPermissions(userID uint) ([]models.Permission, error) {
 		return nil, err
 	}
 	if userID == 0 {
-		return nil, errors.New("invalid user id")
+		return nil, pkgerrors.ErrRBACInvalidUserID
 	}
 	var ups []models.UserPermission
 	if err := db.Preload("Permission").Where("user_id = ?", userID).Find(&ups).Error; err != nil {
@@ -164,11 +163,11 @@ func AssignUserPermission(userID uint, permissionID string) error {
 		return err
 	}
 	if userID == 0 {
-		return errors.New("invalid user id")
+		return pkgerrors.ErrRBACInvalidUserID
 	}
 	permissionID = strings.TrimSpace(permissionID)
 	if permissionID == "" {
-		return errors.New("permission_id required")
+		return pkgerrors.ErrRBACPermissionIDRequired
 	}
 	var n int64
 	if err := db.Model(&models.Permission{}).Where("permission_id = ?", permissionID).Count(&n).Error; err != nil {
@@ -188,7 +187,7 @@ func AssignUserPermissionByPermissionName(userID uint, permissionName string) er
 		return err
 	}
 	if userID == 0 || strings.TrimSpace(permissionName) == "" {
-		return errors.New("user id and permission_name required")
+		return pkgerrors.ErrRBACUserAndPermissionNameRequired
 	}
 	var p models.Permission
 	if err := db.Where("permission_name = ?", strings.TrimSpace(permissionName)).First(&p).Error; err != nil {
@@ -204,7 +203,7 @@ func RemoveUserPermission(userID uint, permissionID string) error {
 	}
 	permissionID = strings.TrimSpace(permissionID)
 	if permissionID == "" {
-		return errors.New("permission_id required")
+		return pkgerrors.ErrRBACPermissionIDRequired
 	}
 	return db.Where("user_id = ? AND permission_id = ?", userID, permissionID).Delete(&models.UserPermission{}).Error
 }

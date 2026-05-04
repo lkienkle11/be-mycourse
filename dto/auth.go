@@ -17,13 +17,18 @@ type LoginRequest struct {
 // MeResponse is the response body for GET /api/v1/me.
 // Sensitive fields (hash_password, confirmation_token, etc.) are intentionally omitted.
 type MeResponse struct {
-	UserID         uint     `json:"user_id"`
-	UserCode       string   `json:"user_code"`
-	Email          string   `json:"email"`
-	DisplayName    string   `json:"display_name"`
-	AvatarURL      string   `json:"avatar_url"`
-	EmailConfirmed bool     `json:"email_confirmed"`
-	IsDisabled     bool     `json:"is_disabled"`
-	CreatedAt      int64    `json:"created_at"`
-	Permissions    []string `json:"permissions"`
+	UserID         uint             `json:"user_id"`
+	UserCode       string           `json:"user_code"`
+	Email          string           `json:"email"`
+	DisplayName    string           `json:"display_name"`
+	Avatar         *MediaFilePublic `json:"avatar,omitempty"`
+	EmailConfirmed bool             `json:"email_confirmed"`
+	IsDisabled     bool             `json:"is_disabled"`
+	CreatedAt      int64            `json:"created_at"`
+	Permissions    []string         `json:"permissions"`
+}
+
+// UpdateMeRequest is the body for PATCH /api/v1/me (partial profile update).
+type UpdateMeRequest struct {
+	AvatarFileID *string `json:"avatar_file_id" validate:"omitempty,uuid"`
 }

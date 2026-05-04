@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -121,7 +120,7 @@ func decodeBunnyCreateVideoGUID(body []byte) (string, error) {
 		return "", &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
 			Msg:  "bunny stream did not return video guid",
-			Err:  errors.New("missing guid"),
+			Err:  pkgerrors.ErrBunnyStreamResponseMissingGUID,
 		}
 	}
 	return created.GUID, nil

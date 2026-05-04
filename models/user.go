@@ -16,7 +16,8 @@ type User struct {
 	Email               string                          `gorm:"size:255;uniqueIndex;not null"    json:"email"`
 	HashPassword        string                          `gorm:"size:255;not null"                json:"-"`
 	DisplayName         string                          `gorm:"size:255;not null;default:''"     json:"display_name"`
-	AvatarURL           string                          `gorm:"type:text;not null;default:''"   json:"avatar_url"`
+	AvatarFileID        *string                         `gorm:"column:avatar_file_id;type:uuid" json:"-"`
+	AvatarFile          *MediaFile                      `gorm:"foreignKey:AvatarFileID;references:ID"`
 	IsDisable           bool                            `gorm:"not null;default:false"           json:"is_disable"`
 	EmailConfirmed      bool                            `gorm:"not null;default:false"           json:"email_confirmed"`
 	ConfirmationToken   *string                         `gorm:"size:128"                         json:"-"`

@@ -84,6 +84,14 @@ func SetCachedUserMe(ctx context.Context, me *dto.MeResponse) {
 	_ = cache_clients.Redis.Set(ctx, redisUserMeKey(me.UserID), data, constants.UserMeTTL).Err()
 }
 
+// DelCachedUserMe removes the cached /me payload (call after profile-changing writes).
+func DelCachedUserMe(ctx context.Context, userID uint) {
+	if !cache_clients.RedisAvailable() {
+		return
+	}
+	_ = cache_clients.Redis.Del(ctx, redisUserMeKey(userID)).Err()
+}
+
 // LoginInvalidCached is true when this normalized email was recently rejected with InvalidCredentials.
 func LoginInvalidCached(ctx context.Context, normEmail string) bool {
 	if !cache_clients.RedisAvailable() || normEmail == "" {

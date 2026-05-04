@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/httperr"
@@ -23,7 +24,7 @@ func listPermissionsInternal(c *gin.Context) {
 		return
 	}
 
-	rows, total, err := rbac.ListPermissions(rbac.ListPermissionsParams{
+	rows, total, err := rbac.ListPermissions(entities.ListPermissionsParams{
 		Offset:     q.GetOffset(),
 		Limit:      q.GetPerPage(),
 		SortBy:     q.SortBy,

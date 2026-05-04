@@ -5,22 +5,10 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
-	"time"
 
+	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/cache_clients"
-)
-
-// UserMeTTL is the Redis TTL for cached GET /api/v1/me payloads and login invalid-credentials keys.
-const UserMeTTL = time.Minute
-
-// LoginEmailUserIDTTL is how long we remember a successful email→user_id resolution for login (avoids repeated lookups by email).
-const LoginEmailUserIDTTL = 30 * time.Second
-
-const (
-	redisKeyUserMePrefix           = "mycourse:user:me:"
-	redisKeyLoginInvalidPrefix     = "mycourse:auth:login:invalid:"
-	redisKeyLoginUserByEmailPrefix = "mycourse:auth:login:user_by_email:"
 )
 
 // NormalizeLoginEmail trims and lower-cases an email for cache key use.
@@ -29,15 +17,15 @@ func NormalizeLoginEmail(email string) string {
 }
 
 func redisUserMeKey(userID uint) string {
-	return redisKeyUserMePrefix + strconv.FormatUint(uint64(userID), 10)
+	return constants.RedisKeyUserMePrefix + strconv.FormatUint(uint64(userID), 10)
 }
 
 func redisLoginInvalidKey(normEmail string) string {
-	return redisKeyLoginInvalidPrefix + normEmail
+	return constants.RedisKeyLoginInvalidPrefix + normEmail
 }
 
 func redisLoginUserByEmailKey(normEmail string) string {
-	return redisKeyLoginUserByEmailPrefix + normEmail
+	return constants.RedisKeyLoginUserByEmailPrefix + normEmail
 }
 
 // GetCachedLoginUserID returns the cached internal user id for a normalized login email, if any.
@@ -62,7 +50,7 @@ func SetCachedLoginUserID(ctx context.Context, normEmail string, userID uint) {
 		return
 	}
 	_ = cache_clients.Redis.Set(ctx, redisLoginUserByEmailKey(normEmail),
-		strconv.FormatUint(uint64(userID), 10), LoginEmailUserIDTTL).Err()
+		strconv.FormatUint(uint64(userID), 10), constants.LoginEmailUserIDTTL).Err()
 }
 
 // GetCachedUserMe returns a cached dto.MeResponse when Redis has a valid entry for userID.
@@ -93,7 +81,7 @@ func SetCachedUserMe(ctx context.Context, me *dto.MeResponse) {
 	if err != nil {
 		return
 	}
-	_ = cache_clients.Redis.Set(ctx, redisUserMeKey(me.UserID), data, UserMeTTL).Err()
+	_ = cache_clients.Redis.Set(ctx, redisUserMeKey(me.UserID), data, constants.UserMeTTL).Err()
 }
 
 // LoginInvalidCached is true when this normalized email was recently rejected with InvalidCredentials.
@@ -110,7 +98,7 @@ func SetLoginInvalidCache(ctx context.Context, normEmail string) {
 	if !cache_clients.RedisAvailable() || normEmail == "" {
 		return
 	}
-	_ = cache_clients.Redis.Set(ctx, redisLoginInvalidKey(normEmail), "1", UserMeTTL).Err()
+	_ = cache_clients.Redis.Set(ctx, redisLoginInvalidKey(normEmail), "1", constants.UserMeTTL).Err()
 }
 
 // DelLoginInvalidCache clears the invalid-login key (e.g. after successful login).

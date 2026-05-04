@@ -1,14 +1,10 @@
 package media
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"mime/multipart"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,9 +14,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
-	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
-	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
@@ -31,6 +25,81 @@ import (
 
 func mediaRepository() *mediarepo.FileRepository {
 	return repository.New(models.DB).Media
+}
+
+func mergeProviderMetadataWithPrevious(upload entities.ProviderUploadResult, prev entities.RawMetadata) entities.RawMetadata {
+	uploadedMeta := pkgmedia.NormalizeMetadata(upload.Metadata)
+	merged := pkgmedia.NormalizeMetadata(uploadedMeta)
+	for k, v := range prev {
+		if _, ok := merged[k]; !ok {
+			merged[k] = v
+		}
+	}
+	return merged
+}
+
+func persistCreateMediaRow(clients *entities.CloudClients, input entities.MediaUploadEntityInput, payload []byte) (*entities.File, error) {
+	entity := pkgmedia.BuildMediaFileEntityFromUpload(input)
+	record := mapping.ToMediaModel(*entity)
+	record.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
+	record.ContentFingerprint = utils.ContentFingerprint(payload)
+
+	repo := mediaRepository()
+	if err := repo.UpsertByObjectKey(record); err != nil {
+		_ = pkgmedia.DeleteStoredObject(context.Background(), clients, entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
+		return nil, err
+	}
+	out, err := repo.GetByObjectKey(entity.ObjectKey)
+	if err != nil {
+		fallback := mapping.ToMediaEntity(*record)
+		return &fallback, nil
+	}
+	ent := mapping.ToMediaEntity(*out)
+	return &ent, nil
+}
+
+func persistUpdatedMediaRow(clients *entities.CloudClients, repo *mediarepo.FileRepository, prevRow *models.MediaFile, input entities.MediaUploadEntityInput, payload []byte, fp string) (*entities.File, error) {
+	entity := pkgmedia.BuildMediaFileEntityFromUpload(input)
+	record := mapping.ToMediaModel(*entity)
+	record.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
+	record.ContentFingerprint = fp
+
+	if err := repo.SaveWithRowVersionCheck(record, prevRow.RowVersion); err != nil {
+		_ = pkgmedia.DeleteStoredObject(context.Background(), clients, entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
+		return nil, err
+	}
+	if pkgmedia.ShouldEnqueueSupersededCloudCleanup(prevRow.ObjectKey, prevRow.BunnyVideoID, entity.ObjectKey, entity.BunnyVideoID) {
+		enqueueSupersededCloudCleanup(repo, prevRow.ObjectKey, prevRow.Provider, prevRow.BunnyVideoID)
+	}
+	saved, err := repo.GetByID(prevRow.ID)
+	if err != nil {
+		fallback := mapping.ToMediaEntity(*record)
+		return &fallback, nil
+	}
+	ent := mapping.ToMediaEntity(*saved)
+	return &ent, nil
+}
+
+func saveUnchangedFingerprintMetadata(repo *mediarepo.FileRepository, prevRow *models.MediaFile, filename string, rowVersion int64) (*entities.File, error) {
+	blob, err := pkgmedia.MergeMediaMetadataJSON(prevRow.MetadataJSON, entities.RawMetadata{})
+	if err != nil {
+		return nil, err
+	}
+	rec := *prevRow
+	rec.MetadataJSON = blob
+	rec.UpdatedAt = time.Now()
+	if filename != "" {
+		rec.Filename = filename
+	}
+	if err := repo.SaveWithRowVersionCheck(&rec, rowVersion); err != nil {
+		return nil, err
+	}
+	saved, err := repo.GetByID(prevRow.ID)
+	if err != nil {
+		return nil, err
+	}
+	ent := mapping.ToMediaEntity(*saved)
+	return &ent, nil
 }
 
 func enqueueSupersededCloudCleanup(repo *mediarepo.FileRepository, prevObjectKey string, prevProvider constants.FileProvider, prevBunnyVideoID string) {
@@ -64,7 +133,7 @@ func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) 
 		entity := mapping.ToMediaEntity(*row)
 		return &entity, nil
 	}
-	resolvedProvider := helper.DefaultMediaProvider(kind)
+	resolvedProvider := pkgmedia.DefaultMediaProvider(kind)
 	fileURL := pkgmedia.BuildPublicURL(resolvedProvider, key)
 	now := time.Now()
 	return &entities.File{
@@ -84,88 +153,55 @@ func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) 
 	}, nil
 }
 
-func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (*entities.File, error) {
-	if err := helper.RequireInitialized(pkgmedia.Cloud); err != nil {
-		return nil, err
-	}
-	clients := pkgmedia.Cloud
-
-	filename := strings.TrimSpace(fileHeader.Filename)
-	kind, kindInferred := helper.ResolveMediaKindFromServer(fileHeader.Header.Get("Content-Type"), filename)
-	provider := helper.ResolveUploadProvider(kind, kindInferred)
-	objectKey := helper.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
-
-	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
-		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
-	}
-
-	limited := io.LimitReader(file, constants.MaxMediaUploadFileBytes+1)
-	payload, err := io.ReadAll(limited)
+// prepareCreateMultipartBody reads the upload, infers kind/provider/object key, rejects unsafe payloads,
+// and optionally re-encodes images to WebP (updating filename/mime/objectKey accordingly).
+func prepareCreateMultipartBody(req dto.CreateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (
+	payload []byte, filename, mime string, kind constants.FileKind, provider constants.FileProvider, objectKey string, err error,
+) {
+	payload, filename, mime, err = readMultipartPayloadLimited(file, fileHeader)
 	if err != nil {
-		return nil, err
+		return
 	}
-	if int64(len(payload)) > constants.MaxMediaUploadFileBytes {
-		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
+	kind, kindInferred := pkgmedia.ResolveMediaKindFromServer(mime, filename)
+	provider = pkgmedia.ResolveUploadProvider(kind, kindInferred)
+	objectKey = pkgmedia.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+	isImage := pkgmedia.IsImageMIMEOrExt(mime, filename)
+	if err = rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
+		return
 	}
-
-	mime := fileHeader.Header.Get("Content-Type")
-	isImage := helper.IsImageMIMEOrExt(mime, filename)
-
-	// Reject executable/script files (extension + magic bytes) for non-image, non-video uploads.
-	if kind == constants.FileKindFile && !isImage {
-		head := payload
-		if len(head) > 16 {
-			head = head[:16]
-		}
-		if utils.IsExecutableUploadRejected(filename, head) {
-			return nil, pkgerrors.ErrExecutableUploadRejected
-		}
-	}
-
-	// Convert image uploads to WebP before sending to the storage provider.
 	if isImage {
-		utils.AcquireEncodeGate()
-		encoded, newMime, encErr := utils.EncodeWebP(payload)
-		utils.ReleaseEncodeGate()
+		var enc []byte
+		var newMime, newName string
+		var encErr error
+		enc, newMime, newName, encErr = encodeUploadToWebP(payload, filename)
 		if encErr != nil {
-			return nil, &pkgerrors.ProviderError{
-				Code: errcode.ImageEncodeBusy,
-				Msg:  encErr.Error(),
-				Err:  encErr,
-			}
+			err = encErr
+			return
 		}
-		payload = encoded
-		mime = newMime
-		if ext := filepath.Ext(filename); ext != "" {
-			filename = strings.TrimSuffix(filename, ext) + ".webp"
-		}
-		objectKey = helper.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+		payload, mime, filename = enc, newMime, newName
+		objectKey = pkgmedia.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
 	}
+	return
+}
 
-	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, entities.RawMetadata{})
-	if err != nil {
-		return nil, err
-	}
-
-	uploadedMeta := helper.NormalizeMetadata(uploaded.Metadata)
-	merged := helper.NormalizeMetadata(uploadedMeta)
-
-	sizeBytes := fileHeader.Size
-	if sizeBytes < 0 || sizeBytes == 0 {
-		sizeBytes = int64(len(payload))
-	}
-	if isImage {
-		// After WebP conversion payload length differs from original; use actual encoded size.
-		sizeBytes = int64(len(payload))
-	}
-
-	now := time.Now()
-	input := entities.MediaUploadEntityInput{
+func createFileEntityInput(
+	fileHeader *multipart.FileHeader,
+	payload []byte,
+	filename, mime string,
+	kind constants.FileKind,
+	provider constants.FileProvider,
+	uploaded entities.ProviderUploadResult,
+	now time.Time,
+) entities.MediaUploadEntityInput {
+	uploadedMeta := pkgmedia.NormalizeMetadata(uploaded.Metadata)
+	merged := pkgmedia.NormalizeMetadata(uploadedMeta)
+	isImage := pkgmedia.IsImageMIMEOrExt(mime, filename)
+	return entities.MediaUploadEntityInput{
 		Kind:          kind,
 		Provider:      provider,
 		Filename:      filename,
 		ContentType:   mime,
-		SizeBytes:     sizeBytes,
+		SizeBytes:     effectiveUploadSizeBytes(fileHeader.Size, payload, isImage),
 		Payload:       payload,
 		Uploaded:      uploaded,
 		UploadedMeta:  merged,
@@ -175,182 +211,64 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		GenerateNewID: true,
 		PreserveID:    "",
 	}
-
-	entity := helper.BuildMediaFileEntityFromUpload(input)
-	record := mapping.ToMediaModel(*entity)
-	record.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
-	record.ContentFingerprint = utils.ContentFingerprint(payload)
-
-	repo := mediaRepository()
-	if err := repo.UpsertByObjectKey(record); err != nil {
-		_ = pkgmedia.DeleteStoredObject(context.Background(), clients, entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
-		return nil, err
-	}
-	out, err := repo.GetByObjectKey(entity.ObjectKey)
-	if err != nil {
-		fallback := mapping.ToMediaEntity(*record)
-		return &fallback, nil
-	}
-	ent := mapping.ToMediaEntity(*out)
-	return &ent, nil
 }
 
-func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (*entities.File, error) {
+func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (*entities.File, error) {
+	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
+		return nil, err
+	}
+	clients := pkgmedia.Cloud
+	payload, filename, mime, kind, provider, objectKey, err := prepareCreateMultipartBody(req, file, fileHeader)
+	if err != nil {
+		return nil, err
+	}
+	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, entities.RawMetadata{})
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	input := createFileEntityInput(fileHeader, payload, filename, mime, kind, provider, uploaded, now)
+	return persistCreateMediaRow(clients, input, payload)
+}
+
+func loadUpdateFileTarget(objectKey string, req dto.UpdateFileRequest) (*mediarepo.FileRepository, *models.MediaFile, error) {
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
-		return nil, fmt.Errorf("object key is required")
+		return nil, nil, fmt.Errorf("object key is required")
 	}
 	repo := mediaRepository()
 	prevRow, err := repo.GetByObjectKey(key)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("media file not found for object_key")
+			return nil, nil, fmt.Errorf("media file not found for object_key")
 		}
+		return nil, nil, err
+	}
+	if rid := strings.TrimSpace(req.ReuseMediaID); rid != "" && rid != prevRow.ID {
+		return nil, nil, pkgerrors.ErrMediaReuseMismatch
+	}
+	if req.ExpectedRowVersion != nil && *req.ExpectedRowVersion != prevRow.RowVersion {
+		return nil, nil, pkgerrors.ErrMediaOptimisticLock
+	}
+	return repo, prevRow, nil
+}
+
+func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (*entities.File, error) {
+	repo, prevRow, err := loadUpdateFileTarget(objectKey, req)
+	if err != nil {
 		return nil, err
 	}
 
-	if rid := strings.TrimSpace(req.ReuseMediaID); rid != "" && rid != prevRow.ID {
-		return nil, pkgerrors.ErrMediaReuseMismatch
-	}
-	if req.ExpectedRowVersion != nil && *req.ExpectedRowVersion != prevRow.RowVersion {
-		return nil, pkgerrors.ErrMediaOptimisticLock
-	}
-
-	if err := helper.RequireInitialized(pkgmedia.Cloud); err != nil {
+	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return nil, err
 	}
 	clients := pkgmedia.Cloud
 
-	prevRaw := entities.RawMetadata{}
-	_ = json.Unmarshal(prevRow.MetadataJSON, &prevRaw)
-
-	filename := strings.TrimSpace(fileHeader.Filename)
-	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
-		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
-	}
-
-	limited := io.LimitReader(file, constants.MaxMediaUploadFileBytes+1)
-	payload, err := io.ReadAll(limited)
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(payload)) > constants.MaxMediaUploadFileBytes {
-		return nil, pkgerrors.ErrFileExceedsMaxUploadSize
-	}
-
-	mime := fileHeader.Header.Get("Content-Type")
-	isImage := helper.IsImageMIMEOrExt(mime, filename)
-
-	fp := utils.ContentFingerprint(payload)
-	if req.SkipUploadIfUnchanged && prevRow.ContentFingerprint != "" && fp == prevRow.ContentFingerprint {
-		blob, err := helper.MergeMediaMetadataJSON(prevRow.MetadataJSON, entities.RawMetadata{})
-		if err != nil {
-			return nil, err
-		}
-		rec := *prevRow
-		rec.MetadataJSON = blob
-		rec.UpdatedAt = time.Now()
-		if filename != "" {
-			rec.Filename = filename
-		}
-		if err := repo.SaveWithRowVersionCheck(&rec, prevRow.RowVersion); err != nil {
-			return nil, err
-		}
-		saved, err := repo.GetByID(prevRow.ID)
-		if err != nil {
-			return nil, err
-		}
-		ent := mapping.ToMediaEntity(*saved)
-		return &ent, nil
-	}
-
-	kind, kindInferred := helper.ResolveMediaKindFromServer(fileHeader.Header.Get("Content-Type"), filename)
-	provider := helper.ResolveUploadProvider(kind, kindInferred)
-	resolvedObjectKey := helper.ResolveMediaUploadObjectKey("", filename, provider)
-
-	// Convert image uploads to WebP before sending to the storage provider.
-	if isImage {
-		utils.AcquireEncodeGate()
-		encoded, newMime, encErr := utils.EncodeWebP(payload)
-		utils.ReleaseEncodeGate()
-		if encErr != nil {
-			return nil, &pkgerrors.ProviderError{
-				Code: errcode.ImageEncodeBusy,
-				Msg:  encErr.Error(),
-				Err:  encErr,
-			}
-		}
-		payload = encoded
-		mime = newMime
-		if ext := filepath.Ext(filename); ext != "" {
-			filename = strings.TrimSuffix(filename, ext) + ".webp"
-		}
-		resolvedObjectKey = helper.ResolveMediaUploadObjectKey("", filename, provider)
-	}
-
-	uploaded, err := uploadToProvider(clients, provider, resolvedObjectKey, filename, payload, entities.RawMetadata{})
-	if err != nil {
-		return nil, err
-	}
-
-	uploadedMeta := helper.NormalizeMetadata(uploaded.Metadata)
-	merged := helper.NormalizeMetadata(uploadedMeta)
-	for k, v := range prevRaw {
-		if _, ok := merged[k]; !ok {
-			merged[k] = v
-		}
-	}
-
-	sizeBytes := fileHeader.Size
-	if sizeBytes < 0 || sizeBytes == 0 {
-		sizeBytes = int64(len(payload))
-	}
-	if isImage {
-		sizeBytes = int64(len(payload))
-	}
-
-	now := time.Now()
-	input := entities.MediaUploadEntityInput{
-		Kind:          kind,
-		Provider:      provider,
-		Filename:      filename,
-		ContentType:   mime,
-		SizeBytes:     sizeBytes,
-		Payload:       payload,
-		Uploaded:      uploaded,
-		UploadedMeta:  merged,
-		B2Bucket:      strings.TrimSpace(setting.MediaSetting.B2Bucket),
-		CreatedAt:     prevRow.CreatedAt,
-		UpdatedAt:     now,
-		GenerateNewID: false,
-		PreserveID:    prevRow.ID,
-	}
-
-	entity := helper.BuildMediaFileEntityFromUpload(input)
-	record := mapping.ToMediaModel(*entity)
-	record.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
-	record.ContentFingerprint = fp
-
-	if err := repo.SaveWithRowVersionCheck(record, prevRow.RowVersion); err != nil {
-		_ = pkgmedia.DeleteStoredObject(context.Background(), clients, entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
-		return nil, err
-	}
-
-	if helper.ShouldEnqueueSupersededCloudCleanup(prevRow.ObjectKey, prevRow.BunnyVideoID, entity.ObjectKey, entity.BunnyVideoID) {
-		enqueueSupersededCloudCleanup(repo, prevRow.ObjectKey, prevRow.Provider, prevRow.BunnyVideoID)
-	}
-
-	saved, err := repo.GetByID(prevRow.ID)
-	if err != nil {
-		fallback := mapping.ToMediaEntity(*record)
-		return &fallback, nil
-	}
-	ent := mapping.ToMediaEntity(*saved)
-	return &ent, nil
+	return runUpdateFileMultipartBody(repo, clients, prevRow, req, file, fileHeader)
 }
 
 func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
-	if err := helper.RequireInitialized(pkgmedia.Cloud); err != nil {
+	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return err
 	}
 	clients := pkgmedia.Cloud
@@ -358,27 +276,16 @@ func DeleteFile(objectKey string, metadata entities.RawMetadata) error {
 	if key == "" {
 		return fmt.Errorf("object key is required")
 	}
-	provider := helper.DefaultMediaProvider(constants.FileKindFile)
+	provider := pkgmedia.DefaultMediaProvider(constants.FileKindFile)
 	bunnyID := strings.TrimSpace(fmt.Sprintf("%v", metadata[constants.MediaMetaKeyVideoGUID]))
 	if bunnyID == "" {
 		bunnyID = strings.TrimSpace(fmt.Sprintf("%v", metadata[constants.MediaMetaKeyBunnyVideoID]))
 	}
 	if bunnyID != "" {
-		provider = helper.DefaultMediaProvider(constants.FileKindVideo)
+		provider = pkgmedia.DefaultMediaProvider(constants.FileKindVideo)
 	}
 	if err := pkgmedia.DeleteStoredObject(context.Background(), clients, key, provider, bunnyID); err != nil {
 		return err
 	}
 	return mediaRepository().SoftDeleteByObjectKey(key)
-}
-
-func uploadToProvider(clients *entities.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (entities.ProviderUploadResult, error) {
-	switch provider {
-	case constants.FileProviderLocal:
-		return pkgmedia.UploadLocal(clients, objectKey, meta)
-	case constants.FileProviderBunny:
-		return pkgmedia.UploadBunnyVideo(clients, context.Background(), filename, payload, objectKey, meta)
-	default:
-		return pkgmedia.UploadB2(clients, context.Background(), objectKey, bytes.NewReader(payload), meta)
-	}
 }

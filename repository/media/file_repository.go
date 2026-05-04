@@ -19,7 +19,7 @@ func NewFileRepository(db *gorm.DB) *FileRepository {
 	return &FileRepository{db: db}
 }
 
-func (r *FileRepository) List(filter dto.FileFilter) ([]models.MediaFile, int64, error) {
+func (r *FileRepository) fileListBaseQuery(filter dto.FileFilter) *gorm.DB {
 	q := r.db.Model(&models.MediaFile{}).Where("deleted_at IS NULL")
 	if filter.Provider != nil && *filter.Provider != "" {
 		q = q.Where("provider = ?", *filter.Provider)
@@ -27,7 +27,6 @@ func (r *FileRepository) List(filter dto.FileFilter) ([]models.MediaFile, int64,
 	if filter.Kind != nil && *filter.Kind != "" {
 		q = q.Where("kind = ?", *filter.Kind)
 	}
-
 	if where, arg, ok := query.BuildSearchClause(filter.BaseFilter, map[string]string{
 		"filename":   "filename",
 		"object_key": "object_key",
@@ -36,12 +35,15 @@ func (r *FileRepository) List(filter dto.FileFilter) ([]models.MediaFile, int64,
 	}); ok {
 		q = q.Where(where, arg)
 	}
+	return q
+}
 
+func (r *FileRepository) List(filter dto.FileFilter) ([]models.MediaFile, int64, error) {
+	q := r.fileListBaseQuery(filter)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-
 	p := query.ParseListFilter(filter.BaseFilter)
 	sortClause := query.BuildSortClause(filter.BaseFilter, map[string]string{
 		"created_at": "created_at",
@@ -49,7 +51,6 @@ func (r *FileRepository) List(filter dto.FileFilter) ([]models.MediaFile, int64,
 		"filename":   "filename",
 		"size_bytes": "size_bytes",
 	}, "created_at")
-
 	var rows []models.MediaFile
 	if err := q.Order(sortClause).Offset(p.Offset).Limit(p.PerPage).Find(&rows).Error; err != nil {
 		return nil, 0, err

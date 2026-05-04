@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"mycourse-io-be/dto"
-	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
 )
 
-func ToCategoryResponse(row models.Category) dto.CategoryResponse {
+func ToCategoryResponse(row entities.Category) dto.CategoryResponse {
 	return dto.CategoryResponse{
 		ID:        row.ID,
 		Name:      row.Name,
@@ -20,7 +20,7 @@ func ToCategoryResponse(row models.Category) dto.CategoryResponse {
 	}
 }
 
-func ToCategoryResponses(rows []models.Category) []dto.CategoryResponse {
+func ToCategoryResponses(rows []entities.Category) []dto.CategoryResponse {
 	out := make([]dto.CategoryResponse, 0, len(rows))
 	for _, item := range rows {
 		out = append(out, ToCategoryResponse(item))

@@ -25,37 +25,11 @@ func MaybeRunRegisterNewSystemUser(db *gorm.DB) bool {
 }
 
 func runRegister(db *gorm.DB) {
-	appPw, err := readSecretInput("Enter app password:")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failure: could not read app password.")
+	if !cliVerifyAppPassword(db) {
 		return
 	}
-	cfg, err := services.GetSystemAppConfig(db)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failure: could not load system configuration (%v).\n", err)
-		return
-	}
-	if strings.TrimSpace(cfg.AppCLISystemPassword) == "" {
-		fmt.Fprintln(os.Stderr, "Failure: APP_CLI_SYSTEM_PASSWORD is not set in database (system_app_config).")
-		return
-	}
-	want := []byte(strings.TrimSpace(cfg.AppCLISystemPassword))
-	got := []byte(strings.TrimSpace(appPw))
-	if subtle.ConstantTimeCompare(got, want) != 1 {
-		fmt.Fprintln(os.Stderr, "Failure: invalid app password.")
-		return
-	}
-
-	username, err := readSecretInput("Enter username:")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failure: could not read username.")
-		return
-	}
-	username = strings.TrimSpace(username)
-
-	userPw, err := readSecretInput("Enter password:")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failure: could not read password.")
+	username, userPw, ok := cliReadNewSystemUserCredentials()
+	if !ok {
 		return
 	}
 	if err := services.RegisterSystemPrivilegedUser(db, username, userPw); err != nil {
@@ -63,6 +37,44 @@ func runRegister(db *gorm.DB) {
 		return
 	}
 	fmt.Fprintln(os.Stderr, "Success: privileged system user registered.")
+}
+
+func cliVerifyAppPassword(db *gorm.DB) bool {
+	appPw, err := readSecretInput("Enter app password:")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failure: could not read app password.")
+		return false
+	}
+	cfg, err := services.GetSystemAppConfig(db)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failure: could not load system configuration (%v).\n", err)
+		return false
+	}
+	if strings.TrimSpace(cfg.AppCLISystemPassword) == "" {
+		fmt.Fprintln(os.Stderr, "Failure: APP_CLI_SYSTEM_PASSWORD is not set in database (system_app_config).")
+		return false
+	}
+	want := []byte(strings.TrimSpace(cfg.AppCLISystemPassword))
+	got := []byte(strings.TrimSpace(appPw))
+	if subtle.ConstantTimeCompare(got, want) != 1 {
+		fmt.Fprintln(os.Stderr, "Failure: invalid app password.")
+		return false
+	}
+	return true
+}
+
+func cliReadNewSystemUserCredentials() (username, userPw string, ok bool) {
+	u, err := readSecretInput("Enter username:")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failure: could not read username.")
+		return "", "", false
+	}
+	pw, err := readSecretInput("Enter password:")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failure: could not read password.")
+		return "", "", false
+	}
+	return strings.TrimSpace(u), pw, true
 }
 
 // readSecretInput prints prompt to stderr, reads a line with local echo disabled (no characters shown).

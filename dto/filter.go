@@ -52,7 +52,7 @@ type BaseFilter struct {
 }
 
 // GetPage returns the current page number, defaulting to 1 when not set or invalid.
-func (f *BaseFilter) GetPage() int {
+func (f BaseFilter) GetPage() int {
 	if f.Page < 1 {
 		return 1
 	}
@@ -60,7 +60,7 @@ func (f *BaseFilter) GetPage() int {
 }
 
 // GetPerPage returns the page size, defaulting to 20 and capping at 100.
-func (f *BaseFilter) GetPerPage() int {
+func (f BaseFilter) GetPerPage() int {
 	if f.PerPage < 1 {
 		return 20
 	}
@@ -72,13 +72,13 @@ func (f *BaseFilter) GetPerPage() int {
 
 // GetOffset returns the SQL OFFSET value derived from page and per_page.
 // Use alongside GetPerPage() as LIMIT.
-func (f *BaseFilter) GetOffset() int {
+func (f BaseFilter) GetOffset() int {
 	return (f.GetPage() - 1) * f.GetPerPage()
 }
 
 // GetSortOrder returns a safe sort direction string ("asc" or "desc").
 // Defaults to "asc" when SortOrder is empty or contains an invalid value.
-func (f *BaseFilter) GetSortOrder() string {
+func (f BaseFilter) GetSortOrder() string {
 	if f.SortOrder == "desc" {
 		return "desc"
 	}
@@ -87,12 +87,18 @@ func (f *BaseFilter) GetSortOrder() string {
 
 // HasSearch reports whether both SearchBy and SearchData are non-empty,
 // meaning the handler should apply a search predicate.
-func (f *BaseFilter) HasSearch() bool {
+func (f BaseFilter) HasSearch() bool {
 	return f.SearchBy != "" && f.SearchData != ""
 }
 
 // HasSort reports whether SortBy is non-empty, meaning the handler should
 // apply an ORDER BY clause.
-func (f *BaseFilter) HasSort() bool {
+func (f BaseFilter) HasSort() bool {
 	return f.SortBy != ""
+}
+
+// TaxonomyListFilter is implemented by taxonomy list query DTOs (each embeds BaseFilter).
+type TaxonomyListFilter interface {
+	GetPage() int
+	GetPerPage() int
 }

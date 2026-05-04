@@ -8,7 +8,7 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
-	"mycourse-io-be/pkg/logic/helper"
+	pkgmedia "mycourse-io-be/pkg/media"
 )
 
 func uploadMetadataToRaw(meta entities.UploadFileMetadata) entities.RawMetadata {
@@ -31,24 +31,29 @@ func uploadMetadataToRaw(meta entities.UploadFileMetadata) entities.RawMetadata 
 	}
 }
 
-func ToMediaEntity(row models.MediaFile) entities.File {
-	raw := entities.RawMetadata{}
-	_ = json.Unmarshal(row.MetadataJSON, &raw)
-	videoID := strings.TrimSpace(row.VideoID)
+func mediaEntityVideoThumbEmbed(raw entities.RawMetadata, row models.MediaFile) (videoID, thumbnailURL, embededHTML string) {
+	videoID = strings.TrimSpace(row.VideoID)
 	if videoID == "" {
 		videoID = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyVideoID]))
 	}
 	if videoID == "" {
 		videoID = strings.TrimSpace(row.BunnyVideoID)
 	}
-	thumbnailURL := strings.TrimSpace(row.ThumbnailURL)
+	thumbnailURL = strings.TrimSpace(row.ThumbnailURL)
 	if thumbnailURL == "" {
 		thumbnailURL = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyThumbnailURL]))
 	}
-	embededHTML := strings.TrimSpace(row.EmbededHTML)
+	embededHTML = strings.TrimSpace(row.EmbededHTML)
 	if embededHTML == "" {
 		embededHTML = strings.TrimSpace(fmt.Sprintf("%v", raw[constants.MediaMetaKeyEmbededHTML]))
 	}
+	return videoID, thumbnailURL, embededHTML
+}
+
+func ToMediaEntity(row models.MediaFile) entities.File {
+	raw := entities.RawMetadata{}
+	_ = json.Unmarshal(row.MetadataJSON, &raw)
+	videoID, thumbnailURL, embededHTML := mediaEntityVideoThumbEmbed(raw, row)
 	return entities.File{
 		ID:                 row.ID,
 		Kind:               row.Kind,
@@ -70,14 +75,14 @@ func ToMediaEntity(row models.MediaFile) entities.File {
 		VideoProvider:      row.VideoProvider,
 		RowVersion:         row.RowVersion,
 		ContentFingerprint: row.ContentFingerprint,
-		Metadata:           helper.BuildTypedMetadata(row.Kind, row.MimeType, row.Filename, row.SizeBytes, nil, raw),
+		Metadata:           pkgmedia.BuildTypedMetadata(row.Kind, row.MimeType, row.Filename, row.SizeBytes, nil, raw),
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}
 }
 
-func ToMediaModel(row entities.File) *models.MediaFile {
-	meta := helper.NormalizeMetadata(uploadMetadataToRaw(row.Metadata))
+func mediaModelMetadataMap(row entities.File) entities.RawMetadata {
+	meta := pkgmedia.NormalizeMetadata(uploadMetadataToRaw(row.Metadata))
 	if row.BunnyVideoID != "" {
 		meta["bunny_video_id"] = row.BunnyVideoID
 	}
@@ -99,7 +104,11 @@ func ToMediaModel(row entities.File) *models.MediaFile {
 	if row.EmbededHTML != "" {
 		meta[constants.MediaMetaKeyEmbededHTML] = row.EmbededHTML
 	}
-	blob, _ := json.Marshal(meta)
+	return meta
+}
+
+func ToMediaModel(row entities.File) *models.MediaFile {
+	blob, _ := json.Marshal(mediaModelMetadataMap(row))
 	return &models.MediaFile{
 		ID:                 row.ID,
 		ObjectKey:          row.ObjectKey,

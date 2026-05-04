@@ -2,6 +2,7 @@ package media
 
 import (
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -11,9 +12,9 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
-	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
+	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/response"
 	mediaservice "mycourse-io-be/services/media"
 )
@@ -51,6 +52,25 @@ func getFile(c *gin.Context) {
 	response.OK(c, "ok", mapping.ToUploadFileResponse(*row))
 }
 
+// openMultipartFileField binds one multipart file and enforces maxBytes when Size is known.
+func openMultipartFileField(c *gin.Context, field string, maxBytes int64) (multipart.File, *multipart.FileHeader, bool) {
+	upload, err := c.FormFile(field)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "file is required (multipart field: "+field+")", nil)
+		return nil, nil, false
+	}
+	if upload.Size >= 0 && upload.Size > maxBytes {
+		response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
+		return nil, nil, false
+	}
+	file, err := upload.Open()
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "cannot open uploaded file", nil)
+		return nil, nil, false
+	}
+	return file, upload, true
+}
+
 func createFile(c *gin.Context) {
 	upload, err := c.FormFile("file")
 	if err != nil {
@@ -66,33 +86,16 @@ func createFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "cannot open uploaded file", nil)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
-	req, err := helper.BindCreateFileMultipart(c)
+	req, err := pkgmedia.BindCreateFileMultipart(c)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
 	row, err := mediaservice.CreateFile(req, file, upload)
 	if err != nil {
-		if errors.Is(err, helper.ErrDependencyNotConfigured) {
-			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
-			return
-		}
-		if errors.Is(err, pkgerrors.ErrFileExceedsMaxUploadSize) {
-			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
-			return
-		}
-		if errors.Is(err, pkgerrors.ErrExecutableUploadRejected) {
-			response.Fail(c, http.StatusBadRequest, errcode.ExecutableUploadRejected, errcode.DefaultMessage(errcode.ExecutableUploadRejected), nil)
-			return
-		}
-		if pe, ok := pkgerrors.AsProviderError(err); ok {
-			msg := pe.Error()
-			if strings.TrimSpace(msg) == "" {
-				msg = errcode.DefaultMessage(pe.Code)
-			}
-			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+		if respondMediaMutationError(c, err, true) {
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
@@ -108,47 +111,20 @@ func updateFile(c *gin.Context) {
 		return
 	}
 
-	upload, err := c.FormFile("file")
-	if err != nil {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "file is required (multipart field: file)", nil)
+	file, upload, ok := openMultipartFileField(c, "file", constants.MaxMediaUploadFileBytes)
+	if !ok {
 		return
 	}
-	if upload.Size >= 0 && upload.Size > constants.MaxMediaUploadFileBytes {
-		response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
-		return
-	}
-	file, err := upload.Open()
-	if err != nil {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "cannot open uploaded file", nil)
-		return
-	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
-	req, err := helper.BindUpdateFileMultipart(c)
+	req, err := pkgmedia.BindUpdateFileMultipart(c)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
 	row, err := mediaservice.UpdateFile(objectKey, req, file, upload)
 	if err != nil {
-		if errors.Is(err, helper.ErrDependencyNotConfigured) {
-			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
-			return
-		}
-		if errors.Is(err, pkgerrors.ErrFileExceedsMaxUploadSize) {
-			response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
-			return
-		}
-		if errors.Is(err, pkgerrors.ErrMediaOptimisticLock) || errors.Is(err, pkgerrors.ErrMediaReuseMismatch) {
-			response.Fail(c, http.StatusConflict, errcode.Conflict, err.Error(), nil)
-			return
-		}
-		if pe, ok := pkgerrors.AsProviderError(err); ok {
-			msg := pe.Error()
-			if strings.TrimSpace(msg) == "" {
-				msg = errcode.DefaultMessage(pe.Code)
-			}
-			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+		if respondMediaMutationError(c, err, false) {
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
@@ -163,13 +139,13 @@ func deleteFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid object key", nil)
 		return
 	}
-	meta, err := helper.ParseMetadataFromRaw(c.Query("metadata"))
+	meta, err := pkgmedia.ParseMetadataFromRaw(c.Query("metadata"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
 	if err := mediaservice.DeleteFile(objectKey, meta); err != nil {
-		if errors.Is(err, helper.ErrDependencyNotConfigured) {
+		if errors.Is(err, pkgerrors.ErrDependencyNotConfigured) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return
 		}
@@ -181,7 +157,7 @@ func deleteFile(c *gin.Context) {
 
 func decodeLocalURL(c *gin.Context) {
 	token := c.Param("token")
-	objectKey, err := helper.DecodeLocalURLToken(token)
+	objectKey, err := pkgmedia.DecodeLocalURLToken(token)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
@@ -197,7 +173,7 @@ func getVideoStatus(c *gin.Context) {
 	}
 	out, err := mediaservice.GetVideoStatus(c.Request.Context(), videoGUID)
 	if err != nil {
-		if errors.Is(err, helper.ErrDependencyNotConfigured) {
+		if errors.Is(err, pkgerrors.ErrDependencyNotConfigured) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return
 		}

@@ -11,4 +11,5 @@ var (
 	ErrMediaReuseMismatch       = errors.New(constants.MsgMediaReuseMismatch)
 	ErrExecutableUploadRejected = errors.New(constants.MsgExecutableUploadRejected)
 	ErrImageEncodeBusy          = errors.New(constants.MsgImageEncodeBusy)
+	ErrDependencyNotConfigured  = errors.New(constants.MsgMediaDependencyNotConfigured)
 )

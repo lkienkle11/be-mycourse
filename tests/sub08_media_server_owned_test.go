@@ -9,7 +9,7 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/entities"
-	"mycourse-io-be/pkg/logic/helper"
+	pkgmedia "mycourse-io-be/pkg/media"
 )
 
 func TestBindCreateFileMultipart_ignoresClientKindAndMetadata(t *testing.T) {
@@ -23,7 +23,7 @@ func TestBindCreateFileMultipart_ignoresClientKindAndMetadata(t *testing.T) {
 		"object_key": []string{"abc"},
 	}
 
-	req, err := helper.BindCreateFileMultipart(c)
+	req, err := pkgmedia.BindCreateFileMultipart(c)
 	if err != nil {
 		t.Fatalf("bind should accept metadata payload for backward-compat: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestBindCreateFileMultipart_ignoresClientKindAndMetadata(t *testing.T) {
 }
 
 func TestBuildTypedMetadata_usesDefaultValuesWhenUnavailable(t *testing.T) {
-	meta := helper.BuildTypedMetadata(
+	meta := pkgmedia.BuildTypedMetadata(
 		constants.FileKindFile,
 		"application/pdf",
 		"empty.pdf",
@@ -56,7 +56,7 @@ func TestBuildTypedMetadata_usesDefaultValuesWhenUnavailable(t *testing.T) {
 }
 
 func TestResolveUploadProvider_fallbackLocalWhenKindUnknown(t *testing.T) {
-	provider := helper.ResolveUploadProvider(constants.FileKindFile, false)
+	provider := pkgmedia.ResolveUploadProvider(constants.FileKindFile, false)
 	if provider != constants.FileProviderLocal {
 		t.Fatalf("expected local fallback when kind is unknown, got %q", provider)
 	}

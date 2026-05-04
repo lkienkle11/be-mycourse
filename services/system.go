@@ -8,12 +8,14 @@ import (
 
 	"mycourse-io-be/internal/systemauth"
 	"mycourse-io-be/models"
+	pkgerrors "mycourse-io-be/pkg/errors"
 )
 
+// Re-export system sentinel errors from pkg/errors for callers that compare via services.*.
 var (
-	ErrSystemAppConfigMissing = errors.New("system_app_config row missing")
-	ErrSystemSecretsNotReady  = errors.New("system secrets are not configured in database")
-	ErrSystemLoginFailed      = errors.New("invalid system credentials")
+	ErrSystemAppConfigMissing = pkgerrors.ErrSystemAppConfigMissing
+	ErrSystemSecretsNotReady  = pkgerrors.ErrSystemSecretsNotReady
+	ErrSystemLoginFailed      = pkgerrors.ErrSystemLoginFailed
 )
 
 // GetSystemAppConfig returns the singleton system_app_config row (id=1).
@@ -57,6 +59,14 @@ func RegisterSystemPrivilegedUser(db *gorm.DB, username, password string) error 
 	return db.Create(&row).Error
 }
 
+func systemPrivilegedUserMatchCount(db *gorm.DB, usernameSecret, passwordSecret string) (int64, error) {
+	var n int64
+	err := db.Model(&models.SystemPrivilegedUser{}).
+		Where("username_secret = ? AND password_secret = ?", usernameSecret, passwordSecret).
+		Count(&n).Error
+	return n, err
+}
+
 // SystemLogin validates privileged user credentials and returns a short-lived system access token.
 func SystemLogin(db *gorm.DB, username, password string) (accessToken string, err error) {
 	if db == nil {
@@ -76,21 +86,14 @@ func SystemLogin(db *gorm.DB, username, password string) (accessToken string, er
 	}
 	uh := systemauth.CredentialHMACHex(cfg.AppSystemEnv, username)
 	ph := systemauth.CredentialHMACHex(cfg.AppSystemEnv, password)
-
-	var n int64
-	if err := db.Model(&models.SystemPrivilegedUser{}).
-		Where("username_secret = ? AND password_secret = ?", uh, ph).
-		Count(&n).Error; err != nil {
+	n, err := systemPrivilegedUserMatchCount(db, uh, ph)
+	if err != nil {
 		return "", err
 	}
 	if n == 0 {
 		return "", ErrSystemLoginFailed
 	}
-	tok, err := systemauth.MintSystemAccessToken(cfg.AppTokenEnv, uh)
-	if err != nil {
-		return "", err
-	}
-	return tok, nil
+	return systemauth.MintSystemAccessToken(cfg.AppTokenEnv, uh)
 }
 
 // VerifySystemAccessToken checks the bearer token against app_token_env in DB.

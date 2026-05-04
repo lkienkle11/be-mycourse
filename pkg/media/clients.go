@@ -8,69 +8,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
-	"time"
-
-	"github.com/Backblaze/blazer/b2"
-	gcdn "github.com/G-Core/gcorelabscdn-go"
-	"github.com/G-Core/gcorelabscdn-go/gcore/provider"
-	bunnystorage "github.com/l0wl3vel/bunny-storage-go-sdk"
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
-	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/setting"
 )
-
-// NewCloudClientsFromSetting builds B2, Gcore API, and Bunny Storage SDK handles from
-// setting.MediaSetting (YAML + .env resolved in setting.Setup). Call only after setting.Setup();
-// main.go orders setting.Setup before pkg/media.Setup.
-func NewCloudClientsFromSetting() (*entities.CloudClients, error) {
-	out := &entities.CloudClients{
-		HTTPClient: &http.Client{Timeout: 60 * time.Second},
-	}
-
-	ms := setting.MediaSetting
-	keyID := strings.TrimSpace(ms.B2KeyID)
-	appKey := strings.TrimSpace(ms.B2AppKey)
-	bucket := strings.TrimSpace(ms.B2Bucket)
-	if keyID != "" && appKey != "" && bucket != "" {
-		client, err := b2.NewClient(context.Background(), keyID, appKey)
-		if err != nil {
-			return nil, err
-		}
-		out.B2Client = client
-		out.B2BucketName = bucket
-	}
-
-	gcoreAPIToken := strings.TrimSpace(ms.GcoreAPIToken)
-	if gcoreAPIToken != "" {
-		apiClient := provider.NewClient(
-			utils.NormalizeBaseURL(ms.GcoreAPIBaseURL, "https://api.gcore.com"),
-			provider.WithSignerFunc(func(req *http.Request) error {
-				req.Header.Set("Authorization", "APIKey "+gcoreAPIToken)
-				return nil
-			}),
-		)
-		out.GcoreService = gcdn.NewService(apiClient)
-	}
-
-	bunnyEndpoint := strings.TrimSpace(ms.BunnyStorageEndpoint)
-	bunnyPassword := strings.TrimSpace(ms.BunnyStoragePassword)
-	if bunnyEndpoint != "" && bunnyPassword != "" {
-		parsed, err := url.Parse("https://" + strings.TrimLeft(bunnyEndpoint, "/"))
-		if err != nil {
-			return nil, err
-		}
-		client := bunnystorage.NewClient(*parsed, bunnyPassword)
-		out.BunnyStorage = &client
-	}
-	return out, nil
-}
 
 // effectiveB2Bucket prefers setting.MediaSetting.B2Bucket after setting.Setup(); falls back to B2BucketName from NewCloudClientsFromSetting.
 func effectiveB2Bucket(c *entities.CloudClients) string {
@@ -85,7 +31,7 @@ func UploadLocal(_ *entities.CloudClients, objectKey string, _ entities.RawMetad
 	if secret == "" {
 		secret = "mycourse-local-file-secret"
 	}
-	token := helper.EncodeLocalObjectKey(secret, objectKey)
+	token := EncodeLocalObjectKey(secret, objectKey)
 	path := "/api/v1/media/files/local/" + token
 	return entities.ProviderUploadResult{
 		URL:       path,
@@ -116,7 +62,11 @@ func UploadB2(c *entities.CloudClients, ctx context.Context, objectKey string, f
 	if err := writer.Close(); err != nil {
 		return entities.ProviderUploadResult{}, err
 	}
-	origin := utils.NormalizeBaseURL(setting.MediaSetting.B2BaseURL, bucket.BaseURL())
+	return b2UploadResultURLs(bucketName, key, bucket.BaseURL(), meta), nil
+}
+
+func b2UploadResultURLs(bucketName, key, bucketBaseURL string, meta entities.RawMetadata) entities.ProviderUploadResult {
+	origin := utils.NormalizeBaseURL(setting.MediaSetting.B2BaseURL, bucketBaseURL)
 	cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, origin)
 	publicURL := utils.JoinURLPathSegments(cdn, bucketName, key)
 	if meta == nil {
@@ -128,7 +78,87 @@ func UploadB2(c *entities.CloudClients, ctx context.Context, objectKey string, f
 		OriginURL: utils.JoinURLPathSegments(origin, key),
 		ObjectKey: key,
 		Metadata:  meta,
-	}, nil
+	}
+}
+
+func bunnyCreateStreamVideo(c *entities.CloudClients, ctx context.Context, apiBase, libraryID, apiKey, filename string) (string, error) {
+	createBody, _ := json.Marshal(map[string]string{"title": filename})
+	createURL := fmt.Sprintf("%s/library/%s/videos", apiBase, libraryID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, createURL, bytes.NewReader(createBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("AccessKey", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 300 {
+		return "", &pkgerrors.ProviderError{
+			Code: errcode.BunnyCreateFailed,
+			Msg:  strings.TrimSpace(string(body)),
+			Err:  fmt.Errorf("bunny create video: HTTP %d", resp.StatusCode),
+		}
+	}
+	return decodeBunnyCreateVideoGUID(body)
+}
+
+func decodeBunnyCreateVideoGUID(body []byte) (string, error) {
+	var created struct {
+		GUID string `json:"guid"`
+	}
+	if err := json.Unmarshal(body, &created); err != nil {
+		return "", &pkgerrors.ProviderError{
+			Code: errcode.BunnyInvalidResponse,
+			Msg:  err.Error(),
+			Err:  err,
+		}
+	}
+	if created.GUID == "" {
+		return "", &pkgerrors.ProviderError{
+			Code: errcode.BunnyInvalidResponse,
+			Msg:  "bunny stream did not return video guid",
+			Err:  errors.New("missing guid"),
+		}
+	}
+	return created.GUID, nil
+}
+
+func bunnyPutStreamVideoPayload(c *entities.CloudClients, ctx context.Context, apiBase, libraryID, apiKey, videoGUID string, payload []byte) error {
+	uploadURL := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, videoGUID)
+	uploadReq, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	uploadReq.Header.Set("AccessKey", apiKey)
+	uploadReq.Header.Set("Content-Type", "application/octet-stream")
+	uploadResp, err := c.HTTPClient.Do(uploadReq)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = uploadResp.Body.Close() }()
+	uploadBody, _ := io.ReadAll(uploadResp.Body)
+	if uploadResp.StatusCode >= 300 {
+		return &pkgerrors.ProviderError{
+			Code: errcode.BunnyUploadFailed,
+			Msg:  strings.TrimSpace(string(uploadBody)),
+			Err:  fmt.Errorf("bunny upload video: HTTP %d", uploadResp.StatusCode),
+		}
+	}
+	return nil
+}
+
+func bunnyUploadApplyMetadata(meta entities.RawMetadata, c *entities.CloudClients, ctx context.Context, guid, libraryID, stream string) {
+	meta["video_guid"] = guid
+	meta["bunny_video_id"] = guid
+	meta["bunny_library_id"] = libraryID
+	meta["video_provider"] = "bunny_stream"
+	if detail, derr := GetBunnyVideoByID(c, ctx, guid); derr == nil {
+		ApplyBunnyDetailToMetadata(meta, detail, libraryID, stream)
+	}
 }
 
 func UploadBunnyVideo(c *entities.CloudClients, ctx context.Context, filename string, payload []byte, objectKey string, meta entities.RawMetadata) (entities.ProviderUploadResult, error) {
@@ -140,82 +170,23 @@ func UploadBunnyVideo(c *entities.CloudClients, ctx context.Context, filename st
 	}
 	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 
-	createBody, _ := json.Marshal(map[string]string{"title": filename})
-	createURL := fmt.Sprintf("%s/library/%s/videos", apiBase, libraryID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, createURL, bytes.NewReader(createBody))
+	guid, err := bunnyCreateStreamVideo(c, ctx, apiBase, libraryID, apiKey, filename)
 	if err != nil {
 		return entities.ProviderUploadResult{}, err
 	}
-	req.Header.Set("AccessKey", apiKey)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
+	if err := bunnyPutStreamVideoPayload(c, ctx, apiBase, libraryID, apiKey, guid, payload); err != nil {
 		return entities.ProviderUploadResult{}, err
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 300 {
-		return entities.ProviderUploadResult{}, &pkgerrors.ProviderError{
-			Code: errcode.BunnyCreateFailed,
-			Msg:  strings.TrimSpace(string(body)),
-			Err:  fmt.Errorf("bunny create video: HTTP %d", resp.StatusCode),
-		}
-	}
-	var created struct {
-		GUID string `json:"guid"`
-	}
-	if err := json.Unmarshal(body, &created); err != nil {
-		return entities.ProviderUploadResult{}, &pkgerrors.ProviderError{
-			Code: errcode.BunnyInvalidResponse,
-			Msg:  err.Error(),
-			Err:  err,
-		}
-	}
-	if created.GUID == "" {
-		return entities.ProviderUploadResult{}, &pkgerrors.ProviderError{
-			Code: errcode.BunnyInvalidResponse,
-			Msg:  "bunny stream did not return video guid",
-			Err:  errors.New("missing guid"),
-		}
-	}
-
-	uploadURL := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, created.GUID)
-	uploadReq, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, bytes.NewReader(payload))
-	if err != nil {
-		return entities.ProviderUploadResult{}, err
-	}
-	uploadReq.Header.Set("AccessKey", apiKey)
-	uploadReq.Header.Set("Content-Type", "application/octet-stream")
-	uploadResp, err := c.HTTPClient.Do(uploadReq)
-	if err != nil {
-		return entities.ProviderUploadResult{}, err
-	}
-	defer uploadResp.Body.Close()
-	uploadBody, _ := io.ReadAll(uploadResp.Body)
-	if uploadResp.StatusCode >= 300 {
-		return entities.ProviderUploadResult{}, &pkgerrors.ProviderError{
-			Code: errcode.BunnyUploadFailed,
-			Msg:  strings.TrimSpace(string(uploadBody)),
-			Err:  fmt.Errorf("bunny upload video: HTTP %d", uploadResp.StatusCode),
-		}
-	}
-
 	stream := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
-	playURL := fmt.Sprintf("%s/%s/%s", stream, libraryID, created.GUID)
+	playURL := fmt.Sprintf("%s/%s/%s", stream, libraryID, guid)
 	if meta == nil {
 		meta = entities.RawMetadata{}
 	}
-	meta["video_guid"] = created.GUID
-	meta["bunny_video_id"] = created.GUID
-	meta["bunny_library_id"] = libraryID
-	meta["video_provider"] = "bunny_stream"
-	if detail, derr := GetBunnyVideoByID(c, ctx, created.GUID); derr == nil {
-		helper.ApplyBunnyDetailToMetadata(meta, detail, libraryID, stream)
-	}
+	bunnyUploadApplyMetadata(meta, c, ctx, guid, libraryID, stream)
 	return entities.ProviderUploadResult{
 		URL:       playURL,
 		OriginURL: playURL,
-		ObjectKey: created.GUID,
+		ObjectKey: guid,
 		Metadata:  meta,
 	}, nil
 }
@@ -239,7 +210,7 @@ func DeleteBunnyVideo(c *entities.CloudClients, ctx context.Context, videoGUID s
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
-		return fmt.Errorf("Bunny Stream is not configured")
+		return fmt.Errorf("bunny stream is not configured")
 	}
 	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 	u := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, videoGUID)
@@ -252,68 +223,12 @@ func DeleteBunnyVideo(c *entities.CloudClients, ctx context.Context, videoGUID s
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("bunny delete video failed: %s", string(body))
 	}
 	return nil
-}
-
-func GetBunnyVideoByID(c *entities.CloudClients, ctx context.Context, videoGUID string) (*entities.BunnyVideoDetail, error) {
-	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
-	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
-	if libraryID == "" || apiKey == "" {
-		return nil, &pkgerrors.ProviderError{Code: errcode.BunnyStreamNotConfigured}
-	}
-	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
-	u := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, videoGUID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("AccessKey", apiKey)
-	req.Header.Set("accept", "application/json")
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, &pkgerrors.ProviderError{
-			Code: errcode.BunnyVideoNotFound,
-			Msg:  strings.TrimSpace(string(body)),
-			Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
-		}
-	}
-	if resp.StatusCode >= 300 {
-		return nil, &pkgerrors.ProviderError{
-			Code: errcode.BunnyGetVideoFailed,
-			Msg:  strings.TrimSpace(string(body)),
-			Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
-		}
-	}
-
-	var out entities.BunnyVideoDetail
-	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, &pkgerrors.ProviderError{
-			Code: errcode.BunnyInvalidResponse,
-			Msg:  err.Error(),
-			Err:  err,
-		}
-	}
-	if strings.TrimSpace(out.GUID) == "" {
-		return nil, &pkgerrors.ProviderError{
-			Code: errcode.BunnyInvalidResponse,
-			Msg:  "bunny stream did not return video guid",
-			Err:  errors.New("missing guid"),
-		}
-	}
-	helper.EnrichBunnyVideoDetail(&out)
-	return &out, nil
 }
 
 func BuildPublicURL(provider constants.FileProvider, objectKey string) string {
@@ -323,7 +238,7 @@ func BuildPublicURL(provider constants.FileProvider, objectKey string) string {
 		if secret == "" {
 			secret = "mycourse-local-file-secret"
 		}
-		return "/api/v1/media/files/local/" + helper.EncodeLocalObjectKey(secret, objectKey)
+		return "/api/v1/media/files/local/" + EncodeLocalObjectKey(secret, objectKey)
 	case constants.FileProviderBunny:
 		base := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
 		libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)

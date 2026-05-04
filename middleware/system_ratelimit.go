@@ -91,26 +91,28 @@ func RateLimitSystemIP(defaultAttempts, defaultMinutes int) gin.HandlerFunc {
 		now := time.Now().Unix()
 		windowStart := now - (now % windowSec)
 
-		systemRLBucketMu.Lock()
-		b := systemRLBuckets[key]
-		if b == nil || b.windowStart != windowStart || b.windowSec != windowSec {
-			systemRLBuckets[key] = &rateBucket{
-				windowStart: windowStart,
-				windowSec:   windowSec,
-				count:       1,
-			}
-			systemRLBucketMu.Unlock()
-			c.Next()
-			return
-		}
-		b.count++
-		n := b.count
-		systemRLBucketMu.Unlock()
-
-		if n > attempts {
+		if !systemRateAllow(key, windowSec, windowStart, attempts) {
 			response.AbortFail(c, http.StatusTooManyRequests, errcode.TooManyRequests, errcode.DefaultMessage(errcode.TooManyRequests), nil)
 			return
 		}
 		c.Next()
 	}
+}
+
+func systemRateAllow(key string, windowSec, windowStart int64, attempts int) bool {
+	systemRLBucketMu.Lock()
+	b := systemRLBuckets[key]
+	if b == nil || b.windowStart != windowStart || b.windowSec != windowSec {
+		systemRLBuckets[key] = &rateBucket{
+			windowStart: windowStart,
+			windowSec:   windowSec,
+			count:       1,
+		}
+		systemRLBucketMu.Unlock()
+		return true
+	}
+	b.count++
+	n := b.count
+	systemRLBucketMu.Unlock()
+	return n <= attempts
 }

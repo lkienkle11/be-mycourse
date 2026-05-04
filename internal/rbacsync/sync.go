@@ -23,24 +23,7 @@ func SyncPermissionsFromConstants(db *gorm.DB) (int, error) {
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		for _, e := range entries {
-			var p models.Permission
-			err := tx.Where("permission_id = ?", e.PermissionID).First(&p).Error
-			if err == gorm.ErrRecordNotFound {
-				p = models.Permission{
-					PermissionID:   e.PermissionID,
-					PermissionName: e.PermissionName,
-					Description:    "",
-				}
-				if err := tx.Create(&p).Error; err != nil {
-					return err
-				}
-				continue
-			}
-			if err != nil {
-				return err
-			}
-			p.PermissionName = e.PermissionName
-			if err := tx.Save(&p).Error; err != nil {
+			if err := upsertPermissionCatalogRow(tx, e); err != nil {
 				return err
 			}
 		}
@@ -51,4 +34,22 @@ func SyncPermissionsFromConstants(db *gorm.DB) (int, error) {
 	}
 
 	return len(entries), nil
+}
+
+func upsertPermissionCatalogRow(tx *gorm.DB, e constants.PermissionCatalogEntry) error {
+	var p models.Permission
+	err := tx.Where("permission_id = ?", e.PermissionID).First(&p).Error
+	if err == gorm.ErrRecordNotFound {
+		p = models.Permission{
+			PermissionID:   e.PermissionID,
+			PermissionName: e.PermissionName,
+			Description:    "",
+		}
+		return tx.Create(&p).Error
+	}
+	if err != nil {
+		return err
+	}
+	p.PermissionName = e.PermissionName
+	return tx.Save(&p).Error
 }

@@ -5,14 +5,15 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/models"
-	"mycourse-io-be/pkg/logic/helper"
+	pkgmedia "mycourse-io-be/pkg/media"
+	mediarepo "mycourse-io-be/repository/media"
 )
 
 // EnqueueOrphanImageCleanup schedules deferred cloud-object deletion for imageURL.
 //
 // Resolution order:
 //  1. DB lookup via media_files (url / origin_url) — uses stored provider/key when found.
-//  2. URL-pattern fallback via helper.ParseImageURLForOrphanCleanup (runtime MediaSetting).
+//  2. URL-pattern fallback via pkg/media.ParseImageURLForOrphanCleanup (runtime MediaSetting).
 //
 // Returns true when a pending-cleanup row was inserted.
 // No-op (false) for: empty URL, Local provider, external/unrecognised URL, DB insert error.
@@ -23,39 +24,38 @@ import (
 //
 // Future domains (course cover_image, user avatar, lesson JSONB images) MUST call
 // this function after their own DB delete/update commits.
+func orphanCleanupResolveTargets(repo *mediarepo.FileRepository, url string) (
+	prov constants.FileProvider,
+	objectKey, bunnyVideoID string,
+	ok bool,
+) {
+	if row, err := repo.GetByURL(url); err == nil && row != nil {
+		return row.Provider, row.ObjectKey, row.BunnyVideoID, true
+	}
+	var parsedOK bool
+	prov, objectKey, bunnyVideoID, parsedOK = pkgmedia.ParseImageURLForOrphanCleanup(url)
+	if !parsedOK {
+		return prov, objectKey, bunnyVideoID, false
+	}
+	return prov, objectKey, bunnyVideoID, true
+}
+
 func EnqueueOrphanImageCleanup(imageURL string) bool {
 	url := strings.TrimSpace(imageURL)
 	if url == "" {
 		return false
 	}
-
 	repo := mediaRepository()
-
-	var (
-		prov         constants.FileProvider
-		objectKey    string
-		bunnyVideoID string
-	)
-
-	if row, err := repo.GetByURL(url); err == nil && row != nil {
-		prov = row.Provider
-		objectKey = row.ObjectKey
-		bunnyVideoID = row.BunnyVideoID
-	} else {
-		var ok bool
-		prov, objectKey, bunnyVideoID, ok = helper.ParseImageURLForOrphanCleanup(url)
-		if !ok {
-			return false
-		}
+	prov, objectKey, bunnyVideoID, resolved := orphanCleanupResolveTargets(repo, url)
+	if !resolved {
+		return false
 	}
-
 	if prov == constants.FileProviderLocal {
 		return false
 	}
 	if strings.TrimSpace(objectKey) == "" && strings.TrimSpace(bunnyVideoID) == "" {
 		return false
 	}
-
 	row := &models.MediaPendingCloudCleanup{
 		Provider:     prov,
 		ObjectKey:    strings.TrimSpace(objectKey),

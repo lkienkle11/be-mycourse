@@ -4,18 +4,18 @@ alwaysApply: false
 
 ### Project Rules
 
-Feature: media, taxnomy, auth
+<feature01>: media, taxnomy, auth
 
 1. **Constants Placement**
-   All constants within the directories `api`, `services`, `repository`, `pkg/**/*.go` and `pkg/*.go` — including both single declarations (`const A = 1`) and grouped blocks (`const ( A = 1 ... )`) — MUST be placed in the `constants/` directory. A corresponding module must be created for each.
+   All constants within the directories (`api`, `services`, `repository`, `pkg/**/*.go` and `pkg/*.go` - all modules, all subfolders, not only feature01) — including both single declarations (`const A = 1`) and grouped blocks (`const ( A = 1 ... )`) — MUST be placed in the `constants/` directory. A corresponding module must be created for each.
    Using `const` blocks to bypass this rule is strictly prohibited.
 
 2. **Errors Placement**
-   All errors within the directories `api`, `services`, `repository`, and `pkg/<feature>/*.go` — including both single declarations (`var Err = ...`) and grouped blocks (`var ( ErrA = ... )`) — MUST be placed in the `pkg/errors` directory.
+   All errors within the directories (`api`, `services`, `repository` - all modules, all subfolders, not only feature01), and `pkg/<feature01>/*.go` — including both single declarations (`var Err = ...`) and grouped blocks (`var ( ErrA = ... )`) — MUST be placed in the `pkg/errors` directory.
    They must be imported and used directly from `pkg/errors`. Declaring `var errors` or any error blocks outside of `pkg/errors` is strictly prohibited.
 
 3. **Type and Struct Definitions**
-   All modules within the directories `api`, `services`, and `pkg/<feature>/*.go` MUST NOT declare any types or structs directly.
+   All modules within the directories (`api`, `services` - all modules, all subfolders, not only feature01), and `pkg/<feature01>/*.go` MUST NOT declare any types or structs directly.
    All definitions must be centralized in `pkg/entities`, with appropriately named modules and types defined there.
 
 **Exceptions:**
@@ -26,9 +26,9 @@ Feature: media, taxnomy, auth
 4. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Before writing ANY new function, examine its inputs and outputs:
 
-* **Mechanism Logic (belongs to `pkg/<feature>/*.go`):**
+* **Mechanism Logic (belongs to `pkg/<feature01>/*.go`):**
   If the function answers "How?", operates ONLY on primitive types (`string`, `int`, `bool`, slices) or standard Go libraries (e.g., `time.Time`), and has ZERO knowledge of domain models/structs, it is considered Mechanism Logic.
-  It MUST be extracted into a dedicated file inside `pkg/<feature>/*.go`, EVEN IF it is currently used in only one feature.
+  It MUST be extracted into a dedicated file inside `pkg/<feature01>/*.go`, EVEN IF it is currently used in only one feature.
 
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
@@ -41,10 +41,10 @@ Feature: media, taxnomy, auth
 * **No Fake Methods:**
   Do not bypass the rule by attaching helper functions to a service struct (e.g., `func (s *courseService) parseBoolean()`).
   If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
-  If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature>/*.go`.
+  If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature01>/*.go`.
 
 6. **Strict One-Way Dependency Direction for `pkg/`**
 
-* Code inside `pkg/<feature>/*.go` sits at the lowest level of the dependency chain.
+* Code inside `pkg/<feature01>/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.
 * They may ONLY depend on standard Go libraries, external third-party libraries, and shared entities such as `pkg/entities` or common models.

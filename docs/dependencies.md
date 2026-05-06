@@ -28,7 +28,7 @@
   - `models`
   - `services`
 
-**Media / Bunny (Sub 09 + Sub 12):** public contract is `dto.UploadFileResponse` (no **`origin_url`** in JSON — Sub 12) + `media_files` / `metadata_json`; policy helpers in `pkg/logic/helper/media_resolver.go`; HTTP in `pkg/media/clients.go`. Authoritative write-up: **`docs/modules/media.md`** (and `docs/api_swagger.yaml` for OpenAPI consumers).
+**Media / Bunny (Sub 09 + Sub 12):** public contract is `dto.UploadFileResponse` (no **`origin_url`** in JSON — Sub 12) + `media_files` / `metadata_json`; policy helpers in `pkg/media/media_resolver.go`; HTTP in `pkg/media/clients.go`. Authoritative write-up: **`docs/modules/media.md`** (and `docs/api_swagger.yaml` for OpenAPI consumers).
 
 ## Build/Run Tooling
 - Go 1.25 module.

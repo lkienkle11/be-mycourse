@@ -18,16 +18,28 @@ Handles classification resources: **categories**, **course levels**, and **tags*
 
 ```
 api/v1/taxonomy/
-├── category_handler.go       # HTTP handlers for category CRUD
-├── course_level_handler.go   # HTTP handlers for course level CRUD
-├── tag_handler.go            # HTTP handlers for tag CRUD
-└── routes.go                 # Route registration for /api/v1/taxonomy/*
+├── category_handler.go        # HTTP handlers for category CRUD
+├── course_level_handler.go    # HTTP handlers for course level CRUD
+├── tag_handler.go             # HTTP handlers for tag CRUD
+├── handlers_common.go         # Shared generic list/create/update/delete responders
+└── routes.go                  # Route registration for /api/v1/taxonomy/* (wires handlers above)
+
+repository/taxonomy/
+├── gorm_shared.go             # Shared list query + generic GORM CRUD helpers
+└── repositories.go            # CategoryRepository, TagRepository, CourseLevelRepository
 
 services/taxonomy/
-├── category_service.go       # Business logic for categories
-├── course_level_service.go   # Business logic for course levels
-└── tag_service.go            # Business logic for tags
+├── category_service.go            # Business logic for categories (image_file_id FK + orphan cleanup via media_files)
+├── fields.go                      # Trimmed name/slug/status helpers for tag/course level + category PATCH fields
+└── tag_course_level_services.go   # Tag + course level list/create/update/delete services
+
+pkg/taxonomy/
+└── status.go                      # NormalizeTaxonomyStatus — maps request strings → constants.TaxonomyStatus
 ```
+
+`services/taxonomy/fields.go` imports **`mycourse-io-be/pkg/taxonomy`** (alias `taxonomypkg`) so HTTP `status` strings are normalized before repository writes. **Category** HTTP handlers (`api/v1/taxonomy/category_handler.go`) import only **`dto`** — **`services/taxonomy/category_service.go`** maps `models.Category` → **`dto.CategoryResponse`** (with nested **`image`**) so **`api/`** stays free of **`models`** (depguard `restrict_api`).
+
+**Category image contract:** create/update JSON uses **`image_file_id`** (UUID of a **`media_files`** row). Responses expose nested **`image`** (`dto.MediaFilePublic`). The server validates file kind/status/MIME via **`services/media.LoadValidatedProfileImageFile`**; failures return **`pkg/errors.ErrInvalidProfileMediaFile`** (**`constants.MsgInvalidProfileMediaFile`**). Replacing or deleting a category enqueues **`mediasvc.EnqueueOrphanCleanupForMediaFileID`** for the superseded or removed file id.
 
 ---
 
@@ -55,10 +67,11 @@ services/taxonomy/
 
 ```
 HTTP Request
-  └─ api/v1/taxonomy/*_handler.go   (validate input, bind DTO)
-       └─ services/taxonomy/*_service.go  (business rules, DB queries)
-            └─ models / database (Postgres via GORM or raw SQL)
-                 └─ HTTP Response  (standard envelope: { code, message, data })
+  └─ api/v1/taxonomy/*_handler.go (+ handlers_common.go)
+       └─ services/taxonomy/*  (category_service + tag_course_level_services + fields)
+            └─ repository/taxonomy (repositories.go + gorm_shared.go)
+                 └─ models / database (Postgres via GORM)
+                      └─ HTTP Response  (standard envelope: { code, message, data })
 ```
 
 ---

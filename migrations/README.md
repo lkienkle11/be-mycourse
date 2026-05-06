@@ -11,6 +11,7 @@ Các file `*_up.sql` được **nhúng (embed)** vào binary (`migrations/embed.
 | `000003_media_metadata` | Bảng **`media_files`** (upload gateway), index. |
 | `000004_media_orphan_safety` | Cột `media_files.row_version`, `content_fingerprint`; bảng **`media_pending_cloud_cleanup`**. |
 | `000005_media_bunny_response_fields` | Cột **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** (Bunny parity / API `UploadFileResponse` — xem `docs/modules/media.md`). |
+| `000006_taxonomy_user_media_refs` | `categories.image_file_id` + `users.avatar_file_id` (FK → `media_files.id`); drop cột URL thuần `image_url` / `avatar_url`; backfill FK từ URL khớp `media_files.url` / `origin_url`. |
 
 **Xóa toàn bộ bảng bằng SQL (đúng thứ tự FK):** xem `docs/database.md` — mục **Drop All Tables**; khi thêm bảng mới cập nhật danh sách `DROP TABLE` tương ứng.
 

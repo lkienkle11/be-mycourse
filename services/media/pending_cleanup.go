@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"mycourse-io-be/constants"
-	"mycourse-io-be/pkg/logic/helper"
 	pkgmedia "mycourse-io-be/pkg/media"
 	mediarepo "mycourse-io-be/repository/media"
 )
 
 func ProcessPendingCleanupBatch(ctx context.Context, repo *mediarepo.FileRepository) {
-	if err := helper.RequireInitialized(pkgmedia.Cloud); err != nil {
+	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return
 	}
 	rows, err := repo.ListPendingCleanupDue(constants.MediaCleanupBatchSize)

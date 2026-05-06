@@ -41,38 +41,49 @@ func Recovery() gin.HandlerFunc {
 	})
 }
 
-func respondError(c *gin.Context, err error) {
-	if err == nil {
-		return
-	}
-
+func respondJSONOrValidation(c *gin.Context, err error) bool {
 	var syn *json.SyntaxError
 	var typ *json.UnmarshalTypeError
 	if errors.As(err, &syn) || errors.As(err, &typ) {
 		writeErrorBody(c, http.StatusBadRequest, errcode.InvalidJSON, errcode.DefaultMessage(errcode.InvalidJSON), nil)
-		return
+		return true
 	}
-
 	var ve validator.ValidationErrors
 	if errors.As(err, &ve) {
 		details := appvalidate.FlattenErrors(ve)
 		writeErrorBody(c, http.StatusBadRequest, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), gin.H{"details": details})
+		return true
+	}
+	return false
+}
+
+func respondHTTPErrorIfAny(c *gin.Context, err error) bool {
+	he, ok := AsHTTPError(err)
+	if !ok {
+		return false
+	}
+	appCode := he.AppCode
+	if appCode == 0 {
+		appCode = errcode.Unknown
+	}
+	msg := he.Message
+	if msg == "" {
+		msg = errcode.DefaultMessage(appCode)
+	}
+	writeErrorBody(c, he.Status, appCode, msg, nil)
+	return true
+}
+
+func respondError(c *gin.Context, err error) {
+	if err == nil {
 		return
 	}
-
-	if he, ok := AsHTTPError(err); ok {
-		appCode := he.AppCode
-		if appCode == 0 {
-			appCode = errcode.Unknown
-		}
-		msg := he.Message
-		if msg == "" {
-			msg = errcode.DefaultMessage(appCode)
-		}
-		writeErrorBody(c, he.Status, appCode, msg, nil)
+	if respondJSONOrValidation(c, err) {
 		return
 	}
-
+	if respondHTTPErrorIfAny(c, err) {
+		return
+	}
 	msg := errcode.DefaultMessage(errcode.Unknown)
 	if gin.Mode() == gin.DebugMode {
 		msg = err.Error()

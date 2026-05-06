@@ -5,48 +5,50 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"mycourse-io-be/dto"
+	"mycourse-io-be/internal/appdb"
 	"mycourse-io-be/internal/jobs"
 	"mycourse-io-be/internal/rbacsync"
 	"mycourse-io-be/internal/systemauth"
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/errcode"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/services"
 )
 
 // RegisterRoutes wires /api/system/* (caller mounts the group at /api/system).
-func RegisterRoutes(g *gin.RouterGroup, db *gorm.DB) {
+// Uses internal/appdb (set from main after models.Setup); api/ does not import models or database drivers.
+func RegisterRoutes(g *gin.RouterGroup) {
+	db := appdb.Conn()
 	if g == nil || db == nil {
 		return
 	}
-
-	g.POST("/login", func(c *gin.Context) { systemLogin(c, db) })
+	g.POST("/login", systemLogin)
 
 	authd := g.Group("")
 	authd.Use(middleware.RequireSystemAccessToken(db))
-	authd.POST("/permission-sync-now", func(c *gin.Context) { permissionSyncNow(c, db) })
-	authd.POST("/role-permission-sync-now", func(c *gin.Context) { rolePermissionSyncNow(c, db) })
-	authd.POST("/create-permission-sync-job", func(c *gin.Context) { createPermissionSyncJob(c, db) })
-	authd.POST("/create-role-permission-sync-job", func(c *gin.Context) { createRolePermissionSyncJob(c, db) })
+	authd.POST("/permission-sync-now", permissionSyncNow)
+	authd.POST("/role-permission-sync-now", rolePermissionSyncNow)
+	authd.POST("/create-permission-sync-job", createPermissionSyncJob)
+	authd.POST("/create-role-permission-sync-job", createRolePermissionSyncJob)
 	authd.POST("/delete-permission-sync-job", deletePermissionSyncJob)
 	authd.POST("/delete-role-permission-sync-job", deleteRolePermissionSyncJob)
 }
 
-func systemLogin(c *gin.Context, db *gorm.DB) {
+func systemLogin(c *gin.Context) {
 	var req dto.SystemLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, err.Error(), nil)
 		return
 	}
-	tok, err := services.SystemLogin(db, req.Username, req.Password)
+	tok, err := services.SystemLogin(appdb.Conn(), req.Username, req.Password)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrSystemLoginFailed):
+		case errors.Is(err, pkgerrors.ErrSystemLoginFailed):
 			response.Fail(c, http.StatusUnauthorized, errcode.InvalidCredentials, errcode.DefaultMessage(errcode.InvalidCredentials), nil)
-		case errors.Is(err, services.ErrSystemSecretsNotReady):
+		case errors.Is(err, pkgerrors.ErrSystemSecretsNotReady):
 			response.Fail(c, http.StatusServiceUnavailable, errcode.InternalError, "system token secrets are not configured", nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
@@ -59,8 +61,8 @@ func systemLogin(c *gin.Context, db *gorm.DB) {
 	})
 }
 
-func permissionSyncNow(c *gin.Context, db *gorm.DB) {
-	n, err := rbacsync.SyncPermissionsFromConstants(db)
+func permissionSyncNow(c *gin.Context) {
+	n, err := rbacsync.SyncPermissionsFromConstants(appdb.Conn())
 	if err != nil {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
@@ -68,8 +70,8 @@ func permissionSyncNow(c *gin.Context, db *gorm.DB) {
 	response.OK(c, "permission_sync_completed", gin.H{"synced": n})
 }
 
-func rolePermissionSyncNow(c *gin.Context, db *gorm.DB) {
-	n, err := rbacsync.SyncRolePermissionsFromConstants(db)
+func rolePermissionSyncNow(c *gin.Context) {
+	n, err := rbacsync.SyncRolePermissionsFromConstants(appdb.Conn())
 	if err != nil {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
@@ -77,13 +79,13 @@ func rolePermissionSyncNow(c *gin.Context, db *gorm.DB) {
 	response.OK(c, "role_permission_sync_completed", gin.H{"rows": n})
 }
 
-func createPermissionSyncJob(c *gin.Context, db *gorm.DB) {
-	jobs.StartPermissionSyncJob(db)
+func createPermissionSyncJob(c *gin.Context) {
+	jobs.StartPermissionSyncJob(appdb.Conn())
 	response.OK(c, "permission_sync_job_started", nil)
 }
 
-func createRolePermissionSyncJob(c *gin.Context, db *gorm.DB) {
-	jobs.StartRolePermissionSyncJob(db)
+func createRolePermissionSyncJob(c *gin.Context) {
+	jobs.StartRolePermissionSyncJob(appdb.Conn())
 	response.OK(c, "role_permission_sync_job_started", nil)
 }
 

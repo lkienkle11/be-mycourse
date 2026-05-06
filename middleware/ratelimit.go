@@ -61,31 +61,31 @@ func RateLimitLocal(attempts, minutes int) gin.HandlerFunc {
 	keyPrefix := strconv.FormatUint(id, 10) + "|"
 
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		key := keyPrefix + ip
+		key := keyPrefix + c.ClientIP()
 		now := time.Now().Unix()
 		windowStart := now - (now % windowSec)
-
-		rateMu.Lock()
-		b := rateBuckets[key]
-		if b == nil || b.windowStart != windowStart {
-			rateBuckets[key] = &rateBucket{
-				windowStart: windowStart,
-				windowSec:   windowSec,
-				count:       1,
-			}
-			rateMu.Unlock()
-			c.Next()
-			return
-		}
-		b.count++
-		n := b.count
-		rateMu.Unlock()
-
-		if n > attempts {
+		if !rateLocalAllow(key, windowSec, windowStart, attempts) {
 			response.AbortFail(c, http.StatusTooManyRequests, errcode.TooManyRequests, errcode.DefaultMessage(errcode.TooManyRequests), nil)
 			return
 		}
 		c.Next()
 	}
+}
+
+func rateLocalAllow(key string, windowSec, windowStart int64, attempts int) bool {
+	rateMu.Lock()
+	b := rateBuckets[key]
+	if b == nil || b.windowStart != windowStart {
+		rateBuckets[key] = &rateBucket{
+			windowStart: windowStart,
+			windowSec:   windowSec,
+			count:       1,
+		}
+		rateMu.Unlock()
+		return true
+	}
+	b.count++
+	n := b.count
+	rateMu.Unlock()
+	return n <= attempts
 }

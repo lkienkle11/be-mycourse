@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"mycourse-io-be/dto"
-	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
 )
 
-func ToTagResponse(row models.Tag) dto.TagResponse {
+func ToTagResponse(row entities.Tag) dto.TagResponse {
 	return dto.TagResponse{
 		ID:        row.ID,
 		Name:      row.Name,
@@ -19,7 +19,7 @@ func ToTagResponse(row models.Tag) dto.TagResponse {
 	}
 }
 
-func ToTagResponses(rows []models.Tag) []dto.TagResponse {
+func ToTagResponses(rows []entities.Tag) []dto.TagResponse {
 	out := make([]dto.TagResponse, 0, len(rows))
 	for _, item := range rows {
 		out = append(out, ToTagResponse(item))

@@ -7,7 +7,7 @@ import (
 
 	"mycourse-io-be/pkg/errcode"
 	"mycourse-io-be/pkg/response"
-	"mycourse-io-be/services"
+	"mycourse-io-be/services/rbac"
 )
 
 // RequirePermission allows the request only if the authenticated user has every listed
@@ -25,21 +25,11 @@ func RequirePermission(actions ...string) gin.HandlerFunc {
 		}
 		userID, _ := v.(uint)
 
-		if permVal, exists := c.Get(ContextPermissions); exists {
-			if permSet, ok := permVal.(map[string]struct{}); ok {
-				for _, action := range actions {
-					if _, has := permSet[action]; !has {
-						response.AbortFail(c, http.StatusForbidden, errcode.Forbidden, "forbidden: missing permission "+action, nil)
-						return
-					}
-				}
-				c.Next()
-				return
-			}
+		if jwtPermissionsSatisfied(c, actions) {
+			return
 		}
 
-		// Fallback: query DB (backward compatibility with tokens without embedded permissions).
-		okAll, missing, err := services.UserHasAllPermissions(userID, actions)
+		okAll, missing, err := rbac.UserHasAllPermissions(userID, actions)
 		if err != nil {
 			response.AbortFail(c, http.StatusInternalServerError, errcode.InternalError, "permission check failed", nil)
 			return
@@ -50,4 +40,24 @@ func RequirePermission(actions ...string) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// jwtPermissionsSatisfied runs c.Next when JWT carries a permission superset; returns true if handled.
+func jwtPermissionsSatisfied(c *gin.Context, actions []string) bool {
+	permVal, exists := c.Get(ContextPermissions)
+	if !exists {
+		return false
+	}
+	permSet, ok := permVal.(map[string]struct{})
+	if !ok {
+		return false
+	}
+	for _, action := range actions {
+		if _, has := permSet[action]; !has {
+			response.AbortFail(c, http.StatusForbidden, errcode.Forbidden, "forbidden: missing permission "+action, nil)
+			return true
+		}
+	}
+	c.Next()
+	return true
 }

@@ -1,5 +1,5 @@
 package dbschema
 
-const taxonomyCourseLevels = "course_levels"
+import "mycourse-io-be/constants"
 
-func (taxonomyNS) CourseLevels() string { return taxonomyCourseLevels }
+func (taxonomyNS) CourseLevels() string { return constants.TableTaxonomyCourseLevels }

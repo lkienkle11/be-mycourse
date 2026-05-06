@@ -68,7 +68,7 @@ sequenceDiagram
 
     Main->>DB: models.Setup() — open GORM pool
     DB-->>Main: ok
-    Main->>Main: services.SetRBACDB(models.DB)
+    Main->>Main: rbac.SetRBACDB(models.DB)
 
     Main->>CLI: MaybeRunRegisterNewSystemUser(DB)
     alt CLI_REGISTER_NEW_SYSTEM_USER = true
@@ -115,7 +115,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Client
     participant H as Handler (auth.go register)
-    participant SVC as services.Register
+    participant SVC as auth.Register
     participant DB as PostgreSQL (models.DB)
     participant Email as pkg/brevo (Brevo API)
 
@@ -161,7 +161,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Client (browser link)
     participant H as Handler (auth.go confirmEmail)
-    participant SVC as services.ConfirmEmail
+    participant SVC as auth.ConfirmEmail
     participant DB as PostgreSQL
 
     C->>H: GET /api/v1/auth/confirm?token=<uuid>
@@ -185,7 +185,7 @@ sequenceDiagram
 
     SVC->>SVC: issueTokenPair(user, rememberMe=false, TTL=30d)
     Note over SVC: generates session string + UUIDs
-    SVC->>DB: AddRefreshSession(userID, sessionStr, entry)
+    SVC->>DB: repository.AddRefreshSession(db, userID, sessionStr, entry)
     DB-->>SVC: ok
 
     SVC-->>H: TokenPairResult{AccessToken, RefreshToken, SessionStr, RefreshTTL}
@@ -203,7 +203,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Client
     participant H as Handler (auth.go login)
-    participant SVC as services.Login
+    participant SVC as auth.Login
     participant Cache as Redis (services/cache)
     participant DB as PostgreSQL
 
@@ -254,7 +254,7 @@ sequenceDiagram
 
     SVC->>SVC: issueTokenPair(user, rememberMe, refreshTTL)
     Note over SVC: GenerateAccess + GenerateRefresh + GenerateSessionString
-    SVC->>DB: AddRefreshSession(userID, sessionStr, entry) [in TX]
+    SVC->>DB: repository.AddRefreshSession(db, userID, sessionStr, entry) [in TX]
     DB-->>SVC: ok
 
     SVC->>Cache: DelLoginInvalidCache(normEmail)
@@ -275,7 +275,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Client
     participant H as Handler (auth.go refreshToken)
-    participant SVC as services.RefreshSession
+    participant SVC as auth.RefreshSession
     participant DB as PostgreSQL
 
     C->>H: POST /api/v1/auth/refresh<br/>X-Refresh-Token: <jwt><br/>X-Session-Id: <128-hex>
@@ -317,7 +317,7 @@ sequenceDiagram
 
     SVC->>SVC: determine newRefreshTTL (rememberMe → 14d, else remaining lifetime)
     SVC->>SVC: GenerateAccess + GenerateRefresh (new UUID)
-    SVC->>DB: SaveRefreshSession(userID, sessionStr, updatedEntry)<br/>via jsonb_set (in-place, no TX)
+    SVC->>DB: repository.SaveRefreshSession(db, userID, sessionStr, updatedEntry)<br/>via jsonb_set (in-place, no TX)
     DB-->>SVC: ok
 
     SVC-->>H: TokenPairResult{AccessToken, RefreshToken, SessionStr (same), RefreshTTL}
@@ -335,7 +335,7 @@ sequenceDiagram
     participant C as Client
     participant MW as middleware.AuthJWT
     participant H as Handler (me.go getMe)
-    participant SVC as services.GetMe
+    participant SVC as auth.GetMe
     participant Cache as Redis
     participant DB as PostgreSQL
 
@@ -380,7 +380,7 @@ sequenceDiagram
     participant C as Client
     participant MW as middleware.AuthJWT + RequirePermission
     participant H as Handler (me.go getMyPermissions)
-    participant SVC as services.PermissionCodesForUser
+    participant SVC as rbac.PermissionCodesForUser
     participant DB as PostgreSQL
 
     C->>MW: GET /api/v1/me/permissions<br/>Authorization: Bearer <token>
@@ -527,7 +527,7 @@ sequenceDiagram
     participant C as Internal Client
     participant MW as middleware.RequireInternalAPIKey
     participant H as listPermissionsInternal
-    participant SVC as services.ListPermissions
+    participant SVC as rbac.ListPermissions
     participant DB as PostgreSQL
 
     C->>MW: GET /api/internal-v1/rbac/permissions?page=1&per_page=20&...<br/>X-API-Key: <key>
@@ -558,7 +558,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as createPermissionInternal
-    participant SVC as services.CreatePermission
+    participant SVC as rbac.CreatePermission
     participant DB as PostgreSQL
 
     C->>H: POST /api/internal-v1/rbac/permissions<br/>{permission_id, permission_name, description}
@@ -591,7 +591,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as updatePermissionInternal
-    participant SVC as services.UpdatePermission
+    participant SVC as rbac.UpdatePermission
     participant DB as PostgreSQL
 
     C->>H: PATCH /api/internal-v1/rbac/permissions/P1<br/>{permission_name:"profile:read_v2"}
@@ -601,7 +601,7 @@ sequenceDiagram
 
     SVC->>DB: SELECT * FROM permissions WHERE permission_id='P1'
     alt not found
-        SVC-->>H: gorm.ErrRecordNotFound
+        SVC-->>H: pkg/errors.ErrNotFound
         H-->>C: 404 {code:3004}
     end
 
@@ -625,7 +625,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as deletePermissionInternal
-    participant SVC as services.DeletePermission
+    participant SVC as rbac.DeletePermission
     participant DB as PostgreSQL
 
     C->>H: DELETE /api/internal-v1/rbac/permissions/P1<br/>X-API-Key: <key>
@@ -654,7 +654,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as listRolesInternal / getRoleInternal
-    participant SVC as services.ListRoles / GetRole
+    participant SVC as rbac.ListRoles / GetRole
     participant DB as PostgreSQL
 
     C->>H: GET /api/internal-v1/rbac/roles[/:id]?with_permissions=1
@@ -668,7 +668,7 @@ sequenceDiagram
     end
 
     alt GetRole and not found
-        DB-->>SVC: gorm.ErrRecordNotFound
+        DB-->>SVC: gorm.ErrRecordNotFound (mapped to pkg/errors.ErrNotFound)
         SVC-->>H: error
         H-->>C: 404 {code:3004}
     end
@@ -689,7 +689,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as createRoleInternal / updateRoleInternal / deleteRoleInternal
-    participant SVC as services.CreateRole / UpdateRole / DeleteRole
+    participant SVC as rbac.CreateRole / UpdateRole / DeleteRole
     participant DB as PostgreSQL
 
     alt CREATE: POST /api/internal-v1/rbac/roles
@@ -731,7 +731,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as setRolePermissionsInternal
-    participant SVC as services.SetRolePermissions
+    participant SVC as rbac.SetRolePermissions
     participant DB as PostgreSQL
 
     C->>H: PUT /api/internal-v1/rbac/roles/1/permissions<br/>{permission_ids:["P1","P5","P10"]}
@@ -741,7 +741,7 @@ sequenceDiagram
 
     SVC->>DB: SELECT * FROM roles WHERE id=roleID
     alt not found
-        SVC-->>H: gorm.ErrRecordNotFound
+        SVC-->>H: pkg/errors.ErrNotFound
         H-->>C: 404 {code:3004}
     end
 
@@ -772,7 +772,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as assignUserRoleInternal
-    participant SVC as services.AssignUserRole
+    participant SVC as rbac.AssignUserRole
     participant DB as PostgreSQL
 
     C->>H: POST /api/internal-v1/rbac/users/42/roles<br/>{role_id: 2}
@@ -782,7 +782,7 @@ sequenceDiagram
 
     SVC->>DB: SELECT COUNT FROM roles WHERE id=roleID
     alt role not found
-        SVC-->>H: gorm.ErrRecordNotFound
+        SVC-->>H: pkg/errors.ErrNotFound
         H-->>C: 404 {code:3004}
     end
 
@@ -803,7 +803,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as removeUserRoleInternal
-    participant SVC as services.RemoveUserRole
+    participant SVC as rbac.RemoveUserRole
     participant DB as PostgreSQL
 
     C->>H: DELETE /api/internal-v1/rbac/users/42/roles/2
@@ -825,7 +825,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as listUserPermissionsInternal / listUserDirectPermissionsInternal
-    participant SVC as services.PermissionCodesForUser / ListUserDirectPermissions
+    participant SVC as rbac.PermissionCodesForUser / ListUserDirectPermissions
     participant DB as PostgreSQL
 
     alt Effective permissions
@@ -857,7 +857,7 @@ sequenceDiagram
 sequenceDiagram
     participant C as Internal Client
     participant H as assignUserPermissionInternal / removeUserPermissionInternal
-    participant SVC as services.AssignUserPermission / RemoveUserPermission
+    participant SVC as rbac.AssignUserPermission / RemoveUserPermission
     participant DB as PostgreSQL
 
     alt ASSIGN by permission_id
@@ -865,7 +865,7 @@ sequenceDiagram
         H->>SVC: AssignUserPermission(42, "P5")
         SVC->>DB: SELECT COUNT FROM permissions WHERE permission_id='P5'
         alt not found
-            SVC-->>H: gorm.ErrRecordNotFound
+            SVC-->>H: pkg/errors.ErrNotFound
             H-->>C: 404 {code:3004}
         end
         SVC->>DB: FirstOrCreate user_permissions(user_id=42, permission_id='P5')

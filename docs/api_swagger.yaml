@@ -161,20 +161,40 @@ components:
         name: { type: string }
         slug: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+    MediaFilePublic:
+      type: object
+      description: Public subset of a media_files row (aligned with dto.MediaFilePublic)
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        provider: { type: string }
+        filename: { type: string }
+        mime_type: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        width: { type: integer }
+        height: { type: integer }
+        url: { type: string }
+        duration: { type: integer, format: int64 }
+        content_fingerprint: { type: string }
+        status: { type: string }
+    UpdateMeRequest:
+      type: object
+      properties:
+        avatar_file_id: { type: string, format: uuid, description: "Set to empty string to clear" }
     CreateCategoryRequest:
       type: object
-      required: [name, slug, image_url]
+      required: [name, slug, image_file_id]
       properties:
         name: { type: string, maxLength: 255 }
         slug: { type: string, maxLength: 255 }
-        image_url: { type: string, maxLength: 512 }
+        image_file_id: { type: string, format: uuid }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     UpdateCategoryRequest:
       type: object
       properties:
         name: { type: string }
         slug: { type: string }
-        image_url: { type: string }
+        image_file_id: { type: string, format: uuid }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     CreateTagRequest:
       type: object
@@ -328,6 +348,20 @@ paths:
       summary: Current user profile + effective permissions
       security:
         - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Me]
+      summary: Partial profile update (avatar_file_id)
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeRequest"
       responses:
         "200":
           description: OK

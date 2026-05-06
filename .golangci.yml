@@ -1,0 +1,148 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - dupl # Bắt code trùng lặp (dùng cây cú pháp AST, bất chấp AI đổi tên biến)
+    - gocyclo # Đo độ phức tạp của if/else, switch/case
+    - funlen # Báo đỏ nếu AI viết hàm dài dằng dặc thay vì chia nhỏ
+    - depguard # Chặn import ngược (ví dụ: cấm pkg/helpers import services)
+    - errcheck # Bắt buộc xử lý lỗi
+    - staticcheck # Kế thừa gosimple: Gợi ý đơn giản hóa code & bắt lỗi tĩnh
+    - govet # Bắt lỗi logic cơ bản của Go
+    - revive
+
+  settings:
+    revive:
+      rules:
+        - name: file-length-limit
+          arguments:
+            - max: 300 # Bất kỳ file nào vượt quá 300 dòng sẽ bị gạch đỏ
+              skip-comments: true # Bỏ qua không đếm số dòng comment
+              skip-blank-lines: true # Bỏ qua không đếm dòng trống
+    funlen:
+      lines: 30 # Quá 30 dòng là báo đỏ
+      statements: 25 # Quá 25 câu lệnh là báo đỏ
+    gocyclo:
+      min-complexity: 10 # Logic rẽ nhánh quá phức tạp sẽ bị gạch đỏ
+    # depguard v2: without rules, only stdlib is allowed and every mycourse-io-be / third-party import fails.
+    depguard:
+      rules:
+        main:
+          files:
+            - $all
+          allow:
+            - $gostd
+            - mycourse-io-be
+            - github.com
+            - golang.org
+            - gorm.io
+            - google.golang.org
+            - gopkg.in
+            - go.uber.org
+            - go.mongodb.org
+
+        restrict_pkg:
+          files:
+            - "**/pkg/**/*.go"
+            - "**/pkg/*.go"
+            - "**/helpers/**/*.go" # Nếu team bạn vẫn còn dùng folder này
+            - "**/helpers/*.go"
+          deny:
+            - pkg: "mycourse-io-be/services"
+              desc: "AI Rule Violation: pkg/ MUST NOT import services/. Pkg contains pure
+                mechanisms only."
+            - pkg: "mycourse-io-be/repository"
+              desc: "AI Rule Violation: pkg/ MUST NOT import repository/. Helpers cannot
+                access DB."
+            - pkg: "mycourse-io-be/api"
+              desc: "AI Rule Violation: pkg/ MUST NOT know about api/ controllers."
+
+        # Rule 3: Bảo vệ tầng Models/DB Schema (Thực thể câm lặng)
+        restrict_models:
+          files:
+            - "**/models/**/*.go"
+            - "**/dbschema/**/*.go"
+            - "**/models/*.go"
+            - "**/dbschema/*.go"
+          deny:
+            - pkg: "mycourse-io-be/services"
+              desc: "AI Rule Violation: models/ MUST be dumb structs. NO services/ allowed."
+            - pkg: "mycourse-io-be/repository"
+              desc: "AI Rule Violation: models/ MUST NOT import repository/; keep models as
+                structs + GORM mapping."
+            - pkg: "mycourse-io-be/api"
+              desc: "AI Rule Violation: models/ MUST NOT know about HTTP controllers."
+
+        # Rule 4: Bảo vệ tầng repository (Thủ kho)
+        restrict_repository:
+          files:
+            - "**/repository/**/*.go"
+            - "**/repository/*.go"
+          deny:
+            - pkg: "mycourse-io-be/services"
+              desc: "AI Rule Violation: repository/ MUST NOT import services/. Services call
+                repository, not reverse."
+            - pkg: "mycourse-io-be/api"
+              desc: "AI Rule Violation: repository/ MUST NOT import api/."
+
+        # Rule 5: Bảo vệ tầng Services (Bộ não nghiệp vụ)
+        restrict_services:
+          files:
+            - "**/services/**/*.go"
+            - "**/services/*.go"
+          deny:
+            - pkg: "mycourse-io-be/api"
+              desc: "AI Rule Violation: services/ MUST NOT import api/. Controllers call
+                Services, not reverse."
+
+        restrict_api:
+          files:
+            - "**/api/**/*.go"
+            - "**/api/*.go"
+            - "**/controllers/**/*.go"
+            - "**/controllers/*.go"
+          deny:
+            - pkg: "mycourse-io-be/models"
+              desc: "AI Rule Violation: api/ MUST NOT import mycourse-io-be/models. Use
+                services."
+            - pkg: "mycourse-io-be/repository"
+              desc: "AI Rule Violation: api/ MUST NOT bypass services to import repository/.
+                Controllers call Services only."
+            - pkg: "gorm.io/gorm"
+              desc: "AI Rule Violation: api/ MUST NOT contain database logic. DB queries
+                belong to repositories/."
+            - pkg: "database/sql"
+              desc: "AI Rule Violation: api/ MUST NOT use raw SQL database queries."
+
+        # Dumb entity files under models/ only (cf. taxonomy_category.go). Skipped: setup.go (DB bootstrap).
+        # Use models/*.go (not models/**/*.go): ** after models/ would skip files directly in models/.
+        restrict_models_pkg_entity_schema_only:
+          list-mode: lax
+          files:
+            - "**/models/*.go"
+            - "**/pkg/entities/*.go"
+            - "**/pkg/entities/**/*.go"
+            - "**/models/**/*.go"
+            - "!**/models/setup.go"
+          deny:
+            - pkg: "gorm.io/gorm"
+              desc: "AI Rule Violation: entity model file MUST NOT import gorm.io/gorm."
+            - pkg: "gorm.io/driver"
+              desc: "AI Rule Violation: entity model file MUST NOT import gorm.io/driver/*."
+            - pkg: "database/sql"
+              desc: "AI Rule Violation: entity model file MUST NOT import database/sql."
+            - pkg: "mycourse-io-be/pkg/dbmigrate"
+              desc: "AI Rule Violation: entity model file MUST NOT import pkg/dbmigrate."
+            - pkg: "mycourse-io-be/migrations"
+              desc: "AI Rule Violation: entity model file MUST NOT import migrations."
+
+        # Domain structs → pkg/entities (no gorm/sql in that tree). DB column / JSONB Valuer types → pkg/sqlmodel. Cấm pkg/types.
+        deny_import_pkg_types:
+          list-mode: lax
+          files:
+            - $all
+          deny:
+            - pkg: "mycourse-io-be/pkg/types"
+              desc: "AI Rule Violation: use mycourse-io-be/pkg/entities (domain) and
+                mycourse-io-be/pkg/sqlmodel (GORM/JSONB column types); do not import
+                mycourse-io-be/pkg/types."

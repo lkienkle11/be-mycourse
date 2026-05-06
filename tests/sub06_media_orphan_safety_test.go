@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"mycourse-io-be/constants"
+	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
-	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/utils"
+	pkgmedia "mycourse-io-be/pkg/media"
+	svcmedia "mycourse-io-be/services/media"
 )
 
 func TestContentFingerprint_deterministic(t *testing.T) {
@@ -25,7 +27,7 @@ func TestContentFingerprint_deterministic(t *testing.T) {
 func TestMergeMediaMetadataJSON_overlayKeepsUnknownKeys(t *testing.T) {
 	prev := []byte(`{"keep":"x","n":1}`)
 	overlay := entities.RawMetadata{"n": 2, "new": true}
-	out, err := helper.MergeMediaMetadataJSON(prev, overlay)
+	out, err := pkgmedia.MergeMediaMetadataJSON(prev, overlay)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,16 +47,16 @@ func TestMergeMediaMetadataJSON_overlayKeepsUnknownKeys(t *testing.T) {
 }
 
 func TestShouldEnqueueSupersededCloudCleanup(t *testing.T) {
-	if helper.ShouldEnqueueSupersededCloudCleanup("a", "", "", "") {
+	if pkgmedia.ShouldEnqueueSupersededCloudCleanup("a", "", "", "") {
 		t.Fatal("empty keys should not enqueue")
 	}
-	if !helper.ShouldEnqueueSupersededCloudCleanup("old-key", "", "new-key", "") {
+	if !pkgmedia.ShouldEnqueueSupersededCloudCleanup("old-key", "", "new-key", "") {
 		t.Fatal("B2 key change should enqueue")
 	}
-	if !helper.ShouldEnqueueSupersededCloudCleanup("x", "guid-a", "x", "guid-b") {
+	if !pkgmedia.ShouldEnqueueSupersededCloudCleanup("x", "guid-a", "x", "guid-b") {
 		t.Fatal("Bunny GUID change should enqueue")
 	}
-	if helper.ShouldEnqueueSupersededCloudCleanup("same", "guid", "same", "guid") {
+	if pkgmedia.ShouldEnqueueSupersededCloudCleanup("same", "guid", "same", "guid") {
 		t.Fatal("identical refs should not enqueue")
 	}
 }
@@ -62,5 +64,21 @@ func TestShouldEnqueueSupersededCloudCleanup(t *testing.T) {
 func TestMediaConflictMessages_constants(t *testing.T) {
 	if constants.MsgMediaOptimisticLockConflict == "" || constants.MsgMediaReuseMismatch == "" {
 		t.Fatal("conflict messages must be non-empty in constants/error_msg.go")
+	}
+}
+
+func TestEnqueueOrphanCleanupForMediaFileRow_LocalNoop(t *testing.T) {
+	row := &models.MediaFile{
+		Provider:  constants.FileProviderLocal,
+		ObjectKey: "local-key",
+	}
+	if svcmedia.EnqueueOrphanCleanupForMediaFileRow(row) {
+		t.Fatal("local provider must not enqueue pending cleanup")
+	}
+}
+
+func TestEnqueueOrphanCleanupForMediaFileRow_Nil(t *testing.T) {
+	if svcmedia.EnqueueOrphanCleanupForMediaFileRow(nil) {
+		t.Fatal("nil row is noop")
 	}
 }

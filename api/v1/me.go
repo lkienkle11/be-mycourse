@@ -7,10 +7,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"mycourse-io-be/dto"
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/errcode"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/response"
-	"mycourse-io-be/services"
+	"mycourse-io-be/pkg/validate"
+	"mycourse-io-be/services/auth"
+	"mycourse-io-be/services/rbac"
 )
 
 // GET /api/v1/me
@@ -18,10 +22,10 @@ func getMe(c *gin.Context) {
 	v, _ := c.Get(middleware.ContextUserID)
 	uid, _ := v.(uint)
 
-	me, err := services.GetMe(uid)
+	me, err := auth.GetMe(uid)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrUserNotFound):
+		case errors.Is(err, pkgerrors.ErrUserNotFound):
 			response.Fail(c, http.StatusNotFound, errcode.NotFound, "user not found", nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
@@ -32,11 +36,37 @@ func getMe(c *gin.Context) {
 	response.OK(c, "ok", me)
 }
 
+// PATCH /api/v1/me — partial profile update (avatar_file_id).
+func patchMe(c *gin.Context) {
+	v, _ := c.Get(middleware.ContextUserID)
+	uid, _ := v.(uint)
+
+	var req dto.UpdateMeRequest
+	if err := validate.BindJSON(c, &req); err != nil {
+		response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, err.Error(), nil)
+		return
+	}
+
+	me, err := auth.UpdateMe(uid, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, pkgerrors.ErrUserNotFound):
+			response.Fail(c, http.StatusNotFound, errcode.NotFound, "user not found", nil)
+		case errors.Is(err, pkgerrors.ErrInvalidProfileMediaFile):
+			response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, err.Error(), nil)
+		default:
+			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
+		}
+		return
+	}
+	response.OK(c, "ok", me)
+}
+
 // GET /api/v1/me/permissions
 func getMyPermissions(c *gin.Context) {
 	v, _ := c.Get(middleware.ContextUserID)
 	uid, _ := v.(uint)
-	set, err := services.PermissionCodesForUser(uid)
+	set, err := rbac.PermissionCodesForUser(uid)
 	if err != nil {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, "failed to load permissions", nil)
 		return

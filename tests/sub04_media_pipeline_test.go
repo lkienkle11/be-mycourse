@@ -6,7 +6,6 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/entities"
-	"mycourse-io-be/pkg/logic/helper"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
@@ -16,19 +15,19 @@ import (
 func TestBunnyVideoStatus_StatusString(t *testing.T) {
 	cases := []struct {
 		name   string
-		status helper.BunnyVideoStatus
+		status constants.BunnyVideoStatus
 		want   string
 	}{
-		{name: "created", status: helper.Created, want: "created"},
-		{name: "uploaded", status: helper.Uploaded, want: "uploaded"},
-		{name: "processing", status: helper.Processing, want: "processing"},
-		{name: "transcoding", status: helper.Transcoding, want: "transcoding"},
-		{name: "finished", status: helper.Finished, want: "finished"},
-		{name: "resolutions_finished", status: helper.ResolutionsFinished, want: "resolutions_finished"},
-		{name: "failed", status: helper.Failed, want: "failed"},
-		{name: "presigned_upload", status: helper.PresignedUpload, want: "presigned_upload"},
-		{name: "transcribing", status: helper.Transcribing, want: "transcribing"},
-		{name: "unknown", status: helper.BunnyVideoStatus(999), want: "unknown"},
+		{name: "created", status: constants.BunnyCreated, want: "created"},
+		{name: "uploaded", status: constants.BunnyUploaded, want: "uploaded"},
+		{name: "processing", status: constants.BunnyProcessing, want: "processing"},
+		{name: "transcoding", status: constants.BunnyTranscoding, want: "transcoding"},
+		{name: "finished", status: constants.BunnyFinished, want: "finished"},
+		{name: "resolutions_finished", status: constants.BunnyResolutionsFinished, want: "resolutions_finished"},
+		{name: "failed", status: constants.BunnyFailed, want: "failed"},
+		{name: "presigned_upload", status: constants.BunnyPresignedUpload, want: "presigned_upload"},
+		{name: "transcribing", status: constants.BunnyTranscribing, want: "transcribing"},
+		{name: "unknown", status: constants.BunnyVideoStatus(999), want: "unknown"},
 	}
 
 	for _, tc := range cases {
@@ -65,7 +64,7 @@ func TestBuildPublicURL_B2_includesBucketInPath(t *testing.T) {
 func TestBuildB2ObjectKey_eightDigitsAndSanitizedName(t *testing.T) {
 	re := regexp.MustCompile(`^\d{8}-[\w.-]+\.mp4$`)
 	for range 20 {
-		k := helper.BuildB2ObjectKey("My File!.mp4")
+		k := pkgmedia.BuildB2ObjectKey("My File!.mp4")
 		if !re.MatchString(k) {
 			t.Fatalf("unexpected key %q", k)
 		}
@@ -73,10 +72,10 @@ func TestBuildB2ObjectKey_eightDigitsAndSanitizedName(t *testing.T) {
 }
 
 func TestResolveMediaUploadObjectKey_byProvider(t *testing.T) {
-	if g := helper.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderBunny); g != "" {
+	if g := pkgmedia.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderBunny); g != "" {
 		t.Fatalf("Bunny default key should be empty before GUID, got %q", g)
 	}
-	if g := helper.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderB2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
+	if g := pkgmedia.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderB2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
 		t.Fatalf("B2 default key should start with 8 digits, got %q", g)
 	}
 }
@@ -194,9 +193,49 @@ func TestToUploadFileResponse_videoFieldsFromBunnyFixture(t *testing.T) {
 }
 
 func TestResolveBunnyEmbedURL_playBaseToEmbed(t *testing.T) {
-	got := helper.ResolveBunnyEmbedURL("123", "abc", "https://iframe.mediadelivery.net/play")
+	got := pkgmedia.ResolveBunnyEmbedURL("123", "abc", "https://iframe.mediadelivery.net/play")
 	want := "https://iframe.mediadelivery.net/embed/123/abc"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestProfileImageFileAcceptable(t *testing.T) {
+	if !mapping.ProfileImageFileAcceptable("FILE", "image/png", "x.png") {
+		t.Fatal("expected png acceptable")
+	}
+	if mapping.ProfileImageFileAcceptable("VIDEO", "image/png", "x.png") {
+		t.Fatal("video kind must reject")
+	}
+	if mapping.ProfileImageFileAcceptable("FILE", "image/svg+xml", "x.svg") {
+		t.Fatal("svg must reject")
+	}
+	if !mapping.ProfileImageFileAcceptable("FILE", "", "photo.JPG") {
+		t.Fatal("jpg extension fallback")
+	}
+}
+
+func TestToMediaFilePublicFromEntity_Nil(t *testing.T) {
+	if mapping.ToMediaFilePublicFromEntity(nil) != nil {
+		t.Fatal("nil entity -> nil dto")
+	}
+}
+
+func TestToMediaFilePublicFromEntity_WidthHeight(t *testing.T) {
+	ent := &entities.File{
+		ID:        "550e8400-e29b-41d4-a716-446655440000",
+		Kind:      constants.FileKindFile,
+		Filename:  "a.png",
+		MimeType:  "image/png",
+		SizeBytes: 12,
+		URL:       "https://cdn.example/a.png",
+		Metadata: entities.UploadFileMetadata{
+			WidthBytes:  100,
+			HeightBytes: 50,
+		},
+	}
+	pub := mapping.ToMediaFilePublicFromEntity(ent)
+	if pub == nil || pub.Width != 100 || pub.Height != 50 {
+		t.Fatalf("unexpected public mapping: %+v", pub)
 	}
 }

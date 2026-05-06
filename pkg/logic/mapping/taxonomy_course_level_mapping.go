@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"mycourse-io-be/dto"
-	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
 )
 
-func ToCourseLevelResponse(row models.CourseLevel) dto.CourseLevelResponse {
+func ToCourseLevelResponse(row entities.CourseLevel) dto.CourseLevelResponse {
 	return dto.CourseLevelResponse{
 		ID:        row.ID,
 		Name:      row.Name,
@@ -19,7 +19,7 @@ func ToCourseLevelResponse(row models.CourseLevel) dto.CourseLevelResponse {
 	}
 }
 
-func ToCourseLevelResponses(rows []models.CourseLevel) []dto.CourseLevelResponse {
+func ToCourseLevelResponses(rows []entities.CourseLevel) []dto.CourseLevelResponse {
 	out := make([]dto.CourseLevelResponse, 0, len(rows))
 	for _, item := range rows {
 		out = append(out, ToCourseLevelResponse(item))

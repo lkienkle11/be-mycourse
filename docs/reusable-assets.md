@@ -3,9 +3,9 @@
 
 ## Global Type Placement Rule (Mandatory)
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
+- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql`).
+- GORM / JSONB **column** types belong in **`pkg/sqlmodel`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
 ## Global Constants Placement Rule (Mandatory)
 
@@ -18,18 +18,18 @@
 ### Asset: PermissionCodesForUser
 - Name: `PermissionCodesForUser`
 - Type: Function (service)
-- Path: `services/rbac.go`
+- Path: `services/rbac/rbac.go`
 - Purpose: Resolve effective permission names from role grants + direct grants.
 - Scope: All authorization-sensitive APIs and token issuance.
-- Dependencies: `rbacDB`, `pkg/sqlnamed`, RBAC SQL templates.
-- Current Usage: `services/auth.go`, `api/v1/me.go`, `api/v1/internal/rbac_handler.go`, `UserHasAllPermissions`.
+- Dependencies: `rbacDB`, `pkg/sqlnamed`, `constants` (`RbacSQL*` templates, filled in `services/rbac/rbac.go` `init`).
+- Current Usage: `services/auth/auth.go`, `api/v1/me.go`, `api/v1/internal/rbac_handler.go`, `UserHasAllPermissions`.
 - Reuse Opportunity:
   - Reuse for all new CRUD permission checks and permission projection in future domains.
 
 ### Asset: UserHasAllPermissions
 - Name: `UserHasAllPermissions`
 - Type: Function (service guard)
-- Path: `services/rbac.go`
+- Path: `services/rbac/rbac.go`
 - Purpose: Verify required permission set for a user.
 - Scope: Authorization middleware fallback and potential service guardrails.
 - Dependencies: `PermissionCodesForUser`.
@@ -40,10 +40,10 @@
 ### Asset: issueTokenPair / RefreshSession
 - Name: `issueTokenPair`, `RefreshSession`
 - Type: Function (auth service)
-- Path: `services/auth.go`
+- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session map + soft-delete column types in `pkg/sqlmodel/refresh_session.go` + `pkg/sqlmodel/deleted_at.go`
 - Purpose: Token issue/rotation and session persistence management.
 - Scope: Any auth/session extension features.
-- Dependencies: `pkg/token`, `models`, `services/cache`, RBAC permission resolver.
+- Dependencies: `pkg/token`, `pkg/sqlmodel`, `constants` (TTLs), `models`, `repository`, `services/cache`, RBAC permission resolver.
 - Current Usage: auth register/login/confirm/refresh flows.
 - Reuse Opportunity:
   - Reuse unchanged for newly protected domain APIs.
@@ -51,7 +51,7 @@
 ### Asset: ListPermissions
 - Name: `ListPermissions`
 - Type: Function (service list pattern)
-- Path: `services/rbac.go`
+- Path: `services/rbac/rbac.go`
 - Purpose: Paginated list with safe sort/search whitelist behavior.
 - Scope: Reusable blueprint for list endpoints.
 - Dependencies: `dto.BaseFilter` semantics, GORM query shaping.
@@ -90,7 +90,7 @@
 - Purpose: Canonical user self payload for auth/me endpoints.
 - Scope: User profile/session related flows.
 - Dependencies: Auth service builders and cache serializer.
-- Current Usage: `services/auth.go`, `services/cache/auth_user.go`, `api/v1/me.go`.
+- Current Usage: `services/auth/auth.go`, `services/cache/auth_user.go`, `api/v1/me.go`.
 - Reuse Opportunity:
   - Reuse for profile reads and permission-aware user summary payloads.
 
@@ -103,7 +103,7 @@
 - Purpose: Parse query params into safe pagination/filter/sort metadata with whitelist support.
 - Scope: All list endpoints that need reusable sorting/search behavior.
 - Dependencies: `strings`, `strconv`.
-- Current Usage: taxonomy repositories (`course_level`, `category`, `tag`).
+- Current Usage: taxonomy list endpoints (`course_level`, `category`, `tag`) via `repository/taxonomy`.
 - Reuse Opportunity:
   - Reuse for course shell and later listing endpoints to avoid duplicating query parsing logic.
 
@@ -132,7 +132,7 @@
 ### Asset: Permission id path-param parser
 - Name: `ParsePermissionIDParam`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/permission.go`
+- Path: `pkg/requestutil/params.go`
 - Purpose: Parse and validate permission id path params (trim + max length check).
 - Scope: Internal RBAC permission handlers.
 - Dependencies: `gin.Context`, `strings`.
@@ -154,7 +154,7 @@
 ### Asset: Local media URL reversible signer
 - Name: `EncodeLocalObjectKey`, `DecodeLocalObjectKey`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/local_url_codec.go`
+- Path: `pkg/media/local_url_codec.go`
 - Purpose: Build reversible signed URL tokens for local provider objects.
 - Scope: Media local-provider read path and future private file links.
 - Dependencies: `crypto/hmac`, `crypto/sha256`, `encoding/base64`.
@@ -165,7 +165,7 @@
 ### Asset: Local media URL token decoder
 - Name: `DecodeLocalURLToken`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/local_url_codec.go`
+- Path: `pkg/media/local_url_codec.go`
 - Purpose: Decode local signed media URL tokens with env-based secret fallback outside service layer.
 - Scope: Media local decode endpoint and future local signed-link consumers.
 - Dependencies: `os`, `strings`, `DecodeLocalObjectKey`.
@@ -176,7 +176,7 @@
 ### Asset: Media kind/provider resolvers + Bunny metadata policy
 - Name: `ResolveMediaKind`, `ResolveMediaProvider`, `ResolveMediaKindFromServer`, `ResolveUploadProvider`, plus `EnrichBunnyVideoDetail`, `EffectiveBunnyThumbnailURL`, `FormatBunnyVideoIDString`, `ResolveBunnyEmbedURL`, `ResolveBunnyEmbedHTML`, `ApplyBunnyDetailToMetadata`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/media_resolver.go`
+- Path: `pkg/media/media_resolver.go`
 - Purpose: Normalize upload kind/provider with server-owned inference. Map Bunny GET-video payload into metadata keys **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (see `constants/media_meta_keys.go`).
 - Scope: Media upload + finished webhook; HTTP stays in `pkg/media/clients.go`.
 - Dependencies: `constants/media.go`, `constants/media_meta_keys.go`, `pkg/entities`, `fmt`, `html`, `path/filepath`, `strconv`, `strings`, `mycourse-io-be/pkg/setting` (resolver config).
@@ -189,8 +189,8 @@
 - Type: Constants
 - Path: `constants/media_meta_keys.go`
 - Purpose: Single source of truth for string keys used in `metadata_json` and merged raw maps (Bunny parity Sub 09).
-- Scope: Media helper, mapping, services; do not duplicate literal key strings elsewhere.
-- Current Usage: `pkg/logic/helper/media_resolver.go`, `pkg/logic/helper/media_upload_entity.go`, `pkg/logic/mapping/media_model_mapping.go`, `services/media/video_service.go`.
+- Scope: **`pkg/media`**, mapping, services; do not duplicate literal key strings elsewhere.
+- Current Usage: `pkg/media/media_resolver.go`, `pkg/media/media_upload_entity.go`, `pkg/logic/mapping/media_model_mapping.go`, `services/media/video_service.go`.
 - Reuse Opportunity: Any new writer of `metadata_json` for Bunny should import these constants.
 
 ### Asset: Mapping helpers for API DTO contracts
@@ -211,14 +211,14 @@
 - Purpose: Server-side source of truth for upload provider selection.
 - Scope: Media service provider resolution.
 - Dependencies: YAML/env config loading in `pkg/setting`.
-- Current Usage: `pkg/logic/helper/media_metadata.go`, `services/media/file_service.go`, `pkg/media/clients.go`.
+- Current Usage: `pkg/media/media_metadata.go`, `services/media/file_service.go`, `pkg/media/clients.go`.
 - Reuse Opportunity:
   - Reuse as canonical provider control for all future media upload entry points.
 
 ### Asset: Cloud SDK client bootstrap (`MediaSetting`)
 - Name: `NewCloudClientsFromSetting`
 - Type: Function (`pkg/media`)
-- Path: `pkg/media/clients.go`
+- Path: `pkg/media/clients_setting_attach.go`
 - Purpose: One-shot construction of `entities.CloudClients` (B2 client + bucket name, Gcore CDN API service, Bunny Storage client) from **`setting.MediaSetting`** fields: `B2KeyID`, `B2AppKey`, `B2Bucket`, `GcoreAPIBaseURL`, `GcoreAPIToken`, `BunnyStorageEndpoint`, `BunnyStoragePassword` (all `strings.TrimSpace`). No `os.Getenv` in this path — values arrive via `setting.Setup()` / YAML `${MEDIA_*}` expansion.
 - Scope: App startup only; caller `pkg/media.Setup()` (after `setting.Setup()` in `main.go`).
 - Dependencies: `pkg/setting`, `github.com/Backblaze/blazer/b2`, Gcore and Bunny Storage SDKs, `pkg/logic/utils.NormalizeBaseURL`.
@@ -228,7 +228,7 @@
 ### Asset: Media metadata parser helpers
 - Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`, `DefaultMediaProvider`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/media_metadata.go`
+- Path: `pkg/media/media_metadata.go`
 - Purpose: Parse raw metadata JSON, normalize metadata payload, and infer typed metadata contract `UploadFileMetadata` with explicit fields/default values (including `width_bytes`, `height_bytes`, `has_password`, `archive_entries`).
 - Scope: Media handlers/services and any upload endpoint accepting metadata JSON.
 - Dependencies: `encoding/json`, `fmt`, `strings`, `pkg/entities`, `pkg/setting`.
@@ -239,7 +239,7 @@
 ### Asset: Media upload object keys (B2 / Bunny / local)
 - Name: `ResolveMediaUploadObjectKey`, `BuildB2ObjectKey`
 - Type: Helper
-- Path: `pkg/logic/helper/media_upload_keys.go`
+- Path: `pkg/media/media_upload_keys.go`
 - Purpose: Provider-specific default object keys before upload (8-digit B2 prefix; Bunny empty until GUID; local nano key).
 - Scope: Media upload service and any future upload entry point.
 - Dependencies: `constants`, `pkg/logic/utils` (`GenerateRandomDigits`), `path/filepath`, `strings`, `time`.
@@ -259,7 +259,7 @@
 ### Asset: MergeMediaMetadataJSON
 - Name: `MergeMediaMetadataJSON`
 - Type: Helper
-- Path: `pkg/logic/helper/media_metadata_merge.go`
+- Path: `pkg/media/media_metadata_merge.go`
 - Purpose: Merge JSONB metadata with overlay map for metadata-only updates.
 - Scope: Media row updates preserving unspecified keys.
 - Dependencies: `encoding/json`, `pkg/entities.RawMetadata`.
@@ -268,7 +268,7 @@
 ### Asset: Superseded cloud cleanup guard
 - Name: `ShouldEnqueueSupersededCloudCleanup`
 - Type: Helper
-- Path: `pkg/logic/helper/media_replace_policy.go`
+- Path: `pkg/media/media_replace_policy.go`
 - Purpose: Decide whether replace produced a new cloud identity requiring deferred delete of the prior object.
 - Scope: Media replace branch after successful DB save.
 - Current Usage: `services/media/file_service.go`.
@@ -276,7 +276,7 @@
 ### Asset: Multipart binders (media create/update)
 - Name: `BindCreateFileMultipart`, `BindUpdateFileMultipart`
 - Type: Helper (transport parsing)
-- Path: `pkg/logic/helper/media_multipart.go`
+- Path: `pkg/media/media_multipart.go`
 - Purpose: Parse multipart text fields for backward-compat validation and bind allowed update controls (`reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`); client `kind`/`metadata` are intentionally ignored by service flow.
 - Scope: `api/v1/media/file_handler.go` only; keeps handlers thin.
 - Dependencies: `github.com/gin-gonic/gin`, `dto`, `pkg/logic/utils` (`ParseBoolLoose` for `skip_upload_if_unchanged`).
@@ -293,7 +293,7 @@
 - Name: `StartMediaPendingCleanupJob`, `StopMediaPendingCleanupJob`
 - Type: Job (`internal/jobs`)
 - Path: `internal/jobs/media_pending_cleanup_scheduler.go`
-- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `permission_sync_scheduler.go`.
+- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `internal/jobs/rbac_sync_schedulers.go` (`syncJobBundle`).
 - Scope: Process-wide background loop; interval from `MEDIA_CLEANUP_INTERVAL_SEC` or `constants.MediaCleanupDefaultIntervalSec`.
 
 ### Asset: Media concurrency / reuse errors
@@ -320,12 +320,12 @@
 - Purpose: `n` decimal digits from `crypto/rand` (used for B2 object key prefix).
 - Scope: Any feature needing short random numeric IDs.
 - Dependencies: `crypto/rand`, `io`.
-- Current Usage: `pkg/logic/helper/media_upload_keys.go`.
+- Current Usage: `pkg/media/media_upload_keys.go`.
 - Reuse Opportunity: Reuse for other token prefixes; do not reimplement with `math/rand`.
 
-### Asset: Bunny Stream — constants vs helper
+### Asset: Bunny Stream — constants vs `pkg/media`
 - **Constants** (`constants/bunny_video.go`): `FinishedWebhookBunnyStatus`, `SignBunnyIFrameRegex` — literals only (Global Constants Placement).
-- **Helper** (`pkg/logic/helper/bunny_video_status.go`): `BunnyVideoStatus`, enum values, `StatusString()` — media/Bunny bounded domain (`docs/patterns.md` helper vs util).
+- **Bunny video status** (`constants/bunny_video_status.go`): `BunnyVideoStatus`, `Bunny*` value constants, `StatusString()` — Bunny numeric status → API strings. **`pkg/media/bunny_video_status.go`** aliases `BunnyVideoStatus` for compatibility with media clients/tests.
 - Current Usage: `services/media/video_service.go`, `tests/sub04_media_pipeline_test.go`.
 
 ### Asset: Media provider typed error + HTTP mapping
@@ -337,6 +337,16 @@
 - Dependencies: `errors`, `net/http`, `pkg/errcode`.
 - Current Usage: `pkg/media/clients.go`, `api/v1/media/file_handler.go`, `services/media/file_service.go`.
 - Reuse Opportunity: Extend with more provider-specific codes without changing handler shape.
+
+### Asset: Stable “not found” for API boundaries
+- Name: `ErrNotFound`, `MapRecordNotFound`
+- Type: Sentinel + mapper
+- Path: `pkg/errors/not_found.go`
+- Purpose: Let `api/**` handlers use `errors.Is(err, ErrNotFound)` for HTTP **404** without importing `gorm.io/gorm`; services/repository map `gorm.ErrRecordNotFound` at the edge.
+- Scope: Internal RBAC handlers, taxonomy update handler, any future CRUD that must not leak ORM types through `services`.
+- Dependencies: `errors`, `gorm.io/gorm` (mapper only, inside `pkg/errors`).
+- Current Usage: `api/v1/internal/rbac_handler.go`, `api/v1/taxonomy/handlers_common.go`, `services/rbac/rbac.go`, `repository/taxonomy/gorm_shared.go`.
+- Reuse Opportunity: Prefer this over returning raw GORM errors from `services` when handlers need a not-found branch.
 
 ### Asset: Media upstream errcodes (9010–9018)
 - Name: `B2BucketNotConfigured`, `BunnyStreamNotConfigured`, `BunnyCreateFailed`, `BunnyUploadFailed`, `BunnyInvalidResponse`, `BunnyVideoNotFound`, `BunnyGetVideoFailed`, **`ImageEncodeBusy`** (9017), **`VideoTranscodeTimeout`** (9018)
@@ -355,19 +365,19 @@
 - Purpose: Raw-metadata helpers, loose bool parsing for multipart text fields, SHA-256 hex fingerprint of byte payloads.
 - Scope: Any module needing generic conversion/parsing without domain coupling.
 - Dependencies: `pkg/entities`, Go stdlib (`image`, `bytes`, `strings`, `fmt`, `crypto/sha256`, `encoding/hex`).
-- Current Usage: `pkg/logic/helper/media_metadata.go`, `pkg/logic/helper/media_multipart.go`, `services/media/file_service.go`.
-- Integration Note (2026-04-27): media helper branch `FileKindFile` uses `utils.ImageSizeFromPayload` and `utils.IntFromRaw`; alias mismatch (`util.*`) is a compile-time risk.
+- Current Usage: `pkg/media/media_metadata.go`, `pkg/media/media_multipart.go`, `services/media/file_service.go`.
+- Integration Note (2026-04-27): **`pkg/media`** `FileKindFile` branch uses `utils.ImageSizeFromPayload` and `utils.IntFromRaw`; alias mismatch (`util.*`) is a compile-time risk.
 - Reuse Opportunity:
   - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.
 
 ### Asset: Taxonomy status normalization
 - Name: `NormalizeTaxonomyStatus`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/taxonomy_status.go`
+- Path: `pkg/taxonomy/status.go`
 - Purpose: Map request status strings to `constants.TaxonomyStatus` with a single default-to-active rule.
 - Scope: Taxonomy create/update flows and any future domain using the same enum.
 - Dependencies: `strings`, `constants/taxonomy.go`.
-- Current Usage: `services/taxonomy/category_service.go`, `services/taxonomy/course_level_service.go`, `services/taxonomy/tag_service.go`.
+- Current Usage: `services/taxonomy/category_service.go`, `services/taxonomy/tag_course_level_services.go`, `services/taxonomy/fields.go`.
 - Reuse Opportunity:
   - Reuse whenever another module accepts taxonomy status as raw text.
 
@@ -378,7 +388,7 @@
 - Purpose: Named SQL to PostgreSQL positional parameter conversion.
 - Scope: Complex raw SQL operations.
 - Dependencies: `github.com/jmoiron/sqlx`.
-- Current Usage: `services/rbac.go`.
+- Current Usage: `services/rbac/rbac.go`.
 - Reuse Opportunity:
   - Reuse for complex CRUD joins/aggregations where GORM is not ideal.
 
@@ -400,7 +410,7 @@
 - Purpose: Cache-aside support for login and me endpoints.
 - Scope: High-frequency identity reads and login flows.
 - Dependencies: `pkg/cache_clients`, Redis.
-- Current Usage: `services/auth.go`.
+- Current Usage: `services/auth/auth.go`.
 - Reuse Opportunity:
   - Reuse pattern for read-heavy course catalog/progress reads later.
 
@@ -429,11 +439,11 @@
 ### Asset: Runtime dependency guard
 - Name: `RequireInitialized`, `ErrDependencyNotConfigured`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/runtime_guard.go`
-- Purpose: Centralize runtime dependency checks (non-nil guards) with standardized error message mapped from `pkg/errcode`.
+- Path: `pkg/media/runtime_guard.go` (guard); sentinel **`ErrDependencyNotConfigured`** in **`pkg/errors/media_errors.go`** (`constants.MsgMediaDependencyNotConfigured`).
+- Purpose: Centralize runtime dependency checks (non-nil guards); handlers map **`ErrDependencyNotConfigured`** to **`errcode.InternalError`** via `api/v1/media/file_handler_errors.go`.
 - Scope: Services that rely on startup-initialized dependencies.
-- Dependencies: `pkg/errcode`.
-- Current Usage: `services/media/file_service.go`.
+- Dependencies: `pkg/errors`, `constants/error_msg.go`.
+- Current Usage: `services/media/file_service.go`, `api/v1/media/*`.
 - Reuse Opportunity:
   - Reuse in future modules needing startup dependency guards.
 
@@ -544,7 +554,7 @@
 ### Asset: RBAC SQL templates
 - Name: `rbacSQLPermissionCodesForUserTmpl` and delete templates
 - Type: Query Template
-- Path: `services/rbac.go`
+- Path: `services/rbac/rbac.go`
 - Purpose: Efficient permission resolution and FK-safe deletions.
 - Scope: RBAC read/write internals.
 - Dependencies: `dbschema.RBAC`, `pkg/sqlnamed`.
@@ -553,15 +563,15 @@
   - Reuse pattern for advanced domain queries requiring controlled SQL.
 
 ### Asset: DB schema namespace
-- Name: `dbschema.RBAC.*`
-- Type: Query helper
-- Path: `dbschema/rbac.go`
-- Purpose: Centralized table names for SQL safety and consistency.
-- Scope: RBAC services and sync internals.
-- Dependencies: none.
-- Current Usage: `services/rbac.go`, `models/rbac.go`, `internal/rbacsync/*`.
+- Name: `dbschema.RBAC.*`, `dbschema.Media.*`, `dbschema.Taxonomy.*`, `dbschema.System.*`, `dbschema.AppUser.Table()`
+- Type: Query helper / GORM `TableName()` indirection
+- Path: `dbschema/*.go` (per domain file); literals in **`constants/dbschema_name.go`**
+- Purpose: Centralized table names for SQL safety and consistency; **`constants`** holds strings, **`dbschema`** exposes typed accessors (no import cycle: `constants` does not import `dbschema`).
+- Scope: RBAC services/sync, media/taxonomy models, system models, user model + raw session SQL.
+- Dependencies: `constants` (`TableRBAC*`, `TableMedia*`, `TableTaxonomy*`, `TableSystem*`, `TableAppUsers`).
+- Current Usage: `services/rbac/rbac.go`, `models/*.go`, `internal/rbacsync/*`.
 - Reuse Opportunity:
-  - Create equivalent namespaces per new module (`dbschema/course`, etc.) as new reusable assets.
+  - Add new `dbschema/<domain>.go` files + new `constants` `Table*` entries for future modules (`course`, etc.).
 
 ### Asset: MaxMediaUploadFileBytes
 - Name: `MaxMediaUploadFileBytes`
@@ -624,7 +634,7 @@
 ### Asset: IsImageMIMEOrExt (Sub 11)
 - Name: `IsImageMIMEOrExt`
 - Type: Helper (media-domain image detection)
-- Path: `pkg/logic/helper/media_resolver.go`
+- Path: `pkg/media/media_resolver.go`
 - Purpose: Detect whether a file is an image by MIME prefix or extension; controls WebP conversion branch.
 - Scope: `services/media/file_service.go`.
 - Dependencies: `path/filepath`, `strings`.
@@ -632,7 +642,7 @@
 ### Asset: Is360pReady (Sub 11)
 - Name: `Is360pReady`
 - Type: Helper (Bunny domain)
-- Path: `pkg/logic/helper/bunny_video_status.go`
+- Path: `pkg/media/bunny_video_status.go`
 - Purpose: Check `BunnyVideoDetail` for `status >= ResolutionsFinished` or `"360p"` in `availableResolutions`.
 - Scope: `pkg/media/bunny_transcode_wait.go`.
 - Dependencies: `pkg/entities.BunnyVideoDetail`.
@@ -643,7 +653,7 @@
 - Path: `pkg/media/bunny_transcode_wait.go`
 - Purpose: Synchronous poll of Bunny GET-video API with exponential backoff until 360p is ready or timeout.
 - Scope: `pkg/media/clients.go:UploadBunnyVideo` (called after PUT succeeds).
-- Dependencies: `pkg/media.GetBunnyVideoByID`, `pkg/logic/helper.Is360pReady`, `constants.*BunnyTranscode*`, `pkg/errors.ProviderError`, `pkg/errcode.VideoTranscodeTimeout`.
+- Dependencies: `pkg/media.GetBunnyVideoByID`, `constants.*BunnyTranscode*` (historical), `pkg/errors.ProviderError`, `pkg/errcode.VideoTranscodeTimeout`. *(Sub 11 `Is360pReady` removed from codebase — doc note only.)*
 
 ### Asset: FileTooLarge (errcode)
 - Name: `FileTooLarge`
@@ -656,7 +666,7 @@
 ### Asset: ParseImageURLForOrphanCleanup
 - Name: `ParseImageURLForOrphanCleanup`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/media_url_orphan.go`
+- Path: `pkg/media/media_url_orphan.go`
 - Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, Gcore CDN + B2 bucket). Pure function — no I/O.
 - Scope: Orphan cleanup flows in any domain service that holds image URL strings.
 - Dependencies: `constants/media.go`, `pkg/logic/utils` (NormalizeBaseURL, JoinURLPathSegments), `pkg/setting`.
@@ -666,7 +676,7 @@
 ### Asset: ScanJSONBForImageURLs
 - Name: `ScanJSONBForImageURLs`
 - Type: Util/Helper
-- Path: `pkg/logic/helper/media_jsonb_scan.go`
+- Path: `pkg/media/media_jsonb_scan.go`
 - Purpose: Walk a raw JSONB payload and collect all string values stored under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
 - Scope: Future lesson/quiz/section cascade delete flows where content images are embedded in JSONB.
 - Dependencies: `encoding/json`, `strings`.
@@ -677,11 +687,39 @@
 - Name: `EnqueueOrphanImageCleanup`
 - Type: Function (service)
 - Path: `services/media/orphan_cleanup.go`
-- Purpose: Single entry-point to schedule deferred cloud-object deletion for any image URL field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
-- Scope: Any domain service that deletes or replaces an image URL field (taxonomy category, user avatar, future course cover).
-- Dependencies: `services/media.mediaRepository()`, `helper.ParseImageURLForOrphanCleanup`, `constants/media.go`, `models`.
-- Current Usage: `services/taxonomy/category_service.go` (`DeleteCategory`, `UpdateCategory`).
-- Reuse Opportunity: Wire into every future service that has an image URL field on delete/update.
+- Purpose: Single entry-point to schedule deferred cloud-object deletion for any **plain image URL** field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
+- Scope: Legacy URL fields, JSONB-harvested URLs (`ScanJSONBForImageURLs`), future course cover strings — **not** used for taxonomy/user after Sub 14 (those use **`EnqueueOrphanCleanupForMediaFileID`**).
+- Dependencies: `services/media.mediaRepository()`, **`pkg/media.ParseImageURLForOrphanCleanup`**, `constants/media.go`, `models`.
+- Current Usage: Reserved for URL-shaped domains; see `docs/data-flow.md` (Sub 07 path).
+- Reuse Opportunity: Wire into every future service that stores a **URL string** (not `media_files` FK) on delete/update.
+
+### Asset: EnqueueOrphanCleanupForMediaFileID
+- Name: `EnqueueOrphanCleanupForMediaFileID` / `EnqueueOrphanCleanupForMediaFileRow`
+- Type: Function (service)
+- Path: `services/media/orphan_cleanup.go`
+- Purpose: Schedule **`media_pending_cloud_cleanup`** from a **`media_files.id`** (or in-memory row) after a referencing FK is cleared or the parent entity is deleted.
+- Current Usage: `services/taxonomy/category_service.go`, `services/auth/me_update.go`, `services/auth/user_delete.go`.
+
+### Asset: LoadValidatedProfileImageFile
+- Name: `LoadValidatedProfileImageFile`
+- Type: Function (service)
+- Path: `services/media/profile_media_validate.go`
+- Purpose: Resolve UUID → **`media_files`** row; enforce **FILE** kind, **READY** status, raster image MIME/extension via **`mapping.ProfileImageFileAcceptable`**.
+- Current Usage: `services/taxonomy/category_service.go`, `services/auth/me_update.go`.
+- Errors: any validation failure returns **`pkg/errors.ErrInvalidProfileMediaFile`** only (sentinel text **`constants.MsgInvalidProfileMediaFile`**; no `fmt.Errorf` wrappers); DB errors propagate unchanged. HTTP **400** + `ValidationFailed` at **`PATCH /me`** and taxonomy category create/update boundaries.
+
+### Asset: MediaFilePublic mapping
+- Name: `ToMediaFilePublicFromModel`, `ToMediaFilePublicFromEntity`, `ProfileImageFileAcceptable`
+- Type: Mapper / policy
+- Path: `pkg/logic/mapping/media_public_mapping.go`
+- Purpose: Build **`dto.MediaFilePublic`** for API responses; shared image-kind acceptance rules.
+
+### Asset: DelCachedUserMe
+- Name: `DelCachedUserMe`
+- Type: Cache helper
+- Path: `services/cache/auth_user.go`
+- Purpose: Invalidate Redis **`mycourse:user:me:{id}`** after profile-changing writes.
+- Current Usage: `services/auth/me_update.go`, `services/auth/user_delete.go`.
 
 ### Asset: GetByURL (FileRepository)
 - Name: `GetByURL`

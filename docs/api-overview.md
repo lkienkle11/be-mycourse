@@ -20,6 +20,8 @@
 
 ## Implemented Endpoint Inventory
 
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — categories, tags, course levels, **`pkg/taxonomy`** (`NormalizeTaxonomyStatus`); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, **`pkg/media`** (resolver, metadata, multipart). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+
 ### `/api/system`
 - `POST /login`
 - `POST /permission-sync-now`
@@ -38,6 +40,7 @@
 
 ### `/api/v1` (auth subgroup)
 - `GET /me`
+- `PATCH /me` — partial profile update; body supports **`avatar_file_id`** (UUID of an existing **`media_files`** row). Response uses nested **`avatar`** (`dto.MediaFilePublic`) instead of a raw URL string.
 - `GET /me/permissions` (currently guarded with `RequirePermission(user:read)`).
 - Taxonomy (admin CRUD):
   - `GET /taxonomy/levels`

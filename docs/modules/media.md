@@ -17,21 +17,21 @@
 
 Media module provides a unified API surface for file and video uploads with provider-aware URL behavior:
 
-- Non-video files: upload storage at B2, distribution URL through Gcore CDN as **`{CDN}/{bucket}/{object_key}`** (bucket from `setting.MediaSetting.B2Bucket` after `setting.Setup()`, falling back to `CloudClients.B2BucketName` from the same `MediaSetting` snapshot used at SDK init). Object keys for B2 default uploads: **8 random digits + `-` + sanitized filename** (`pkg/logic/helper/media_upload_keys.go`). Bunny Stream videos use the API **GUID** as `object_key`.
+- Non-video files: upload storage at B2, distribution URL through Gcore CDN as **`{CDN}/{bucket}/{object_key}`** (bucket from `setting.MediaSetting.B2Bucket` after `setting.Setup()`, falling back to `CloudClients.B2BucketName` from the same `MediaSetting` snapshot used at SDK init). Object keys for B2 default uploads: **8 random digits + `-` + sanitized filename** (`pkg/media/media_upload_keys.go`). Bunny Stream videos use the API **GUID** as `object_key`.
 - Videos: playback/distribution URL through Bunny Stream.
 - Local provider: reversible signed URL token that can be decoded back to object key.
 
-Media persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync. **Phase Sub 06** adds optimistic concurrency (`row_version`), SHA-256 hex `content_fingerprint`, deferred superseded-cloud deletes (`media_pending_cloud_cleanup` + worker in `internal/jobs/media_pending_cleanup_scheduler.go`), and multipart field binding via `pkg/logic/helper/media_multipart.go` (aligned with `ParseMetadataFromRaw`).
+Media persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync. **Phase Sub 06** adds optimistic concurrency (`row_version`), SHA-256 hex `content_fingerprint`, deferred superseded-cloud deletes (`media_pending_cloud_cleanup` + worker in `internal/jobs/media_pending_cleanup_scheduler.go`), and multipart field binding via `pkg/media/media_multipart.go` (aligned with `ParseMetadataFromRaw`).
 
-SDK clients are initialized once at app startup: `main.go` calls `setting.Setup()` first, then `pkg/media.Setup()` → **`NewCloudClientsFromSetting`** in `pkg/media/clients.go` (B2, Gcore API, Bunny **Storage** credentials from trimmed **`setting.MediaSetting`** — no direct `os.Getenv` in that constructor). Upload/delete/runtime URLs still read other `MediaSetting` fields the same way. Clients are then reused by the media service flow.
+SDK clients are initialized once at app startup: `main.go` calls `setting.Setup()` first, then `pkg/media.Setup()` → **`NewCloudClientsFromSetting`** in `pkg/media/clients_setting_attach.go` (B2, Gcore API, Bunny **Storage** credentials from trimmed **`setting.MediaSetting`** — no direct `os.Getenv` in that constructor). Upload/delete/runtime HTTP and URL helpers remain in `pkg/media/clients.go` and related files. Clients are then reused by the media service flow.
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
 
-**Layering:** Kind/provider resolution and **Bunny presentation policy** (thumbnail URL fields from GET-video JSON, `video_id` string from numeric `id` vs `guid`, embed URL + iframe HTML in metadata) live in **`pkg/logic/helper/media_resolver.go`** (`EnrichBunnyVideoDetail`, `ApplyBunnyDetailToMetadata`, `ResolveBunnyEmbedURL`, …). **`pkg/media/clients.go`** performs Bunny HTTP and `json.Unmarshal` into `pkg/entities.BunnyVideoDetail`, then invokes those helpers. **`services/media`** orchestrates only.
+**Layering:** Kind/provider resolution and **Bunny presentation policy** (thumbnail URL fields from GET-video JSON, `video_id` string from numeric `id` vs `guid`, embed URL + iframe HTML in metadata) live in **`pkg/media/media_resolver.go`** (`EnrichBunnyVideoDetail`, `ApplyBunnyDetailToMetadata`, `ResolveBunnyEmbedURL`, …). **`pkg/media/clients.go`** performs Bunny upload/delete HTTP and related helpers; GET flow lives in **`pkg/media/clients_bunny_get.go`** (`bunnyStreamAuthorizedGET`, `parseBunnyVideoGetResponse`, `decodeBunnyVideoDetailBody`) unmarshalling into `pkg/entities.BunnyVideoDetail`, then invokes resolver helpers (same `pkg/media` package). **`services/media`** orchestrates only.
 
-Metadata parsing and typed inference are handled in helper layer (`pkg/logic/helper/media_metadata.go`) instead of service layer.
+Metadata parsing and typed inference are handled in **`pkg/media/media_metadata.go`** instead of the service layer.
 `kind` and `metadata` values coming from multipart request text fields are parsed only for backward-compat validation and then ignored; server-side extractor/provider outputs are the only source for persisted and returned metadata.
 When server cannot infer kind from MIME/extension and no app-level provider override is configured, upload provider falls back to `Local` by policy.
-Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`), multipart loose-bool parsing (`ParseBoolLoose`), and upload-byte fingerprinting (`ContentFingerprint`) live in `pkg/logic/utils/parsing.go` and must be called through `utils.*` import alias in helper/service code.
+Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`), multipart loose-bool parsing (`ParseBoolLoose`), and upload-byte fingerprinting (`ContentFingerprint`) live in `pkg/logic/utils/parsing.go` and must be called through `utils.*` import alias in **`pkg/media`** / service code.
 Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider selection is **not** exposed as a top-level field. **`origin_url` is not part of the public contract** (removed from `dto.UploadFileResponse`); the DB column `media_files.origin_url` and `entities.File.OriginURL` (JSON `json:"-"`) still hold the provider-origin URL for persistence, orphan resolution, and delete operations.
 
 ---
@@ -89,9 +89,13 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 
 **Upload enrichment:** After Bunny PUT, `UploadBunnyVideo` calls **`GetBunnyVideoByID`**. **Only if that succeeds**, `ApplyBunnyDetailToMetadata` merges the three keys into provider metadata. If GET fails, those keys may stay empty until **`HandleBunnyVideoWebhook`** (finished) refreshes them.
 
-**Webhook:** On finished status, webhook loads row, merges technical fields, calls **`ApplyBunnyDetailToMetadata`**, sets `row.VideoID` / `ThumbnailURL` / `EmbededHTML` from merged map, then `UpsertByObjectKey`.
+**Webhook:** On finished status, `HandleBunnyVideoWebhook` loads the row (missing row → ack without error), then **`patchBunnyWebhookMetadataJSON`** merges telemetry + **`ApplyBunnyDetailToMetadata`**, and **`applyBunnyFinishedWebhookToRow`** copies derived columns (`VideoID`, `ThumbnailURL`, `EmbededHTML`, duration, status, URLs). `json.Marshal` errors propagate; then `UpsertByObjectKey`.
 
 ---
+
+## Phase Sub 14 — FK-based orphan enqueue (taxonomy + user avatar)
+
+When **`categories.image_file_id`** or **`users.avatar_file_id`** is replaced or the parent row is removed, **`services/media.EnqueueOrphanCleanupForMediaFileID`** resolves the **`media_files`** row and inserts **`media_pending_cloud_cleanup`** (skips **Local** rows with no cloud object). This complements the Sub 07 **URL-string** path (`EnqueueOrphanImageCleanup`).
 
 ## Phase Sub 06 — orphan / reuse / deferred cleanup (summary)
 
@@ -126,7 +130,7 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 - All image uploads (`POST /media/files`, `PUT /media/files/:id`) are **synchronously converted to WebP** before upload to the storage provider using **`bimg`/libvips** (CGO).
 - Concurrency is bounded by a buffered-channel semaphore in **`pkg/logic/utils/image_encode_gate.go`** (`AcquireEncodeGate` / `ReleaseEncodeGate`); cap = **`constants.MaxConcurrentImageEncode`** (4).
 - The actual WebP conversion lives in **`pkg/logic/utils/webp_encode.go`** (`//go:build cgo`). A `//go:build !cgo` stub in **`pkg/logic/utils/webp_encode_stub.go`** returns `ErrImageEncodeBusy` (errcode **9017**) for `CGO_ENABLED=0` builds (CI, local review).
-- Image detection (`IsImageMIMEOrExt`) lives in **`pkg/logic/helper/media_resolver.go`** alongside the existing kind/provider resolvers.
+- Image detection (`IsImageMIMEOrExt`) lives in **`pkg/media/media_resolver.go`** alongside the existing kind/provider resolvers.
 - After encoding: `payload`, `filename` (`.webp` extension), `mime` ("image/webp"), and `sizeBytes` are updated in service before the `uploadToProvider` call.
 - **Build requirement:** `CGO_ENABLED=1` and `libvips-dev pkg-config` on the build machine. `Makefile` `build` target and `.github/workflows/deploy-dev.yml` both set `CGO_ENABLED=1`.
 - **Errors:** encode failure → `ProviderError{Code: 9017}` → HTTP **503**.
@@ -157,7 +161,7 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 ## Provider rules
 
 - `Local`, B2+Gcore, Bunny Stream — provider from server config only; `setting.MediaSetting` after `Setup()`.
-- Local token decode: **`pkg/logic/helper/DecodeLocalURLToken`**.
+- Local token decode: **`pkg/media.DecodeLocalURLToken`**.
 
 ---
 

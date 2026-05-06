@@ -358,7 +358,6 @@ curl -X GET {{BASE_URL}}/api/v1/me \
     "user_code":       "01960000-0000-7000-0000-000000000001",
     "email":           "alice@example.com",
     "display_name":    "Alice",
-    "avatar_url":      "",
     "email_confirmed": true,
     "is_disabled":     false,
     "created_at":      1713456789,
@@ -368,7 +367,19 @@ curl -X GET {{BASE_URL}}/api/v1/me \
 ```
 
 > `created_at` is a Unix epoch **integer** (seconds).  
-> `permissions` is a sorted array of `permission_name` strings.
+> `permissions` is a sorted array of `permission_name` strings.  
+> When an avatar is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** object (see `docs/return_types.md`).
+
+### 3.2 Patch My Profile
+
+**`PATCH /api/v1/me`** — body: `{ "avatar_file_id": "<uuid of media_files row>" }`. Use **`""`** to clear. Upload an image via **`POST /api/v1/media/files`** first, then pass the returned **`id`**.
+
+```bash
+curl -X PATCH {{BASE_URL}}/api/v1/me \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"avatar_file_id":"550e8400-e29b-41d4-a716-446655440000"}'
+```
 
 **Error examples:**
 ```json
@@ -1318,14 +1329,14 @@ curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1 \
 | PATCH | `/api/v1/taxonomy/categories/:id` |
 | DELETE | `/api/v1/taxonomy/categories/:id` |
 
-**Create body:** `{ "name", "slug", "image_url", "status"? }`.  
-**Update body:** partial fields.
+**Create body:** `{ "name", "slug", "image_file_id", "status"? }` — **`image_file_id`** is the UUID primary key of a **`media_files`** row (upload via **`POST /api/v1/media/files`** first).  
+**Update body:** partial fields; optional **`image_file_id`** to replace the cover image (old file id is queued for deferred cloud cleanup).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/categories \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Math","slug":"math","image_url":"https://cdn.example.com/math.png","status":"ACTIVE"}'
+  -d '{"name":"Math","slug":"math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","status":"ACTIVE"}'
 ```
 
 ### 12.3 Tags

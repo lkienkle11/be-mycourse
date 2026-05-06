@@ -6,14 +6,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
+	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/pkg/setting"
-	"mycourse-io-be/services"
+	"mycourse-io-be/services/auth"
 )
 
-var accessTokenMaxAge = int(services.AccessTokenTTL.Seconds())
+var accessTokenMaxAge = int(constants.AccessTokenTTL.Seconds())
 
 // POST /api/v1/auth/register
 func register(c *gin.Context) {
@@ -23,11 +26,11 @@ func register(c *gin.Context) {
 		return
 	}
 
-	if err := services.Register(req.Email, req.Password, req.DisplayName); err != nil {
+	if err := auth.Register(req.Email, req.Password, req.DisplayName); err != nil {
 		switch {
-		case errors.Is(err, services.ErrWeakPassword):
+		case errors.Is(err, pkgerrors.ErrWeakPassword):
 			response.Fail(c, http.StatusBadRequest, errcode.WeakPassword, errcode.DefaultMessage(errcode.WeakPassword), nil)
-		case errors.Is(err, services.ErrEmailAlreadyExists):
+		case errors.Is(err, pkgerrors.ErrEmailAlreadyExists):
 			response.Fail(c, http.StatusConflict, errcode.EmailAlreadyExists, errcode.DefaultMessage(errcode.EmailAlreadyExists), nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
@@ -46,14 +49,14 @@ func login(c *gin.Context) {
 		return
 	}
 
-	result, err := services.Login(req.Email, req.Password, req.RememberMe)
+	result, err := auth.Login(req.Email, req.Password, req.RememberMe)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrInvalidCredentials):
+		case errors.Is(err, pkgerrors.ErrInvalidCredentials):
 			response.Fail(c, http.StatusUnauthorized, errcode.InvalidCredentials, errcode.DefaultMessage(errcode.InvalidCredentials), nil)
-		case errors.Is(err, services.ErrEmailNotConfirmed):
+		case errors.Is(err, pkgerrors.ErrEmailNotConfirmed):
 			response.Fail(c, http.StatusUnauthorized, errcode.EmailNotConfirmed, errcode.DefaultMessage(errcode.EmailNotConfirmed), nil)
-		case errors.Is(err, services.ErrUserDisabled):
+		case errors.Is(err, pkgerrors.ErrUserDisabled):
 			response.Fail(c, http.StatusForbidden, errcode.UserDisabled, errcode.DefaultMessage(errcode.UserDisabled), nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
@@ -77,10 +80,10 @@ func confirmEmail(c *gin.Context) {
 		return
 	}
 
-	result, err := services.ConfirmEmail(tok)
+	result, err := auth.ConfirmEmail(tok)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrInvalidConfirmToken):
+		case errors.Is(err, pkgerrors.ErrInvalidConfirmToken):
 			response.Fail(c, http.StatusBadRequest, errcode.InvalidConfirmToken, errcode.DefaultMessage(errcode.InvalidConfirmToken), nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
@@ -111,14 +114,14 @@ func refreshToken(c *gin.Context) {
 		return
 	}
 
-	result, err := services.RefreshSession(sessionStr, refreshTokenStr)
+	result, err := auth.RefreshSession(sessionStr, refreshTokenStr)
 	if err != nil {
 		switch {
-		case errors.Is(err, services.ErrRefreshTokenExpired):
+		case errors.Is(err, pkgerrors.ErrRefreshTokenExpired):
 			response.Fail(c, http.StatusUnauthorized, errcode.RefreshTokenExpired, errcode.DefaultMessage(errcode.RefreshTokenExpired), nil)
-		case errors.Is(err, services.ErrInvalidSession), errors.Is(err, services.ErrUserNotFound):
+		case errors.Is(err, pkgerrors.ErrInvalidSession), errors.Is(err, pkgerrors.ErrUserNotFound):
 			response.Fail(c, http.StatusUnauthorized, errcode.InvalidSession, errcode.DefaultMessage(errcode.InvalidSession), nil)
-		case errors.Is(err, services.ErrUserDisabled):
+		case errors.Is(err, pkgerrors.ErrUserDisabled):
 			response.Fail(c, http.StatusForbidden, errcode.UserDisabled, errcode.DefaultMessage(errcode.UserDisabled), nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
@@ -136,7 +139,7 @@ func refreshToken(c *gin.Context) {
 // setAuthCookies writes access_token, refresh_token, and session_id as non-HttpOnly
 // SameSite=Lax cookies so the client-side JavaScript layer can read them and attach
 // them to requests as Authorization / X-Refresh-Token / X-Session-Id headers.
-func setAuthCookies(c *gin.Context, result services.TokenPairResult) {
+func setAuthCookies(c *gin.Context, result entities.TokenPairResult) {
 	secure := setting.ServerSetting.RunMode == "release"
 	refreshMaxAge := int(result.RefreshTTL.Seconds())
 

@@ -10,6 +10,8 @@
 All tables are managed via **golang-migrate** with embedded SQL files in `migrations/`.  
 Run `MIGRATE=1 go run .` to apply pending migrations (see `migrations/README.md`).
 
+**Code ↔ table names:** Relation names used in Go (GORM `TableName()`, parameterized raw SQL) are defined in **`constants/dbschema_name.go`** and exposed via **`dbschema`** namespaces — do not hardcode table strings in `models` or `dbschema` packages.
+
 ## Table of Contents
 
 - [Table `users`](#users)
@@ -38,7 +40,7 @@ Stores application accounts.  Passwords are bcrypt-hashed.
 | `email` | `VARCHAR(255)` | UNIQUE NOT NULL | Login email |
 | `hash_password` | `VARCHAR(255)` | NOT NULL | bcrypt hash |
 | `display_name` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | Display name |
-| `avatar_url` | `TEXT` | NOT NULL DEFAULT `''` | Profile picture URL |
+| `avatar_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Profile image (`media_files` row); API returns nested `avatar` object |
 | `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Account disabled flag |
 | `email_confirmed` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Email verification status |
 | `confirmation_token` | `VARCHAR(128)` | nullable | One-time email confirmation token |
@@ -63,8 +65,8 @@ A JSONB map where each key is a **128-char hex session string** and each value i
 ```
 
 - Maximum **5 entries** per user. On overflow the entry with the earliest `refresh_token_expired` is evicted.
-- Writes that change the entry count run inside a **transaction** (`models.AddRefreshSession`).
-- In-place rotation (same key, new UUID + expiry) uses a lockless `jsonb_set` update (`models.SaveRefreshSession`).
+- Writes that change the entry count run inside a **transaction** (`repository.AddRefreshSession`).
+- In-place rotation (same key, new UUID + expiry) uses a lockless `jsonb_set` update (`repository.SaveRefreshSession`).
 
 The `refresh_token_session` column schema is defined in migration `000001_schema` (see `migrations/README.md`).
 
@@ -175,6 +177,9 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 | 000003 | `media_metadata` | **`media_files`** table + indexes |
 | 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; **`media_pending_cloud_cleanup`** |
 | 000005 | `media_bunny_response_fields` | **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** |
+| 000006 | `taxonomy_user_media_refs` | **`categories.image_file_id`**, **`users.avatar_file_id`** (FK → `media_files`); drops legacy **`categories.image_url`**, **`users.avatar_url`** after URL→row backfill |
+
+**Taxonomy `categories` (post-000006):** includes **`image_file_id`** `UUID` nullable FK → **`media_files(id)`** (replaces removed **`image_url`**).
 
 For details and notes on resetting the DB when changing the migration sequence, see `migrations/README.md`.
 

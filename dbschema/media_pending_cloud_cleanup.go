@@ -1,3 +1,5 @@
 package dbschema
 
-func (mediaNS) PendingCloudCleanup() string { return "media_pending_cloud_cleanup" }
+import "mycourse-io-be/constants"
+
+func (mediaNS) PendingCloudCleanup() string { return constants.TableMediaPendingCloudCleanup }

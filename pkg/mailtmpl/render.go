@@ -12,9 +12,9 @@ import (
 	"html/template"
 	"path/filepath"
 	"sync"
-)
 
-const templateBaseDir = "template/html/email"
+	"mycourse-io-be/constants"
+)
 
 var (
 	once               sync.Once
@@ -24,7 +24,7 @@ var (
 
 func loadTemplates() {
 	once.Do(func() {
-		path := filepath.Join(templateBaseDir, "confirm_account.html")
+		path := filepath.Join(constants.EmailTemplateBaseDir, "confirm_account.html")
 		confirmAccountTmpl, initErr = template.ParseFiles(path)
 	})
 }

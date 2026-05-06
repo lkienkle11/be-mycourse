@@ -46,6 +46,7 @@ jobs:
           make check-architecture
 
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

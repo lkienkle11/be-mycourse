@@ -2,15 +2,34 @@
 alwaysApply: false
 ---
 
+### Managed Feature Modules
+
+The following feature modules are governed by all rules in this document:
+
+- media
+- taxonomy
+- auth
+
+Whenever a rule references:
+
+pkg/<feature>/**/*.go
+
+`<feature>` MUST be interpreted as ANY of the managed feature modules above.
+
+Example expansion:
+
+pkg/<feature>/**/*.go
+
+means:
+
+- pkg/media/**/*.go
+- pkg/taxonomy/**/*.go
+- pkg/auth/**/*.go
+
 ### Project Rules
 
-<feature01>: 
-   - media
-   - taxonomy
-   - auth
-
 1. **Constants Placement**
-   Directories check:
+   Directories need to check:
    - api/**/*.go
    - services/**/*.go
    - repository/**/*.go
@@ -20,23 +39,28 @@ alwaysApply: false
    Using `const` blocks to bypass this rule is strictly prohibited.
 
 2. **Errors Placement**
-   Directories check:
+   Directories need to check:
    - api/**/*.go
    - services/**/*.go
    - repository/**/*.go
-   - pkg/feature01/**/*.go
+   - pkg/<feature>/**/*.go
 
    including both single declarations (`var Err = ...`) and grouped blocks (`var ( ErrA = ... )`) — MUST be placed in the `pkg/errors` directory.
    They must be imported and used directly from `pkg/errors`. Declaring `var errors` or any error blocks outside of `pkg/errors` is strictly prohibited.
 
 3. **Type and Struct Definitions**
-   Directories check:
+   Directories need to check:
    - api/**/*.go
    - services/**/*.go
-   - pkg/feature01/**/*.go
+   - pkg/<feature>/**/*.go
 
    MUST NOT declare any types or structs directly.
    All definitions must be centralized in `pkg/entities`, with appropriately named modules and types defined there.
+
+   Allowed exceptions:
+   - Anonymous structs declared inline inside functions.
+   - Temporary local structs declared within function scope.
+   - Inline function params struct is OK
 
 **Exceptions:**
 
@@ -44,7 +68,7 @@ alwaysApply: false
 * Response structures MUST be placed in `dto/` and named using the `TypeResponse` convention.
 
 4. **Test Placement**
-   Directories check:
+   Directories need to check:
    - api/**/*.go
    - services/**/*.go
    - repository/**/*.go
@@ -55,14 +79,17 @@ alwaysApply: false
    All test code (including `*_test.go` files, test packages, and test-only modules) MUST reside exclusively under the top-level `tests/` directory. Tests MUST NOT be placed under `api/`, `services/`, `pkg/`, `repository/`, `models/`, `dbschema/`, or any of their subfolders.
 
 5. **Error Variable Messages (No Hardcoded Strings)**
+   Directories need to check:
+   - **/*.go
+
    For any sentinel error declarations — single (`var ErrFoo = errors.New(...)`) or grouped (`var ( ErrBar = errors.New(...) )`) — anywhere they appear (including under `pkg/errors/`), the argument to `errors.New` (or `fmt.Errorf` patterns used for the same purpose) MUST NOT be a raw string literal. The message MUST be supplied via a named constant from `constants/` (e.g., `constants.MsgMediaOptimisticLockConflict`), following the same pattern as `pkg/errors/media_errors.go` and `pkg/errors/rbac.go`. Hardcoded string literals such as `errors.New("invalid profile...")` are strictly prohibited.
 
 6. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Before writing ANY new function, examine its inputs and outputs:
 
-* **Mechanism Logic (belongs to `pkg/feature01/**/*.go`):**
+* **Mechanism Logic (belongs to `pkg/<feature>/**/*.go`):**
   If the function answers "How?", operates ONLY on primitive types (`string`, `int`, `bool`, slices) or standard Go libraries (e.g., `time.Time`), and has ZERO knowledge of domain models/structs, it is considered Mechanism Logic.
-  It MUST be extracted into a dedicated file inside `pkg/feature01/**/*.go`, EVEN IF it is currently used in only one feature.
+  It MUST be extracted into a dedicated file inside `pkg/<feature>/**/*.go`, EVEN IF it is currently used in only one feature.
 
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
@@ -75,10 +102,10 @@ alwaysApply: false
 * **No Fake Methods:**
   Do not bypass the rule by attaching helper functions to a service struct (e.g., `func (s *courseService) parseBoolean()`).
   If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
-  If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/feature01/**/*.go`.
+  If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature>/**/*.go`.
 
 8. **Strict One-Way Dependency Direction for `pkg/`**
 
-* Code inside `pkg/feature01/**/*.go` sits at the lowest level of the dependency chain.
+* Code inside `pkg/<feature>/**/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.
 * They may ONLY depend on standard Go libraries, external third-party libraries, and shared entities such as `pkg/entities` or common models.

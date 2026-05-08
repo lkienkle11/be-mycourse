@@ -189,7 +189,7 @@ sequenceDiagram
     DB-->>SVC: ok
 
     SVC-->>H: TokenPairResult{AccessToken, RefreshToken, SessionStr, RefreshTTL}
-    H->>H: setAuthCookies(c, result)
+    H->>H: setAuthCookies(c, accessToken, refreshToken, sessionID, refreshTTLSeconds)
     H-->>C: 200 {code:0, message:"email_confirmed",<br/>data:{access_token, refresh_token, session_id}}<br/>+ Set-Cookie: access_token, refresh_token, session_id
 ```
 
@@ -261,7 +261,7 @@ sequenceDiagram
     SVC->>Cache: SetCachedUserMe(ctx, meResponse)
 
     SVC-->>H: TokenPairResult
-    H->>H: setAuthCookies(c, result)
+    H->>H: setAuthCookies(c, accessToken, refreshToken, sessionID, refreshTTLSeconds)
     H-->>C: 200 {code:0, message:"login_success",<br/>data:{access_token, refresh_token, session_id}}<br/>+ Set-Cookie: access_token, refresh_token, session_id
 ```
 
@@ -360,7 +360,7 @@ sequenceDiagram
             SVC-->>H: ErrUserNotFound
             H-->>C: 404 {code:3004}
         end
-        SVC->>SVC: buildMeResponseFromUser(user)
+        SVC->>SVC: buildMeResponseForCache(user)
         Note over SVC: calls PermissionCodesForUser(uid) → SQL UNION
         SVC->>Cache: SetCachedUserMe(ctx, meResponse)
         SVC-->>H: meResponse
@@ -472,7 +472,7 @@ sequenceDiagram
     MW->>H: c.Next()
 
     H->>Sync: SyncPermissionsFromConstants(db)
-    loop for each entry in constants.AllPermissionEntries()
+    loop for each entry in rbaccatalog.AllPermissionEntries()
         Sync->>DB: INSERT INTO permissions ON CONFLICT (permission_id) DO UPDATE SET permission_name=...
     end
     DB-->>Sync: rows affected = n
@@ -505,7 +505,7 @@ sequenceDiagram
     H->>Sync: SyncRolePermissionsFromConstants(db)
     Sync->>DB: BEGIN
     Sync->>DB: DELETE FROM role_permissions
-    loop for each RolePermissionPair in constants.AllRolePermissionPairs()
+    loop for each RolePermissionPair in rbaccatalog.AllRolePermissionPairs()
         Sync->>DB: SELECT id FROM roles WHERE name=roleName
         Sync->>DB: INSERT INTO role_permissions(role_id, permission_id)
     end

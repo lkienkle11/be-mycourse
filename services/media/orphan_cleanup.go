@@ -19,13 +19,13 @@ import (
 // No-op (false) for: empty URL, Local provider, external/unrecognised URL, DB insert error.
 //
 // Compensation rule: call AFTER the owning DB record has been committed.
-// If enqueue fails, the cloud object is stranded until a later sweep — acceptable,
+// If insertion fails, the cloud object may remain orphaned until a later sweep — acceptable,
 // since no user-visible data is lost.
 //
 // Future domains (course cover_image, user avatar, lesson JSONB images) MUST call
 // this function after their own DB delete/update commits.
 func orphanCleanupResolveTargets(repo *mediarepo.FileRepository, url string) (
-	prov constants.FileProvider,
+	prov string,
 	objectKey, bunnyVideoID string,
 	ok bool,
 ) {

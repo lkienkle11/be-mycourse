@@ -43,7 +43,7 @@ func getFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "invalid object key", nil)
 		return
 	}
-	kind := constants.FileKind(strings.TrimSpace(c.Query("kind")))
+	kind := string(strings.TrimSpace(c.Query("kind")))
 	row, err := mediaservice.GetFile(objectKey, kind)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)

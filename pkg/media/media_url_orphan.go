@@ -22,7 +22,7 @@ import (
 //
 // Pure function: no I/O, reads only from pkg/setting (already loaded at startup).
 func ParseImageURLForOrphanCleanup(rawURL string) (
-	provider constants.FileProvider,
+	provider string,
 	objectKey string,
 	bunnyVideoID string,
 	ok bool,
@@ -48,42 +48,42 @@ func ParseImageURLForOrphanCleanup(rawURL string) (
 	return
 }
 
-func orphanCleanupBunnyMatch(u string) (constants.FileProvider, string, string, bool) {
+func orphanCleanupBunnyMatch(u string) (string, string, string, bool) {
 	bunnyBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "")
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	if bunnyBase == "" || libraryID == "" {
-		return constants.FileProvider(""), "", "", false
+		return string(""), "", "", false
 	}
 	prefix := bunnyBase + "/" + libraryID + "/"
 	if !strings.HasPrefix(u, prefix) {
-		return constants.FileProvider(""), "", "", false
+		return string(""), "", "", false
 	}
 	remainder := strings.SplitN(u, "?", 2)[0]
 	remainder = strings.SplitN(remainder, "#", 2)[0]
 	remainder = strings.TrimPrefix(remainder, prefix)
 	guid := strings.TrimSpace(strings.SplitN(remainder, "/", 2)[0])
 	if guid == "" {
-		return constants.FileProvider(""), "", "", false
+		return string(""), "", "", false
 	}
 	return constants.FileProviderBunny, guid, guid, true
 }
 
-func orphanCleanupB2Match(u string) (constants.FileProvider, string, bool) {
+func orphanCleanupB2Match(u string) (string, string, bool) {
 	cdnBase := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, "")
 	bucket := strings.TrimSpace(setting.MediaSetting.B2Bucket)
 	if cdnBase == "" || bucket == "" {
-		return constants.FileProvider(""), "", false
+		return string(""), "", false
 	}
 	prefix := utils.JoinURLPathSegments(cdnBase, bucket) + "/"
 	if !strings.HasPrefix(u, prefix) {
-		return constants.FileProvider(""), "", false
+		return string(""), "", false
 	}
 	remainder := strings.TrimPrefix(u, prefix)
 	remainder = strings.SplitN(remainder, "?", 2)[0]
 	remainder = strings.SplitN(remainder, "#", 2)[0]
 	key := strings.TrimSpace(remainder)
 	if key == "" {
-		return constants.FileProvider(""), "", false
+		return string(""), "", false
 	}
 	return constants.FileProviderB2, key, true
 }

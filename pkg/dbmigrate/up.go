@@ -10,16 +10,18 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+
+	"mycourse-io-be/constants"
 )
 
 func openPingPostgres(ctx context.Context, dsn string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("migration db open: %w", err)
+		return nil, fmt.Errorf(constants.MsgMigrationDBOpen, err)
 	}
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("migration db ping: %w", err)
+		return nil, fmt.Errorf(constants.MsgMigrationDBPing, err)
 	}
 	return db, nil
 }
@@ -27,17 +29,17 @@ func openPingPostgres(ctx context.Context, dsn string) (*sql.DB, error) {
 func migrateUpFromIOFS(db *sql.DB, fsys fs.FS, dir string) error {
 	src, err := iofs.New(fsys, dir)
 	if err != nil {
-		return fmt.Errorf("migration source: %w", err)
+		return fmt.Errorf(constants.MsgMigrationSource, err)
 	}
 	driver, err := postgresmigrate.WithInstance(db, &postgresmigrate.Config{
 		MultiStatementEnabled: true,
 	})
 	if err != nil {
-		return fmt.Errorf("migration postgres driver: %w", err)
+		return fmt.Errorf(constants.MsgMigrationPostgresDriver, err)
 	}
 	m, err := migrate.NewWithInstance("iofs", src, "postgres", driver)
 	if err != nil {
-		return fmt.Errorf("migrate: %w", err)
+		return fmt.Errorf(constants.MsgMigrationRun, err)
 	}
 	defer func() { _, _ = m.Close() }()
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {

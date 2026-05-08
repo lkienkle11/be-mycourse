@@ -5,8 +5,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
-	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/sqlnamed"
 )
@@ -26,7 +26,7 @@ var allowedPermissionSearchCols = map[string]string{
 	"description":     "description",
 }
 
-func listPermissionsOrderExpr(p entities.ListPermissionsParams) string {
+func listPermissionsOrderExpr(p dto.ListPermissionsParams) string {
 	col := "permission_id"
 	if c, ok := allowedPermissionSortCols[p.SortBy]; ok {
 		col = c
@@ -39,7 +39,7 @@ func listPermissionsOrderExpr(p entities.ListPermissionsParams) string {
 
 // ListPermissions returns a filtered, sorted, paginated page of permissions and the total
 // count of matching rows (before pagination).
-func ListPermissions(p entities.ListPermissionsParams) ([]models.Permission, int64, error) {
+func ListPermissions(p dto.ListPermissionsParams) ([]models.Permission, int64, error) {
 	db, err := rbacOrErr()
 	if err != nil {
 		return nil, 0, err

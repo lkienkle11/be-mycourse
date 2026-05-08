@@ -13,12 +13,10 @@ import (
 	"mycourse-io-be/pkg/sqlnamed"
 )
 
-var (
-	rbacSQLPermissionCodesForUser              string
-	rbacSQLDeleteRolePermissionsByPermissionID string
-	rbacSQLDeleteRolePermissionsByRoleID       string
-	rbacSQLDeleteUserPermissionsByPermissionID string
-)
+var rbacSQLPermissionCodesForUser string
+var rbacSQLDeleteRolePermissionsByPermissionID string
+var rbacSQLDeleteRolePermissionsByRoleID string
+var rbacSQLDeleteUserPermissionsByPermissionID string
 
 func init() {
 	rbacSQLPermissionCodesForUser = fmt.Sprintf(constants.RbacSQLPermissionCodesForUserTmpl,

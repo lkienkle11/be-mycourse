@@ -41,7 +41,7 @@ func NormalizeMetadata(in map[string]any) entities.RawMetadata {
 func ParseMetadataFromRaw(raw string) (entities.RawMetadata, error) {
 	meta, err := ParseMetadataJSON(raw)
 	if err != nil {
-		return nil, fmt.Errorf("invalid metadata json: %w", err)
+		return nil, fmt.Errorf(constants.MsgInvalidMetadataJSON, err)
 	}
 	return meta, nil
 }
@@ -103,7 +103,7 @@ func buildImageTypedMetadata(base entities.FileMetadata, raw entities.RawMetadat
 }
 
 func BuildTypedMetadata(
-	kind constants.FileKind,
+	kind string,
 	mimeType string,
 	filename string,
 	sizeBytes int64,
@@ -117,7 +117,7 @@ func BuildTypedMetadata(
 	return buildImageTypedMetadata(base, raw, payload)
 }
 
-func DefaultMediaProvider(kind constants.FileKind) constants.FileProvider {
+func DefaultMediaProvider(kind string) string {
 	configured := strings.TrimSpace(setting.MediaSetting.AppMediaProvider)
 	if configured != "" {
 		return ResolveMediaProvider(kind, configured)

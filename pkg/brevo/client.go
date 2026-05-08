@@ -38,22 +38,22 @@ func postBrevoSMTP(payload sendEmailPayload) error {
 	cfg := setting.BrevoSetting
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("brevo: marshal payload: %w", err)
+		return fmt.Errorf(constants.MsgBrevoMarshalPayload, err)
 	}
 	req, err := http.NewRequest(http.MethodPost, constants.BrevoSMTPAPIURL, bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("brevo: build request: %w", err)
+		return fmt.Errorf(constants.MsgBrevoBuildRequest, err)
 	}
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("api-key", cfg.APIKey)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("brevo: send request: %w", err)
+		return fmt.Errorf(constants.MsgBrevoSendRequest, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("brevo: unexpected status %d", resp.StatusCode)
+		return fmt.Errorf(constants.MsgBrevoUnexpectedStatus, resp.StatusCode)
 	}
 	return nil
 }
@@ -65,7 +65,7 @@ func SendConfirmationEmail(toEmail, displayName, confirmURL string) error {
 		ConfirmURL:  confirmURL,
 	})
 	if err != nil {
-		return fmt.Errorf("brevo: render template: %w", err)
+		return fmt.Errorf(constants.MsgBrevoRenderTemplate, err)
 	}
 	return postBrevoSMTP(confirmationEmailPayload(toEmail, displayName, html))
 }

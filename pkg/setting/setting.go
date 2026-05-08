@@ -2,6 +2,7 @@ package setting
 
 import (
 	"fmt"
+	"mycourse-io-be/constants"
 	"net"
 	"net/url"
 	"os"
@@ -60,21 +61,22 @@ type Supabase struct {
 }
 
 type Media struct {
-	AppMediaProvider     string
-	B2KeyID              string
-	B2AppKey             string
-	B2Bucket             string
-	B2BaseURL            string
-	GcoreAPIBaseURL      string
-	GcoreAPIToken        string
-	GcoreCDNURL          string
-	BunnyStreamAPIBase   string
-	BunnyStreamAPIKey    string
-	BunnyStreamLibraryID string
-	BunnyStreamBaseURL   string
-	BunnyStorageEndpoint string
-	BunnyStoragePassword string
-	LocalFileURLSecret   string
+	AppMediaProvider          string
+	B2KeyID                   string
+	B2AppKey                  string
+	B2Bucket                  string
+	B2BaseURL                 string
+	GcoreAPIBaseURL           string
+	GcoreAPIToken             string
+	GcoreCDNURL               string
+	BunnyStreamAPIBase        string
+	BunnyStreamAPIKey         string
+	BunnyStreamReadOnlyAPIKey string
+	BunnyStreamLibraryID      string
+	BunnyStreamBaseURL        string
+	BunnyStorageEndpoint      string
+	BunnyStoragePassword      string
+	LocalFileURLSecret        string
 }
 
 var (
@@ -145,21 +147,22 @@ type yamlSupabase struct {
 }
 
 type yamlMedia struct {
-	AppMediaProvider     string `yaml:"app_media_provider"`
-	B2KeyID              string `yaml:"b2_key_id"`
-	B2AppKey             string `yaml:"b2_app_key"`
-	B2Bucket             string `yaml:"b2_bucket"`
-	B2BaseURL            string `yaml:"b2_base_url"`
-	GcoreAPIBaseURL      string `yaml:"gcore_api_base_url"`
-	GcoreAPIToken        string `yaml:"gcore_api_token"`
-	GcoreCDNURL          string `yaml:"gcore_cdn_url"`
-	BunnyStreamAPIBase   string `yaml:"bunny_stream_api_base_url"`
-	BunnyStreamAPIKey    string `yaml:"bunny_stream_api_key"`
-	BunnyStreamLibraryID string `yaml:"bunny_stream_library_id"`
-	BunnyStreamBaseURL   string `yaml:"bunny_stream_base_url"`
-	BunnyStorageEndpoint string `yaml:"bunny_storage_endpoint"`
-	BunnyStoragePassword string `yaml:"bunny_storage_password"`
-	LocalFileURLSecret   string `yaml:"local_file_url_secret"`
+	AppMediaProvider          string `yaml:"app_media_provider"`
+	B2KeyID                   string `yaml:"b2_key_id"`
+	B2AppKey                  string `yaml:"b2_app_key"`
+	B2Bucket                  string `yaml:"b2_bucket"`
+	B2BaseURL                 string `yaml:"b2_base_url"`
+	GcoreAPIBaseURL           string `yaml:"gcore_api_base_url"`
+	GcoreAPIToken             string `yaml:"gcore_api_token"`
+	GcoreCDNURL               string `yaml:"gcore_cdn_url"`
+	BunnyStreamAPIBase        string `yaml:"bunny_stream_api_base_url"`
+	BunnyStreamAPIKey         string `yaml:"bunny_stream_api_key"`
+	BunnyStreamReadOnlyAPIKey string `yaml:"bunny_stream_read_only_api_key"`
+	BunnyStreamLibraryID      string `yaml:"bunny_stream_library_id"`
+	BunnyStreamBaseURL        string `yaml:"bunny_stream_base_url"`
+	BunnyStorageEndpoint      string `yaml:"bunny_storage_endpoint"`
+	BunnyStoragePassword      string `yaml:"bunny_storage_password"`
+	LocalFileURLSecret        string `yaml:"local_file_url_secret"`
 }
 
 // Setup reads .env then .env.<STAGE> into an in-memory map (no godotenv.Load),
@@ -176,12 +179,12 @@ func Setup() error {
 	yamlPath := resolveYAMLPath()
 	raw, err := os.ReadFile(yamlPath)
 	if err != nil {
-		return fmt.Errorf("read yaml %s: %w", yamlPath, err)
+		return fmt.Errorf(constants.MsgReadYAML, yamlPath, err)
 	}
 
 	var cfg yamlConfig
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
-		return fmt.Errorf("parse yaml %s: %w", yamlPath, err)
+		return fmt.Errorf(constants.MsgParseYAML, yamlPath, err)
 	}
 
 	expandYAMLConfig(&cfg, dotEnv)
@@ -211,7 +214,7 @@ func readDotEnvMaps(stage string) (map[string]string, error) {
 		}
 		m, err := godotenv.Read(path)
 		if err != nil {
-			return fmt.Errorf("parse %s: %w", path, err)
+			return fmt.Errorf(constants.MsgParseDotEnv, path, err)
 		}
 		for k, v := range m {
 			out[k] = v

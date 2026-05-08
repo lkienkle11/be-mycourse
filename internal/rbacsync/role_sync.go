@@ -6,9 +6,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"mycourse-io-be/constants"
 	"mycourse-io-be/dbschema"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/rbaccatalog"
 )
 
 // SyncRolePermissionsFromConstants replaces all role_permissions rows with the matrix from
@@ -18,7 +18,7 @@ func SyncRolePermissionsFromConstants(db *gorm.DB) (int, error) {
 	if db == nil {
 		return 0, errors.New("nil database")
 	}
-	pairs := constants.AllRolePermissionPairs()
+	pairs := rbaccatalog.AllRolePermissionPairs()
 	if len(pairs) == 0 {
 		return 0, errors.New("no role-permission pairs in constants.RolePermissions")
 	}

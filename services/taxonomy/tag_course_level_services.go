@@ -3,26 +3,24 @@ package taxonomy
 import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
-	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/logic/mapping"
 	repo "mycourse-io-be/repository/taxonomy"
 )
 
-func ListTags(filter dto.TagFilter) ([]entities.Tag, int64, error) {
+func ListTags(filter dto.TagFilter) ([]dto.TagResponse, int64, error) {
 	rows, total, err := repo.NewTagRepository(models.DB).ListTags(filter)
 	if err != nil {
 		return nil, 0, err
 	}
-	return tagEntities(rows), total, nil
+	return mapping.ToTagResponsesFromModels(rows), total, nil
 }
 
-func CreateTag(actorID uint, req dto.CreateTagRequest) (*entities.Tag, error) {
+func CreateTag(actorID uint, req dto.CreateTagRequest) (*dto.TagResponse, error) {
 	n, s, st := trimmedTaxonomyFields(req.Name, req.Slug, req.Status)
 	row := &models.Tag{
-		Tag: entities.Tag{
-			Name:   n,
-			Slug:   s,
-			Status: st,
-		},
+		Name:   n,
+		Slug:   s,
+		Status: st,
 	}
 	if actorID > 0 {
 		row.CreatedBy = &actorID
@@ -30,10 +28,11 @@ func CreateTag(actorID uint, req dto.CreateTagRequest) (*entities.Tag, error) {
 	if err := repo.NewTagRepository(models.DB).CreateTag(row); err != nil {
 		return nil, err
 	}
-	return &row.Tag, nil
+	dtoRow := mapping.ToTagResponseModel(*row)
+	return &dtoRow, nil
 }
 
-func UpdateTag(id uint, req dto.UpdateTagRequest) (*entities.Tag, error) {
+func UpdateTag(id uint, req dto.UpdateTagRequest) (*dto.TagResponse, error) {
 	r := repo.NewTagRepository(models.DB)
 	row, err := r.GetTagByID(id)
 	if err != nil {
@@ -43,29 +42,28 @@ func UpdateTag(id uint, req dto.UpdateTagRequest) (*entities.Tag, error) {
 	if err := r.UpdateTag(row); err != nil {
 		return nil, err
 	}
-	return &row.Tag, nil
+	dtoRow := mapping.ToTagResponseModel(*row)
+	return &dtoRow, nil
 }
 
 func DeleteTag(id uint) error {
 	return repo.NewTagRepository(models.DB).DeleteTag(id)
 }
 
-func ListCourseLevels(filter dto.CourseLevelFilter) ([]entities.CourseLevel, int64, error) {
+func ListCourseLevels(filter dto.CourseLevelFilter) ([]dto.CourseLevelResponse, int64, error) {
 	rows, total, err := repo.NewCourseLevelRepository(models.DB).ListCourseLevels(filter)
 	if err != nil {
 		return nil, 0, err
 	}
-	return courseLevelEntities(rows), total, nil
+	return mapping.ToCourseLevelResponsesFromModels(rows), total, nil
 }
 
-func CreateCourseLevel(actorID uint, req dto.CreateCourseLevelRequest) (*entities.CourseLevel, error) {
+func CreateCourseLevel(actorID uint, req dto.CreateCourseLevelRequest) (*dto.CourseLevelResponse, error) {
 	n, s, st := trimmedTaxonomyFields(req.Name, req.Slug, req.Status)
 	row := &models.CourseLevel{
-		CourseLevel: entities.CourseLevel{
-			Name:   n,
-			Slug:   s,
-			Status: st,
-		},
+		Name:   n,
+		Slug:   s,
+		Status: st,
 	}
 	if actorID > 0 {
 		row.CreatedBy = &actorID
@@ -73,10 +71,11 @@ func CreateCourseLevel(actorID uint, req dto.CreateCourseLevelRequest) (*entitie
 	if err := repo.NewCourseLevelRepository(models.DB).CreateCourseLevel(row); err != nil {
 		return nil, err
 	}
-	return &row.CourseLevel, nil
+	dtoRow := mapping.ToCourseLevelResponseModel(*row)
+	return &dtoRow, nil
 }
 
-func UpdateCourseLevel(id uint, req dto.UpdateCourseLevelRequest) (*entities.CourseLevel, error) {
+func UpdateCourseLevel(id uint, req dto.UpdateCourseLevelRequest) (*dto.CourseLevelResponse, error) {
 	r := repo.NewCourseLevelRepository(models.DB)
 	row, err := r.GetCourseLevelByID(id)
 	if err != nil {
@@ -86,7 +85,8 @@ func UpdateCourseLevel(id uint, req dto.UpdateCourseLevelRequest) (*entities.Cou
 	if err := r.UpdateCourseLevel(row); err != nil {
 		return nil, err
 	}
-	return &row.CourseLevel, nil
+	dtoRow := mapping.ToCourseLevelResponseModel(*row)
+	return &dtoRow, nil
 }
 
 func DeleteCourseLevel(id uint) error {

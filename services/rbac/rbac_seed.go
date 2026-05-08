@@ -3,8 +3,8 @@ package rbac
 import (
 	"gorm.io/gorm"
 
-	"mycourse-io-be/constants"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/rbaccatalog"
 )
 
 // SeedRBACDefaults ensures catalog permissions (by permission_id) and baseline roles exist.
@@ -14,7 +14,7 @@ func SeedRBACDefaults() error {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
-		for _, e := range constants.AllPermissionEntries() {
+		for _, e := range rbaccatalog.AllPermissionEntries() {
 			p := models.Permission{
 				PermissionID:   e.PermissionID,
 				PermissionName: e.PermissionName,

@@ -8,7 +8,7 @@ import (
 	"mycourse-io-be/pkg/entities"
 )
 
-func DeleteStoredObject(ctx context.Context, clients *entities.CloudClients, objectKey string, provider constants.FileProvider, bunnyVideoID string) error {
+func DeleteStoredObject(ctx context.Context, clients *entities.CloudClients, objectKey string, provider string, bunnyVideoID string) error {
 	switch provider {
 	case constants.FileProviderLocal:
 		return nil

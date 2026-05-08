@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"mycourse-io-be/constants"
 	"strconv"
 	"strings"
 
@@ -35,7 +36,7 @@ func BindUpdateFileMultipart(c *gin.Context) (dto.UpdateFileRequest, error) {
 	if ev := strings.TrimSpace(c.PostForm("expected_row_version")); ev != "" {
 		v, perr := strconv.ParseInt(ev, 10, 64)
 		if perr != nil {
-			return dto.UpdateFileRequest{}, fmt.Errorf("expected_row_version must be an integer")
+			return dto.UpdateFileRequest{}, fmt.Errorf(constants.MsgExpectedRowVersionInteger)
 		}
 		req.ExpectedRowVersion = &v
 	}

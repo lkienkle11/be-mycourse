@@ -12,8 +12,8 @@ import (
 	"mycourse-io-be/pkg/setting"
 )
 
-func ResolveMediaKind(kindRaw, mime, filename string) constants.FileKind {
-	kind := constants.FileKind(strings.TrimSpace(kindRaw))
+func ResolveMediaKind(kindRaw, mime, filename string) string {
+	kind := string(strings.TrimSpace(kindRaw))
 	if kind == constants.FileKindFile || kind == constants.FileKindVideo {
 		return kind
 	}
@@ -29,8 +29,8 @@ func ResolveMediaKind(kindRaw, mime, filename string) constants.FileKind {
 	}
 }
 
-func ResolveMediaProvider(kind constants.FileKind, providerRaw string) constants.FileProvider {
-	provider := constants.FileProvider(strings.TrimSpace(providerRaw))
+func ResolveMediaProvider(kind string, providerRaw string) string {
+	provider := string(strings.TrimSpace(providerRaw))
 	if provider != "" {
 		return provider
 	}
@@ -40,7 +40,7 @@ func ResolveMediaProvider(kind constants.FileKind, providerRaw string) constants
 	return constants.FileProviderB2
 }
 
-func ResolveMediaKindFromServer(mime, filename string) (constants.FileKind, bool) {
+func ResolveMediaKindFromServer(mime, filename string) (string, bool) {
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(mime)), "video/") {
 		return constants.FileKindVideo, true
 	}
@@ -68,7 +68,7 @@ func IsImageMIMEOrExt(mime, filename string) bool {
 	return false
 }
 
-func ResolveUploadProvider(kind constants.FileKind, kindInferred bool) constants.FileProvider {
+func ResolveUploadProvider(kind string, kindInferred bool) string {
 	configured := strings.TrimSpace(setting.MediaSetting.AppMediaProvider)
 	if configured != "" {
 		return ResolveMediaProvider(kind, configured)

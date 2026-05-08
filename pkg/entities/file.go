@@ -2,8 +2,6 @@ package entities
 
 import (
 	"time"
-
-	"mycourse-io-be/constants"
 )
 
 type RawMetadata map[string]any
@@ -57,27 +55,27 @@ type UploadFileMetadata struct {
 }
 
 type File struct {
-	ID                 string                 `json:"id"`
-	Kind               constants.FileKind     `json:"kind"`
-	Provider           constants.FileProvider `json:"provider"`
-	Filename           string                 `json:"filename"`
-	MimeType           string                 `json:"mime_type"`
-	SizeBytes          int64                  `json:"size_bytes"`
-	URL                string                 `json:"url"`
-	OriginURL          string                 `json:"-"` // server-only; not on dto.UploadFileResponse (Sub 12)
-	ObjectKey          string                 `json:"object_key"`
-	Status             constants.FileStatus   `json:"status"`
-	B2BucketName       string                 `json:"b2_bucket_name"`
-	BunnyVideoID       string                 `json:"bunny_video_id"`
-	BunnyLibraryID     string                 `json:"bunny_library_id"`
-	VideoID            string                 `json:"video_id"`
-	ThumbnailURL       string                 `json:"thumbnail_url"`
-	EmbededHTML        string                 `json:"embeded_html"`
-	Duration           int64                  `json:"duration"`
-	VideoProvider      string                 `json:"video_provider"`
-	RowVersion         int64                  `json:"row_version,omitempty"`
-	ContentFingerprint string                 `json:"content_fingerprint,omitempty"`
-	Metadata           UploadFileMetadata     `json:"metadata"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
+	ID                 string             `json:"id"`
+	Kind               string             `json:"kind"`
+	Provider           string             `json:"provider"`
+	Filename           string             `json:"filename"`
+	MimeType           string             `json:"mime_type"`
+	SizeBytes          int64              `json:"size_bytes"`
+	URL                string             `json:"url"`
+	OriginURL          string             `json:"-"` // server-only; not on dto.UploadFileResponse (Sub 12)
+	ObjectKey          string             `json:"object_key"`
+	Status             string             `json:"status"`
+	B2BucketName       string             `json:"b2_bucket_name"`
+	BunnyVideoID       string             `json:"bunny_video_id"`
+	BunnyLibraryID     string             `json:"bunny_library_id"`
+	VideoID            string             `json:"video_id"`
+	ThumbnailURL       string             `json:"thumbnail_url"`
+	EmbededHTML        string             `json:"embeded_html"`
+	Duration           int64              `json:"duration"`
+	VideoProvider      string             `json:"video_provider"`
+	RowVersion         int64              `json:"row_version,omitempty"`
+	ContentFingerprint string             `json:"content_fingerprint,omitempty"`
+	Metadata           UploadFileMetadata `json:"metadata"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
 }

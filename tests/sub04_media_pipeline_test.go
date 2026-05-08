@@ -15,24 +15,26 @@ import (
 func TestBunnyVideoStatus_StatusString(t *testing.T) {
 	cases := []struct {
 		name   string
-		status constants.BunnyVideoStatus
+		status int
 		want   string
 	}{
-		{name: "created", status: constants.BunnyCreated, want: "created"},
-		{name: "uploaded", status: constants.BunnyUploaded, want: "uploaded"},
+		{name: "queued", status: constants.BunnyQueued, want: "queued"},
 		{name: "processing", status: constants.BunnyProcessing, want: "processing"},
-		{name: "transcoding", status: constants.BunnyTranscoding, want: "transcoding"},
+		{name: "encoding", status: constants.BunnyEncoding, want: "encoding"},
 		{name: "finished", status: constants.BunnyFinished, want: "finished"},
-		{name: "resolutions_finished", status: constants.BunnyResolutionsFinished, want: "resolutions_finished"},
+		{name: "resolution_finished", status: constants.BunnyResolutionFinished, want: "resolution_finished"},
 		{name: "failed", status: constants.BunnyFailed, want: "failed"},
-		{name: "presigned_upload", status: constants.BunnyPresignedUpload, want: "presigned_upload"},
-		{name: "transcribing", status: constants.BunnyTranscribing, want: "transcribing"},
-		{name: "unknown", status: constants.BunnyVideoStatus(999), want: "unknown"},
+		{name: "presigned_upload_started", status: constants.BunnyPresignedUploadStarted, want: "presigned_upload_started"},
+		{name: "presigned_upload_finished", status: constants.BunnyPresignedUploadFinished, want: "presigned_upload_finished"},
+		{name: "presigned_upload_failed", status: constants.BunnyPresignedUploadFailed, want: "presigned_upload_failed"},
+		{name: "captions_generated", status: constants.BunnyCaptionsGenerated, want: "captions_generated"},
+		{name: "title_or_description_generated", status: constants.BunnyTitleOrDescriptionGenerated, want: "title_or_description_generated"},
+		{name: "unknown", status: 999, want: "unknown"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tc.status.StatusString()
+			got := pkgmedia.BunnyStatusString(tc.status)
 			if got != tc.want {
 				t.Fatalf("got %q want %q", got, tc.want)
 			}

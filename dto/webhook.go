@@ -1,7 +1,7 @@
 package dto
 
 type BunnyVideoWebhookRequest struct {
-	VideoLibraryID string `json:"video_library_id" binding:"required"`
-	VideoGUID      string `json:"video_guid" binding:"required"`
-	Status         int    `json:"status" binding:"required"`
+	VideoLibraryID int    `json:"VideoLibraryId" binding:"required"`
+	VideoGUID      string `json:"VideoGuid" binding:"required"`
+	Status         int    `json:"Status" binding:"required,min=0,max=10"`
 }

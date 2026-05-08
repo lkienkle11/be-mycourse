@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"mycourse-io-be/constants"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -75,7 +76,7 @@ func GenerateRefresh(secret string, userID uint, sessionUUID string, ttl time.Du
 func GenerateSessionString(jwtSecret string) (string, error) {
 	nonce := make([]byte, 32)
 	if _, err := rand.Read(nonce); err != nil {
-		return "", fmt.Errorf("generate session nonce: %w", err)
+		return "", fmt.Errorf(constants.MsgGenerateSessionNonce, err)
 	}
 	mac := hmac.New(sha512.New, []byte(jwtSecret))
 	mac.Write(nonce)
@@ -85,12 +86,12 @@ func GenerateSessionString(jwtSecret string) (string, error) {
 // ParseAccess validates an access token and returns its claims.
 func ParseAccess(secret, tokenString string) (*Claims, error) {
 	if secret == "" || tokenString == "" {
-		return nil, errors.New("missing secret or token")
+		return nil, errors.New(constants.MsgJWTMissingSecretOrToken)
 	}
 	claims := &Claims{}
 	t, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			return nil, fmt.Errorf(constants.MsgJWTUnexpectedSigningMethod, t.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -98,7 +99,7 @@ func ParseAccess(secret, tokenString string) (*Claims, error) {
 		return nil, err
 	}
 	if !t.Valid {
-		return nil, errors.New("invalid token")
+		return nil, errors.New(constants.MsgJWTInvalidToken)
 	}
 	return claims, nil
 }
@@ -106,12 +107,12 @@ func ParseAccess(secret, tokenString string) (*Claims, error) {
 // ParseRefresh validates a refresh token and returns its claims.
 func ParseRefresh(secret, tokenString string) (*RefreshClaims, error) {
 	if secret == "" || tokenString == "" {
-		return nil, errors.New("missing secret or token")
+		return nil, errors.New(constants.MsgJWTMissingSecretOrToken)
 	}
 	claims := &RefreshClaims{}
 	t, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			return nil, fmt.Errorf(constants.MsgJWTUnexpectedSigningMethod, t.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -119,7 +120,7 @@ func ParseRefresh(secret, tokenString string) (*RefreshClaims, error) {
 		return nil, err
 	}
 	if !t.Valid {
-		return nil, errors.New("invalid token")
+		return nil, errors.New(constants.MsgJWTInvalidToken)
 	}
 	return claims, nil
 }
@@ -130,12 +131,12 @@ func ParseRefresh(secret, tokenString string) (*RefreshClaims, error) {
 // already passed their JWT expiry window.
 func ParseRefreshIgnoreExpiry(secret, tokenString string) (*RefreshClaims, error) {
 	if secret == "" || tokenString == "" {
-		return nil, errors.New("missing secret or token")
+		return nil, errors.New(constants.MsgJWTMissingSecretOrToken)
 	}
 	claims := &RefreshClaims{}
 	_, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			return nil, fmt.Errorf(constants.MsgJWTUnexpectedSigningMethod, t.Header["alg"])
 		}
 		return []byte(secret), nil
 	})
@@ -143,7 +144,7 @@ func ParseRefreshIgnoreExpiry(secret, tokenString string) (*RefreshClaims, error
 		return nil, err
 	}
 	if claims.UserID == 0 {
-		return nil, errors.New("refresh token missing user_id")
+		return nil, errors.New(constants.MsgJWTRefreshMissingUserID)
 	}
 	return claims, nil
 }

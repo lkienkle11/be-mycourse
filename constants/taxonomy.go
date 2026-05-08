@@ -1,8 +1,6 @@
 package constants
 
-type TaxonomyStatus string
-
 const (
-	TaxonomyStatusActive   TaxonomyStatus = "ACTIVE"
-	TaxonomyStatusInactive TaxonomyStatus = "INACTIVE"
+	TaxonomyStatusActive   = "ACTIVE"
+	TaxonomyStatusInactive = "INACTIVE"
 )

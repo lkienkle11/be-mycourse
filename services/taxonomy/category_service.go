@@ -5,7 +5,6 @@ import (
 
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
-	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/mapping"
 	repo "mycourse-io-be/repository/taxonomy"
 	mediasvc "mycourse-io-be/services/media"
@@ -27,12 +26,10 @@ func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*dto.CategoryR
 	n, s, st := trimmedTaxonomyFields(req.Name, req.Slug, req.Status)
 	fid := fileID
 	row := &models.Category{
-		Category: entities.Category{
-			Name:        n,
-			Slug:        s,
-			Status:      st,
-			ImageFileID: &fid,
-		},
+		Name:        n,
+		Slug:        s,
+		Status:      st,
+		ImageFileID: &fid,
 	}
 	if actorID > 0 {
 		row.CreatedBy = &actorID

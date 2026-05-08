@@ -30,7 +30,7 @@ func GetVideoStatus(ctx context.Context, videoGUID string) (*dto.VideoStatusResp
 		return nil, err
 	}
 	return &dto.VideoStatusResponse{
-		Status: constants.BunnyVideoStatus(video.Status).StatusString(),
+		Status: pkgmedia.BunnyStatusString(video.Status),
 	}, nil
 }
 
@@ -87,22 +87,69 @@ func HandleBunnyVideoWebhook(ctx context.Context, req dto.BunnyVideoWebhookReque
 	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return err
 	}
-	if req.Status != constants.FinishedWebhookBunnyStatus {
+	status := req.Status
+	if !isBunnyWebhookStatusSupported(status) {
 		return nil
 	}
+	if !isBunnyWebhookFinishStatus(status) {
+		if markBunnyWebhookFailedStatus(req.VideoGUID, status) != nil {
+			return nil
+		}
+		return nil
+	}
+	return applyBunnyWebhookFinishedStatus(ctx, req.VideoGUID)
+}
 
-	video, err := pkgmedia.GetBunnyVideoByID(pkgmedia.Cloud, ctx, strings.TrimSpace(req.VideoGUID))
+func applyBunnyWebhookFinishedStatus(ctx context.Context, videoGUID string) error {
+	trimmedGUID := strings.TrimSpace(videoGUID)
+	video, err := pkgmedia.GetBunnyVideoByID(pkgmedia.Cloud, ctx, trimmedGUID)
 	if err != nil {
 		return err
 	}
 	repo := repository.New(models.DB).Media
-	row, err := repo.GetByBunnyVideoID(strings.TrimSpace(req.VideoGUID))
+	row, err := repo.GetByBunnyVideoID(trimmedGUID)
 	if err != nil {
 		// idempotent retry safety: if local DB row does not exist, acknowledge without failing webhook.
 		return nil
 	}
-	if err := applyBunnyFinishedWebhookToRow(row, video, req.VideoGUID); err != nil {
+	if err := applyBunnyFinishedWebhookToRow(row, video, trimmedGUID); err != nil {
 		return err
 	}
 	return repo.UpsertByObjectKey(row)
+}
+
+func markBunnyWebhookFailedStatus(videoGUID string, status int) error {
+	if status != constants.BunnyFailed && status != constants.BunnyPresignedUploadFailed {
+		return nil
+	}
+	repo := repository.New(models.DB).Media
+	row, err := repo.GetByBunnyVideoID(strings.TrimSpace(videoGUID))
+	if err != nil {
+		return err
+	}
+	row.Status = constants.FileStatusFailed
+	return repo.UpsertByObjectKey(row)
+}
+
+func isBunnyWebhookFinishStatus(status int) bool {
+	return status == constants.BunnyFinished || status == constants.BunnyResolutionFinished
+}
+
+func isBunnyWebhookStatusSupported(status int) bool {
+	switch status {
+	case constants.BunnyQueued,
+		constants.BunnyProcessing,
+		constants.BunnyEncoding,
+		constants.BunnyFinished,
+		constants.BunnyResolutionFinished,
+		constants.BunnyFailed,
+		constants.BunnyPresignedUploadStarted,
+		constants.BunnyPresignedUploadFinished,
+		constants.BunnyPresignedUploadFailed,
+		constants.BunnyCaptionsGenerated,
+		constants.BunnyTitleOrDescriptionGenerated:
+		return true
+	default:
+		return false
+	}
 }

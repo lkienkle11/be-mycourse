@@ -11,12 +11,11 @@ import (
 )
 
 // Shared column maps for tag / category / course_level list endpoints.
-var (
-	taxonomyListSearchCols = map[string]string{"name": "name", "slug": "slug"}
-	taxonomyListSortCols   = map[string]string{
-		"id": "id", "name": "name", "slug": "slug", "status": "status", "created_at": "created_at",
-	}
-)
+var taxonomyListSearchCols = map[string]string{"name": "name", "slug": "slug"}
+
+var taxonomyListSortCols = map[string]string{
+	"id": "id", "name": "name", "slug": "slug", "status": "status", "created_at": "created_at",
+}
 
 func taxonomyFilteredQuery(db *gorm.DB, model any, status *string, base dto.BaseFilter, searchCols map[string]string) (*gorm.DB, int64, error) {
 	q := db.Model(model)

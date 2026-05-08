@@ -8,7 +8,6 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
-	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/response"
@@ -64,7 +63,7 @@ func login(c *gin.Context) {
 		return
 	}
 
-	setAuthCookies(c, result)
+	setAuthCookies(c, result.AccessToken, result.RefreshToken, result.SessionStr, result.RefreshTTL.Seconds())
 	response.OK(c, "login_success", gin.H{
 		"access_token":  result.AccessToken,
 		"refresh_token": result.RefreshToken,
@@ -91,7 +90,7 @@ func confirmEmail(c *gin.Context) {
 		return
 	}
 
-	setAuthCookies(c, result)
+	setAuthCookies(c, result.AccessToken, result.RefreshToken, result.SessionStr, result.RefreshTTL.Seconds())
 	response.OK(c, "email_confirmed", gin.H{
 		"access_token":  result.AccessToken,
 		"refresh_token": result.RefreshToken,
@@ -139,16 +138,16 @@ func refreshToken(c *gin.Context) {
 // setAuthCookies writes access_token, refresh_token, and session_id as non-HttpOnly
 // SameSite=Lax cookies so the client-side JavaScript layer can read them and attach
 // them to requests as Authorization / X-Refresh-Token / X-Session-Id headers.
-func setAuthCookies(c *gin.Context, result entities.TokenPairResult) {
+func setAuthCookies(c *gin.Context, accessToken, refreshToken, sessionID string, refreshTTLSeconds float64) {
 	secure := setting.ServerSetting.RunMode == "release"
-	refreshMaxAge := int(result.RefreshTTL.Seconds())
+	refreshMaxAge := int(refreshTTLSeconds)
 
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access_token", result.AccessToken, accessTokenMaxAge, "/", "", secure, false)
+	c.SetCookie("access_token", accessToken, accessTokenMaxAge, "/", "", secure, false)
 
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", result.RefreshToken, refreshMaxAge, "/", "", secure, false)
+	c.SetCookie("refresh_token", refreshToken, refreshMaxAge, "/", "", secure, false)
 
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("session_id", result.SessionStr, refreshMaxAge, "/", "", secure, false)
+	c.SetCookie("session_id", sessionID, refreshMaxAge, "/", "", secure, false)
 }

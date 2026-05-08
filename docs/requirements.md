@@ -259,7 +259,7 @@
 
 #### FR-5.1 Permission Sync
 
-- The system **MUST** provide a mechanism to **upsert** `permissions` table rows from `constants.AllPermissionEntries()` by `permission_id`.
+- The system **MUST** provide a mechanism to **upsert** `permissions` table rows from `rbaccatalog.AllPermissionEntries()` by `permission_id`.
 - Extra rows present only in the database are **left unchanged** (non-destructive).
 - Trigger options (all require system auth):
   - `POST /api/system/permission-sync-now` — runs synchronously, returns `{"synced": n}`.
@@ -269,7 +269,7 @@
 
 #### FR-5.2 Role-Permission Sync
 
-- The system **MUST** provide a mechanism to **rebuild** `role_permissions` from `constants.AllRolePermissionPairs()`.
+- The system **MUST** provide a mechanism to **rebuild** `role_permissions` from `rbaccatalog.AllRolePermissionPairs()`.
 - This is a **destructive** operation: all existing `role_permissions` rows are deleted, then re-inserted.
 - Roles are resolved by name; `permission_id` values are taken directly from struct tags.
 - Trigger options (all require system auth):

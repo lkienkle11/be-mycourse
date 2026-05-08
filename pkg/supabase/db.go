@@ -3,6 +3,7 @@ package supabase
 import (
 	"database/sql"
 	"errors"
+	"mycourse-io-be/constants"
 	"strings"
 
 	"gorm.io/driver/postgres"
@@ -32,7 +33,7 @@ func SetupDatabase() error {
 // StdDB returns the shared pool for GormDB (raw SQL). Nil if DBURL was not configured.
 func StdDB() (*sql.DB, error) {
 	if GormDB == nil {
-		return nil, errors.New("supabase database pool not initialized: set [supabase].DBURL")
+		return nil, errors.New(constants.MsgSupabaseDBPoolNotInitialized)
 	}
 	return GormDB.DB()
 }

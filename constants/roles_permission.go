@@ -1,14 +1,8 @@
 package constants
 
-import (
-	"fmt"
-	"reflect"
-	"sort"
-)
-
 // rolesPermissionT declares which permission_id each role gets. Tags drive cmd/syncrolepermissions
 // (role name + perm_id); field values are unused.
-type rolesPermissionT struct {
+var RolePermissions = struct {
 	// sysadmin — full catalog P1–P29
 	Sysadmin_ProfileRead          string `role:"sysadmin" perm_id:"P1"`
 	Sysadmin_ProfileUpdate        string `role:"sysadmin" perm_id:"P2"`
@@ -90,41 +84,4 @@ type rolesPermissionT struct {
 	Learner_CategoryRead    string `role:"learner" perm_id:"P18"`
 	Learner_TagRead         string `role:"learner" perm_id:"P22"`
 	Learner_MediaFileRead   string `role:"learner" perm_id:"P26"`
-}
-
-// RolePermissions is the catalog instance used with reflect (tags carry role ↔ perm_id).
-var RolePermissions = rolesPermissionT{}
-
-// RolePermissionPair is one row for role_permissions rebuild.
-type RolePermissionPair struct {
-	RoleName string
-	PermID   string
-}
-
-// AllRolePermissionPairs returns role name + permission_id (P…) from RolePermissions, sorted for stable runs.
-func AllRolePermissionPairs() []RolePermissionPair {
-	rt := reflect.TypeOf(RolePermissions)
-	if rt.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("constants: RolePermissions must be struct, got %s", rt.Kind()))
-	}
-	var out []RolePermissionPair
-	for i := 0; i < rt.NumField(); i++ {
-		sf := rt.Field(i)
-		if sf.PkgPath != "" {
-			continue
-		}
-		roleName := sf.Tag.Get("role")
-		permID := sf.Tag.Get("perm_id")
-		if roleName == "" || permID == "" {
-			continue
-		}
-		out = append(out, RolePermissionPair{RoleName: roleName, PermID: permID})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].RoleName != out[j].RoleName {
-			return out[i].RoleName < out[j].RoleName
-		}
-		return comparePermissionID(out[i].PermID, out[j].PermID)
-	})
-	return out
-}
+}{}

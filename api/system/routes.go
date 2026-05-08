@@ -8,7 +8,6 @@ import (
 
 	"mycourse-io-be/dto"
 	"mycourse-io-be/internal/appdb"
-	"mycourse-io-be/internal/jobs"
 	"mycourse-io-be/internal/rbacsync"
 	"mycourse-io-be/internal/systemauth"
 	"mycourse-io-be/middleware"
@@ -31,10 +30,10 @@ func RegisterRoutes(g *gin.RouterGroup) {
 	authd.Use(middleware.RequireSystemAccessToken(db))
 	authd.POST("/permission-sync-now", permissionSyncNow)
 	authd.POST("/role-permission-sync-now", rolePermissionSyncNow)
-	authd.POST("/create-permission-sync-job", createPermissionSyncJob)
-	authd.POST("/create-role-permission-sync-job", createRolePermissionSyncJob)
-	authd.POST("/delete-permission-sync-job", deletePermissionSyncJob)
-	authd.POST("/delete-role-permission-sync-job", deleteRolePermissionSyncJob)
+	authd.POST("/create-permission-sync-job", startPermissionSyncScheduler)
+	authd.POST("/create-role-permission-sync-job", startRolePermissionSyncScheduler)
+	authd.POST("/delete-permission-sync-job", stopPermissionSyncScheduler)
+	authd.POST("/delete-role-permission-sync-job", stopRolePermissionSyncScheduler)
 }
 
 func systemLogin(c *gin.Context) {
@@ -79,22 +78,22 @@ func rolePermissionSyncNow(c *gin.Context) {
 	response.OK(c, "role_permission_sync_completed", gin.H{"rows": n})
 }
 
-func createPermissionSyncJob(c *gin.Context) {
-	jobs.StartPermissionSyncJob(appdb.Conn())
+func startPermissionSyncScheduler(c *gin.Context) {
+	services.StartPermissionSyncScheduler(appdb.Conn())
 	response.OK(c, "permission_sync_job_started", nil)
 }
 
-func createRolePermissionSyncJob(c *gin.Context) {
-	jobs.StartRolePermissionSyncJob(appdb.Conn())
+func startRolePermissionSyncScheduler(c *gin.Context) {
+	services.StartRolePermissionSyncScheduler(appdb.Conn())
 	response.OK(c, "role_permission_sync_job_started", nil)
 }
 
-func deletePermissionSyncJob(c *gin.Context) {
-	jobs.StopPermissionSyncJob()
+func stopPermissionSyncScheduler(c *gin.Context) {
+	services.StopPermissionSyncScheduler()
 	response.OK(c, "permission_sync_job_stopped", nil)
 }
 
-func deleteRolePermissionSyncJob(c *gin.Context) {
-	jobs.StopRolePermissionSyncJob()
+func stopRolePermissionSyncScheduler(c *gin.Context) {
+	services.StopRolePermissionSyncScheduler()
 	response.OK(c, "role_permission_sync_job_stopped", nil)
 }

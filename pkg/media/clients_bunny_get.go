@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
@@ -30,13 +31,13 @@ func bunnyVideoGetError(resp *http.Response, body []byte) error {
 		return &pkgerrors.ProviderError{
 			Code: errcode.BunnyVideoNotFound,
 			Msg:  strings.TrimSpace(string(body)),
-			Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
+			Err:  fmt.Errorf(constants.MsgBunnyGetVideoHTTP, resp.StatusCode),
 		}
 	}
 	return &pkgerrors.ProviderError{
 		Code: errcode.BunnyGetVideoFailed,
 		Msg:  strings.TrimSpace(string(body)),
-		Err:  fmt.Errorf("bunny get video: HTTP %d", resp.StatusCode),
+		Err:  fmt.Errorf(constants.MsgBunnyGetVideoHTTP, resp.StatusCode),
 	}
 }
 
@@ -52,7 +53,7 @@ func decodeBunnyVideoDetailBody(body []byte) (*entities.BunnyVideoDetail, error)
 	if strings.TrimSpace(out.GUID) == "" {
 		return nil, &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
-			Msg:  "bunny stream did not return video guid",
+			Msg:  constants.MsgBunnyStreamResponseMissingVideoGUID,
 			Err:  pkgerrors.ErrBunnyStreamResponseMissingGUID,
 		}
 	}

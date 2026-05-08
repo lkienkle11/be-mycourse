@@ -134,7 +134,7 @@ func completeLoginSuccess(ctx context.Context, normEmail string, user models.Use
 		return entities.TokenPairResult{}, err
 	}
 	authcache.DelLoginInvalidCache(ctx, normEmail)
-	if me, berr := buildMeResponseFromUser(user); berr == nil {
+	if me, berr := buildMeResponseForCache(user); berr == nil {
 		authcache.SetCachedUserMe(ctx, me)
 	}
 	return result, nil
@@ -174,23 +174,12 @@ func ConfirmEmail(confirmToken string) (entities.TokenPairResult, error) {
 	return issueTokenPair(user, false, constants.RefreshTokenTTL)
 }
 
-// buildMeResponseFromUser builds the same payload as GET /api/v1/me (used for DB reads and Redis cache).
-func buildMeResponseFromUser(user models.User) (*dto.MeResponse, error) {
+func buildMeResponseForCache(user models.User) (*dto.MeResponse, error) {
 	perms, err := userPermissionSlice(user.ID)
 	if err != nil {
 		return nil, err
 	}
-	return &dto.MeResponse{
-		UserID:         user.ID,
-		UserCode:       user.UserCode,
-		Email:          user.Email,
-		DisplayName:    user.DisplayName,
-		Avatar:         mapping.ToMediaFilePublicFromModel(user.AvatarFile),
-		EmailConfirmed: user.EmailConfirmed,
-		IsDisabled:     user.IsDisable,
-		CreatedAt:      user.CreatedAt.Unix(),
-		Permissions:    perms,
-	}, nil
+	return mapping.BuildMeResponseFromUser(user, perms), nil
 }
 
 // GetMe returns essential (non-sensitive) profile info for the given user along
@@ -209,7 +198,7 @@ func GetMe(userID uint) (*dto.MeResponse, error) {
 		return nil, err
 	}
 
-	me, err := buildMeResponseFromUser(user)
+	me, err := buildMeResponseForCache(user)
 	if err != nil {
 		return nil, err
 	}

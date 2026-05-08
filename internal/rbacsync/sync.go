@@ -5,8 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"mycourse-io-be/constants"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/rbaccatalog"
 )
 
 // SyncPermissionsFromConstants upserts rows from constants.AllPermissionEntries by permission_id:
@@ -16,7 +17,7 @@ func SyncPermissionsFromConstants(db *gorm.DB) (int, error) {
 		return 0, errors.New("nil database")
 	}
 
-	entries := constants.AllPermissionEntries()
+	entries := rbaccatalog.AllPermissionEntries()
 	if len(entries) == 0 {
 		return 0, errors.New("no permission fields tagged with perm_id in constants.AllPermissions")
 	}
@@ -36,7 +37,7 @@ func SyncPermissionsFromConstants(db *gorm.DB) (int, error) {
 	return len(entries), nil
 }
 
-func upsertPermissionCatalogRow(tx *gorm.DB, e constants.PermissionCatalogEntry) error {
+func upsertPermissionCatalogRow(tx *gorm.DB, e entities.PermissionCatalogEntry) error {
 	var p models.Permission
 	err := tx.Where("permission_id = ?", e.PermissionID).First(&p).Error
 	if err == gorm.ErrRecordNotFound {

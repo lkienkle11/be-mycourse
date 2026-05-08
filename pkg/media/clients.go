@@ -42,7 +42,7 @@ func UploadLocal(_ *entities.CloudClients, objectKey string, _ entities.RawMetad
 
 func UploadB2(c *entities.CloudClients, ctx context.Context, objectKey string, file io.Reader, meta entities.RawMetadata) (entities.ProviderUploadResult, error) {
 	if c.B2Client == nil {
-		return entities.ProviderUploadResult{}, fmt.Errorf("B2 client is not configured")
+		return entities.ProviderUploadResult{}, fmt.Errorf(constants.MsgB2ClientNotConfigured)
 	}
 	bucketName := effectiveB2Bucket(c)
 	if bucketName == "" {
@@ -99,7 +99,7 @@ func bunnyCreateStreamVideo(c *entities.CloudClients, ctx context.Context, apiBa
 		return "", &pkgerrors.ProviderError{
 			Code: errcode.BunnyCreateFailed,
 			Msg:  strings.TrimSpace(string(body)),
-			Err:  fmt.Errorf("bunny create video: HTTP %d", resp.StatusCode),
+			Err:  fmt.Errorf(constants.MsgBunnyCreateVideoHTTP, resp.StatusCode),
 		}
 	}
 	return decodeBunnyCreateVideoGUID(body)
@@ -119,7 +119,7 @@ func decodeBunnyCreateVideoGUID(body []byte) (string, error) {
 	if created.GUID == "" {
 		return "", &pkgerrors.ProviderError{
 			Code: errcode.BunnyInvalidResponse,
-			Msg:  "bunny stream did not return video guid",
+			Msg:  constants.MsgBunnyStreamResponseMissingVideoGUID,
 			Err:  pkgerrors.ErrBunnyStreamResponseMissingGUID,
 		}
 	}
@@ -144,7 +144,7 @@ func bunnyPutStreamVideoPayload(c *entities.CloudClients, ctx context.Context, a
 		return &pkgerrors.ProviderError{
 			Code: errcode.BunnyUploadFailed,
 			Msg:  strings.TrimSpace(string(uploadBody)),
-			Err:  fmt.Errorf("bunny upload video: HTTP %d", uploadResp.StatusCode),
+			Err:  fmt.Errorf(constants.MsgBunnyUploadVideoHTTP, uploadResp.StatusCode),
 		}
 	}
 	return nil
@@ -192,7 +192,7 @@ func UploadBunnyVideo(c *entities.CloudClients, ctx context.Context, filename st
 
 func DeleteB2Object(c *entities.CloudClients, ctx context.Context, objectKey string) error {
 	if c.B2Client == nil {
-		return fmt.Errorf("B2 client is not configured")
+		return fmt.Errorf(constants.MsgB2ClientNotConfigured)
 	}
 	bucketName := effectiveB2Bucket(c)
 	if bucketName == "" {
@@ -209,7 +209,7 @@ func DeleteBunnyVideo(c *entities.CloudClients, ctx context.Context, videoGUID s
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
 	if libraryID == "" || apiKey == "" {
-		return fmt.Errorf("bunny stream is not configured")
+		return fmt.Errorf(constants.MsgBunnyStreamNotConfiguredRaw)
 	}
 	apiBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamAPIBase, "https://video.bunnycdn.com")
 	u := fmt.Sprintf("%s/library/%s/videos/%s", apiBase, libraryID, videoGUID)
@@ -225,12 +225,12 @@ func DeleteBunnyVideo(c *entities.CloudClients, ctx context.Context, videoGUID s
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("bunny delete video failed: %s", string(body))
+		return fmt.Errorf(constants.MsgBunnyDeleteVideoFailed, string(body))
 	}
 	return nil
 }
 
-func BuildPublicURL(provider constants.FileProvider, objectKey string) string {
+func BuildPublicURL(provider string, objectKey string) string {
 	switch provider {
 	case constants.FileProviderLocal:
 		secret := strings.TrimSpace(setting.MediaSetting.LocalFileURLSecret)

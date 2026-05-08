@@ -2,6 +2,7 @@ package supabase
 
 import (
 	"fmt"
+	"mycourse-io-be/constants"
 
 	supabase "github.com/supabase-community/supabase-go"
 
@@ -12,7 +13,7 @@ var Client *supabase.Client
 
 func Setup() error {
 	if setting.SupabaseSetting.URL == "" || setting.SupabaseSetting.ServiceRoleKey == "" {
-		return fmt.Errorf("missing supabase URL or service role key")
+		return fmt.Errorf(constants.MsgSupabaseURLOrServiceKeyRequired)
 	}
 
 	client, err := supabase.NewClient(setting.SupabaseSetting.URL, setting.SupabaseSetting.ServiceRoleKey, &supabase.ClientOptions{})

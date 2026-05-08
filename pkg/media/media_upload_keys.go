@@ -11,7 +11,7 @@ import (
 )
 
 // ResolveMediaUploadObjectKey selects the object key before upload (explicit key, Bunny empty until GUID, local nano key, B2 eight-digit prefix key).
-func ResolveMediaUploadObjectKey(reqObjectKey, filename string, provider constants.FileProvider) string {
+func ResolveMediaUploadObjectKey(reqObjectKey, filename string, provider string) string {
 	if dk := strings.TrimSpace(reqObjectKey); dk != "" {
 		return strings.TrimLeft(dk, "/")
 	}

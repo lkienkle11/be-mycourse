@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"mycourse-io-be/constants"
 	"time"
 )
 
@@ -41,7 +42,7 @@ func (m *RefreshTokenSessionMap) Scan(src any) error {
 	case string:
 		b = []byte(v)
 	default:
-		return fmt.Errorf("RefreshTokenSessionMap: unsupported source type %T", src)
+		return fmt.Errorf(constants.MsgRefreshSessionUnsupportedType, src)
 	}
 	if len(b) == 0 || string(b) == "null" {
 		*m = RefreshTokenSessionMap{}

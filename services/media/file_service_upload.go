@@ -21,7 +21,7 @@ import (
 // normalizeUpdateMultipartPayload resolves kind/provider/object key, rejects unsafe payloads,
 // and optionally re-encodes images to WebP for an update body.
 func normalizeUpdateMultipartPayload(filename, mime string, payload []byte) (
-	newPayload []byte, newFilename, newMime string, kind constants.FileKind, provider constants.FileProvider, objectKey string, err error,
+	newPayload []byte, newFilename, newMime string, kind string, provider string, objectKey string, err error,
 ) {
 	kind, kindInferred := pkgmedia.ResolveMediaKindFromServer(mime, filename)
 	provider = pkgmedia.ResolveUploadProvider(kind, kindInferred)
@@ -49,8 +49,8 @@ func normalizeUpdateMultipartPayload(filename, mime string, payload []byte) (
 
 func mediaUploadEntityInputForRowUpdate(
 	prevRow *models.MediaFile,
-	kind constants.FileKind,
-	provider constants.FileProvider,
+	kind string,
+	provider string,
 	filename, mime string,
 	sizeBytes int64,
 	payload []byte,
@@ -105,7 +105,7 @@ func runUpdateFileMultipartBody(repo *mediarepo.FileRepository, clients *entitie
 	return persistUpdatedMediaRow(clients, repo, prevRow, input, payload, fp)
 }
 
-func uploadToProvider(clients *entities.CloudClients, provider constants.FileProvider, objectKey, filename string, payload []byte, meta entities.RawMetadata) (entities.ProviderUploadResult, error) {
+func uploadToProvider(clients *entities.CloudClients, provider string, objectKey, filename string, payload []byte, meta entities.RawMetadata) (entities.ProviderUploadResult, error) {
 	switch provider {
 	case constants.FileProviderLocal:
 		return pkgmedia.UploadLocal(clients, objectKey, meta)

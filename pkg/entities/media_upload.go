@@ -2,8 +2,6 @@ package entities
 
 import (
 	"time"
-
-	"mycourse-io-be/constants"
 )
 
 type ProviderUploadResult struct {
@@ -14,8 +12,8 @@ type ProviderUploadResult struct {
 }
 
 type MediaUploadEntityInput struct {
-	Kind          constants.FileKind
-	Provider      constants.FileProvider
+	Kind          string
+	Provider      string
 	Filename      string
 	ContentType   string
 	SizeBytes     int64

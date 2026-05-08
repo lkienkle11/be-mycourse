@@ -29,7 +29,7 @@ func readMultipartPayloadLimited(file multipart.File, fileHeader *multipart.File
 	return payload, filename, mime, nil
 }
 
-func rejectExecutableNonMedia(kind constants.FileKind, isImage bool, filename string, payload []byte) error {
+func rejectExecutableNonMedia(kind string, isImage bool, filename string, payload []byte) error {
 	if kind != constants.FileKindFile || isImage {
 		return nil
 	}

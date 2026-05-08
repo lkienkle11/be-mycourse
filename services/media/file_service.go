@@ -102,7 +102,7 @@ func saveUnchangedFingerprintMetadata(repo *mediarepo.FileRepository, prevRow *m
 	return &ent, nil
 }
 
-func enqueueSupersededCloudCleanup(repo *mediarepo.FileRepository, prevObjectKey string, prevProvider constants.FileProvider, prevBunnyVideoID string) {
+func enqueueSupersededCloudCleanup(repo *mediarepo.FileRepository, prevObjectKey string, prevProvider string, prevBunnyVideoID string) {
 	row := &models.MediaPendingCloudCleanup{
 		Provider:     prevProvider,
 		ObjectKey:    strings.TrimSpace(prevObjectKey),
@@ -123,7 +123,7 @@ func ListFiles(filter dto.FileFilter) ([]entities.File, int64, error) {
 	return out, total, nil
 }
 
-func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) {
+func GetFile(objectKey string, kind string) (*entities.File, error) {
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
 		return nil, pkgerrors.ErrMediaObjectKeyRequired
@@ -156,7 +156,7 @@ func GetFile(objectKey string, kind constants.FileKind) (*entities.File, error) 
 // prepareCreateMultipartBody reads the upload, infers kind/provider/object key, rejects unsafe payloads,
 // and optionally re-encodes images to WebP (updating filename/mime/objectKey accordingly).
 func prepareCreateMultipartBody(req dto.CreateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (
-	payload []byte, filename, mime string, kind constants.FileKind, provider constants.FileProvider, objectKey string, err error,
+	payload []byte, filename, mime string, kind string, provider string, objectKey string, err error,
 ) {
 	payload, filename, mime, err = readMultipartPayloadLimited(file, fileHeader)
 	if err != nil {
@@ -188,8 +188,8 @@ func createFileEntityInput(
 	fileHeader *multipart.FileHeader,
 	payload []byte,
 	filename, mime string,
-	kind constants.FileKind,
-	provider constants.FileProvider,
+	kind string,
+	provider string,
 	uploaded entities.ProviderUploadResult,
 	now time.Time,
 ) entities.MediaUploadEntityInput {

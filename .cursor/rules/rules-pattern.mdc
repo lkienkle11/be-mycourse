@@ -102,7 +102,22 @@ means:
 
    Any module or code whose primary responsibility is to **create or enqueue background jobs** or to **process or execute job handlers** (including schedulers, workers, job registration, and job-specific orchestration) MUST reside under `internal/jobs/`. Placing such job-related implementation in `api/`, `services/`, `repository/`, `middleware/`, or anywhere else outside `internal/jobs/` is strictly prohibited.
 
-7. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
+# Here
+
+7. **No Types/Structs or Functions in `constants/`**
+   Directories need to check:
+   - constants/**/*.go
+
+   Across all modules under `constants/`, declaring any `type` or `struct` is strictly prohibited. All such definitions MUST be converted and moved to `pkg/entities`.
+   In addition, `constants/` MUST NOT contain any functions under any circumstances (including error helper functions or any other utility functions).
+
+8. **No DB-Linked Types in `pkg/entities`**
+   Directories need to check:
+   - pkg/entities/**/*.go
+
+   Across all modules under `pkg/entities`, any type definition that is created by linking to database concerns is strictly prohibited.
+
+9. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Before writing ANY new function, examine its inputs and outputs:
 
 * **Mechanism Logic (belongs to `pkg/<feature>/**/*.go`):**
@@ -112,7 +127,7 @@ means:
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
 
-8. **No “Homeless Functions” & No “Fake Methods” in Services**
+10. **No “Homeless Functions” & No “Fake Methods” in Services**
 
 * **No Homeless Functions:**
   Standalone utility (stateless) functions are STRICTLY PROHIBITED inside the `services/` directory (except for `New...` constructors).
@@ -122,7 +137,7 @@ means:
   If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
   If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature>/**/*.go`.
 
-9. **Strict One-Way Dependency Direction for `pkg/`**
+11. **Strict One-Way Dependency Direction for `pkg/`**
 
 * Code inside `pkg/<feature>/**/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.

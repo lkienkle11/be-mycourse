@@ -11,6 +11,8 @@ import (
 	_ "image/png"
 	"strings"
 
+	_ "golang.org/x/image/webp"
+
 	"mycourse-io-be/pkg/entities"
 )
 

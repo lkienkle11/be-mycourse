@@ -81,6 +81,15 @@ func buildVideoTypedMetadata(base entities.FileMetadata, raw entities.RawMetadat
 
 func buildImageTypedMetadata(base entities.FileMetadata, raw entities.RawMetadata, payload []byte) entities.UploadFileMetadata {
 	w, h := utils.ImageSizeFromPayload(payload)
+	// When payload is nil (read-back from DB via ToMediaEntity) or the decoder
+	// cannot parse it, fall back to the persisted width/height stored in the
+	// raw JSON metadata ("width"/"height" keys written by uploadMetadataToRaw).
+	if w == 0 {
+		w = utils.IntFromRaw(raw, "width")
+	}
+	if h == 0 {
+		h = utils.IntFromRaw(raw, "height")
+	}
 	return entities.UploadFileMetadata{
 		SizeBytes:      base.Size,
 		WidthBytes:     w,

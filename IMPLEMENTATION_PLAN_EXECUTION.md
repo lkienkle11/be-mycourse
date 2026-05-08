@@ -10,6 +10,82 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 
 ---
 
+## Phase Sub 15 — WebP `ImageSizeFromPayload` decoder fix (tasks 01–06, 2026-05-08) ✅
+
+### Baseline / scope
+
+**Root cause:** `pkg/logic/utils/parsing.go::ImageSizeFromPayload` (line 29–38) calls `image.DecodeConfig(bytes.NewReader(payload))` but the package only registered decoders for `image/gif`, `image/jpeg`, `image/png`. After the sub11 WebP encode pipeline (CGO + bimg) converts uploads to WebP, the payload passed to `BuildTypedMetadata` is WebP bytes. Without a WebP decoder registered, `image.DecodeConfig` returns an error → `cfg.Width=0, cfg.Height=0` → `buildImageTypedMetadata` persists `0×0` dimensions.
+
+**Fix scope:**
+- (a) Register `_ "golang.org/x/image/webp"` blank import in `parsing.go` — Go's standard "side-effect import" pattern for codec registration.
+- (b) Add `golang.org/x/image v0.39.0` to `go.mod`/`go.sum` (via `go get`).
+- (c) Verify pipeline: `CreateFile`/`UpdateFile` → `prepareCreateMultipartBody` / `normalizeUpdateMultipartPayload` already encodes to WebP **before** `createFileEntityInput` / `mediaUploadEntityInputForRowUpdate` captures `payload`; `BuildMediaFileEntityFromUpload` receives the WebP-encoded payload — **no refactoring needed**.
+- (d) Fallback nhánh: if WebP encode fails (`EncodeWebP` returns `ErrImageEncodeBusy` — non-CGO builds or libvips missing), `encodeUploadToWebP` returns error and the upload is rejected at `prepareCreateMultipartBody`/`normalizeUpdateMultipartPayload` level. There is no silent "fall back to original payload" path in the current design; the caller surfaces the error.
+- (e) Tests: `tests/sub15_parsing_webp_test.go` — 7 cases: PNG, JPEG, GIF (table-driven), WebP regression (CGO-skipped when unavailable), nil payload, empty slice, corrupted bytes.
+
+### Inventory (blast radius)
+
+| Symbol | File | d | Risk |
+|--------|------|---|------|
+| `ImageSizeFromPayload` | `pkg/logic/utils/parsing.go` | — | target |
+| `buildImageTypedMetadata` | `pkg/media/media_metadata.go` | 1 | WILL BREAK |
+| `BuildTypedMetadata` | `pkg/media/media_metadata.go` | 2 | LIKELY |
+| `BuildMediaFileEntityFromUpload` | `pkg/media/media_upload_entity.go` | 3 | MAY NEED TESTING |
+| `ToMediaEntity` | `pkg/logic/mapping/media_model_mapping.go` | 3 | MAY NEED TESTING |
+
+GitNexus impact: CRITICAL (6 processes, 4 impacted nodes upstream). The fix is additive (registering a decoder) — no callers break.
+
+### Files modified
+
+| File | Change |
+|------|--------|
+| `pkg/logic/utils/parsing.go` | Added `_ "golang.org/x/image/webp"` blank import; removed debug `fmt.Println`/`fmt.Printf` statements |
+| `pkg/media/media_metadata.go` | `buildImageTypedMetadata`: added fallback to `raw["width"]`/`raw["height"]` when `ImageSizeFromPayload` returns 0 (read-back path); removed debug `fmt.Printf` |
+| `go.mod` | Added `golang.org/x/image v0.39.0`; upgraded `golang.org/x/text v0.35.0 → v0.36.0` |
+| `go.sum` | Updated by `go mod tidy` |
+| `tests/sub15_parsing_webp_test.go` | New: regression + format coverage tests |
+
+### Convention (mandatory, per this fix)
+
+`parsing.go` MUST register blank-import decoders for **every image format** the upload pipeline can produce or receive. Current set after sub15:
+- `image/gif` (stdlib)
+- `image/jpeg` (stdlib)
+- `image/png` (stdlib)
+- `golang.org/x/image/webp` ← **added in sub15**
+
+If a future sub adds support for another format (e.g. AVIF, HEIC), a corresponding decoder blank-import MUST be added to `parsing.go` in the same commit.
+
+### Quality gate
+
+- `golangci-lint run` → **0 issues**
+- `make check-architecture` → **✅ valid**
+- `go fmt ./...` → clean
+- `go vet ./...` → clean
+- `go test ./...` → `ok mycourse-io-be/tests` (7 new sub-tests pass, including WebP regression)
+- `go build ./...` → clean
+
+### Follow-up fix A (same session, 2026-05-08) — image read-back dimensions
+
+**Bug:** `ToMediaEntity` (in `media_model_mapping.go`) calls `BuildTypedMetadata(..., nil, raw)` — `payload=nil` — so `buildImageTypedMetadata` called `ImageSizeFromPayload(nil)` → `(0,0)`. The width/height WERE stored correctly in `MetadataJSON` (keys `"width"`/`"height"` via `uploadMetadataToRaw`) but were never read back.
+
+**Fix:** `buildImageTypedMetadata` now falls back to `raw["width"]`/`raw["height"]` when `ImageSizeFromPayload` returns 0 — mirrors the same fallback pattern already used in `buildVideoTypedMetadata`.
+
+**Also removed:** temporary debug `fmt.Println`/`fmt.Printf` statements in `parsing.go` and `media_metadata.go`.
+
+### Follow-up fix B (same session, 2026-05-08) — Bunny video dimensions missing from upload path
+
+**Bug:** `ApplyBunnyDetailToMetadata` in `pkg/media/media_resolver.go` only wrote `video_id`, `thumbnail_url`, and `embeded_html` into metadata. It did NOT write the video telemetry fields (`width`, `height`, `length`, `framerate`, `bitrate`, `video_codec`, `audio_codec`) that are available from `BunnyVideoDetail`. As a result, even when `GetBunnyVideoByID` returned non-zero dimensions right after upload, they were silently discarded — and `buildVideoTypedMetadata` reading from `raw["width"]`/`raw["height"]` always got 0.
+
+**Fix:** Added helper `applyBunnyVideoTelemetry` that writes all seven telemetry fields from `BunnyVideoDetail` into the metadata map (only when non-zero/non-empty). `ApplyBunnyDetailToMetadata` now calls this helper first, then the existing video_id/thumb/embed writes. The upload path and webhook path now store identical key names.
+
+**Note:** If Bunny hasn't finished transcoding at the time of the immediate post-upload GET call, `width`/`height` will still be 0 at that point. The Bunny webhook (`HandleBunnyVideoWebhook`) updates them once transcoding completes. The `buildVideoTypedMetadata` fallback to stored `raw["width"]`/`raw["height"]` means subsequent GET calls after the webhook fires will return correct values.
+
+### Handoff
+
+Sub **15** closed. All WebP image dimension reads (`width`, `height` in `UploadFileMetadata`) now return correct values for both upload (payload-decode path) and read-back (raw-JSON fallback path). **`phase-02-start`** remains the next plan gate for course-domain work.
+
+---
+
 ## Phase Sub 14 — Taxonomy image + user avatar via `media_files` FK (tasks 01–10, 2026-05-04) ✅
 
 ### Baseline / contract

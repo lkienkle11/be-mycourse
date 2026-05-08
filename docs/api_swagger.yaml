@@ -211,11 +211,11 @@ components:
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     BunnyVideoWebhookRequest:
       type: object
-      required: [video_library_id, video_guid, status]
+      required: [VideoLibraryId, VideoGuid, Status]
       properties:
-        video_library_id: { type: string }
-        video_guid: { type: string }
-        status: { type: integer }
+        VideoLibraryId: { type: integer }
+        VideoGuid: { type: string }
+        Status: { type: integer, minimum: 0, maximum: 10 }
     UploadFileMetadata:
       type: object
       properties:

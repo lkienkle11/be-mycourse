@@ -373,7 +373,7 @@ type AssignUserPermissionRequest struct {
 | `RefreshSession` | `RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error)` in **`services/auth/auth_refresh_rotation.go`** | `TokenPairResult` on success; `ErrInvalidSession`, `ErrUserNotFound`, `ErrUserDisabled`, `ErrRefreshTokenExpired`, or DB error |
 | `GetMe` | `GetMe(userID uint) (*dto.MeResponse, error)` | `*dto.MeResponse` on success; `ErrUserNotFound` or DB error |
 | `issueTokenPair` _(internal)_ | `issueTokenPair(user User, rememberMe bool, refreshTTL time.Duration) (TokenPairResult, error)` | `TokenPairResult` or error |
-| `buildMeResponseFromUser` _(internal)_ | `buildMeResponseFromUser(user User) (*dto.MeResponse, error)` | `*dto.MeResponse` or error from `PermissionCodesForUser` |
+| `buildMeResponseForCache` _(internal)_ | `buildMeResponseForCache(user User) (*dto.MeResponse, error)` | `*dto.MeResponse` or error from `PermissionCodesForUser` |
 | `userPermissionSlice` _(internal)_ | `userPermissionSlice(userID uint) ([]string, error)` | Sorted `[]string` of `permission_name` values |
 
 **Sentinel errors:** defined in **`pkg/errors/auth.go`** using **`constants.MsgAuth*`** message constants (ruleguard / ST1005). **`services/auth`** returns those variables; **`api/v1`** compares with **`errors.Is(err, pkgerrors.ErrWeakPassword)`** (same pointer identity as `pkg/errors`).
@@ -386,7 +386,7 @@ type AssignUserPermissionRequest struct {
 |----------|-----------|--------------|
 | `PermissionCodesForUser` | `PermissionCodesForUser(userID uint) (map[string]struct{}, error)` | `map[string]struct{}` keyed by `permission_name`; or DB error |
 | `UserHasAllPermissions` | `UserHasAllPermissions(userID uint, requiredActions []string) (bool, string, error)` | `(true, "", nil)` if all granted; `(false, missingAction, nil)` if one is missing; `(false, "", err)` on DB error |
-| `ListPermissions` | `ListPermissions(p ListPermissionsParams) ([]models.Permission, int64, error)` | `[]Permission` (current page), `int64` (total count), error |
+| `ListPermissions` | `ListPermissions(p dto.ListPermissionsParams) ([]models.Permission, int64, error)` | `[]Permission` (current page), `int64` (total count), error |
 | `CreatePermission` | `CreatePermission(permissionID, permissionName, description string) (*models.Permission, error)` | `*Permission` on success, or validation/DB error |
 | `UpdatePermission` | `UpdatePermission(permissionID string, newPermissionID, permissionName, description *string) (*models.Permission, error)` | `*Permission` on success; **`pkg/errors.ErrNotFound`** if ID not found; validation/DB error |
 | `DeletePermission` | `DeletePermission(permissionID string) error` | `nil` on success, DB error |
@@ -404,7 +404,7 @@ type AssignUserPermissionRequest struct {
 | `AssignUserPermissionByPermissionName` | `AssignUserPermissionByPermissionName(userID uint, permissionName string) error` | `nil`; **`pkg/errors.ErrNotFound`** if `permission_name` not found |
 | `RemoveUserPermission` | `RemoveUserPermission(userID uint, permissionID string) error` | `nil` on success, DB error |
 
-**`ListPermissionsParams`:**
+**`dto.ListPermissionsParams`:**
 
 ```go
 type ListPermissionsParams struct {

@@ -83,7 +83,7 @@ RBAC permission definitions (flat — no hierarchy). The primary key is the **ca
 | `description` | `VARCHAR(512)` NOT NULL DEFAULT `''` | |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | |
 
-**Sync:** `cmd/syncpermissions` upserts `permission_name` (and inserts missing rows) for every entry from `constants.AllPermissionEntries()` **by `permission_id`**. Extra rows present only in the database are **left unchanged**.
+**Sync:** `cmd/syncpermissions` upserts `permission_name` (and inserts missing rows) for every entry from `rbaccatalog.AllPermissionEntries()` **by `permission_id`**. Extra rows present only in the database are **left unchanged**.
 
 ---
 

@@ -1,3 +1,44 @@
+## Phase Sub 16 — Bunny webhook reset/hardening (tasks 01–10)
+
+### Baseline + impact inventory
+- Re-ran GitNexus baseline: `npx gitnexus analyze --force` and `npx gitnexus status` (up-to-date).
+- GitNexus context/impact:
+  - `bunnyWebhook` (`api/v1/media/webhook_handler.go`) -> **LOW risk**, main downstream call to `HandleBunnyVideoWebhook`.
+  - `HandleBunnyVideoWebhook` (`services/media/video_service.go`) -> **LOW risk**, direct caller is webhook handler.
+  - `StatusString` (`constants/bunny_video_status.go`) -> **LOW risk**, used by video status endpoint/service.
+- Mismatch inventory against Bunny docs (`https://docs.bunny.net/stream/webhooks`):
+  - Payload mismatch: implementation used snake_case fields/string `VideoLibraryID`; docs require `VideoLibraryId` (number), `VideoGuid`, `Status`.
+  - Signature mismatch: implementation had no v1 signature verification and parsed JSON before any verification.
+  - Status mismatch: previous enum did not match docs 0..10 list.
+  - Secret-source mismatch: no explicit read-only signing key source from config.
+
+### Implemented changes
+- **DTO normalized** (`dto/webhook.go`):
+  - `VideoLibraryId` -> `int`, `VideoGuid` -> `string`, `Status` -> `int` with `0..10`.
+- **Webhook signature v1 (raw body) added**:
+  - `pkg/media/webhook_signature.go`: HMAC-SHA256 expected signature, constant-time compare, strict `v1` + `hmac-sha256` checks.
+  - `api/v1/media/webhook_handler.go` flow changed to:
+    1) read raw body bytes, 2) resolve signing secret, 3) verify signature headers/value, 4) unmarshal JSON, 5) validate schema/range, 6) call service.
+  - Reject policy: invalid JSON -> 400, invalid signature/version/algorithm -> 401, invalid payload schema/range -> 422.
+- **Secret source-of-truth hardened**:
+  - New config key: `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (yaml `media.bunny_stream_read_only_api_key`).
+  - Signature secret resolution prefers read-only key; falls back to `BunnyStreamAPIKey` for backward compatibility.
+- **Status map 0..10 normalized** (`constants/bunny_video_status.go`):
+  - Added full Bunny webhook status set and canonical status strings.
+- **Service behavior updated** (`services/media/video_service.go`):
+  - Supports all 0..10 statuses.
+  - `Finished (3)` and `Resolution finished (4)` -> fetch Bunny detail + merge metadata + upsert.
+  - `Failed (5)` and `PresignedUploadFailed (8)` -> best-effort mark row `FAILED`.
+  - Other statuses are accepted/ignored (idempotent-safe).
+
+### Tests
+- Updated existing status mapping coverage (`tests/sub04_media_pipeline_test.go`) for all 0..10 statuses.
+- Added `tests/sub16_bunny_webhook_test.go`:
+  - valid signature,
+  - invalid signature/version/algorithm,
+  - modified raw body after signing,
+  - signing-secret priority (`read_only` > fallback api key),
+  - payload decode for `VideoLibraryId`/`VideoGuid`/`Status`.
 ## Documentation Convention (Mandatory)
 
 The `docs/` folder is the **primary and authoritative documentation source** for this project.

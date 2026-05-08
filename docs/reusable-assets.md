@@ -325,8 +325,9 @@
 
 ### Asset: Bunny Stream — constants vs `pkg/media`
 - **Constants** (`constants/bunny_video.go`): `FinishedWebhookBunnyStatus`, `SignBunnyIFrameRegex` — literals only (Global Constants Placement).
-- **Bunny video status** (`constants/bunny_video_status.go`): `BunnyVideoStatus`, `Bunny*` value constants, `StatusString()` — Bunny numeric status → API strings. **`pkg/media/bunny_video_status.go`** aliases `BunnyVideoStatus` for compatibility with media clients/tests.
-- Current Usage: `services/media/video_service.go`, `tests/sub04_media_pipeline_test.go`.
+- **Bunny video status** (`constants/bunny_video_status.go`): Bunny webhook status constants **0..10** live in `constants/bunny_video_status.go`; status-name mapping helper is `pkg/media.BunnyStatusString(status)`.
+- **Webhook signature helpers** (`pkg/media/webhook_signature.go`): `BunnyWebhookSigningSecret`, `BunnyWebhookSignatureExpectedHex`, `IsBunnyWebhookSignatureValid` (v1 + hmac-sha256 + constant-time compare on raw body).
+- Current Usage: `api/v1/media/webhook_handler.go`, `services/media/video_service.go`, `tests/sub04_media_pipeline_test.go`, `tests/sub16_bunny_webhook_test.go`.
 
 ### Asset: Media provider typed error + HTTP mapping
 - Name: `ProviderError`, `AsProviderError`, `HTTPStatusForProviderCode`
@@ -374,7 +375,7 @@
 - Name: `NormalizeTaxonomyStatus`
 - Type: Util/Helper
 - Path: `pkg/taxonomy/status.go`
-- Purpose: Map request status strings to `constants.TaxonomyStatus` with a single default-to-active rule.
+- Purpose: Map request status strings to taxonomy status string constants (`constants.TaxonomyStatusActive` / `constants.TaxonomyStatusInactive`) with a single default-to-active rule.
 - Scope: Taxonomy create/update flows and any future domain using the same enum.
 - Dependencies: `strings`, `constants/taxonomy.go`.
 - Current Usage: `services/taxonomy/category_service.go`, `services/taxonomy/tag_course_level_services.go`, `services/taxonomy/fields.go`.

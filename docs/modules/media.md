@@ -91,7 +91,16 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 
 **Upload enrichment:** After Bunny PUT, `UploadBunnyVideo` calls **`GetBunnyVideoByID`**. **Only if that succeeds**, `ApplyBunnyDetailToMetadata` merges video telemetry (`width`, `height`, `length`, `framerate`, `bitrate`, `video_codec`, `audio_codec`) plus `video_id`, `thumbnail_url`, and `embeded_html` into provider metadata. Only non-zero/non-empty values are written. Because Bunny may not have finished transcoding yet, `width`/`height` may still be 0 immediately after upload; they will be populated once **`HandleBunnyVideoWebhook`** (finished) fires. If GET fails entirely, all enrichment keys stay empty until the webhook refreshes them.
 
-**Webhook:** On finished status, `HandleBunnyVideoWebhook` loads the row (missing row → ack without error), then **`patchBunnyWebhookMetadataJSON`** merges telemetry + **`ApplyBunnyDetailToMetadata`**, and **`applyBunnyFinishedWebhookToRow`** copies derived columns (`VideoID`, `ThumbnailURL`, `EmbededHTML`, duration, status, URLs). `json.Marshal` errors propagate; then `UpsertByObjectKey`.
+**Webhook:** `POST /api/v1/webhook/bunny` now validates Bunny signature v1 on the **raw request body** before JSON parse:
+- Headers must be `X-BunnyStream-Signature-Version: v1`, `X-BunnyStream-Signature-Algorithm: hmac-sha256`, `X-BunnyStream-Signature: <hex>`.
+- Signature is `hex(HMAC-SHA256(rawBody, signingSecret))`, compared in constant time.
+- Signing secret source-of-truth is `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (fallback `BunnyStreamAPIKey` for backward compatibility).
+- Callback DTO follows Bunny docs exactly: `VideoLibraryId` (number), `VideoGuid` (string), `Status` (0..10).
+
+Service behavior by status:
+- `Finished (3)` and `Resolution finished (4)`: load row, fetch Bunny detail, merge telemetry via `patchBunnyWebhookMetadataJSON` + `ApplyBunnyDetailToMetadata`, then copy derived columns (`VideoID`, `ThumbnailURL`, `EmbededHTML`, duration, status/URLs) and `UpsertByObjectKey`.
+- `Failed (5)` and `PresignedUploadFailed (8)`: best-effort mark local row `FAILED` (idempotent if row not found).
+- Other statuses (`0,1,2,6,7,9,10`) are accepted and ignored intentionally for idempotent callbacks.
 
 ---
 

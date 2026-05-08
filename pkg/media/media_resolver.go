@@ -138,12 +138,47 @@ func ResolveBunnyEmbedHTML(libraryID, videoGUID, streamPlayBase string) string {
 	)
 }
 
-// ApplyBunnyDetailToMetadata writes video_id, thumbnail_url, and embeded_html into upload/raw metadata.
+// applyBunnyVideoTelemetry writes non-zero video dimension and codec fields from d into meta.
+// It mirrors the keys used by patchBunnyWebhookMetadataJSON so both the upload path and the
+// webhook path store identical key names.
+func applyBunnyVideoTelemetry(meta entities.RawMetadata, d *entities.BunnyVideoDetail) {
+	telemetry := map[string]any{
+		"width":       d.Width,
+		"height":      d.Height,
+		"length":      d.Length,
+		"framerate":   d.Framerate,
+		"bitrate":     d.Bitrate,
+		"video_codec": strings.TrimSpace(d.VideoCodec),
+		"audio_codec": strings.TrimSpace(d.AudioCodec),
+	}
+	for k, v := range telemetry {
+		switch val := v.(type) {
+		case int:
+			if val > 0 {
+				meta[k] = val
+			}
+		case float64:
+			if val > 0 {
+				meta[k] = val
+			}
+		case string:
+			if val != "" {
+				meta[k] = val
+			}
+		}
+	}
+}
+
+// ApplyBunnyDetailToMetadata writes Bunny Stream video detail fields into upload/raw metadata.
+// It populates video telemetry (width, height, length, framerate, bitrate, codecs) alongside
+// video_id, thumbnail_url, and embeded_html. Only non-zero/non-empty values are written so
+// callers may safely merge into an already-populated metadata map.
 func ApplyBunnyDetailToMetadata(meta entities.RawMetadata, d *entities.BunnyVideoDetail, libraryID, streamPlayBase string) {
 	if meta == nil || d == nil {
 		return
 	}
 	EnrichBunnyVideoDetail(d)
+	applyBunnyVideoTelemetry(meta, d)
 	if vid := FormatBunnyVideoIDString(d); vid != "" {
 		meta[constants.MediaMetaKeyVideoID] = vid
 	}

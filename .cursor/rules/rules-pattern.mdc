@@ -106,14 +106,20 @@ means:
 
 # Here
 
-7. **API Response Type Enforcement (`dto/*Response` Only)**
+7. **Pure Types Only in `pkg/entities` (No Functions)**
+   Directories need to check:
+   - pkg/entities/**/*.go
+
+   Files under `pkg/entities` MUST contain only pure type definitions (e.g., structs, type aliases, interfaces where appropriate). Declaring any function or method (`func`, including receivers and constructors) is strictly prohibited.
+
+8. **API Response Type Enforcement (`dto/*Response` Only)**
    Directories need to check:
    - api/**/*.go
 
    In `api/**/*.go`, return types MUST NOT use `models`, `pkg/entities`, or any entity type defined there. Declaring custom inline/module-local return types is also strictly prohibited.
    All response data types MUST be defined in `dto/` using the `*Response` suffix, and corresponding response mapping MUST exist in `pkg/logic/mapping`.
 
-8. **Mapping Functions Must Reside in `pkg/logic/mapping`**
+9. **Mapping Functions Must Reside in `pkg/logic/mapping`**
    Directories need to check:
    - **/*.go
 
@@ -123,33 +129,33 @@ means:
 
    Any request/response mapping function (including `dto -> pkg/entities`, `dto -> models`, `models -> pkg/entities -> dto`, or equivalent transformations) declared outside `pkg/logic/mapping/**/*.go` is prohibited and MUST be flagged.
 
-9. **GORM-Only Types in `models/`**
+10. **GORM-Only Types in `models/`**
    Directories need to check:
    - models/**/*.go
 
    Across all modules under `models/`, every declared type/subtype MUST be linked to GORM integration. Any non-GORM type/subtype definition is strictly prohibited and MUST be moved to the appropriate domain layer (e.g., `pkg/entities`).
 
-10. **Strict Separation Between `models/` and `pkg/entities`**
+11. **Strict Separation Between `models/` and `pkg/entities`**
    Directories need to check:
    - models/**/*.go
    - pkg/entities/**/*.go
 
    `models/` and `pkg/entities` MUST remain strictly decoupled. Code under `models/` MUST NOT import, reference, call, or depend on anything from `pkg/entities`, and code under `pkg/entities` MUST NOT import, reference, call, or depend on anything from `models/`.
 
-11. **No Types/Structs or Functions in `constants/`**
+12. **No Types/Structs or Functions in `constants/`**
    Directories need to check:
    - constants/**/*.go
 
    Across all modules under `constants/`, declaring any `type` or `struct` is strictly prohibited. All such definitions MUST be converted and moved to `pkg/entities`.
    In addition, `constants/` MUST NOT contain any functions under any circumstances (including error helper functions or any other utility functions).
 
-12. **No DB-Linked Types in `pkg/entities`**
+13. **No DB-Linked Types in `pkg/entities`**
    Directories need to check:
    - pkg/entities/**/*.go
 
    Across all modules under `pkg/entities`, any type definition that is created by linking to database concerns is strictly prohibited.
 
-13. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
+14. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Before writing ANY new function, examine its inputs and outputs:
 
 * **Mechanism Logic (belongs to `pkg/<feature>/**/*.go`):**
@@ -159,7 +165,7 @@ means:
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
 
-14. **No “Homeless Functions” & No “Fake Methods” in Services**
+15. **No “Homeless Functions” & No “Fake Methods” in Services**
 
 * **No Homeless Functions:**
   Standalone utility (stateless) functions are STRICTLY PROHIBITED inside the `services/` directory (except for `New...` constructors).
@@ -169,7 +175,7 @@ means:
   If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
   If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature>/**/*.go`.
 
-15. **Strict One-Way Dependency Direction for `pkg/`**
+16. **Strict One-Way Dependency Direction for `pkg/`**
 
 * Code inside `pkg/<feature>/**/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.

@@ -116,8 +116,8 @@ means:
    Directories need to check:
    - api/**/*.go
 
-   In `api/**/*.go`, return types MUST NOT use `models`, `pkg/entities`, or any entity type defined there. Declaring custom inline/module-local return types is also strictly prohibited.
-   All response data types MUST be defined in `dto/` using the `*Response` suffix, and corresponding response mapping MUST exist in `pkg/logic/mapping`.
+   This applies **only** to functions whose signature includes an **API response payload** type (the value returned to the client as the handler response). For those functions, that payload type MUST NOT be `models`, `pkg/entities`, or any entity type from those packages; declaring custom inline/module-local response structs is also strictly prohibited. Such payloads MUST be defined in `dto/` using the `*Response` suffix, with corresponding mapping in `pkg/logic/mapping`.
+   Functions that do **not** return an API response payload (e.g., helpers that only return `error`, or signatures with no response body type) are **not** covered by this rule and may keep their existing return types unchanged.
 
 9. **Mapping Functions Must Reside in `pkg/logic/mapping`**
    Directories need to check:

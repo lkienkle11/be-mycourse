@@ -4,7 +4,7 @@
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql`).
-- GORM / JSONB **column** types belong in **`pkg/sqlmodel`**.
+- GORM / JSONB **column** types for model fields: refresh-session JSONB in **`pkg/gormjsonb/auth`**, soft-delete alias in **`pkg/sqlmodel`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Global Constants Placement Rule (Mandatory)
@@ -40,7 +40,7 @@
 ### Asset: issueTokenPair / RefreshSession
 - Name: `issueTokenPair`, `RefreshSession`
 - Type: Function (auth service)
-- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session map + soft-delete column types in `pkg/sqlmodel/refresh_session.go` + `pkg/sqlmodel/deleted_at.go`
+- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session entry shape in **`pkg/entities/refresh_session.go`**, JSONB column **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth/refresh_token_session_map.go`**, soft-delete alias in **`pkg/sqlmodel/deleted_at.go`**
 - Purpose: Token issue/rotation and session persistence management.
 - Scope: Any auth/session extension features.
 - Dependencies: `pkg/token`, `pkg/sqlmodel`, `constants` (TTLs), `models`, `repository`, `services/cache`, RBAC permission resolver.
@@ -276,7 +276,7 @@
 ### Asset: Multipart binders (media create/update)
 - Name: `BindCreateFileMultipart`, `BindUpdateFileMultipart`
 - Type: Helper (transport parsing)
-- Path: `pkg/media/media_multipart.go`
+- Path: `pkg/logic/mapping/multipart_gin_bind.go`
 - Purpose: Parse multipart text fields for backward-compat validation and bind allowed update controls (`reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`); client `kind`/`metadata` are intentionally ignored by service flow.
 - Scope: `api/v1/media/file_handler.go` only; keeps handlers thin.
 - Dependencies: `github.com/gin-gonic/gin`, `dto`, `pkg/logic/utils` (`ParseBoolLoose` for `skip_upload_if_unchanged`).
@@ -287,13 +287,13 @@
 - Path: `pkg/media/stored_object_delete.go`
 - Purpose: Route delete by provider (B2 key vs Bunny GUID vs local noop).
 - Scope: Delete compensation, pending cleanup worker, avoids duplicating switch in callers.
-- Current Usage: `services/media/file_service.go`, `services/media/pending_cleanup.go`.
+- Current Usage: `services/media/file_service.go`, `internal/jobs/media/media_pending_cleanup_batch.go`.
 
 ### Asset: Media cleanup worker scheduler
 - Name: `StartMediaPendingCleanupJob`, `StopMediaPendingCleanupJob`
-- Type: Job (`internal/jobs`)
-- Path: `internal/jobs/media_pending_cleanup_scheduler.go`
-- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `internal/jobs/rbac_sync_schedulers.go` (`syncJobBundle`).
+- Type: Job (`internal/jobs/media`)
+- Path: `internal/jobs/media/media_pending_cleanup_scheduler.go`
+- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `internal/jobs/rbac/rbac_sync_schedulers.go` (`syncJobBundle`).
 - Scope: Process-wide background loop; interval from `MEDIA_CLEANUP_INTERVAL_SEC` or `constants.MediaCleanupDefaultIntervalSec`.
 
 ### Asset: Media concurrency / reuse errors
@@ -671,7 +671,7 @@
 - Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, Gcore CDN + B2 bucket). Pure function — no I/O.
 - Scope: Orphan cleanup flows in any domain service that holds image URL strings.
 - Dependencies: `constants/media.go`, `pkg/logic/utils` (NormalizeBaseURL, JoinURLPathSegments), `pkg/setting`.
-- Current Usage: `services/media/orphan_cleanup.go`.
+- Current Usage: `internal/jobs/media/media_orphan_enqueue.go`.
 - Reuse Opportunity: Call whenever a stored image URL must be mapped back to a cloud object for deletion.
 
 ### Asset: ScanJSONBForImageURLs
@@ -686,18 +686,18 @@
 
 ### Asset: EnqueueOrphanImageCleanup
 - Name: `EnqueueOrphanImageCleanup`
-- Type: Function (service)
-- Path: `services/media/orphan_cleanup.go`
+- Type: Function (enqueue helper)
+- Path: `internal/jobs/media/media_orphan_enqueue.go`
 - Purpose: Single entry-point to schedule deferred cloud-object deletion for any **plain image URL** field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
 - Scope: Legacy URL fields, JSONB-harvested URLs (`ScanJSONBForImageURLs`), future course cover strings — **not** used for taxonomy/user after Sub 14 (those use **`EnqueueOrphanCleanupForMediaFileID`**).
-- Dependencies: `services/media.mediaRepository()`, **`pkg/media.ParseImageURLForOrphanCleanup`**, `constants/media.go`, `models`.
+- Dependencies: `repository.FileRepository`, **`pkg/media.ParseImageURLForOrphanCleanup`**, `constants/media.go`, `models`.
 - Current Usage: Reserved for URL-shaped domains; see `docs/data-flow.md` (Sub 07 path).
 - Reuse Opportunity: Wire into every future service that stores a **URL string** (not `media_files` FK) on delete/update.
 
 ### Asset: EnqueueOrphanCleanupForMediaFileID
 - Name: `EnqueueOrphanCleanupForMediaFileID` / `EnqueueOrphanCleanupForMediaFileRow`
-- Type: Function (service)
-- Path: `services/media/orphan_cleanup.go`
+- Type: Function (enqueue helper)
+- Path: `internal/jobs/media/media_orphan_enqueue.go`
 - Purpose: Schedule **`media_pending_cloud_cleanup`** from a **`media_files.id`** (or in-memory row) after a referencing FK is cleared or the parent entity is deleted.
 - Current Usage: `services/taxonomy/category_service.go`, `services/auth/me_update.go`, `services/auth/user_delete.go`.
 
@@ -729,7 +729,7 @@
 - Purpose: Find a non-deleted `media_files` row by its public URL or origin URL. Used by orphan cleanup to resolve provider/key from a plain URL string.
 - Scope: Orphan cleanup and any future feature needing to look up a media row by URL.
 - Dependencies: GORM, `models.MediaFile`.
-- Current Usage: `services/media/orphan_cleanup.go`.
+- Current Usage: `internal/jobs/media/media_orphan_enqueue.go`.
 
 ## Gap Analysis (What Must Be Created Later)
 - Missing reusable domain DTO/model/service packages for:

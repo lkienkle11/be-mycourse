@@ -39,7 +39,7 @@ pkg/taxonomy/
 
 `services/taxonomy/fields.go` imports **`mycourse-io-be/pkg/taxonomy`** (alias `taxonomypkg`) so HTTP `status` strings are normalized before repository writes. **Category** HTTP handlers (`api/v1/taxonomy/category_handler.go`) import only **`dto`** — **`services/taxonomy/category_service.go`** maps `models.Category` → **`dto.CategoryResponse`** (with nested **`image`**) so **`api/`** stays free of **`models`** (depguard `restrict_api`).
 
-**Category image contract:** create/update JSON uses **`image_file_id`** (UUID of a **`media_files`** row). Responses expose nested **`image`** (`dto.MediaFilePublic`). The server validates file kind/status/MIME via **`services/media.LoadValidatedProfileImageFile`**; failures return **`pkg/errors.ErrInvalidProfileMediaFile`** (**`constants.MsgInvalidProfileMediaFile`**). Replacing or deleting a category enqueues **`mediasvc.EnqueueOrphanCleanupForMediaFileID`** for the superseded or removed file id.
+**Category image contract:** create/update JSON uses **`image_file_id`** (UUID of a **`media_files`** row). Responses expose nested **`image`** (`dto.MediaFilePublic`). The server validates file kind/status/MIME via **`services/media.LoadValidatedProfileImageFile`**; failures return **`pkg/errors.ErrInvalidProfileMediaFile`** (**`constants.MsgInvalidProfileMediaFile`**). Replacing or deleting a category enqueues **`EnqueueOrphanCleanupForMediaFileID`** (**`internal/jobs/media`**) for the superseded or removed file id.
 
 ---
 

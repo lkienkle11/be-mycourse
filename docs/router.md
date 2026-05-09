@@ -9,7 +9,7 @@
 
 ## Initialization
 - Router is created in `api.InitRouter()`.
-- `InitRouter` sets `router.MaxMultipartMemory = 64 << 20` (64 MiB) so large multipart bodies spill to disk during parse; per-file upload cap is still enforced in media handlers/services (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**, 2 GiB).
+- `InitRouter` sets `router.MaxMultipartMemory = constants.MediaMultipartParseMemoryBytes` (64 MiB) so large multipart bodies spill to disk during parse; per-part cap (`constants.MaxMediaUploadFileBytes`), per-request part count / aggregate cap (`MaxMediaFilesPerRequest`, `MaxMediaMultipartTotalBytes`), and streaming guards are enforced in media handlers/services (see **`docs/modules/media.md`**).
 - `main.go` runs `router.Run(":"+port)` after service/bootstrap initialization.
 
 ## Route Hierarchy
@@ -46,7 +46,7 @@ For **per-domain contracts** (handlers, DTOs, provider policy), see **`docs/api-
 - `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS + local token decode + video status route) and webhook route mount used by no-filter lane. Response schema for list/get/create/update: **`dto.UploadFileResponse`** (no **`origin_url`** — Sub 12) including optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** — `docs/modules/media.md`, `docs/api_swagger.yaml`.
 
 ## Media request contract notes
-- `POST/PUT /api/v1/media/files` reads multipart text fields through **`pkg/media`** binders (`BindCreateFileMultipart` / `BindUpdateFileMultipart`), but `kind` and `metadata` are ignored by service business flow (server-owned policy).
+- `POST/PUT /api/v1/media/files` reads multipart text fields through **`pkg/logic/mapping`** (`BindCreateFileMultipart` / `BindUpdateFileMultipart`), but `kind` and `metadata` are ignored by service business flow (server-owned policy).
 - Effective kind/provider are resolved server-side (`ResolveMediaKindFromServer`, `ResolveUploadProvider`).
 
 ## Authorization Pattern

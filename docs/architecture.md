@@ -44,7 +44,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 
 1. **`main.go`** loads settings, DB, optional privileged-user **CLI** when `CLI_REGISTER_NEW_SYSTEM_USER` is truthy (then exits), Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, queue consumers, then **`api.InitRouter()`**.
 2. **`api/router.go`** attaches global middleware: `pkg/httperr` (validation + recovery), **CORS**, **gzip**, then groups under **`/api`**.
-3. **`/api/system`** — `BeforeInterceptor`, **`RateLimitSystemIP(10, 3)`** (overridable per IP via `middleware.SetSystemRateLimitOverride`), short-lived system JWT for privileged operators: login + permission / role-permission sync and in-memory 12h jobs (`api/system`, `services/system.go`, `internal/jobs/*`).
+3. **`/api/system`** — `BeforeInterceptor`, **`RateLimitSystemIP(10, 3)`** (overridable per IP via `middleware.SetSystemRateLimitOverride`), short-lived system JWT for privileged operators: login + permission / role-permission sync and in-memory 12h jobs (`api/system`, `services/system.go`, `internal/jobs/rbac`, `internal/jobs/media`, `internal/jobs/system`).
 4. **`/api/v1`** has two registration lanes:
    - **No-filter lane** (mounted first, no `BeforeInterceptor`) → `api/v1.RegisterNoFilterRoutes` (currently `POST /api/v1/webhook/bunny`).
    - **Standard lane** uses `middleware.BeforeInterceptor()`, then splits into:
@@ -63,11 +63,11 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 |------|------|
 | `main.go` | Process entry: settings, DB, cache, migrate flag, bootstrap, queues, router, listen on `setting.ServerSetting.Port` (default **8080**). |
 | `api/router.go` | Gin engine, global middleware, `/api/system`, `/api/v1`, `/api/internal-v1` groups. |
-| `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). Handlers use **`internal/appdb.Conn()`** (wired from `main` after `models.Setup`); **`api/`** does not import **`models`** or **`gorm.io/gorm`** (depguard `restrict_api`). |
+| `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). Handlers use **`internal/appdb.Conn()`** (wired from `main` after `models.Setup`); **`api/`** does not import **`models`** or **`gorm.io/gorm`** (depguard `restrict_api`). Start/stop for in-memory sync tickers delegates to **`internal/jobs/system/system_sync_http.go`**; immediate `*-sync-now` handlers stay in `routes.go`. |
 | `api/v1/` | Versioned handlers and route modules: `auth.go`, `me.go`, `routes.go`, `taxonomy/*`, `internal/*`, … |
 | `middleware/` | JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
 | `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and delegate reusable pieces to **`pkg/media`**, **`pkg/taxonomy`**, **`pkg/logic/utils`**, or **`pkg/requestutil`** (see `docs/patterns.md`). Media service enforces server-owned upload contracts (kind/provider/metadata inference). |
-| `internal/jobs/` | In-memory 12h RBAC sync tickers (`rbac_sync_schedulers.go`, `interval_sync_loop.go`) started/stopped via `/api/system` (not env-gated). |
+| `internal/jobs/` | Feature subfolders only (no loose `*.go` at root): **`rbac/`** — 12h RBAC sync tickers (`rbac_sync_schedulers.go`, `interval_sync_loop.go`); **`media/`** — pending-cleanup scheduler/worker/metrics (`media_pending_cleanup_*.go`, `media_cleanup_metrics.go`), orphan/superseded enqueue (`media_orphan_enqueue.go`); **`system/`** — HTTP adapters for start/stop (wired from `/api/system`). |
 | `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
 | `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
 | `models/` | GORM models and DB setup (`setup.go`, taxonomy models, …). |

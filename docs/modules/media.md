@@ -7,7 +7,7 @@
 - Do not declare new reusable/domain types inline inside logic implementation files.
 - Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
-> **Status:** Sub 04 (B2 URL, keys, Bunny status + webhook), Sub 06 (`row_version`, `content_fingerprint`, deferred cleanup), Sub 09 (Bunny parity: `video_id`, `thumbnail_url`, `embeded_html` on API + `media_files` + metadata JSON), Sub 10 (`NewCloudClientsFromSetting` — B2/Gcore/Bunny Storage SDK init from `setting.MediaSetting` only), **Sub 12** (public **`dto.UploadFileResponse`** has **no** `origin_url` key — canonical URL is server-only in DB / `entities.File`; see below).
+> **Status:** Sub 04 (B2 URL, keys, Bunny status + webhook), Sub 06 (`row_version`, `content_fingerprint`, deferred cleanup), Sub 09 (Bunny parity: `video_id`, `thumbnail_url`, `embeded_html` on API + `media_files` + metadata JSON), Sub 10 (`NewCloudClientsFromSetting` — B2/Gcore/Bunny Storage SDK init from `setting.MediaSetting` only), **Sub 12** (public **`dto.UploadFileResponse`** has **no** `origin_url` key — canonical URL is server-only in DB / `entities.File`; see below), **Sub 17** (multi-file multipart create/update + batch delete + aggregate 2 GiB cap — see **Upload size and transport**).
 
 **Cross-references:** `docs/return_types.md` (JSON examples), `docs/api_swagger.yaml` (`UploadFileResponse`), `docs/data-flow.md`, `docs/reusable-assets.md`, `docs/database.md` (`media_files`), `migrations/README.md` (000003–000005), `IMPLEMENTATION_PLAN_EXECUTION.md` (execution notes).
 
@@ -21,7 +21,7 @@ Media module provides a unified API surface for file and video uploads with prov
 - Videos: playback/distribution URL through Bunny Stream.
 - Local provider: reversible signed URL token that can be decoded back to object key.
 
-Media persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync. **Phase Sub 06** adds optimistic concurrency (`row_version`), SHA-256 hex `content_fingerprint`, deferred superseded-cloud deletes (`media_pending_cloud_cleanup` + worker in `internal/jobs/media_pending_cleanup_scheduler.go`), and multipart field binding via `pkg/media/media_multipart.go` (aligned with `ParseMetadataFromRaw`).
+Media persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync. **Phase Sub 06** adds optimistic concurrency (`row_version`), SHA-256 hex `content_fingerprint`, deferred superseded-cloud deletes (`media_pending_cloud_cleanup` + worker in `internal/jobs/media/media_pending_cleanup_scheduler.go`), and multipart field binding via `pkg/media/media_multipart.go` (aligned with `ParseMetadataFromRaw`).
 
 SDK clients are initialized once at app startup: `main.go` calls `setting.Setup()` first, then `pkg/media.Setup()` → **`NewCloudClientsFromSetting`** in `pkg/media/clients_setting_attach.go` (B2, Gcore API, Bunny **Storage** credentials from trimmed **`setting.MediaSetting`** — no direct `os.Getenv` in that constructor). Upload/delete/runtime HTTP and URL helpers remain in `pkg/media/clients.go` and related files. Clients are then reused by the media service flow.
 Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
@@ -45,10 +45,12 @@ Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileRespons
 | OPTIONS | `/media/files` | CORS/preflight support |
 | GET | `/media/files` | List persisted records from `media_files` with pagination |
 | GET | `/media/files/cleanup-metrics` | Ops: deferred cleanup counters — registered **before** `/:id` |
-| POST | `/media/files` | Upload multipart file and return file descriptor |
+| POST | `/media/files` | Multipart upload **1–5** file parts per request (field **`files`**, repeated; legacy **`file`** still accepted as a single part). Response **`data`** is an **array** of `UploadFileResponse` (one entry per part). |
+| OPTIONS | `/media/files/batch-delete` | CORS/preflight |
+| POST | `/media/files/batch-delete` | JSON `{ "object_keys": ["<object_key>", ...] }` — delete up to **10** distinct keys (permission `media_file:delete`). All keys must exist or the request fails validation (see Sub 17). Success `data` includes **`deleted_count`**. |
 | OPTIONS | `/media/files/:id` | CORS/preflight support |
 | GET | `/media/files/:id` | Build file detail from object key |
-| PUT | `/media/files/:id` | Re-upload/replace by logical row (`id` = `object_key`). Optional: `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`. Conflict → **409**. |
+| PUT | `/media/files/:id` | Multipart **bundle update** (**1–5** parts): **first** part updates the row at `:id`; **additional** parts create **new** rows (same owner/provider/kind policy). Response **`data`** is an **array** (`[updated, ...created]`). Same reuse/version/fingerprint fields as single-file update (optional `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`). Conflict → **409**. |
 | DELETE | `/media/files/:id` | Delete object on configured provider |
 | OPTIONS | `/media/files/local/:token` | CORS/preflight support |
 | GET | `/media/files/local/:token` | Decode local signed token to object key |
@@ -106,14 +108,14 @@ Service behavior by status:
 
 ## Phase Sub 14 — FK-based orphan enqueue (taxonomy + user avatar)
 
-When **`categories.image_file_id`** or **`users.avatar_file_id`** is replaced or the parent row is removed, **`services/media.EnqueueOrphanCleanupForMediaFileID`** resolves the **`media_files`** row and inserts **`media_pending_cloud_cleanup`** (skips **Local** rows with no cloud object). This complements the Sub 07 **URL-string** path (`EnqueueOrphanImageCleanup`).
+When **`categories.image_file_id`** or **`users.avatar_file_id`** is replaced or the parent row is removed, **`EnqueueOrphanCleanupForMediaFileID`** (package **`internal/jobs/media`**) resolves the **`media_files`** row and inserts **`media_pending_cloud_cleanup`** (skips **Local** rows with no cloud object). This complements the Sub 07 **URL-string** path (`EnqueueOrphanImageCleanup` in the same package).
 
 ## Phase Sub 06 — orphan / reuse / deferred cleanup (summary)
 
 - **Migration:** `000004_media_orphan_safety.up.sql` — `row_version`, `content_fingerprint`; table `media_pending_cloud_cleanup`.
 - **Superseded cloud object:** queued for deferred delete, not inline at replace time.
 - **Reuse / fingerprint / optimistic lock:** see bullets in earlier sections; errors **409** with `ErrMediaOptimisticLock` / `ErrMediaReuseMismatch`.
-- **Worker:** `internal/jobs/media_pending_cleanup_scheduler.go`; logic `services/media/pending_cleanup.go`.
+- **Worker:** `internal/jobs/media/media_pending_cleanup_scheduler.go`; batch processor `internal/jobs/media/media_pending_cleanup_batch.go`; metrics `internal/jobs/media/media_cleanup_metrics.go`.
 
 ---
 
@@ -129,8 +131,13 @@ When **`categories.image_file_id`** or **`users.avatar_file_id`** is replaced or
 
 ## Upload size and transport
 
-- **2 GiB** per `file` part: **`constants.MaxMediaUploadFileBytes`**, **`constants.MsgFileTooLargeUpload`** — HTTP **413**, code **2003**; missing `file` → **400**, **3001**.
-- Gin **`MaxMultipartMemory`** 64 MiB — see `docs/router.md`, `docs/deploy.md` for proxy **`client_max_body_size`**.
+- **Per-part cap (Sub 03):** each file part ≤ **`constants.MaxMediaUploadFileBytes`** (2 GiB).
+- **Per-request aggregate cap (Sub 17):** sum of all parts in one `POST`/`PUT` multipart body ≤ **`constants.MaxMediaMultipartTotalBytes`** (also 2 GiB). Enforcement uses declared `FileHeader.Size` when known and cumulative streaming limits via `readMultipartPayloadLimited` when bodies are read.
+- **Part count (Sub 17):** at least **1** and at most **`constants.MaxMediaFilesPerRequest` (5)** parts (`files` / `file`).
+- **Parallel uploads (Sub 17):** provider uploads for multiple parts run concurrently with **`constants.MaxConcurrentMediaUploadWorkers`** (5); DB persists creates **after** uploads succeed (create batch); bundle update persists **tail creates first**, then **primary row update** so the primary row is not mutated if tail persistence fails.
+- **Batch delete (Sub 17):** `POST /media/files/batch-delete` — max **`constants.MaxMediaBatchDelete` (10)** unique `object_keys`; duplicates rejected; missing key → error (all-or-nothing validation before cloud deletes).
+- Oversize / too many parts → HTTP **413** / **400** with errcodes **`FileTooLarge` (2003)**, **`MediaMultipartTotalTooLarge` (2005)**, **`MediaTooManyFilesInRequest` (2006)** as applicable (see `pkg/errcode`, `constants/error_msg.go`).
+- Gin **`MaxMultipartMemory`** 64 MiB — large bodies spill to temp files during parse; reverse proxies must still allow ≥ **2 GiB** request bodies where needed — see `docs/router.md`, `docs/deploy.md` (`client_max_body_size`).
 
 ---
 
@@ -138,7 +145,7 @@ When **`categories.image_file_id`** or **`users.avatar_file_id`** is replaced or
 
 ### WebP image encoding
 
-- All image uploads (`POST /media/files`, `PUT /media/files/:id`) are **synchronously converted to WebP** before upload to the storage provider using **`bimg`/libvips** (CGO).
+- All image uploads (`POST /media/files`, `PUT /media/files/:id` — each multipart part) are **synchronously converted to WebP** before upload to the storage provider using **`bimg`/libvips** (CGO).
 - Concurrency is bounded by a buffered-channel semaphore in **`pkg/logic/utils/image_encode_gate.go`** (`AcquireEncodeGate` / `ReleaseEncodeGate`); cap = **`constants.MaxConcurrentImageEncode`** (4).
 - The actual WebP conversion lives in **`pkg/logic/utils/webp_encode.go`** (`//go:build cgo`). A `//go:build !cgo` stub in **`pkg/logic/utils/webp_encode_stub.go`** returns `ErrImageEncodeBusy` (errcode **9017**) for `CGO_ENABLED=0` builds (CI, local review).
 - Image detection (`IsImageMIMEOrExt`) lives in **`pkg/media/media_resolver.go`** alongside the existing kind/provider resolvers.

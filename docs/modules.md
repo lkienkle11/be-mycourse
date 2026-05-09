@@ -20,7 +20,7 @@
   - Profile and permission introspection for current user.
 - **RBAC admin module** (`api/v1/internal/*`, `services/rbac/`):
   - Internal CRUD for permissions/roles/user grants.
-- **System operations module** (`api/system/routes.go`, `internal/appdb`, `internal/jobs`, `internal/rbacsync`):
+- **System operations module** (`api/system/routes.go`, `internal/appdb`, `internal/jobs/media`, `internal/jobs/rbac`, `internal/jobs/system`, `internal/rbacsync`):
   - Privileged login, sync-now, and scheduler management (`api/system` uses **`internal/appdb.Conn()`** so **`api/`** does not import **`models`**).
 - **Taxonomy module** (`api/v1/taxonomy/*`, `services/taxonomy/*`, `repository/taxonomy/*`, **`pkg/taxonomy/`** (`NormalizeTaxonomyStatus`), `models/taxonomy_*.go`, `dto/taxonomy_*.go`):
   - CRUD and list/filter for `course_levels`, `categories`, `tags`.

@@ -59,6 +59,8 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `OPTIONS /media/files`
   - `GET /media/files`
   - `POST /media/files`
+  - `OPTIONS /media/files/batch-delete`
+  - `POST /media/files/batch-delete`
   - `OPTIONS /media/files/:id`
   - `GET /media/files/:id`
   - `PUT /media/files/:id`
@@ -76,7 +78,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - User-role and user-direct-permission assignment/list/removal APIs.
 
 ## Upload / body limits (media)
-- Media `POST/PUT /api/v1/media/files` enforces **2 GiB** max per `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); oversize JSON `message` / sentinel both use **`constants.MsgFileTooLargeUpload`**. HTTP **413** + app code **2003** when exceeded. Reverse proxies must allow **≥ 2G** request bodies on the API vhost (`docs/deploy.md`).
+- Media `POST/PUT /api/v1/media/files` enforces: **at most 5** multipart parts per request (`files` / `file`); **per-part** max **2 GiB** (`constants.MaxMediaUploadFileBytes`); **aggregate** sum of all parts in one request **≤ 2 GiB** (`constants.MaxMediaMultipartTotalBytes`). Use errcodes **2003** (per part), **2005** (aggregate), **2006** (too many parts). `POST /api/v1/media/files/batch-delete` accepts up to **10** distinct `object_keys` (**2008** / **2009** when limits violated). Reverse proxies must allow **≥ 2G** request bodies on the API vhost (`docs/deploy.md`).
 - Media metadata and kind are server-owned:
   - `kind` is inferred server-side from MIME/extension.
   - if kind cannot be inferred and no configured provider exists, provider fallback is `Local`.

@@ -36,7 +36,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql` imports there — same depguard rule as **`models/*.go`**).
-- GORM/JSONB **column** types used on models (e.g. refresh session JSONB, `DeletedAt` alias) go in **`pkg/sqlmodel`**, not **`pkg/entities`**.
+- GORM/JSONB **column** types used on models: refresh-session JSONB **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth`**, GORM **`DeletedAt`** alias in **`pkg/sqlmodel`** — not **`pkg/entities`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Global Constants Placement Rule (Mandatory)
@@ -60,10 +60,11 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/curl_api.md`](docs/curl_api.md) | Complete API reference with cURL examples and Postman scripts |
 | [`docs/modules.md`](docs/modules.md) | Module responsibilities overview — implemented modules, planned modules, ownership boundaries |
 | [`docs/modules/`](docs/modules/) | Per-domain notes (auth, user, media, taxonomy, rbac, course, lesson, enrollment) |
-| [`docs/modules/media.md`](docs/modules/media.md) | Media: B2+Gcore+Bunny, `media_files`, **`video_id` / `thumbnail_url` / `embeded_html`**, webhook + status, policy in `media_resolver.go`; **2 GiB**, multipart + proxy (`docs/deploy.md`) |
+| [`docs/modules/media.md`](docs/modules/media.md) | Media: B2+Gcore+Bunny, `media_files`, **`video_id` / `thumbnail_url` / `embeded_html`**, webhook + status, policy in `media_resolver.go`; **per-part and aggregate 2 GiB**, **≤5 parts/request**, batch delete **≤10 keys**, multipart + proxy (`docs/deploy.md`) |
 | [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy: categories / tags / course levels; shared **`pkg/taxonomy`** (`NormalizeTaxonomyStatus`) + `services/taxonomy` |
-| `pkg/entities/` | Shared **domain** structs (no `gorm` / `database/sql`); depguard **`restrict_models_pkg_entity_schema_only`** — see **`docs/patterns.md`** |
-| `pkg/sqlmodel/` | GORM/JSONB **column** types (**`RefreshTokenSessionMap`**, **`RefreshSessionEntry`**, **`DeletedAt`**) used from **`models/user.go`** — see **`docs/patterns.md`** |
+| `pkg/entities/` | Shared **domain** structs (no `gorm` / `database/sql` / **no funcs**); depguard **`restrict_models_pkg_entity_schema_only`** — see **`docs/patterns.md`** |
+| `pkg/gormjsonb/auth/` | JSONB **`Valuer`/`Scanner`** for **`users.refresh_token_session`** (`RefreshTokenSessionMap`) — see **`docs/patterns.md`** |
+| `pkg/sqlmodel/` | GORM **`DeletedAt`** alias only (from **`models/user.go`**) — see **`docs/patterns.md`** |
 | [`tests/`](tests/) | **All test code** (unit/module-level/integration) — place test packages, fixtures, and shared harnesses here (see **Testing** below). |
 
 ## Quick Start

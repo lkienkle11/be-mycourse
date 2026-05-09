@@ -8,6 +8,7 @@ import (
 
 	"mycourse-io-be/dto"
 	"mycourse-io-be/internal/appdb"
+	jobsystem "mycourse-io-be/internal/jobs/system"
 	"mycourse-io-be/internal/rbacsync"
 	"mycourse-io-be/internal/systemauth"
 	"mycourse-io-be/middleware"
@@ -30,10 +31,10 @@ func RegisterRoutes(g *gin.RouterGroup) {
 	authd.Use(middleware.RequireSystemAccessToken(db))
 	authd.POST("/permission-sync-now", permissionSyncNow)
 	authd.POST("/role-permission-sync-now", rolePermissionSyncNow)
-	authd.POST("/create-permission-sync-job", startPermissionSyncScheduler)
-	authd.POST("/create-role-permission-sync-job", startRolePermissionSyncScheduler)
-	authd.POST("/delete-permission-sync-job", stopPermissionSyncScheduler)
-	authd.POST("/delete-role-permission-sync-job", stopRolePermissionSyncScheduler)
+	authd.POST("/create-permission-sync-job", jobsystem.HTTPCreatePermissionSyncJob)
+	authd.POST("/create-role-permission-sync-job", jobsystem.HTTPCreateRolePermissionSyncJob)
+	authd.POST("/delete-permission-sync-job", jobsystem.HTTPStopPermissionSyncJob)
+	authd.POST("/delete-role-permission-sync-job", jobsystem.HTTPStopRolePermissionSyncJob)
 }
 
 func systemLogin(c *gin.Context) {
@@ -54,9 +55,9 @@ func systemLogin(c *gin.Context) {
 		}
 		return
 	}
-	response.OK(c, "system_login_ok", gin.H{
-		"access_token": tok,
-		"expires_in":   int(systemauth.SystemAccessTokenTTL.Seconds()),
+	response.OK(c, "system_login_ok", dto.SystemLoginResponse{
+		AccessToken: tok,
+		ExpiresIn:   int(systemauth.SystemAccessTokenTTL.Seconds()),
 	})
 }
 
@@ -66,7 +67,7 @@ func permissionSyncNow(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "permission_sync_completed", gin.H{"synced": n})
+	response.OK(c, "permission_sync_completed", dto.PermissionSyncNowResponse{Synced: n})
 }
 
 func rolePermissionSyncNow(c *gin.Context) {
@@ -75,25 +76,5 @@ func rolePermissionSyncNow(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "role_permission_sync_completed", gin.H{"rows": n})
-}
-
-func startPermissionSyncScheduler(c *gin.Context) {
-	services.StartPermissionSyncScheduler(appdb.Conn())
-	response.OK(c, "permission_sync_job_started", nil)
-}
-
-func startRolePermissionSyncScheduler(c *gin.Context) {
-	services.StartRolePermissionSyncScheduler(appdb.Conn())
-	response.OK(c, "role_permission_sync_job_started", nil)
-}
-
-func stopPermissionSyncScheduler(c *gin.Context) {
-	services.StopPermissionSyncScheduler()
-	response.OK(c, "permission_sync_job_stopped", nil)
-}
-
-func stopRolePermissionSyncScheduler(c *gin.Context) {
-	services.StopRolePermissionSyncScheduler()
-	response.OK(c, "role_permission_sync_job_stopped", nil)
+	response.OK(c, "role_permission_sync_completed", dto.RolePermissionSyncNowResponse{Rows: n})
 }

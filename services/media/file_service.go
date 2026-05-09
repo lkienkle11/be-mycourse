@@ -12,6 +12,7 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
+	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
@@ -69,7 +70,7 @@ func persistUpdatedMediaRow(clients *entities.CloudClients, repo *mediarepo.File
 		return nil, err
 	}
 	if pkgmedia.ShouldEnqueueSupersededCloudCleanup(prevRow.ObjectKey, prevRow.BunnyVideoID, entity.ObjectKey, entity.BunnyVideoID) {
-		enqueueSupersededCloudCleanup(repo, prevRow.ObjectKey, prevRow.Provider, prevRow.BunnyVideoID)
+		jobmedia.EnqueueSupersededPendingCleanup(repo, prevRow.ObjectKey, prevRow.Provider, prevRow.BunnyVideoID)
 	}
 	saved, err := repo.GetByID(prevRow.ID)
 	if err != nil {
@@ -100,15 +101,6 @@ func saveUnchangedFingerprintMetadata(repo *mediarepo.FileRepository, prevRow *m
 	}
 	ent := mapping.ToMediaEntity(*saved)
 	return &ent, nil
-}
-
-func enqueueSupersededCloudCleanup(repo *mediarepo.FileRepository, prevObjectKey string, prevProvider string, prevBunnyVideoID string) {
-	row := &models.MediaPendingCloudCleanup{
-		Provider:     prevProvider,
-		ObjectKey:    strings.TrimSpace(prevObjectKey),
-		BunnyVideoID: strings.TrimSpace(prevBunnyVideoID),
-	}
-	_ = repo.InsertPendingCleanup(row)
 }
 
 func ListFiles(filter dto.FileFilter) ([]entities.File, int64, error) {
@@ -155,10 +147,11 @@ func GetFile(objectKey string, kind string) (*entities.File, error) {
 
 // prepareCreateMultipartBody reads the upload, infers kind/provider/object key, rejects unsafe payloads,
 // and optionally re-encodes images to WebP (updating filename/mime/objectKey accordingly).
-func prepareCreateMultipartBody(req dto.CreateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (
+// remainingTotal optionally enforces cumulative request size (multi-file); nil means single-part semantics.
+func prepareCreateMultipartBody(req dto.CreateFileRequest, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (
 	payload []byte, filename, mime string, kind string, provider string, objectKey string, err error,
 ) {
-	payload, filename, mime, err = readMultipartPayloadLimited(file, fileHeader)
+	payload, filename, mime, err = readMultipartPayloadLimited(file, fileHeader, remainingTotal)
 	if err != nil {
 		return
 	}
@@ -218,7 +211,7 @@ func CreateFile(req dto.CreateFileRequest, file multipart.File, fileHeader *mult
 		return nil, err
 	}
 	clients := pkgmedia.Cloud
-	payload, filename, mime, kind, provider, objectKey, err := prepareCreateMultipartBody(req, file, fileHeader)
+	payload, filename, mime, kind, provider, objectKey, err := prepareCreateMultipartBody(req, file, fileHeader, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +257,7 @@ func UpdateFile(objectKey string, req dto.UpdateFileRequest, file multipart.File
 	}
 	clients := pkgmedia.Cloud
 
-	return runUpdateFileMultipartBody(repo, clients, prevRow, req, file, fileHeader)
+	return runUpdateFileMultipartBody(repo, clients, prevRow, req, file, fileHeader, nil)
 }
 
 func DeleteFile(objectKey string, metadata entities.RawMetadata) error {

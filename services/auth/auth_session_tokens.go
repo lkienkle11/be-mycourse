@@ -10,7 +10,6 @@ import (
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/setting"
-	"mycourse-io-be/pkg/sqlmodel"
 	"mycourse-io-be/pkg/token"
 	"mycourse-io-be/repository"
 	"mycourse-io-be/services/rbac"
@@ -42,7 +41,7 @@ func issueTokenPair(user models.User, rememberMe bool, refreshTTL time.Duration)
 	if err != nil {
 		return entities.TokenPairResult{}, err
 	}
-	entry := sqlmodel.RefreshSessionEntry{
+	entry := entities.RefreshSessionEntry{
 		RefreshTokenUUID:    sessionUUID,
 		RememberMe:          rememberMe,
 		RefreshTokenExpired: time.Now().Add(refreshTTL),

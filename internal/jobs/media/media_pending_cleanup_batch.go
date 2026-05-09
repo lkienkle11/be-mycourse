@@ -1,4 +1,4 @@
-package media
+package jobmedia
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	mediarepo "mycourse-io-be/repository/media"
 )
 
+// ProcessPendingCleanupBatch executes one batch of deferred cloud deletes from media_pending_cloud_cleanup.
 func ProcessPendingCleanupBatch(ctx context.Context, repo *mediarepo.FileRepository) {
 	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return

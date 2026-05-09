@@ -20,7 +20,7 @@ import (
 //
 //	When lesson content JSONB, quiz option images, or course_edit metadata are
 //	added, call ScanJSONBForImageURLs on the stored JSONB payload, then pass each
-//	collected URL to mediasvc.EnqueueOrphanImageCleanup AFTER the parent DB row
+//	collected URL to internal/jobs/media.EnqueueOrphanImageCleanup AFTER the parent DB row
 //	has been successfully deleted.
 //
 //	Example integration point (pseudo-code):
@@ -29,7 +29,7 @@ import (
 //	      row, _ := lessonRepo.GetByID(id)
 //	      if err := lessonRepo.Delete(id); err != nil { return err }
 //	      for _, u := range helper.ScanJSONBForImageURLs(row.ContentJSON) {
-//	          mediasvc.EnqueueOrphanImageCleanup(u)
+//	          internal/jobs/media.EnqueueOrphanImageCleanup(u)
 //	      }
 //	      return nil
 //	  }

@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/dto"
+	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	authcache "mycourse-io-be/services/cache"
@@ -38,7 +39,7 @@ func resolveAvatarFileIDForUpdate(in *string) (dbValue *string, compareNext stri
 
 func maybeEnqueueReplacedAvatar(prev, next string) {
 	if prev != "" && prev != next {
-		mediasvc.EnqueueOrphanCleanupForMediaFileID(prev)
+		jobmedia.EnqueueOrphanCleanupForMediaFileID(prev)
 	}
 }
 

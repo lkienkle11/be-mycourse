@@ -1,29 +1,22 @@
-package sqlmodel
+package auth
 
 import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+
 	"mycourse-io-be/constants"
-	"time"
+	"mycourse-io-be/pkg/entities"
 )
 
-// RefreshSessionEntry holds metadata for a single authenticated device session.
-type RefreshSessionEntry struct {
-	RefreshTokenUUID    string    `json:"refresh_token_uuid"`
-	RememberMe          bool      `json:"remember_me"`
-	RefreshTokenExpired time.Time `json:"refresh_token_expired"`
-}
-
-// RefreshTokenSessionMap is a JSONB-backed map keyed by session string (128 hex chars).
-// It maps session_id → session metadata for each active device session.
-type RefreshTokenSessionMap map[string]RefreshSessionEntry
+// RefreshTokenSessionMap is the Postgres JSONB column type for users.refresh_token_session.
+type RefreshTokenSessionMap entities.RefreshTokenSessionMap
 
 func (m RefreshTokenSessionMap) Value() (driver.Value, error) {
 	if m == nil {
 		return "{}", nil
 	}
-	b, err := json.Marshal(m)
+	b, err := json.Marshal(map[string]entities.RefreshSessionEntry(m))
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +41,10 @@ func (m *RefreshTokenSessionMap) Scan(src any) error {
 		*m = RefreshTokenSessionMap{}
 		return nil
 	}
-	out := make(RefreshTokenSessionMap)
+	out := make(entities.RefreshTokenSessionMap)
 	if err := json.Unmarshal(b, &out); err != nil {
 		return err
 	}
-	*m = out
+	*m = RefreshTokenSessionMap(out)
 	return nil
 }

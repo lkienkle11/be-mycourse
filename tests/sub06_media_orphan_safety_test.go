@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"mycourse-io-be/constants"
+	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
-	svcmedia "mycourse-io-be/services/media"
 )
 
 func TestContentFingerprint_deterministic(t *testing.T) {
@@ -72,13 +72,13 @@ func TestEnqueueOrphanCleanupForMediaFileRow_LocalNoop(t *testing.T) {
 		Provider:  constants.FileProviderLocal,
 		ObjectKey: "local-key",
 	}
-	if svcmedia.EnqueueOrphanCleanupForMediaFileRow(row) {
+	if jobmedia.EnqueueOrphanCleanupForMediaFileRow(row) {
 		t.Fatal("local provider must not enqueue pending cleanup")
 	}
 }
 
 func TestEnqueueOrphanCleanupForMediaFileRow_Nil(t *testing.T) {
-	if svcmedia.EnqueueOrphanCleanupForMediaFileRow(nil) {
+	if jobmedia.EnqueueOrphanCleanupForMediaFileRow(nil) {
 		t.Fatal("nil row is noop")
 	}
 }

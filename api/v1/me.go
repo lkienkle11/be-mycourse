@@ -76,5 +76,5 @@ func getMyPermissions(c *gin.Context) {
 		list = append(list, code)
 	}
 	sort.Strings(list)
-	response.OK(c, "ok", list)
+	response.OK(c, "ok", dto.MyPermissionsResponse{Permissions: list})
 }

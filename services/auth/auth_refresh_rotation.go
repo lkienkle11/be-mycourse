@@ -12,12 +12,11 @@ import (
 	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/setting"
-	"mycourse-io-be/pkg/sqlmodel"
 	"mycourse-io-be/pkg/token"
 	"mycourse-io-be/repository"
 )
 
-func refreshTTLForRotation(entry sqlmodel.RefreshSessionEntry) (time.Duration, error) {
+func refreshTTLForRotation(entry entities.RefreshSessionEntry) (time.Duration, error) {
 	if entry.RememberMe {
 		return constants.RememberMeRefreshTTL, nil
 	}
@@ -28,7 +27,7 @@ func refreshTTLForRotation(entry sqlmodel.RefreshSessionEntry) (time.Duration, e
 	return ttl, nil
 }
 
-func rotateRefreshSessionTokens(user models.User, sessionStr string, entry sqlmodel.RefreshSessionEntry, newRefreshTTL time.Duration) (entities.TokenPairResult, error) {
+func rotateRefreshSessionTokens(user models.User, sessionStr string, entry entities.RefreshSessionEntry, newRefreshTTL time.Duration) (entities.TokenPairResult, error) {
 	secret := setting.AppSetting.JWTSecret
 	newUUID := uuid.New().String()
 	perms, permErr := userPermissionSlice(user.ID)
@@ -43,7 +42,7 @@ func rotateRefreshSessionTokens(user models.User, sessionStr string, entry sqlmo
 	if err != nil {
 		return entities.TokenPairResult{}, err
 	}
-	updatedEntry := sqlmodel.RefreshSessionEntry{
+	updatedEntry := entities.RefreshSessionEntry{
 		RefreshTokenUUID:    newUUID,
 		RememberMe:          entry.RememberMe,
 		RefreshTokenExpired: time.Now().Add(newRefreshTTL),
@@ -59,28 +58,28 @@ func rotateRefreshSessionTokens(user models.User, sessionStr string, entry sqlmo
 	}, nil
 }
 
-func refreshLoadUserAndEntry(sessionStr, refreshTokenStr string) (models.User, sqlmodel.RefreshSessionEntry, error) {
+func refreshLoadUserAndEntry(sessionStr, refreshTokenStr string) (models.User, entities.RefreshSessionEntry, error) {
 	secret := setting.AppSetting.JWTSecret
 	refreshClaims, err := token.ParseRefreshIgnoreExpiry(secret, refreshTokenStr)
 	if err != nil {
-		return models.User{}, sqlmodel.RefreshSessionEntry{}, pkgerrors.ErrInvalidSession
+		return models.User{}, entities.RefreshSessionEntry{}, pkgerrors.ErrInvalidSession
 	}
 	var user models.User
 	if dbErr := models.DB.Preload("AvatarFile").First(&user, refreshClaims.UserID).Error; dbErr != nil {
 		if errors.Is(dbErr, gorm.ErrRecordNotFound) {
-			return models.User{}, sqlmodel.RefreshSessionEntry{}, pkgerrors.ErrUserNotFound
+			return models.User{}, entities.RefreshSessionEntry{}, pkgerrors.ErrUserNotFound
 		}
-		return models.User{}, sqlmodel.RefreshSessionEntry{}, dbErr
+		return models.User{}, entities.RefreshSessionEntry{}, dbErr
 	}
 	if user.IsDisable {
-		return models.User{}, sqlmodel.RefreshSessionEntry{}, pkgerrors.ErrUserDisabled
+		return models.User{}, entities.RefreshSessionEntry{}, pkgerrors.ErrUserDisabled
 	}
 	entry, ok := user.RefreshTokenSession[sessionStr]
 	if !ok || entry.RefreshTokenUUID != refreshClaims.UUID {
-		return models.User{}, sqlmodel.RefreshSessionEntry{}, pkgerrors.ErrInvalidSession
+		return models.User{}, entities.RefreshSessionEntry{}, pkgerrors.ErrInvalidSession
 	}
 	if time.Now().After(entry.RefreshTokenExpired) {
-		return models.User{}, sqlmodel.RefreshSessionEntry{}, pkgerrors.ErrRefreshTokenExpired
+		return models.User{}, entities.RefreshSessionEntry{}, pkgerrors.ErrRefreshTokenExpired
 	}
 	return user, entry, nil
 }

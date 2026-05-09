@@ -20,6 +20,27 @@ type UpdateFileRequest struct {
 	SkipUploadIfUnchanged bool           `json:"skip_upload_if_unchanged"`
 }
 
+type BatchDeleteMediaFilesRequest struct {
+	ObjectKeys []string `json:"object_keys" binding:"required"`
+}
+
+// BatchDeleteMediaFilesResponse is returned after a successful batch delete.
+type BatchDeleteMediaFilesResponse struct {
+	DeletedCount int `json:"deleted_count"`
+}
+
+// LocalURLDecodeResponse is returned by GET .../media/files/local/:token.
+type LocalURLDecodeResponse struct {
+	ObjectKey string `json:"object_key"`
+}
+
+// MediaCleanupMetricsResponse exposes orphan cleanup worker counters (GET .../cleanup-metrics).
+type MediaCleanupMetricsResponse struct {
+	CleanupCloudDeleted uint64 `json:"cleanup_cloud_deleted"`
+	CleanupCloudFailed  uint64 `json:"cleanup_cloud_failed"`
+	CleanupCloudRetried uint64 `json:"cleanup_cloud_retried"`
+}
+
 type UploadFileResponse struct {
 	ID                 string             `json:"id,omitempty"`
 	Kind               string             `json:"kind,omitempty"`

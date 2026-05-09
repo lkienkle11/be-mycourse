@@ -12,6 +12,7 @@ import (
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/requestutil"
 	"mycourse-io-be/pkg/response"
@@ -29,7 +30,7 @@ func listUserRolesInternal(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", rows)
+	response.OK(c, "ok", mapping.ToRBACRoleResponses(rows))
 }
 
 func listUserPermissionsInternal(c *gin.Context) {
@@ -48,7 +49,7 @@ func listUserPermissionsInternal(c *gin.Context) {
 		list = append(list, code)
 	}
 	sort.Strings(list)
-	response.OK(c, "ok", list)
+	response.OK(c, "ok", dto.UserRBACPermissionCodesResponse{PermissionCodes: list})
 }
 
 func assignUserRoleInternal(c *gin.Context) {
@@ -102,7 +103,7 @@ func listUserDirectPermissionsInternal(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", rows)
+	response.OK(c, "ok", mapping.ToRBACPermissionResponses(rows))
 }
 
 func assignUserPermissionInternal(c *gin.Context) {

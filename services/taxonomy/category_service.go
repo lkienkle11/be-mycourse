@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/dto"
+	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/logic/mapping"
 	repo "mycourse-io-be/repository/taxonomy"
@@ -90,7 +91,7 @@ func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*dto.CategoryRespon
 
 	nextFileID := categoryImageFileIDString(row)
 	if req.ImageFileID != nil && prevFileID != "" && prevFileID != nextFileID {
-		mediasvc.EnqueueOrphanCleanupForMediaFileID(prevFileID)
+		jobmedia.EnqueueOrphanCleanupForMediaFileID(prevFileID)
 	}
 
 	out, err := r.GetCategoryByID(id)
@@ -112,7 +113,7 @@ func DeleteCategory(id uint) error {
 		return err
 	}
 	if imageFID != "" {
-		mediasvc.EnqueueOrphanCleanupForMediaFileID(imageFID)
+		jobmedia.EnqueueOrphanCleanupForMediaFileID(imageFID)
 	}
 	return nil
 }

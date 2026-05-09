@@ -10,14 +10,14 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dbschema"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
-	"mycourse-io-be/pkg/sqlmodel"
 )
 
 // SaveRefreshSession atomically updates a single existing session entry inside
 // users.refresh_token_session using PostgreSQL's jsonb_set.
 // Use this for in-place rotation (the session key stays the same, only metadata changes).
-func SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error {
+func SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry entities.RefreshSessionEntry) error {
 	if db == nil {
 		return pkgerrors.ErrNilDatabase
 	}
@@ -37,7 +37,7 @@ func SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmo
 	).Error
 }
 
-func pickOldestRefreshSessionKey(sessions sqlmodel.RefreshTokenSessionMap) string {
+func pickOldestRefreshSessionKey(sessions entities.RefreshTokenSessionMap) string {
 	oldestKey := ""
 	var oldestExpiry time.Time
 	first := true
@@ -51,9 +51,9 @@ func pickOldestRefreshSessionKey(sessions sqlmodel.RefreshTokenSessionMap) strin
 	return oldestKey
 }
 
-func mergeNewRefreshSession(sessions sqlmodel.RefreshTokenSessionMap, sessionStr string, entry sqlmodel.RefreshSessionEntry) sqlmodel.RefreshTokenSessionMap {
+func mergeNewRefreshSession(sessions entities.RefreshTokenSessionMap, sessionStr string, entry entities.RefreshSessionEntry) entities.RefreshTokenSessionMap {
 	if sessions == nil {
-		sessions = sqlmodel.RefreshTokenSessionMap{}
+		sessions = entities.RefreshTokenSessionMap{}
 	}
 	if _, exists := sessions[sessionStr]; !exists && len(sessions) >= constants.MaxActiveSessions {
 		delete(sessions, pickOldestRefreshSessionKey(sessions))
@@ -67,7 +67,7 @@ func mergeNewRefreshSession(sessions sqlmodel.RefreshTokenSessionMap, sessionStr
 // RefreshTokenExpired is earliest is evicted first.
 // The entire operation runs inside a transaction to prevent concurrent logins from
 // exceeding the limit.
-func AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error {
+func AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry entities.RefreshSessionEntry) error {
 	if db == nil {
 		return pkgerrors.ErrNilDatabase
 	}
@@ -78,7 +78,7 @@ func AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmod
 			First(&u).Error; err != nil {
 			return err
 		}
-		sessions := mergeNewRefreshSession(u.RefreshTokenSession, sessionStr, entry)
+		sessions := mergeNewRefreshSession(entities.RefreshTokenSessionMap(u.RefreshTokenSession), sessionStr, entry)
 		data, err := json.Marshal(sessions)
 		if err != nil {
 			return err

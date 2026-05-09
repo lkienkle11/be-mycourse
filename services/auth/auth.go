@@ -134,7 +134,8 @@ func completeLoginSuccess(ctx context.Context, normEmail string, user models.Use
 		return entities.TokenPairResult{}, err
 	}
 	authcache.DelLoginInvalidCache(ctx, normEmail)
-	if me, berr := buildMeResponseForCache(user); berr == nil {
+	if perms, perr := userPermissionSlice(user.ID); perr == nil {
+		me := mapping.BuildMeResponseFromUser(user, perms)
 		authcache.SetCachedUserMe(ctx, me)
 	}
 	return result, nil
@@ -174,14 +175,6 @@ func ConfirmEmail(confirmToken string) (entities.TokenPairResult, error) {
 	return issueTokenPair(user, false, constants.RefreshTokenTTL)
 }
 
-func buildMeResponseForCache(user models.User) (*dto.MeResponse, error) {
-	perms, err := userPermissionSlice(user.ID)
-	if err != nil {
-		return nil, err
-	}
-	return mapping.BuildMeResponseFromUser(user, perms), nil
-}
-
 // GetMe returns essential (non-sensitive) profile info for the given user along
 // with their current permission codes.
 func GetMe(userID uint) (*dto.MeResponse, error) {
@@ -198,10 +191,11 @@ func GetMe(userID uint) (*dto.MeResponse, error) {
 		return nil, err
 	}
 
-	me, err := buildMeResponseForCache(user)
+	perms, err := userPermissionSlice(user.ID)
 	if err != nil {
 		return nil, err
 	}
+	me := mapping.BuildMeResponseFromUser(user, perms)
 	authcache.SetCachedUserMe(ctx, me)
 	return me, nil
 }

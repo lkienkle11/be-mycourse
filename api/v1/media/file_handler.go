@@ -2,7 +2,6 @@ package media
 
 import (
 	"errors"
-	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -10,6 +9,8 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
+	jobmedia "mycourse-io-be/internal/jobs/media"
+	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/logic/mapping"
@@ -52,48 +53,59 @@ func getFile(c *gin.Context) {
 	response.OK(c, "ok", mapping.ToUploadFileResponse(*row))
 }
 
-// openMultipartFileField binds one multipart file and enforces maxBytes when Size is known.
-func openMultipartFileField(c *gin.Context, field string, maxBytes int64) (multipart.File, *multipart.FileHeader, bool) {
-	upload, err := c.FormFile(field)
+func parseAndOpenMultipartParts(c *gin.Context) ([]entities.OpenedUploadPart, func(), error) {
+	if err := c.Request.ParseMultipartForm(constants.MediaMultipartParseMemoryBytes); err != nil {
+		return nil, nil, err
+	}
+	form := c.Request.MultipartForm
+	headers := pkgmedia.CollectMultipartFileHeaders(form)
+	if err := pkgmedia.ValidateMultipartFileHeaders(headers); err != nil {
+		return nil, nil, err
+	}
+	parts, err := pkgmedia.OpenUploadParts(headers)
 	if err != nil {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "file is required (multipart field: "+field+")", nil)
-		return nil, nil, false
+		return nil, nil, err
 	}
-	if upload.Size >= 0 && upload.Size > maxBytes {
-		response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
-		return nil, nil, false
-	}
-	file, err := upload.Open()
+	closer := func() { pkgmedia.CloseOpenedUploadParts(parts) }
+	return parts, closer, nil
+}
+
+func bindUpdateAndCreateMultipart(c *gin.Context) (dto.UpdateFileRequest, dto.CreateFileRequest, error) {
+	updateReq, err := mapping.BindUpdateFileMultipart(c)
 	if err != nil {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "cannot open uploaded file", nil)
+		return dto.UpdateFileRequest{}, dto.CreateFileRequest{}, err
+	}
+	createReq, err := mapping.BindCreateFileMultipart(c)
+	return updateReq, createReq, err
+}
+
+func openMultipartForMutation(c *gin.Context) ([]entities.OpenedUploadPart, func(), bool) {
+	parts, closer, err := parseAndOpenMultipartParts(c)
+	if err != nil {
+		if respondMultipartValidationError(c, err) {
+			return nil, nil, false
+		}
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return nil, nil, false
 	}
-	return file, upload, true
+	return parts, closer, true
 }
 
 func createFile(c *gin.Context) {
-	upload, err := c.FormFile("file")
-	if err != nil {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "file is required (multipart field: file)", nil)
+	parts, closer, ok := openMultipartForMutation(c)
+	if !ok {
 		return
 	}
-	if upload.Size >= 0 && upload.Size > constants.MaxMediaUploadFileBytes {
-		response.Fail(c, http.StatusRequestEntityTooLarge, errcode.FileTooLarge, errcode.DefaultMessage(errcode.FileTooLarge), nil)
-		return
+	if closer != nil {
+		defer closer()
 	}
-	file, err := upload.Open()
-	if err != nil {
-		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, "cannot open uploaded file", nil)
-		return
-	}
-	defer func() { _ = file.Close() }()
 
-	req, err := pkgmedia.BindCreateFileMultipart(c)
+	req, err := mapping.BindCreateFileMultipart(c)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	row, err := mediaservice.CreateFile(req, file, upload)
+	rows, err := mediaservice.CreateFiles(req, parts)
 	if err != nil {
 		if respondMediaMutationError(c, err, true) {
 			return
@@ -101,7 +113,7 @@ func createFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.Created(c, "created", mapping.ToUploadFileResponse(*row))
+	response.Created(c, "created", mapping.ToUploadFileResponsesFromPointers(rows))
 }
 
 func updateFile(c *gin.Context) {
@@ -111,18 +123,20 @@ func updateFile(c *gin.Context) {
 		return
 	}
 
-	file, upload, ok := openMultipartFileField(c, "file", constants.MaxMediaUploadFileBytes)
+	parts, closer, ok := openMultipartForMutation(c)
 	if !ok {
 		return
 	}
-	defer func() { _ = file.Close() }()
+	if closer != nil {
+		defer closer()
+	}
 
-	req, err := pkgmedia.BindUpdateFileMultipart(c)
+	updateReq, createReq, err := bindUpdateAndCreateMultipart(c)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	row, err := mediaservice.UpdateFile(objectKey, req, file, upload)
+	rows, err := mediaservice.UpdateFileBundle(objectKey, updateReq, createReq, parts)
 	if err != nil {
 		if respondMediaMutationError(c, err, false) {
 			return
@@ -130,7 +144,32 @@ func updateFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "updated", mapping.ToUploadFileResponse(*row))
+	response.OK(c, "updated", mapping.ToUploadFileResponsesFromPointers(rows))
+}
+
+func batchDeleteMediaFiles(c *gin.Context) {
+	var req dto.BatchDeleteMediaFilesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, err.Error(), nil)
+		return
+	}
+	keys := req.ObjectKeys
+	if len(keys) == 0 {
+		response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, "object_keys must contain at least one object_key", nil)
+		return
+	}
+	if len(keys) > constants.MaxMediaBatchDelete {
+		response.Fail(c, http.StatusBadRequest, errcode.MediaBatchDeleteTooManyIDs, errcode.DefaultMessage(errcode.MediaBatchDeleteTooManyIDs), nil)
+		return
+	}
+	if err := mediaservice.DeleteFilesByObjectKeys(keys); err != nil {
+		if respondBatchDeleteError(c, err) {
+			return
+		}
+		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
+		return
+	}
+	response.OK(c, "deleted", dto.BatchDeleteMediaFilesResponse{DeletedCount: len(keys)})
 }
 
 func deleteFile(c *gin.Context) {
@@ -162,7 +201,7 @@ func decodeLocalURL(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", gin.H{"object_key": objectKey})
+	response.OK(c, "ok", dto.LocalURLDecodeResponse{ObjectKey: objectKey})
 }
 
 func getVideoStatus(c *gin.Context) {
@@ -192,9 +231,9 @@ func getVideoStatus(c *gin.Context) {
 }
 
 func getMediaCleanupMetrics(c *gin.Context) {
-	response.OK(c, "ok", gin.H{
-		"cleanup_cloud_deleted": mediaservice.CleanupCloudDeleted.Load(),
-		"cleanup_cloud_failed":  mediaservice.CleanupCloudFailed.Load(),
-		"cleanup_cloud_retried": mediaservice.CleanupCloudRetried.Load(),
+	response.OK(c, "ok", dto.MediaCleanupMetricsResponse{
+		CleanupCloudDeleted: jobmedia.CleanupCloudDeleted.Load(),
+		CleanupCloudFailed:  jobmedia.CleanupCloudFailed.Load(),
+		CleanupCloudRetried: jobmedia.CleanupCloudRetried.Load(),
 	})
 }

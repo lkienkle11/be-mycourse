@@ -9,6 +9,7 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/entities"
+	"mycourse-io-be/pkg/logic/mapping"
 	pkgmedia "mycourse-io-be/pkg/media"
 )
 
@@ -23,7 +24,7 @@ func TestBindCreateFileMultipart_ignoresClientKindAndMetadata(t *testing.T) {
 		"object_key": []string{"abc"},
 	}
 
-	req, err := pkgmedia.BindCreateFileMultipart(c)
+	req, err := mapping.BindCreateFileMultipart(c)
 	if err != nil {
 		t.Fatalf("bind should accept metadata payload for backward-compat: %v", err)
 	}

@@ -1,6 +1,7 @@
 package media
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
@@ -44,6 +45,7 @@ func verifyBunnyWebhookSignature(c *gin.Context, rawBody []byte) bool {
 }
 
 func bunnyWebhook(c *gin.Context) {
+	fmt.Println("bunnyWebhook start readBunnyWebhookRawBody")
 	rawBody, ok := readBunnyWebhookRawBody(c)
 	if !ok {
 		return

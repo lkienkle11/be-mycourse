@@ -17,7 +17,7 @@ import (
 	"mycourse-io-be/repository"
 )
 
-func GetVideoStatus(ctx context.Context, videoGUID string) (*dto.VideoStatusResponse, error) {
+func GetVideoStatus(ctx context.Context, videoGUID string) (*entities.VideoProviderStatus, error) {
 	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func GetVideoStatus(ctx context.Context, videoGUID string) (*dto.VideoStatusResp
 	if err != nil {
 		return nil, err
 	}
-	return &dto.VideoStatusResponse{
+	return &entities.VideoProviderStatus{
 		Status: pkgmedia.BunnyStatusString(video.Status),
 	}, nil
 }

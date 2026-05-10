@@ -11,6 +11,7 @@ import (
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/pkg/validate"
 	"mycourse-io-be/services/auth"
@@ -33,7 +34,7 @@ func getMe(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "ok", me)
+	response.OK(c, "ok", mapping.ToMeResponseFromProfile(me))
 }
 
 // PATCH /api/v1/me — partial profile update (avatar_file_id).
@@ -59,7 +60,7 @@ func patchMe(c *gin.Context) {
 		}
 		return
 	}
-	response.OK(c, "ok", me)
+	response.OK(c, "ok", mapping.ToMeResponseFromProfile(me))
 }
 
 // GET /api/v1/me/permissions

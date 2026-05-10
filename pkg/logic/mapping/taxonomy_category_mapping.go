@@ -27,3 +27,13 @@ func ToCategoryResponseModels(rows []models.Category) []dto.CategoryResponse {
 	}
 	return out
 }
+
+// CategoryListHTTPPayload maps category rows to the list JSON payload (api/ must not import models — restrict_api).
+func CategoryListHTTPPayload(rows []models.Category) any {
+	return ToCategoryResponseModels(rows)
+}
+
+// CategoryRowHTTPPayload maps one category row to the create/update JSON payload.
+func CategoryRowHTTPPayload(row models.Category) any {
+	return ToCategoryResponseModel(row)
+}

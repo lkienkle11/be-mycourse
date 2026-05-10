@@ -227,7 +227,7 @@ func getVideoStatus(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", out)
+	response.OK(c, "ok", dto.VideoStatusResponse{Status: out.Status})
 }
 
 func getMediaCleanupMetrics(c *gin.Context) {

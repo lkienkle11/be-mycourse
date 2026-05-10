@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/dto"
 	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	authcache "mycourse-io-be/services/cache"
 	mediasvc "mycourse-io-be/services/media"
@@ -44,7 +45,7 @@ func maybeEnqueueReplacedAvatar(prev, next string) {
 }
 
 // UpdateMe applies PATCH /api/v1/me fields (currently avatar_file_id only).
-func UpdateMe(userID uint, req dto.UpdateMeRequest) (*dto.MeResponse, error) {
+func UpdateMe(userID uint, req dto.UpdateMeRequest) (*entities.MeProfile, error) {
 	ctx := context.Background()
 	if req.AvatarFileID == nil {
 		return GetMe(userID)

@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/constants"
-	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/brevo"
 	"mycourse-io-be/pkg/entities"
@@ -135,7 +134,7 @@ func completeLoginSuccess(ctx context.Context, normEmail string, user models.Use
 	}
 	authcache.DelLoginInvalidCache(ctx, normEmail)
 	if perms, perr := userPermissionSlice(user.ID); perr == nil {
-		me := mapping.BuildMeResponseFromUser(user, perms)
+		me := mapping.BuildMeProfileFromUser(user, perms)
 		authcache.SetCachedUserMe(ctx, me)
 	}
 	return result, nil
@@ -176,8 +175,8 @@ func ConfirmEmail(confirmToken string) (entities.TokenPairResult, error) {
 }
 
 // GetMe returns essential (non-sensitive) profile info for the given user along
-// with their current permission codes.
-func GetMe(userID uint) (*dto.MeResponse, error) {
+// with their current permission codes (service/domain shape — map to dto in handlers).
+func GetMe(userID uint) (*entities.MeProfile, error) {
 	ctx := context.Background()
 	if me, ok := authcache.GetCachedUserMe(ctx, userID); ok {
 		return me, nil
@@ -195,7 +194,7 @@ func GetMe(userID uint) (*dto.MeResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	me := mapping.BuildMeResponseFromUser(user, perms)
+	me := mapping.BuildMeProfileFromUser(user, perms)
 	authcache.SetCachedUserMe(ctx, me)
 	return me, nil
 }

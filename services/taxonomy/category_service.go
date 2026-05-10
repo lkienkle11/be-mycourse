@@ -6,20 +6,19 @@ import (
 	"mycourse-io-be/dto"
 	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
-	"mycourse-io-be/pkg/logic/mapping"
 	repo "mycourse-io-be/repository/taxonomy"
 	mediasvc "mycourse-io-be/services/media"
 )
 
-func ListCategories(filter dto.CategoryFilter) ([]dto.CategoryResponse, int64, error) {
+func ListCategories(filter dto.CategoryFilter) ([]models.Category, int64, error) {
 	rows, total, err := repo.NewCategoryRepository(models.DB).ListCategories(filter)
 	if err != nil {
 		return nil, 0, err
 	}
-	return mapping.ToCategoryResponseModels(rows), total, nil
+	return rows, total, nil
 }
 
-func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*dto.CategoryResponse, error) {
+func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*models.Category, error) {
 	fileID := strings.TrimSpace(req.ImageFileID)
 	if _, err := mediasvc.LoadValidatedProfileImageFile(fileID); err != nil {
 		return nil, err
@@ -41,11 +40,9 @@ func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*dto.CategoryR
 	}
 	out, err := r.GetCategoryByID(row.ID)
 	if err != nil {
-		dtoRow := mapping.ToCategoryResponseModel(*row)
-		return &dtoRow, nil
+		return row, nil
 	}
-	dtoRow := mapping.ToCategoryResponseModel(*out)
-	return &dtoRow, nil
+	return out, nil
 }
 
 func mutateCategoryImageFileID(row *models.Category, imageFileID *string) error {
@@ -71,7 +68,7 @@ func categoryImageFileIDString(row *models.Category) string {
 	return strings.TrimSpace(*row.ImageFileID)
 }
 
-func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*dto.CategoryResponse, error) {
+func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*models.Category, error) {
 	r := repo.NewCategoryRepository(models.DB)
 	row, err := r.GetCategoryByID(id)
 	if err != nil {
@@ -98,8 +95,7 @@ func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*dto.CategoryRespon
 	if err != nil {
 		return nil, err
 	}
-	dtoRow := mapping.ToCategoryResponseModel(*out)
-	return &dtoRow, nil
+	return out, nil
 }
 
 func DeleteCategory(id uint) error {

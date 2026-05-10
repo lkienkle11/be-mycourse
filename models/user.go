@@ -5,7 +5,6 @@ import (
 
 	"mycourse-io-be/dbschema"
 	gormjsonbauth "mycourse-io-be/pkg/gormjsonb/auth"
-	"mycourse-io-be/pkg/sqlmodel"
 )
 
 // User is the application user stored in the custom `users` table.
@@ -26,7 +25,7 @@ type User struct {
 	RefreshTokenSession gormjsonbauth.RefreshTokenSessionMap `gorm:"type:jsonb;not null;default:'{}'" json:"-"`
 	CreatedAt           time.Time                            `                                        json:"created_at"`
 	UpdatedAt           time.Time                            `                                        json:"updated_at"`
-	DeletedAt           sqlmodel.DeletedAt                   `gorm:"index"                            json:"deleted_at,omitempty"`
+	DeletedAt           DeletedAt                            `gorm:"index"                            json:"deleted_at,omitempty"`
 }
 
 func (User) TableName() string { return dbschema.AppUser.Table() }

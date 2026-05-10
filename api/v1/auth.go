@@ -64,10 +64,10 @@ func login(c *gin.Context) {
 	}
 
 	setAuthCookies(c, result.AccessToken, result.RefreshToken, result.SessionStr, result.RefreshTTL.Seconds())
-	response.OK(c, "login_success", gin.H{
-		"access_token":  result.AccessToken,
-		"refresh_token": result.RefreshToken,
-		"session_id":    result.SessionStr,
+	response.OK(c, "login_success", dto.LoginSessionTokensResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		SessionID:    result.SessionStr,
 	})
 }
 
@@ -91,10 +91,10 @@ func confirmEmail(c *gin.Context) {
 	}
 
 	setAuthCookies(c, result.AccessToken, result.RefreshToken, result.SessionStr, result.RefreshTTL.Seconds())
-	response.OK(c, "email_confirmed", gin.H{
-		"access_token":  result.AccessToken,
-		"refresh_token": result.RefreshToken,
-		"session_id":    result.SessionStr,
+	response.OK(c, "email_confirmed", dto.LoginSessionTokensResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		SessionID:    result.SessionStr,
 	})
 }
 
@@ -128,10 +128,10 @@ func refreshToken(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "token_refreshed", gin.H{
-		"access_token":  result.AccessToken,
-		"refresh_token": result.RefreshToken,
-		"session_id":    result.SessionStr,
+	response.OK(c, "token_refreshed", dto.LoginSessionTokensResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		SessionID:    result.SessionStr,
 	})
 }
 

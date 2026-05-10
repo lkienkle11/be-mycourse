@@ -114,7 +114,7 @@ linters:
             - pkg: "database/sql"
               desc: "AI Rule Violation: api/ MUST NOT use raw SQL database queries."
 
-        # Dumb entity files under models/ only (cf. taxonomy_category.go). Skipped: setup.go (DB bootstrap).
+        # Dumb entity files under models/ only (cf. taxonomy_category.go). Skipped: setup.go (DB bootstrap), deleted_at.go (GORM soft-delete alias).
         # Use models/*.go (not models/**/*.go): ** after models/ would skip files directly in models/.
         restrict_models_pkg_entity_schema_only:
           list-mode: lax
@@ -124,6 +124,7 @@ linters:
             - "**/pkg/entities/**/*.go"
             - "**/models/**/*.go"
             - "!**/models/setup.go"
+            - "!**/models/deleted_at.go"
           deny:
             - pkg: "gorm.io/gorm"
               desc: "AI Rule Violation: entity model file MUST NOT import gorm.io/gorm."

@@ -32,3 +32,16 @@ type MeResponse struct {
 type UpdateMeRequest struct {
 	AvatarFileID *string `json:"avatar_file_id" validate:"omitempty,uuid"`
 }
+
+// LoginSessionTokensResponse is the JSON data for login, email confirm, and refresh success
+// (tokens are also written to cookies).
+type LoginSessionTokensResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	SessionID    string `json:"session_id"`
+}
+
+// MyPermissionsResponse is the data payload for GET /api/v1/me/permissions.
+type MyPermissionsResponse struct {
+	Permissions []string `json:"permissions"`
+}

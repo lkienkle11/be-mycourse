@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "e5b4add63781b64966dd8e",
+    "_postman_id": "262e9f7f6d677ffea11093",
     "name": "MyCourse Backend API",
     "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\n\n\n**Auto-save tokens (Tests tab):**\n- After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).\n- After **System login** → `SYSTEM_TOKEN`.\nCreate/select an **Environment** in Apidog with the same variable names for best UX.\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -288,6 +288,44 @@
                 "v1",
                 "me"
               ]
+            }
+          }
+        },
+        {
+          "name": "Partial profile update (avatar_file_id)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/me",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
@@ -580,7 +618,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"string\",\n  \"slug\": \"string\",\n  \"image_file_id\": \"uuid\"\n}",
+              "raw": "{\n  \"name\": \"string\",\n  \"slug\": \"string\",\n  \"image_file_id\": \"string\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1183,7 +1221,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"video_library_id\": \"string\",\n  \"video_guid\": \"string\",\n  \"status\": 1\n}",
+              "raw": "{\n  \"VideoLibraryId\": 1,\n  \"VideoGuid\": \"string\",\n  \"Status\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"

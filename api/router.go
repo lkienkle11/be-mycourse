@@ -7,6 +7,7 @@ import (
 
 	apisystem "mycourse-io-be/api/system"
 	apiV1 "mycourse-io-be/api/v1"
+	"mycourse-io-be/constants"
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/httperr"
 	"mycourse-io-be/pkg/setting"
@@ -50,9 +51,9 @@ func mountAPIV1Tree(apiRoot *gin.RouterGroup) {
 func InitRouter() *gin.Engine {
 	router := gin.New()
 	// Multipart: keep only this much of each part in memory; larger bodies spill to temp files.
-	// Gin default is 32 MiB. Raising slightly reduces disk churn for medium files while staying far
-	// below the per-file upload cap enforced in handlers/services (see constants.MaxMediaUploadFileBytes in constants/error_msg.go).
-	router.MaxMultipartMemory = 64 << 20 // 64 MiB
+	// Per-request bodies up to the aggregate multi-file cap (see constants.MaxMediaMultipartTotalBytes)
+	// may be accepted when parts are streamed from disk; reverse proxies must still allow ≥ 2G (docs/deploy.md).
+	router.MaxMultipartMemory = constants.MediaMultipartParseMemoryBytes // must match handler ParseMultipartForm budget (see constants/error_msg.go)
 	router.Use(httperr.Middleware())
 	router.Use(httperr.Recovery())
 	router.Use(cors.New(ginDefaultCORS()))

@@ -22,7 +22,7 @@ Returns the non-sensitive profile fields for the authenticated user together wit
 **Auth:** Bearer JWT (required)  
 **Rate limit:** 120 requests / 1 minute
 
-**Response shape:** `dto.MeResponse` — when an avatar file is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** object (subset of `pkg/entities.File`: `id`, `kind`, `provider`, `filename`, `mime_type`, `size_bytes`, `width`, `height`, `url`, `duration`, `content_fingerprint`, `status`). Omitted when unset.
+**Response shape:** `dto.MeResponse` — when an avatar file is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** value (same underlying type as **`entities.MediaFilePublic`**: `id`, `kind`, `provider`, `filename`, `mime_type`, `size_bytes`, `width`, `height`, `url`, `duration`, `content_fingerprint`, `status`). Omitted when unset.
 
 ```json
 {
@@ -64,7 +64,7 @@ Updates the authenticated user’s profile fields. Currently supports **`avatar_
 
 ### `GET /api/v1/me/permissions`
 
-Returns a **sorted** list of permission code strings (`permission_name` values) granted to the authenticated user — via roles and direct grants.
+Returns a **sorted** list of permission code strings (`permission_name` values) granted to the authenticated user — via roles and direct grants — wrapped as **`dto.MyPermissionsResponse`** (`{ "permissions": [...] }`).
 
 **Auth:** Bearer JWT + `user:read` permission (required)  
 **Rate limit:** 120 requests / 1 minute
@@ -73,7 +73,7 @@ Returns a **sorted** list of permission code strings (`permission_name` values) 
 {
   "code": 0,
   "message": "ok",
-  "data": ["course:read", "profile:read", "user:read"]
+  "data": { "permissions": ["course:read", "profile:read", "user:read"] }
 }
 ```
 

@@ -46,3 +46,23 @@ func ToCourseLevelResponsesFromModels(rows []models.CourseLevel) []dto.CourseLev
 	}
 	return out
 }
+
+// TagListHTTPPayload maps tag rows to the list JSON payload (api/ must not import models).
+func TagListHTTPPayload(rows []models.Tag) any {
+	return ToTagResponsesFromModels(rows)
+}
+
+// TagRowHTTPPayload maps one tag row to the create/update JSON payload.
+func TagRowHTTPPayload(row models.Tag) any {
+	return ToTagResponseModel(row)
+}
+
+// CourseLevelListHTTPPayload maps course level rows to the list JSON payload.
+func CourseLevelListHTTPPayload(rows []models.CourseLevel) any {
+	return ToCourseLevelResponsesFromModels(rows)
+}
+
+// CourseLevelRowHTTPPayload maps one course level row to the create/update JSON payload.
+func CourseLevelRowHTTPPayload(row models.CourseLevel) any {
+	return ToCourseLevelResponseModel(row)
+}

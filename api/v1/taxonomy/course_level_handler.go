@@ -3,26 +3,20 @@ package taxonomy
 import (
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/logic/mapping"
 	taxonomyservice "mycourse-io-be/services/taxonomy"
 )
 
 func listCourseLevels(c *gin.Context) {
-	respondTaxonomyList(c, taxonomyservice.ListCourseLevels, func(rows []dto.CourseLevelResponse) any {
-		return rows
-	})
+	respondTaxonomyList(c, taxonomyservice.ListCourseLevels, mapping.CourseLevelListHTTPPayload)
 }
 
 func createCourseLevel(c *gin.Context) {
-	respondTaxonomyCreate(c, taxonomyservice.CreateCourseLevel, func(row dto.CourseLevelResponse) any {
-		return row
-	})
+	respondTaxonomyCreate(c, taxonomyservice.CreateCourseLevel, mapping.CourseLevelRowHTTPPayload)
 }
 
 func updateCourseLevel(c *gin.Context) {
-	respondTaxonomyUpdate(c, taxonomyservice.UpdateCourseLevel, func(row dto.CourseLevelResponse) any {
-		return row
-	})
+	respondTaxonomyUpdate(c, taxonomyservice.UpdateCourseLevel, mapping.CourseLevelRowHTTPPayload)
 }
 
 func deleteCourseLevel(c *gin.Context) {

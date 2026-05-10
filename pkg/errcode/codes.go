@@ -16,10 +16,15 @@ const (
 	InvalidJSON = 1001
 
 	// Validation (2xxx)
-	ValidationFailed         = 2001
-	ValidationField          = 2002 // used per-field in details when applicable
-	FileTooLarge             = 2003 // single-file upload exceeds cap; default message = constants.MsgFileTooLargeUpload (see messages.go)
-	ExecutableUploadRejected = 2004 // file extension or magic bytes match the executable/script denylist
+	ValidationFailed                = 2001
+	ValidationField                 = 2002 // used per-field in details when applicable
+	FileTooLarge                    = 2003 // single-file upload exceeds cap; default message = constants.MsgFileTooLargeUpload (see messages.go)
+	ExecutableUploadRejected        = 2004 // file extension or magic bytes match the executable/script denylist
+	MediaMultipartTotalTooLarge     = 2005 // sum of parts in one multipart request exceeds MaxMediaMultipartTotalBytes
+	MediaTooManyFilesInRequest      = 2006 // more than MaxMediaFilesPerRequest file parts
+	MediaFilesRequired              = 2007 // zero file parts on create/update
+	MediaBatchDeleteTooManyIDs      = 2008 // batch delete lists more than MaxMediaBatchDelete keys
+	MediaDuplicateKeysInBatchDelete = 2009 // duplicate object keys in batch delete JSON body
 
 	// Client / HTTP-shaped (3xxx) — align loosely with HTTP family
 	BadRequest      = 3001

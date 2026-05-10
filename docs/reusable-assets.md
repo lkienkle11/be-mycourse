@@ -4,7 +4,7 @@
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql`).
-- GORM / JSONB **column** types belong in **`pkg/sqlmodel`**.
+- GORM / JSONB **column** types for model fields: refresh-session JSONB in **`pkg/gormjsonb/auth`**, soft-delete **`DeletedAt`** alias in **`models/deleted_at.go`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Global Constants Placement Rule (Mandatory)
@@ -40,10 +40,10 @@
 ### Asset: issueTokenPair / RefreshSession
 - Name: `issueTokenPair`, `RefreshSession`
 - Type: Function (auth service)
-- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session map + soft-delete column types in `pkg/sqlmodel/refresh_session.go` + `pkg/sqlmodel/deleted_at.go`
+- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session entry shape in **`pkg/entities/refresh_session.go`**, JSONB column **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth/refresh_token_session_map.go`**, soft-delete alias in **`models/deleted_at.go`**
 - Purpose: Token issue/rotation and session persistence management.
 - Scope: Any auth/session extension features.
-- Dependencies: `pkg/token`, `pkg/sqlmodel`, `constants` (TTLs), `models`, `repository`, `services/cache`, RBAC permission resolver.
+- Dependencies: `pkg/token`, `constants` (TTLs), `models`, `repository`, `services/cache`, RBAC permission resolver.
 - Current Usage: auth register/login/confirm/refresh flows.
 - Reuse Opportunity:
   - Reuse unchanged for newly protected domain APIs.
@@ -87,12 +87,21 @@
 - Name: `MeResponse`
 - Type: Type/DTO
 - Path: `dto/auth.go`
-- Purpose: Canonical user self payload for auth/me endpoints.
-- Scope: User profile/session related flows.
-- Dependencies: Auth service builders and cache serializer.
-- Current Usage: `services/auth/auth.go`, `services/cache/auth_user.go`, `api/v1/me.go`.
+- Purpose: HTTP JSON contract for **`GET/PATCH /api/v1/me`** (handler boundary only).
+- Scope: User profile/session related API responses.
+- Dependencies: Built from **`entities.MeProfile`** via **`mapping.ToMeResponseFromProfile`**.
+- Current Usage: `api/v1/me.go` (response envelope only).
 - Reuse Opportunity:
-  - Reuse for profile reads and permission-aware user summary payloads.
+  - Keep transport-only; services/cache use **`entities.MeProfile`**.
+
+### Asset: MeProfile (service + cache shape)
+- Name: `MeProfile` (avatar uses **`entities.MediaFilePublic`** — same type as **`dto.MediaFilePublic`** via alias)
+- Type: Type/Entity
+- Path: `pkg/entities/me_profile.go`, `pkg/entities/media_file_public.go`
+- Purpose: Non-DTO user self projection for **`services/auth`** and Redis **`/me`** cache. **`Avatar`** is **`*entities.MediaFilePublic`** (JSON identical to API — **`dto.MediaFilePublic`** is a type alias).
+- Scope: Auth read path + cache serialize/deserialize.
+- Dependencies: **`pkg/entities` only** in the struct definitions; **`dto`** re-exports **`MediaFilePublic`** for handler/DTO field names.
+- Current Usage: `services/auth/auth.go`, `services/auth/me_update.go`, `services/cache/auth_user.go`; built by **`mapping.BuildMeProfileFromUser`**.
 
 ## Utility / Helper Assets
 
@@ -194,13 +203,13 @@
 - Reuse Opportunity: Any new writer of `metadata_json` for Bunny should import these constants.
 
 ### Asset: Mapping helpers for API DTO contracts
-- Name: `ToUploadFileResponse`, `ToCategoryResponse`, `ToCourseLevelResponse`, `ToTagResponse` (+ slice variants)
+- Name: `ToUploadFileResponse`, model→DTO taxonomy mappers, **`CategoryListHTTPPayload`**, **`CategoryRowHTTPPayload`**, **`TagListHTTPPayload`**, **`TagRowHTTPPayload`**, **`CourseLevelListHTTPPayload`**, **`CourseLevelRowHTTPPayload`**, **`BuildMeProfileFromUser`**, **`ToMeResponseFromProfile`**
 - Type: Util/Helper
-- Path: `pkg/logic/mapping/media_file_mapping.go`, `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/taxonomy_course_level_mapping.go`, `pkg/logic/mapping/taxonomy_tag_mapping.go`
-- Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs. **`ToUploadFileResponse`** omits canonical origin from the public DTO (Sub 12 — no `origin_url` on `dto.UploadFileResponse`); internal `entities.File.OriginURL` / DB `origin_url` still store it for server use.
-- Scope: Media and taxonomy transport responses.
+- Path: `pkg/logic/mapping/media_file_mapping.go`, `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/taxonomy_model_mapping.go`, `pkg/logic/mapping/taxonomy_course_level_mapping.go`, `pkg/logic/mapping/taxonomy_tag_mapping.go`, `pkg/logic/mapping/auth_me_mapping.go`
+- Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs. Taxonomy **`HTTPPayload`** helpers let **`api/v1/taxonomy/*_handler.go`** stay free of **`models`** imports (**`restrict_api`**). **`ToUploadFileResponse`** omits canonical origin from the public DTO (Sub 12 — no `origin_url` on `dto.UploadFileResponse`); internal `entities.File.OriginURL` / DB `origin_url` still store it for server use.
+- Scope: Media and taxonomy transport responses; auth /me service→handler bridge.
 - Dependencies: `dto`, `models`, `pkg/entities`.
-- Current Usage: `api/v1/media/file_handler.go`, `api/v1/taxonomy/*_handler.go`.
+- Current Usage: `api/v1/media/file_handler.go`, `api/v1/taxonomy/*_handler.go`, `api/v1/me.go`.
 - Reuse Opportunity:
   - Reuse for all upcoming domain handlers to enforce stable public API contracts.
 
@@ -276,7 +285,7 @@
 ### Asset: Multipart binders (media create/update)
 - Name: `BindCreateFileMultipart`, `BindUpdateFileMultipart`
 - Type: Helper (transport parsing)
-- Path: `pkg/media/media_multipart.go`
+- Path: `pkg/logic/mapping/multipart_gin_bind.go`
 - Purpose: Parse multipart text fields for backward-compat validation and bind allowed update controls (`reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`); client `kind`/`metadata` are intentionally ignored by service flow.
 - Scope: `api/v1/media/file_handler.go` only; keeps handlers thin.
 - Dependencies: `github.com/gin-gonic/gin`, `dto`, `pkg/logic/utils` (`ParseBoolLoose` for `skip_upload_if_unchanged`).
@@ -287,13 +296,13 @@
 - Path: `pkg/media/stored_object_delete.go`
 - Purpose: Route delete by provider (B2 key vs Bunny GUID vs local noop).
 - Scope: Delete compensation, pending cleanup worker, avoids duplicating switch in callers.
-- Current Usage: `services/media/file_service.go`, `services/media/pending_cleanup.go`.
+- Current Usage: `services/media/file_service.go`, `internal/jobs/media/media_pending_cleanup_batch.go`.
 
 ### Asset: Media cleanup worker scheduler
 - Name: `StartMediaPendingCleanupJob`, `StopMediaPendingCleanupJob`
-- Type: Job (`internal/jobs`)
-- Path: `internal/jobs/media_pending_cleanup_scheduler.go`
-- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `internal/jobs/rbac_sync_schedulers.go` (`syncJobBundle`).
+- Type: Job (`internal/jobs/media`)
+- Path: `internal/jobs/media/media_pending_cleanup_scheduler.go`
+- Purpose: In-memory ticker for deferred cloud deletes — **same mutex/cancel/waitgroup pattern** as `internal/jobs/rbac/rbac_sync_schedulers.go` (`syncJobBundle`).
 - Scope: Process-wide background loop; interval from `MEDIA_CLEANUP_INTERVAL_SEC` or `constants.MediaCleanupDefaultIntervalSec`.
 
 ### Asset: Media concurrency / reuse errors
@@ -408,7 +417,7 @@
 - Name: `GetCachedUserMe`, `SetCachedUserMe`, `LoginInvalidCached`, etc.
 - Type: Util/Helper
 - Path: `services/cache/auth_user.go`
-- Purpose: Cache-aside support for login and me endpoints.
+- Purpose: Cache-aside support for login and me endpoints; **`/me`** entries store **`entities.MeProfile`** JSON (same field JSON names as **`dto.MeResponse`**).
 - Scope: High-frequency identity reads and login flows.
 - Dependencies: `pkg/cache_clients`, Redis.
 - Current Usage: `services/auth/auth.go`.
@@ -671,7 +680,7 @@
 - Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, Gcore CDN + B2 bucket). Pure function — no I/O.
 - Scope: Orphan cleanup flows in any domain service that holds image URL strings.
 - Dependencies: `constants/media.go`, `pkg/logic/utils` (NormalizeBaseURL, JoinURLPathSegments), `pkg/setting`.
-- Current Usage: `services/media/orphan_cleanup.go`.
+- Current Usage: `internal/jobs/media/media_orphan_enqueue.go`.
 - Reuse Opportunity: Call whenever a stored image URL must be mapped back to a cloud object for deletion.
 
 ### Asset: ScanJSONBForImageURLs
@@ -686,18 +695,18 @@
 
 ### Asset: EnqueueOrphanImageCleanup
 - Name: `EnqueueOrphanImageCleanup`
-- Type: Function (service)
-- Path: `services/media/orphan_cleanup.go`
+- Type: Function (enqueue helper)
+- Path: `internal/jobs/media/media_orphan_enqueue.go`
 - Purpose: Single entry-point to schedule deferred cloud-object deletion for any **plain image URL** field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
 - Scope: Legacy URL fields, JSONB-harvested URLs (`ScanJSONBForImageURLs`), future course cover strings — **not** used for taxonomy/user after Sub 14 (those use **`EnqueueOrphanCleanupForMediaFileID`**).
-- Dependencies: `services/media.mediaRepository()`, **`pkg/media.ParseImageURLForOrphanCleanup`**, `constants/media.go`, `models`.
+- Dependencies: `repository.FileRepository`, **`pkg/media.ParseImageURLForOrphanCleanup`**, `constants/media.go`, `models`.
 - Current Usage: Reserved for URL-shaped domains; see `docs/data-flow.md` (Sub 07 path).
 - Reuse Opportunity: Wire into every future service that stores a **URL string** (not `media_files` FK) on delete/update.
 
 ### Asset: EnqueueOrphanCleanupForMediaFileID
 - Name: `EnqueueOrphanCleanupForMediaFileID` / `EnqueueOrphanCleanupForMediaFileRow`
-- Type: Function (service)
-- Path: `services/media/orphan_cleanup.go`
+- Type: Function (enqueue helper)
+- Path: `internal/jobs/media/media_orphan_enqueue.go`
 - Purpose: Schedule **`media_pending_cloud_cleanup`** from a **`media_files.id`** (or in-memory row) after a referencing FK is cleared or the parent entity is deleted.
 - Current Usage: `services/taxonomy/category_service.go`, `services/auth/me_update.go`, `services/auth/user_delete.go`.
 
@@ -713,7 +722,7 @@
 - Name: `ToMediaFilePublicFromModel`, `ToMediaFilePublicFromEntity`, `ProfileImageFileAcceptable`
 - Type: Mapper / policy
 - Path: `pkg/logic/mapping/media_public_mapping.go`
-- Purpose: Build **`dto.MediaFilePublic`** for API responses; shared image-kind acceptance rules.
+- Purpose: Build **`entities.MediaFilePublic`** ( **`dto.MediaFilePublic`** alias) for API responses; shared image-kind acceptance rules.
 
 ### Asset: DelCachedUserMe
 - Name: `DelCachedUserMe`
@@ -729,7 +738,7 @@
 - Purpose: Find a non-deleted `media_files` row by its public URL or origin URL. Used by orphan cleanup to resolve provider/key from a plain URL string.
 - Scope: Orphan cleanup and any future feature needing to look up a media row by URL.
 - Dependencies: GORM, `models.MediaFile`.
-- Current Usage: `services/media/orphan_cleanup.go`.
+- Current Usage: `internal/jobs/media/media_orphan_enqueue.go`.
 
 ## Gap Analysis (What Must Be Created Later)
 - Missing reusable domain DTO/model/service packages for:

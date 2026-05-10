@@ -396,7 +396,7 @@ curl -X PATCH {{BASE_URL}}/api/v1/me \
 
 **`GET /api/v1/me/permissions`**
 
-Returns the sorted list of permission codes (via roles + direct grants) for the authenticated user.  
+Returns the sorted list of permission codes (via roles + direct grants) for the authenticated user, wrapped as **`{ "permissions": [...] }`** in the envelope `data`.  
 Requires `user:read` (`P10`) permission.
 
 ```bash
@@ -409,7 +409,7 @@ curl -X GET {{BASE_URL}}/api/v1/me/permissions \
 {
   "code": 0,
   "message": "ok",
-  "data": ["course:read", "profile:read", "user:read"]
+  "data": { "permissions": ["course:read", "profile:read", "user:read"] }
 }
 ```
 
@@ -1047,7 +1047,7 @@ curl -X DELETE {{BASE_URL}}/api/internal-v1/rbac/users/42/roles/3 \
 
 **`GET /api/internal-v1/rbac/users/:userId/permissions`**
 
-Returns the **union** of permissions from all roles + direct grants (same as embedded in the JWT).
+Returns the **union** of permissions from all roles + direct grants (same as embedded in the JWT), wrapped as **`{ "permission_codes": [...] }`** in the envelope `data`.
 
 ```bash
 curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/users/42/permissions" \
@@ -1059,7 +1059,7 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/users/42/permissions" \
 {
   "code": 0,
   "message": "ok",
-  "data": ["course:read", "profile:read", "user:read"]
+  "data": { "permission_codes": ["course:read", "profile:read", "user:read"] }
 }
 ```
 
@@ -1208,16 +1208,26 @@ curl -X GET "{{BASE_URL}}/api/v1/media/files/cleanup-metrics" \
 
 **`POST /api/v1/media/files`** (multipart form-data)
 
-Form fields: `file` (required), optional `kind` (`FILE`/`VIDEO`), `object_key`, `metadata` (JSON string).
+Form fields: **`files`** (repeat **1–5** parts per request; legacy single **`file`** still works), optional `kind` (`FILE`/`VIDEO`), `object_key`, `metadata` (JSON string). Per-part max **2 GiB**, combined parts max **2 GiB** total — see `constants.MaxMediaUploadFileBytes`, `MaxMediaMultipartTotalBytes` (`docs/modules/media.md`).
 
-Success envelope `data` = **`dto.UploadFileResponse`** (no **`origin_url`** — Sub 12). Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
+Success envelope `data` = **array** of **`dto.UploadFileResponse`** (one per part; no **`origin_url`** — Sub 12). Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/media/files \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -F "file=@./sample.mp4" \
+  -F "files=@./sample.mp4" \
   -F "kind=VIDEO" \
   -F 'metadata={"duration":120.5}'
+```
+
+Optional second part in the same request:
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/media/files \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "files=@./a.png" \
+  -F "files=@./b.png" \
+  -F "kind=FILE"
 ```
 
 ### 11.4 Get file descriptor by object key
@@ -1236,14 +1246,29 @@ curl -G "{{BASE_URL}}/api/v1/media/files/my-key.png" \
 
 Optional form fields: `kind`, `metadata` (JSON string), `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`.
 
+Multipart **bundle**: **1–5** `files` parts — the **first** part updates the row `{objectKey}`; **additional** parts create **new** rows. Same aggregate size limits as POST (`docs/modules/media.md`).
+
 ```bash
 curl -X PUT "{{BASE_URL}}/api/v1/media/files/my-key.png" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -F "file=@./new-file.png" \
+  -F "files=@./new-file.png" \
   -F "kind=FILE"
 ```
 
-### 11.6 Delete media object
+### 11.6 Batch delete media objects
+
+**`POST /api/v1/media/files/batch-delete`** (JSON)
+
+Body: `{ "object_keys": ["<key1>", "..."] }` — **1–10** distinct keys, no duplicates. Same permission as single delete (`media_file:delete`). Response `data` includes **`deleted_count`**.
+
+```bash
+curl -X POST "{{BASE_URL}}/api/v1/media/files/batch-delete" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"object_keys":["key-a.png","key-b.png"]}'
+```
+
+### 11.7 Delete media object
 
 **`DELETE /api/v1/media/files/{objectKey}`**
 
@@ -1254,7 +1279,7 @@ curl -X DELETE "{{BASE_URL}}/api/v1/media/files/my-key.png" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-### 11.7 Decode local token
+### 11.8 Decode local token
 
 **`GET /api/v1/media/files/local/{token}`**
 
@@ -1263,7 +1288,7 @@ curl -X GET "{{BASE_URL}}/api/v1/media/files/local/<token>" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-### 11.8 Video processing status
+### 11.9 Video processing status
 
 **`GET /api/v1/media/videos/{videoGuid}/status`**
 

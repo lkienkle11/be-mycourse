@@ -7,10 +7,10 @@ import (
 
 	"gorm.io/gorm"
 
+	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	authcache "mycourse-io-be/services/cache"
-	mediasvc "mycourse-io-be/services/media"
 )
 
 // SoftDeleteUserWithAvatarCleanup soft-deletes the user (GORM DeletedAt) and schedules
@@ -33,7 +33,7 @@ func SoftDeleteUserWithAvatarCleanup(userID uint) error {
 	}
 	authcache.DelCachedUserMe(ctx, userID)
 	if avatarFID != "" {
-		mediasvc.EnqueueOrphanCleanupForMediaFileID(avatarFID)
+		jobmedia.EnqueueOrphanCleanupForMediaFileID(avatarFID)
 	}
 	return nil
 }

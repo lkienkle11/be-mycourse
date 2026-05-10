@@ -105,7 +105,7 @@ type PageInfo struct {
 ### `models.User`
 
 ```go
-// models/user.go — JSONB + soft-delete column types from pkg/sqlmodel (see depguard restrict_models_schema_only + restrict_models_pkg_entity_schema_only).
+// models/user.go — JSONB column type from pkg/gormjsonb/auth; soft-delete alias type in models/deleted_at.go (gorm import only there — see depguard restrict_models_pkg_entity_schema_only + !models/deleted_at.go).
 type User struct {
     ID                  uint                               `json:"id"`
     UserCode            string                             `json:"user_code"`       // UUIDv7
@@ -118,10 +118,10 @@ type User struct {
     EmailConfirmed      bool                               `json:"email_confirmed"`
     ConfirmationToken   *string                            `json:"-"`               // never serialized
     ConfirmationSentAt  *time.Time                         `json:"-"`               // never serialized
-    RefreshTokenSession sqlmodel.RefreshTokenSessionMap   `json:"-"`               // never serialized
+    RefreshTokenSession gormjsonbauth.RefreshTokenSessionMap   `json:"-"`               // never serialized
     CreatedAt           time.Time                          `json:"created_at"`
     UpdatedAt           time.Time                          `json:"updated_at"`
-    DeletedAt           sqlmodel.DeletedAt                 `json:"deleted_at,omitempty"`
+    DeletedAt           DeletedAt                          `json:"deleted_at,omitempty"`
 }
 ```
 
@@ -130,7 +130,7 @@ type User struct {
 Returned by `GET /api/v1/me`:
 
 ```go
-// dto/auth.go — nested avatar uses dto.MediaFilePublic (dto/media_public.go)
+// dto/auth.go — nested avatar uses dto.MediaFilePublic (type alias → pkg/entities/media_file_public.go)
 type MeResponse struct {
     UserID         uint               `json:"user_id"`
     UserCode       string             `json:"user_code"` // UUIDv7 string
@@ -221,9 +221,9 @@ type UserPermission struct {
 }
 ```
 
-### `sqlmodel.RefreshSessionEntry`
+### `entities.RefreshSessionEntry`
 
-Defined in **`pkg/sqlmodel/refresh_session.go`**. Stored as JSONB in `users.refresh_token_session`:
+Defined in **`pkg/entities/refresh_session.go`**. Stored as JSONB object values inside `users.refresh_token_session` (map keyed by session id):
 
 ```go
 type RefreshSessionEntry struct {
@@ -232,6 +232,8 @@ type RefreshSessionEntry struct {
     RefreshTokenExpired time.Time `json:"refresh_token_expired"`
 }
 ```
+
+The JSONB **`Valuer`/`Scanner`** for the whole map column is **`gormjsonbauth.RefreshTokenSessionMap`** (`pkg/gormjsonb/auth/refresh_token_session_map.go`).
 
 ### `models.SystemAppConfig`
 
@@ -371,9 +373,9 @@ type AssignUserPermissionRequest struct {
 | `Login` | `Login(email, password string, rememberMe bool) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidCredentials`, `ErrEmailNotConfirmed`, `ErrUserDisabled`, or DB error |
 | `ConfirmEmail` | `ConfirmEmail(confirmToken string) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidConfirmToken` or DB error |
 | `RefreshSession` | `RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error)` in **`services/auth/auth_refresh_rotation.go`** | `TokenPairResult` on success; `ErrInvalidSession`, `ErrUserNotFound`, `ErrUserDisabled`, `ErrRefreshTokenExpired`, or DB error |
-| `GetMe` | `GetMe(userID uint) (*dto.MeResponse, error)` | `*dto.MeResponse` on success; `ErrUserNotFound` or DB error |
+| `GetMe` | `GetMe(userID uint) (*entities.MeProfile, error)` | `*entities.MeProfile` on success (HTTP handler maps via **`mapping.ToMeResponseFromProfile`**); `ErrUserNotFound` or DB error |
+| `UpdateMe` | `UpdateMe(userID uint, req dto.UpdateMeRequest) (*entities.MeProfile, error)` in **`services/auth/me_update.go`** | Same shape as **`GetMe`** after avatar update |
 | `issueTokenPair` _(internal)_ | `issueTokenPair(user User, rememberMe bool, refreshTTL time.Duration) (TokenPairResult, error)` | `TokenPairResult` or error |
-| `buildMeResponseForCache` _(internal)_ | `buildMeResponseForCache(user User) (*dto.MeResponse, error)` | `*dto.MeResponse` or error from `PermissionCodesForUser` |
 | `userPermissionSlice` _(internal)_ | `userPermissionSlice(userID uint) ([]string, error)` | Sorted `[]string` of `permission_name` values |
 
 **Sentinel errors:** defined in **`pkg/errors/auth.go`** using **`constants.MsgAuth*`** message constants (ruleguard / ST1005). **`services/auth`** returns those variables; **`api/v1`** compares with **`errors.Is(err, pkgerrors.ErrWeakPassword)`** (same pointer identity as `pkg/errors`).
@@ -453,8 +455,8 @@ All cache functions return nothing on error (graceful no-op):
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `SaveRefreshSession` | `SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error` | `nil` on success, DB error |
-| `AddRefreshSession` | `AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry sqlmodel.RefreshSessionEntry) error` | `nil` on success; DB error; evicts oldest session if cap (**`constants.MaxActiveSessions`**) is reached, inside a transaction |
+| `SaveRefreshSession` | `SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry entities.RefreshSessionEntry) error` | `nil` on success, DB error |
+| `AddRefreshSession` | `AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry entities.RefreshSessionEntry) error` | `nil` on success; DB error; evicts oldest session if cap (**`constants.MaxActiveSessions`**) is reached, inside a transaction |
 
 ---
 
@@ -627,7 +629,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `string[]` — sorted permission codes |
+| 200 | 0 | `{ "permissions": string[] }` — sorted permission codes |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` — missing `user:read` |
 | 500 | 9001 | `null` |
@@ -635,11 +637,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 **Success response:**
 
 ```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": ["course:read", "profile:read", "user:read"]
-}
+{ "code": 0, "message": "ok", "data": { "permissions": ["course:read", "profile:read", "user:read"] } }
 ```
 
 ---
@@ -814,7 +812,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `PaginatedData{ result: Permission[], page_info: PageInfo }` |
+| 200 | 0 | `PaginatedData{ result: dto.RBACPermissionResponse[], page_info: PageInfo }` |
 | 400 | 2001 | `null` — invalid query params |
 | 500 | 9001 | `null` |
 
@@ -843,7 +841,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 201 | 0 | `models.Permission` object |
+| 201 | 0 | `dto.RBACPermissionResponse` |
 | 400 | 3001 | `null` — validation / duplicate |
 | 500 | 9001 | `null` |
 
@@ -867,7 +865,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `models.Permission` object |
+| 200 | 0 | `dto.RBACPermissionResponse` |
 | 400 | 3001 | `null` — invalid ID or body |
 | 404 | 3004 | `null` — not found |
 | 500 | 9001 | `null` |
@@ -890,7 +888,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `Role[]` |
+| 200 | 0 | `dto.RBACRoleResponse[]` |
 | 500 | 9001 | `null` |
 
 **Success `data` (with `with_permissions=1`):**
@@ -920,7 +918,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 201 | 0 | `models.Role` object (without permissions) |
+| 201 | 0 | `dto.RBACRoleResponse` (without permissions) |
 | 400 | 3001 | `null` |
 | 500 | 9001 | `null` |
 
@@ -932,7 +930,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `models.Role` object |
+| 200 | 0 | `dto.RBACRoleResponse` |
 | 400 | 3001 | `null` — invalid ID |
 | 404 | 3004 | `null` — not found |
 | 500 | 9001 | `null` |
@@ -945,7 +943,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `models.Role` object (with `permissions` preloaded) |
+| 200 | 0 | `dto.RBACRoleResponse` (with `permissions` preloaded) |
 | 400 | 3001 | `null` |
 | 404 | 3004 | `null` |
 | 500 | 9001 | `null` |
@@ -958,7 +956,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `models.Role` object with `permissions` array |
+| 200 | 0 | `dto.RBACRoleResponse` with `permissions` array |
 | 400 | 3001 | `null` — unknown permission ID or body error |
 | 404 | 3004 | `null` — role not found |
 | 500 | 9001 | `null` |
@@ -979,7 +977,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `Role[]` (with `permissions` preloaded) |
+| 200 | 0 | `dto.RBACRoleResponse[]` (with `permissions` preloaded) |
 | 400 | 3001 | `null` — invalid userID |
 | 500 | 9001 | `null` |
 
@@ -989,12 +987,12 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `string[]` — sorted effective permission codes |
+| 200 | 0 | `{ "permission_codes": string[] }` — sorted effective permission codes |
 | 400 | 3001 | `null` |
 | 500 | 9001 | `null` |
 
 ```json
-{ "code": 0, "message": "ok", "data": ["course:read", "profile:read", "user:read"] }
+{ "code": 0, "message": "ok", "data": { "permission_codes": ["course:read", "profile:read", "user:read"] } }
 ```
 
 ---
@@ -1003,7 +1001,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `Permission[]` — direct grants only |
+| 200 | 0 | `dto.RBACPermissionResponse[]` — direct grants only |
 | 400 | 3001 | `null` |
 | 500 | 9001 | `null` |
 

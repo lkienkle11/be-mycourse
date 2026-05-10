@@ -1,4 +1,4 @@
-package jobs
+package jobmedia
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/repository"
-	mediasvc "mycourse-io-be/services/media"
 )
 
 var (
@@ -37,6 +36,7 @@ func mediaPendingCleanupIntervalFromEnv() time.Duration {
 	return time.Duration(sec) * time.Second
 }
 
+// StopMediaPendingCleanupJob stops the background pending-cleanup worker.
 func StopMediaPendingCleanupJob() {
 	mediaCleanupMu.Lock()
 	c := mediaCleanupCancel
@@ -49,6 +49,7 @@ func StopMediaPendingCleanupJob() {
 	mediaCleanupWG.Wait()
 }
 
+// StartMediaPendingCleanupJob starts (or replaces) the media pending cloud cleanup loop.
 func StartMediaPendingCleanupJob(db *gorm.DB) {
 	if db == nil {
 		log.Println("media-pending-cleanup-job: skipped (nil database)")
@@ -78,7 +79,7 @@ func StartMediaPendingCleanupJob(db *gorm.DB) {
 func runMediaPendingCleanupLoop(ctx context.Context, db *gorm.DB, interval time.Duration) {
 	runOnce := func() {
 		repo := repository.New(db).Media
-		mediasvc.ProcessPendingCleanupBatch(context.Background(), repo)
+		ProcessPendingCleanupBatch(context.Background(), repo)
 	}
 
 	runOnce()

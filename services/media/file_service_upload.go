@@ -75,11 +75,11 @@ func mediaUploadEntityInputForRowUpdate(
 	}
 }
 
-func runUpdateFileMultipartBody(repo *mediarepo.FileRepository, clients *entities.CloudClients, prevRow *models.MediaFile, req dto.UpdateFileRequest, file multipart.File, fileHeader *multipart.FileHeader) (*entities.File, error) {
+func runUpdateFileMultipartBody(repo *mediarepo.FileRepository, clients *entities.CloudClients, prevRow *models.MediaFile, req dto.UpdateFileRequest, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (*entities.File, error) {
 	prevRaw := entities.RawMetadata{}
 	_ = json.Unmarshal(prevRow.MetadataJSON, &prevRaw)
 
-	payload, filename, mime, err := readMultipartPayloadLimited(file, fileHeader)
+	payload, filename, mime, err := readMultipartPayloadLimited(file, fileHeader, remainingTotal)
 	if err != nil {
 		return nil, err
 	}

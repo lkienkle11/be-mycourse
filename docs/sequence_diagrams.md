@@ -360,7 +360,7 @@ sequenceDiagram
             SVC-->>H: ErrUserNotFound
             H-->>C: 404 {code:3004}
         end
-        SVC->>SVC: buildMeResponseForCache(user)
+        SVC->>SVC: userPermissionSlice + mapping.BuildMeProfileFromUser(user, perms)
         Note over SVC: calls PermissionCodesForUser(uid) → SQL UNION
         SVC->>Cache: SetCachedUserMe(ctx, meResponse)
         SVC-->>H: meResponse
@@ -401,7 +401,7 @@ sequenceDiagram
     SVC-->>H: map[string]struct{}
 
     H->>H: map → sorted []string
-    H-->>C: 200 {code:0, message:"ok", data:["course:read","profile:read","user:read",...]}
+    H-->>C: 200 {code:0, message:"ok", data:{permissions:["course:read","profile:read","user:read",...]}}
 ```
 
 ---
@@ -834,7 +834,7 @@ sequenceDiagram
         SVC->>DB: SQL UNION (via user_roles→role_permissions UNION user_permissions)
         DB-->>SVC: []string codes
         SVC-->>H: map[string]struct{} → sorted []string
-        H-->>C: 200 {code:0, message:"ok", data:["course:read","profile:read",...]}
+        H-->>C: 200 {code:0, message:"ok", data:{permission_codes:["course:read","profile:read",...]}}
     end
 
     alt Direct permissions only

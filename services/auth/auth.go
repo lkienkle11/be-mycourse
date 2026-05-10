@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/constants"
-	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/brevo"
 	"mycourse-io-be/pkg/entities"
@@ -134,7 +133,8 @@ func completeLoginSuccess(ctx context.Context, normEmail string, user models.Use
 		return entities.TokenPairResult{}, err
 	}
 	authcache.DelLoginInvalidCache(ctx, normEmail)
-	if me, berr := buildMeResponseForCache(user); berr == nil {
+	if perms, perr := userPermissionSlice(user.ID); perr == nil {
+		me := mapping.BuildMeProfileFromUser(user, perms)
 		authcache.SetCachedUserMe(ctx, me)
 	}
 	return result, nil
@@ -174,17 +174,9 @@ func ConfirmEmail(confirmToken string) (entities.TokenPairResult, error) {
 	return issueTokenPair(user, false, constants.RefreshTokenTTL)
 }
 
-func buildMeResponseForCache(user models.User) (*dto.MeResponse, error) {
-	perms, err := userPermissionSlice(user.ID)
-	if err != nil {
-		return nil, err
-	}
-	return mapping.BuildMeResponseFromUser(user, perms), nil
-}
-
 // GetMe returns essential (non-sensitive) profile info for the given user along
-// with their current permission codes.
-func GetMe(userID uint) (*dto.MeResponse, error) {
+// with their current permission codes (service/domain shape — map to dto in handlers).
+func GetMe(userID uint) (*entities.MeProfile, error) {
 	ctx := context.Background()
 	if me, ok := authcache.GetCachedUserMe(ctx, userID); ok {
 		return me, nil
@@ -198,10 +190,11 @@ func GetMe(userID uint) (*dto.MeResponse, error) {
 		return nil, err
 	}
 
-	me, err := buildMeResponseForCache(user)
+	perms, err := userPermissionSlice(user.ID)
 	if err != nil {
 		return nil, err
 	}
+	me := mapping.BuildMeProfileFromUser(user, perms)
 	authcache.SetCachedUserMe(ctx, me)
 	return me, nil
 }

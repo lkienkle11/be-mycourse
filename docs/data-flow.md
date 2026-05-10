@@ -38,7 +38,7 @@
 - Parses refresh token, validates session in DB JSONB, refreshes permission list, rotates token/session metadata.
 
 ### Me/Profile
-- `GET /api/v1/me` (JWT) -> `auth.GetMe` (`services/auth`).
+- `GET /api/v1/me` (JWT) -> `auth.GetMe` (`services/auth`) -> **`entities.MeProfile`**; **`api/v1/me.go`** maps to **`dto.MeResponse`** via **`mapping.ToMeResponseFromProfile`**.
 - Cache-first `me` fetch, fallback to DB + permission resolution, then cache write.
 
 ### Permission Check
@@ -47,7 +47,7 @@
 
 ### System Sync
 - `/api/system/*` routes (system token protected except login).
-- Trigger immediate RBAC sync (`internal/rbacsync`) or start/stop in-memory periodic jobs (`internal/jobs`).
+- Trigger immediate RBAC sync (`internal/rbacsync`) or start/stop in-memory periodic jobs (`internal/jobs/rbac`, `internal/jobs/media`, HTTP adapters in `internal/jobs/system`).
 
 ### Taxonomy CRUD
 - `/api/v1/taxonomy/*` (JWT + permission protected) → taxonomy handlers → taxonomy services → `repository/taxonomy` (GORM repos).
@@ -71,21 +71,21 @@
 - **Sub 11 upload pipeline (create/update):**
   - For **image files** (`pkg/media.IsImageMIMEOrExt`): acquire `utils.imageEncodeGate` slot, run `utils.EncodeWebP(payload)` (bimg/libvips, `CGO_ENABLED=1`), release slot. Payload, MIME, filename (`.webp`), and size updated before `uploadToProvider`. Encode failure → `ProviderError{Code: 9017}` → HTTP **503**.
   - For **non-image, non-video CREATE** files: first 16 bytes checked against extension + magic-byte denylist via `utils.IsExecutableUploadRejected`. Match → `ErrExecutableUploadRejected` → HTTP **400** + code **2004**.
-- Persisted rows live in `media_files`: `000003_media_metadata`, `000004_media_orphan_safety` (`row_version`, `content_fingerprint`, `media_pending_cloud_cleanup`), **`000005_media_bunny_response_fields`** (`video_id`, `thumbnail_url`, `embeded_html`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
+- Persisted rows live in `media_files`: `000003_media_metadata`, `000004_media_orphan_safety` (`row_version`, `content_fingerprint`, `media_pending_cloud_cleanup`), **`000005_media_bunny_response_fields`** (`video_id`, `thumbnail_url`, `embeded_html`). Replace uploads may enqueue superseded cloud objects into `media_pending_cloud_cleanup`; `internal/jobs/media/media_pending_cleanup_scheduler.go` processes deletes asynchronously (`main.go` starts the job after `config.InitSystem()`).
 - Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal `provider`; **no `origin_url` in JSON** (Sub 12); Bunny parity top-level fields when populated — `docs/modules/media.md`).
 
 ### Media Video Status + Webhook
-- `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
+- `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` (returns **`entities.VideoProviderStatus`**) -> handler maps to **`dto.VideoStatusResponse`** -> Bunny `GET /library/{libraryID}/videos/{guid}`.
 - Numeric Bunny status is normalized by **`pkg/media.BunnyStatusString(status)`** with `unknown` fallback for unsupported values.
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
 - Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); **`ApplyBunnyDetailToMetadata`** refreshes **`video_id` / `thumbnail_url` / `embeded_html`** in JSON and ORM columns; idempotent when DB row missing.
 
 ### Orphan Image Cleanup Flow (Sub 07 + Sub 14 FK path)
-- **URL-based (Sub 07):** `mediasvc.EnqueueOrphanImageCleanup(url)` — used for legacy URL fields and JSONB URL harvesting.
+- **URL-based (Sub 07):** `EnqueueOrphanImageCleanup` (**`internal/jobs/media`**) — used for legacy URL fields and JSONB URL harvesting.
   1. DB lookup via `repository/media.FileRepository.GetByURL` → uses stored provider/key.
   2. Fallback: **`pkg/media.ParseImageURLForOrphanCleanup`** parses URL by pattern (Bunny prefix or B2/CDN prefix from `MediaSetting`).
   3. Inserts `media_pending_cloud_cleanup` row for deferred worker deletion.
-- **FK-based (Sub 14):** taxonomy categories and user avatars store **`image_file_id`** / **`avatar_file_id`** → `media_files.id`. On **replace** or **delete**, `mediasvc.EnqueueOrphanCleanupForMediaFileID` loads the row and enqueues the same pending cleanup pipeline (skips **Local** provider rows with no cloud object).
+- **FK-based (Sub 14):** taxonomy categories and user avatars store **`image_file_id`** / **`avatar_file_id`** → `media_files.id`. On **replace** or **delete**, `EnqueueOrphanCleanupForMediaFileID` (**`internal/jobs/media`**) loads the row and enqueues the same pending cleanup pipeline (skips **Local** provider rows with no cloud object).
 - Future JSONB domains: **`pkg/media.ScanJSONBForImageURLs(raw)`** collects URLs from nested JSONB payloads before cascade delete.
 
 ## Persistence Boundaries

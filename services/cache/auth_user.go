@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"mycourse-io-be/constants"
-	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/cache_clients"
+	"mycourse-io-be/pkg/entities"
 )
 
 // NormalizeLoginEmail trims and lower-cases an email for cache key use.
@@ -53,8 +53,8 @@ func SetCachedLoginUserID(ctx context.Context, normEmail string, userID uint) {
 		strconv.FormatUint(uint64(userID), 10), constants.LoginEmailUserIDTTL).Err()
 }
 
-// GetCachedUserMe returns a cached dto.MeResponse when Redis has a valid entry for userID.
-func GetCachedUserMe(ctx context.Context, userID uint) (*dto.MeResponse, bool) {
+// GetCachedUserMe returns a cached MeProfile when Redis has a valid entry for userID.
+func GetCachedUserMe(ctx context.Context, userID uint) (*entities.MeProfile, bool) {
 	if !cache_clients.RedisAvailable() {
 		return nil, false
 	}
@@ -62,7 +62,7 @@ func GetCachedUserMe(ctx context.Context, userID uint) (*dto.MeResponse, bool) {
 	if err != nil {
 		return nil, false
 	}
-	var me dto.MeResponse
+	var me entities.MeProfile
 	if err := json.Unmarshal(data, &me); err != nil {
 		return nil, false
 	}
@@ -73,7 +73,7 @@ func GetCachedUserMe(ctx context.Context, userID uint) (*dto.MeResponse, bool) {
 }
 
 // SetCachedUserMe stores the /me JSON payload under mycourse:user:me:{id}.
-func SetCachedUserMe(ctx context.Context, me *dto.MeResponse) {
+func SetCachedUserMe(ctx context.Context, me *entities.MeProfile) {
 	if !cache_clients.RedisAvailable() || me == nil {
 		return
 	}

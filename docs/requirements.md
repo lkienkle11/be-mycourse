@@ -162,6 +162,7 @@
 #### FR-2.2 Get My Permissions (`GET /api/v1/me/permissions`)
 
 - The system **MUST** resolve and return a **sorted** list of `permission_name` strings for the authenticated user (union of role-based + direct grants).
+- The JSON envelope **`data`** **MUST** be an object **`{ "permissions": string[] }`** (not a bare array).
 - This endpoint requires `Authorization: Bearer` **and** the caller **MUST** hold the `user:read` (`P10`) permission.
 
 **Error cases:**
@@ -326,6 +327,8 @@ Constraints on `permission_name`: max 50 chars, must be unique.
 | `GET /api/internal-v1/rbac/users/:userId/direct-permissions` | Direct-grant permissions only |
 | `POST /api/internal-v1/rbac/users/:userId/direct-permissions` | Assign a direct permission (by `permission_id` or `permission_name`) |
 | `DELETE /api/internal-v1/rbac/users/:userId/direct-permissions/:permissionId` | Remove a direct permission |
+
+Response shapes (envelope `data`): effective permission codes use **`{ "permission_codes": string[] }`**; direct-grant rows use **`dto.RBACPermissionResponse[]`**; user role listings use **`dto.RBACRoleResponse[]`** (roles may include nested permissions when preloaded).
 
 ---
 

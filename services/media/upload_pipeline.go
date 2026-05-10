@@ -12,21 +12,58 @@ import (
 	"mycourse-io-be/pkg/logic/utils"
 )
 
-func readMultipartPayloadLimited(file multipart.File, fileHeader *multipart.FileHeader) (payload []byte, filename, mime string, err error) {
+func readMultipartPayloadLimited(file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (payload []byte, filename, mime string, err error) {
 	filename = strings.TrimSpace(fileHeader.Filename)
 	mime = fileHeader.Header.Get("Content-Type")
-	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
-		return nil, filename, mime, pkgerrors.ErrFileExceedsMaxUploadSize
+
+	perPartCap := multipartPerPartCap(remainingTotal)
+	if perPartCap <= 0 {
+		return nil, filename, mime, pkgerrors.ErrMediaMultipartTotalTooLarge
 	}
-	limited := io.LimitReader(file, constants.MaxMediaUploadFileBytes+1)
+	if err = validateMultipartDeclaredSizes(fileHeader, perPartCap); err != nil {
+		return nil, filename, mime, err
+	}
+
+	limited := io.LimitReader(file, perPartCap+1)
 	payload, err = io.ReadAll(limited)
 	if err != nil {
 		return nil, filename, mime, err
 	}
-	if int64(len(payload)) > constants.MaxMediaUploadFileBytes {
-		return nil, filename, mime, pkgerrors.ErrFileExceedsMaxUploadSize
+	if err = validateReadPayloadSize(payload, perPartCap); err != nil {
+		return nil, filename, mime, err
+	}
+	if remainingTotal != nil {
+		*remainingTotal -= int64(len(payload))
 	}
 	return payload, filename, mime, nil
+}
+
+func multipartPerPartCap(remainingTotal *int64) int64 {
+	perPartCap := constants.MaxMediaUploadFileBytes
+	if remainingTotal != nil && *remainingTotal < perPartCap {
+		perPartCap = *remainingTotal
+	}
+	return perPartCap
+}
+
+func validateMultipartDeclaredSizes(fileHeader *multipart.FileHeader, perPartCap int64) error {
+	if fileHeader.Size >= 0 && fileHeader.Size > constants.MaxMediaUploadFileBytes {
+		return pkgerrors.ErrFileExceedsMaxUploadSize
+	}
+	if fileHeader.Size >= 0 && fileHeader.Size > perPartCap {
+		return pkgerrors.ErrMediaMultipartTotalTooLarge
+	}
+	return nil
+}
+
+func validateReadPayloadSize(payload []byte, perPartCap int64) error {
+	if int64(len(payload)) > constants.MaxMediaUploadFileBytes {
+		return pkgerrors.ErrFileExceedsMaxUploadSize
+	}
+	if int64(len(payload)) > perPartCap {
+		return pkgerrors.ErrMediaMultipartTotalTooLarge
+	}
+	return nil
 }
 
 func rejectExecutableNonMedia(kind string, isImage bool, filename string, payload []byte) error {

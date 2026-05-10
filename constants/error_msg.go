@@ -23,11 +23,29 @@
 // Related: pkg/errors/upload_errors.go (ErrFileExceedsMaxUploadSize), pkg/errcode/messages.go (FileTooLarge).
 package constants
 
-// --- Media upload (multipart field "file", POST/PUT /api/v1/media/files) ---
+// --- Media upload (multipart fields "files" / legacy "file", POST/PUT /api/v1/media/files) ---
 
 // MaxMediaUploadFileBytes is the maximum allowed size in bytes for a single uploaded file part.
 // Value is exactly 2 GiB: 2 × 1024 × 1024 × 1024.
 const MaxMediaUploadFileBytes int64 = 2 * 1024 * 1024 * 1024
+
+// MaxMediaMultipartTotalBytes is the maximum combined size in bytes for all file parts in one
+// multipart create/update request (sum of buffered payloads). Numerically equal to MaxMediaUploadFileBytes
+// but applies to the aggregate across parts (AND each part must still satisfy MaxMediaUploadFileBytes).
+const MaxMediaMultipartTotalBytes int64 = 2 * 1024 * 1024 * 1024
+
+// MaxMediaFilesPerRequest is the maximum number of file parts allowed in one POST /media/files or
+// PUT /media/files/:id multipart request (field "files", or legacy "file").
+const MaxMediaFilesPerRequest = 5
+
+// MaxMediaBatchDelete is the maximum number of object keys in one batch delete request.
+const MaxMediaBatchDelete = 10
+
+// MaxConcurrentMediaUploadWorkers bounds parallel cloud uploads within one multi-file create/update.
+const MaxConcurrentMediaUploadWorkers = 5
+
+// MediaMultipartParseMemoryBytes is passed to http.Request.ParseMultipartForm (memory before spill to disk).
+const MediaMultipartParseMemoryBytes int64 = 64 << 20
 
 // MsgFileTooLargeUpload is the single canonical user-facing string for "uploaded file over 2 GiB cap".
 // Used by:
@@ -36,6 +54,24 @@ const MaxMediaUploadFileBytes int64 = 2 * 1024 * 1024 * 1024
 //
 // Do not copy this literal into messages.go or upload_errors.go — import constants.MsgFileTooLargeUpload.
 const MsgFileTooLargeUpload = "uploaded file exceeds the maximum allowed size (2 GiB per file)"
+
+// MsgMediaMultipartTotalTooLarge is used when the sum of file sizes in one multipart request exceeds MaxMediaMultipartTotalBytes.
+const MsgMediaMultipartTotalTooLarge = "combined multipart files exceed the maximum allowed total size (2 GiB per request)"
+
+// MsgMediaTooManyFilesInRequest is used when more than MaxMediaFilesPerRequest parts are submitted.
+const MsgMediaTooManyFilesInRequest = "too many file parts in request (maximum 5)"
+
+// MsgMediaFilesRequired is used when create/update expects at least one file part.
+const MsgMediaFilesRequired = "at least one file part is required (multipart fields: files or file)"
+
+// MsgMediaBatchDeleteTooManyIDs is used when batch delete lists more than MaxMediaBatchDelete keys.
+const MsgMediaBatchDeleteTooManyIDs = "too many object keys in batch delete (maximum 10)"
+
+// MsgMediaDuplicateObjectKeysInBatchDelete is used when batch delete lists duplicate keys.
+const MsgMediaDuplicateObjectKeysInBatchDelete = "duplicate object keys in batch delete request"
+
+// MsgBatchDeleteEmptyObjectKeys is used when batch delete is invoked with no keys (service-level guard).
+const MsgBatchDeleteEmptyObjectKeys = "batch delete: empty object_keys"
 
 // Default JSON messages for media upstream errcodes 9010–9014 (pkg/errcode/messages.go references only).
 const (

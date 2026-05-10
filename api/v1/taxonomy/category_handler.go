@@ -3,26 +3,20 @@ package taxonomy
 import (
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/dto"
+	"mycourse-io-be/pkg/logic/mapping"
 	taxonomyservice "mycourse-io-be/services/taxonomy"
 )
 
 func listCategories(c *gin.Context) {
-	respondTaxonomyList(c, taxonomyservice.ListCategories, func(rows []dto.CategoryResponse) any {
-		return rows
-	})
+	respondTaxonomyList(c, taxonomyservice.ListCategories, mapping.CategoryListHTTPPayload)
 }
 
 func createCategory(c *gin.Context) {
-	respondTaxonomyCreate(c, taxonomyservice.CreateCategory, func(row dto.CategoryResponse) any {
-		return row
-	})
+	respondTaxonomyCreate(c, taxonomyservice.CreateCategory, mapping.CategoryRowHTTPPayload)
 }
 
 func updateCategory(c *gin.Context) {
-	respondTaxonomyUpdate(c, taxonomyservice.UpdateCategory, func(row dto.CategoryResponse) any {
-		return row
-	})
+	respondTaxonomyUpdate(c, taxonomyservice.UpdateCategory, mapping.CategoryRowHTTPPayload)
 }
 
 func deleteCategory(c *gin.Context) {

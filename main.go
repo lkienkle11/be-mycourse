@@ -11,7 +11,7 @@ import (
 	"mycourse-io-be/config"
 	"mycourse-io-be/internal/appcli"
 	"mycourse-io-be/internal/appdb"
-	"mycourse-io-be/internal/jobs"
+	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/cache_clients"
 	pkgmedia "mycourse-io-be/pkg/media"
@@ -60,7 +60,7 @@ func maybeMigrateFromEnv() {
 
 func mustBackgroundConsumers() {
 	config.InitSystem()
-	jobs.StartMediaPendingCleanupJob(models.DB)
+	jobmedia.StartMediaPendingCleanupJob(models.DB)
 	queues.Consume()
 }
 

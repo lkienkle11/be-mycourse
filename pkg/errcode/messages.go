@@ -24,6 +24,12 @@ var defaultMessages = map[int]string{
 
 	ExecutableUploadRejected: constants.MsgExecutableUploadRejected,
 
+	MediaMultipartTotalTooLarge:     constants.MsgMediaMultipartTotalTooLarge,
+	MediaTooManyFilesInRequest:      constants.MsgMediaTooManyFilesInRequest,
+	MediaFilesRequired:              constants.MsgMediaFilesRequired,
+	MediaBatchDeleteTooManyIDs:      constants.MsgMediaBatchDeleteTooManyIDs,
+	MediaDuplicateKeysInBatchDelete: constants.MsgMediaDuplicateObjectKeysInBatchDelete,
+
 	BadRequest:      "Bad request",
 	Unauthorized:    "Unauthorized",
 	Forbidden:       "Forbidden",

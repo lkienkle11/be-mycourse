@@ -4,7 +4,7 @@
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql`).
-- GORM / JSONB **column** types for model fields belong in **`pkg/sqlmodel`**.
+- GORM / JSONB **column** types for model fields: refresh-session JSONB in **`pkg/gormjsonb/auth`**, soft-delete **`DeletedAt`** alias in **`models/deleted_at.go`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Global Constants Placement Rule (Mandatory)
@@ -68,7 +68,6 @@ be-mycourse/
 │   ├── requestutil/
 │   ├── response/
 │   ├── setting/
-│   ├── sqlmodel/
 │   ├── sqlnamed/
 │   ├── supabase/
 │   ├── token/
@@ -111,19 +110,19 @@ be-mycourse/
 - `internal/`: non-public operational internals.
 - `internal/appdb/`: holds the primary PostgreSQL GORM handle for callers that must not import `models` (e.g. `api/system`); set once from `main` after `models.Setup()`.
 - `internal/appcli/`: protected CLI flow for system-user registration.
-- `internal/jobs/`: in-memory scheduler loops for periodic sync (`interval_sync_loop.go`, `rbac_sync_schedulers.go` for RBAC tickers, `media_pending_cleanup_scheduler.go`, etc.).
+- `internal/jobs/`: **no** loose `*.go` at this root — **`rbac/`** (`interval_sync_loop.go`, `rbac_sync_schedulers.go`), **`media/`** (`media_pending_cleanup_scheduler.go`, …), **`system/`** (HTTP job control).
 - `internal/rbacsync/`: DB synchronization logic from constants.
 - `internal/systemauth/`: system access token and credential crypto primitives.
 - `middleware/`: auth/authz, API-key, system-token, rate-limit, and interceptor middleware.
 - `migrations/`: SQL migration files and embed bridge.
-- `models/`: GORM model definitions and DB setup helpers.
+- `models/`: GORM model definitions and DB setup helpers; **`models/deleted_at.go`** holds the **`DeletedAt`** soft-delete type alias (**only** `models/*.go` file that imports **`gorm.io/gorm`** — see **`.golangci.yml`**).
 - `repository/`: data access (`repository.go` aggregate, `repository/media`, `repository/taxonomy`, **`user_refresh_session.go`** for users JSONB refresh sessions).
 - `pkg/`: reusable cross-cutting libraries.
 - `pkg/brevo/`: email provider integration wrapper.
 - `pkg/cache_clients/`: Redis client setup and lifecycle.
 - `pkg/dbmigrate/`: migration runner utility.
-- `pkg/entities/`: pure shared domain structs/DTO shapes reused across layers (**no** **`gorm.io/gorm`** / **`database/sql`** — depguard **`restrict_models_pkg_entity_schema_only`** applies here same as **`models/*.go`**).
-- `pkg/sqlmodel/`: GORM/Postgres column-edge types only (**`DeletedAt`** alias, **`RefreshTokenSessionMap`** JSONB `Valuer`/`Scanner**) so **`models/user.go`** stays free of `gorm` imports while **`pkg/entities`** stays driver-free.
+- `pkg/entities/`: pure shared domain structs/DTO shapes reused across layers (**no** **`gorm.io/gorm`** / **`database/sql`** / **no functions** — depguard **`restrict_models_pkg_entity_schema_only`** applies here same as **`models/*.go`**).
+- `pkg/gormjsonb/auth/`: Postgres JSONB **`Valuer`/`Scanner`** for **`users.refresh_token_session`** (`RefreshTokenSessionMap`).
 - `pkg/envbool/`: environment bool parsing helpers.
 - `pkg/errors/`: central shared package for reusable functional errors/sentinel vars and typed feature structs — e.g. **`auth.go`** (user/auth session sentinels + **`constants.MsgAuth*`**), **`system.go`**, **`media_errors.go`** (including **`ErrDependencyNotConfigured`** / **`MsgMediaDependencyNotConfigured`** for `RequireInitialized`), **`upload_errors.go`**, **`provider_error.go`**.
 - `pkg/errcode/`: app error code constants and default messages.

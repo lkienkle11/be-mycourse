@@ -3,13 +3,12 @@ package mapping
 import (
 	"strings"
 
-	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 )
 
-// ToMediaFilePublicFromModel maps a loaded media_files row to the public DTO shape.
-func ToMediaFilePublicFromModel(row *models.MediaFile) *dto.MediaFilePublic {
+// ToMediaFilePublicFromModel maps a loaded media_files row to the public media JSON shape.
+func ToMediaFilePublicFromModel(row *models.MediaFile) *entities.MediaFilePublic {
 	if row == nil {
 		return nil
 	}
@@ -18,11 +17,11 @@ func ToMediaFilePublicFromModel(row *models.MediaFile) *dto.MediaFilePublic {
 }
 
 // ToMediaFilePublicFromEntity maps entities.File to the API-safe media object (no origin_url).
-func ToMediaFilePublicFromEntity(ent *entities.File) *dto.MediaFilePublic {
+func ToMediaFilePublicFromEntity(ent *entities.File) *entities.MediaFilePublic {
 	if ent == nil {
 		return nil
 	}
-	return &dto.MediaFilePublic{
+	return &entities.MediaFilePublic{
 		ID:                 ent.ID,
 		Kind:               string(ent.Kind),
 		Provider:           string(ent.Provider),

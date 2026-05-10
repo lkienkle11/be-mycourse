@@ -58,3 +58,15 @@ func ToUploadFileResponses(files []entities.File) []dto.UploadFileResponse {
 	}
 	return out
 }
+
+// ToUploadFileResponsesFromPointers maps non-nil entity pointers to upload DTOs (API response envelope).
+func ToUploadFileResponsesFromPointers(files []*entities.File) []dto.UploadFileResponse {
+	out := make([]dto.UploadFileResponse, 0, len(files))
+	for _, p := range files {
+		if p == nil {
+			continue
+		}
+		out = append(out, ToUploadFileResponse(*p))
+	}
+	return out
+}

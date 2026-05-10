@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
 	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/requestutil"
 	"mycourse-io-be/pkg/response"
@@ -36,7 +37,7 @@ func listPermissionsInternal(c *gin.Context) {
 		return
 	}
 
-	response.OKPaginated(c, "ok", rows, utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
+	response.OKPaginated(c, "ok", mapping.ToRBACPermissionResponses(rows), utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
 }
 
 func createPermissionInternal(c *gin.Context) {
@@ -50,7 +51,7 @@ func createPermissionInternal(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.Created(c, "created", p)
+	response.Created(c, "created", mapping.ToRBACPermissionPtrResponse(p))
 }
 
 func updatePermissionInternal(c *gin.Context) {
@@ -73,7 +74,7 @@ func updatePermissionInternal(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "updated", p)
+	response.OK(c, "updated", mapping.ToRBACPermissionPtrResponse(p))
 }
 
 func deletePermissionInternal(c *gin.Context) {
@@ -96,7 +97,7 @@ func listRolesInternal(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", rows)
+	response.OK(c, "ok", mapping.ToRBACRoleResponses(rows))
 }
 
 func getRoleInternal(c *gin.Context) {
@@ -115,7 +116,7 @@ func getRoleInternal(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", r)
+	response.OK(c, "ok", mapping.ToRBACRolePtrResponse(r))
 }
 
 func createRoleInternal(c *gin.Context) {
@@ -129,7 +130,7 @@ func createRoleInternal(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.Created(c, "created", r)
+	response.Created(c, "created", mapping.ToRBACRolePtrResponse(r))
 }
 
 func updateRoleInternal(c *gin.Context) {
@@ -152,7 +153,7 @@ func updateRoleInternal(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "updated", r)
+	response.OK(c, "updated", mapping.ToRBACRolePtrResponse(r))
 }
 
 func setRolePermissionsInternal(c *gin.Context) {
@@ -175,7 +176,7 @@ func setRolePermissionsInternal(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "updated", r)
+	response.OK(c, "updated", mapping.ToRBACRolePtrResponse(r))
 }
 
 func deleteRoleInternal(c *gin.Context) {

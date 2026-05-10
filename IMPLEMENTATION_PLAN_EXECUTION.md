@@ -134,7 +134,7 @@ Sub **15** closed. All WebP image dimension reads (`width`, `height` in `UploadF
 - **DB:** Migration **`000006_taxonomy_user_media_refs`** — `categories.image_file_id` (UUID, FK → `media_files.id`, ON DELETE SET NULL), `users.avatar_file_id` (same). Legacy **`image_url`** / **`avatar_url`** removed after best-effort **backfill** (`UPDATE … FROM media_files` matching `url` or `origin_url`). Rows with URLs that never matched a `media_files` row end with **NULL** FK until the client re-attaches an uploaded file.
 - **Write API:** Clients send **`image_file_id`** (taxonomy category create/update) and **`avatar_file_id`** (PATCH `/api/v1/me`). The server **never** trusts a raw storage URL from JSON to set FKs; it loads `media_files`, validates **FILE** kind, **READY** status, and **image** MIME (or common raster extensions); errors wrap **`pkg/errors.ErrInvalidProfileMediaFile`** → HTTP **400** + `errcode.ValidationFailed` where applicable.
 - **Read API:** Responses expose nested **`image`** / **`avatar`** objects shaped like **`dto.MediaFilePublic`** (subset of `pkg/entities.File`: `id`, `kind`, `provider`, `filename`, `mime_type`, `size_bytes`, `width`, `height`, `url`, `duration`, `content_fingerprint`, `status` — width/height from persisted upload metadata).
-- **Orphan cleanup:** Replacing or clearing an FK enqueues **`mediasvc.EnqueueOrphanCleanupForMediaFileID`** (pending cloud cleanup from the resolved `media_files` row). **Delete category** and **`SoftDeleteUserWithAvatarCleanup`** (admin/tests) do the same after the parent row is removed. **`EnqueueOrphanImageCleanup(string)`** remains for URL-based domains (JSONB scan, legacy patterns).
+- **Orphan cleanup:** Replacing or clearing an FK enqueues **`jobmedia.EnqueueOrphanCleanupForMediaFileID`** (package **`internal/jobs/media`**, file `internal/jobs/media/media_orphan_enqueue.go`) — pending cloud cleanup from the resolved `media_files` row. **Delete category** and **`SoftDeleteUserWithAvatarCleanup`** (admin/tests) do the same after the parent row is removed. **`jobmedia.EnqueueOrphanImageCleanup(string)`** remains for URL-based domains (JSONB scan, legacy patterns).
 
 ### Inventory (blast radius)
 
@@ -143,7 +143,7 @@ Sub **15** closed. All WebP image dimension reads (`width`, `height` in `UploadF
 | Migration | `migrations/000006_taxonomy_user_media_refs.{up,down}.sql` |
 | Models | `pkg/entities/category.go`, `models/taxonomy_category.go` (+`ImageFile` assoc), `models/user.go` (+`AvatarFile`) |
 | DTO | `dto/taxonomy_category.go`, `dto/auth.go`, `dto/media_public.go` |
-| Services | `services/taxonomy/category_service.go`, `services/media/profile_media_validate.go`, `services/media/orphan_cleanup.go`, `services/auth/me_update.go`, `services/auth/user_delete.go` |
+| Services | `services/taxonomy/category_service.go`, `services/media/profile_media_validate.go`, `internal/jobs/media/media_orphan_enqueue.go`, `services/auth/me_update.go`, `services/auth/user_delete.go` |
 | HTTP | `api/v1/me.go` (`PATCH /me`), `api/v1/routes.go`, `api/v1/taxonomy/category_handler.go` (DTO-only — no `models` import), `api/v1/taxonomy/handlers_common.go` |
 | Mapping | `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/media_public_mapping.go` |
 | Repo | `repository/taxonomy/repositories.go` (`Preload("ImageFile")` on category list/get) |
@@ -348,14 +348,14 @@ Orphan risk: URL field points to a B2/Bunny object that is never deleted when th
 
 ### Cleanup strategy — reuse existing layer (Task 03) ✅
 - **Single delete path**: `pkg/media.DeleteStoredObject` routes by provider (B2 → `DeleteB2Object`; Bunny → `DeleteBunnyVideo`; Local → noop).
-- **Deferred queue**: `media_pending_cloud_cleanup` via `repository/media.FileRepository.InsertPendingCleanup`. Worker: `internal/jobs/media_pending_cleanup_scheduler.go`.
+- **Deferred queue**: `media_pending_cloud_cleanup` via `repository/media.FileRepository.InsertPendingCleanup`. Worker: `internal/jobs/media/media_pending_cleanup_scheduler.go`.
 - **No new providers or delete paths** — all orphan enqueues reuse the existing pipeline.
 
 ### hook cleanup — media/files DELETE (Task 04) ✅
 Already implemented in sub06: `services/media.DeleteFile` calls `pkg/media.DeleteStoredObject` then `SoftDeleteByObjectKey`. No change needed.
 
 ### Course domain skeleton (Task 05) ✅
-Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `course_edits.thumbnail` etc., call `mediasvc.EnqueueOrphanImageCleanup(oldURL)` after each DELETE/PATCH commit. See `services/media/orphan_cleanup.go` doc comment.
+Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `course_edits.thumbnail` etc., call **`jobmedia.EnqueueOrphanImageCleanup(oldURL)`** after each DELETE/PATCH commit. See `internal/jobs/media/media_orphan_enqueue.go` doc comment.
 
 ### Taxonomy + user/profile hooks (Task 06) ✅ *(URLs → FKs in Sub 14)*
 - `services/taxonomy/category_service.go`:
@@ -365,7 +365,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 ### JSONB/nested skeleton (Task 07) ✅
 - `pkg/media/media_jsonb_scan.go`: `ScanJSONBForImageURLs(raw []byte) []string` — recursive walker that collects values under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
-- Future lesson/quiz domain: call `ScanJSONBForImageURLs(row.ContentJSON)` before cascade delete, then `mediasvc.EnqueueOrphanImageCleanup` for each URL. See TODO comment in the file.
+- Future lesson/quiz domain: call `ScanJSONBForImageURLs(row.ContentJSON)` before cascade delete, then **`jobmedia.EnqueueOrphanImageCleanup`** for each URL. See TODO comment in the file.
 
 ### Transaction + compensation policy (Task 08) ✅
 1. **DB delete first, cloud enqueue after commit** — prevents cloud deletes for records that still exist.
@@ -389,7 +389,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 
 ### Files reference (Sub 07)
 - Helpers: `pkg/media/media_url_orphan.go`, `pkg/media/media_jsonb_scan.go`
-- Service: `services/media/orphan_cleanup.go`
+- Service: `internal/jobs/media/media_orphan_enqueue.go`
 - Repository: `repository/media/file_repository.go` (added `GetByURL`)
 - Modified services: `services/taxonomy/category_service.go`
 - Tests: `tests/sub07_orphan_image_test.go`
@@ -1649,7 +1649,7 @@ Course domain not yet in repo. When Phase 02+ adds `courses.cover_image` / `cour
 Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-sub-06-task-16`. Implementation lives under `be-mycourse` only (course/lesson APIs are **not** in repo yet — see task 10).
 
 ### Task 01 — Baseline + orphan-risk inventory ✅
-- Flows that could strand cloud vs DB: create/update/delete, partial failure after upload, concurrent updates. Symbols/files touched: `api/v1/media/file_handler.go`, `services/media/file_service.go`, `repository/media/file_repository.go`, `pkg/media/clients.go`, `pkg/media/stored_object_delete.go`, `internal/jobs/media_pending_cleanup_scheduler.go`.
+- Flows that could strand cloud vs DB: create/update/delete, partial failure after upload, concurrent updates. Symbols/files touched: `api/v1/media/file_handler.go`, `services/media/file_service.go`, `repository/media/file_repository.go`, `pkg/media/clients.go`, `pkg/media/stored_object_delete.go`, `internal/jobs/media/media_pending_cleanup_scheduler.go`.
 - Inventory reflected in this section + `docs/modules/media.md` **Phase Sub 06** prose.
 
 ### Task 02 — Orphan definition + source of truth ✅ (documented)
@@ -1680,7 +1680,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 - Replace does **not** synchronous-delete old cloud object; inserts `media_pending_cloud_cleanup` row (`InsertPendingCleanup`).
 
 ### Task 09 — Cleanup worker ✅
-- `internal/jobs/media_pending_cleanup_scheduler.go`: mutex/cancel/waitgroup + immediate first tick (same spirit as RBAC jobs). Batch/retry: `constants/media_cleanup.go`; processor `services/media/pending_cleanup.go`; metrics `services/media/cleanup_metrics.go`.
+- `internal/jobs/media/media_pending_cleanup_scheduler.go`: mutex/cancel/waitgroup + immediate first tick (same spirit as RBAC jobs). Batch/retry: `constants/media_cleanup.go`; processor `internal/jobs/media/media_pending_cleanup_batch.go`; metrics `internal/jobs/media/media_cleanup_metrics.go`.
 - Env: `MEDIA_CLEANUP_INTERVAL_SEC` (`0` off).
 
 ### Task 10 — Apply to course/lesson/quiz APIs — **N/A (repository scope)**
@@ -1715,8 +1715,8 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 - Helpers: `pkg/media/media_metadata_merge.go`, `media_replace_policy.go`, `media_upload_entity.go`, `media_multipart.go`; utils: `pkg/logic/utils/parsing.go` (`ContentFingerprint`); input struct `pkg/entities/media_upload.go`
 - Media delete routing: `pkg/media/stored_object_delete.go`
 - Repo: `repository/media/file_repository.go`, `repository/media/pending_cleanup_repo.go`
-- Services: `services/media/file_service.go`, `pending_cleanup.go`, `cleanup_metrics.go`
-- Jobs: `internal/jobs/media_pending_cleanup_scheduler.go`; bootstrap `main.go`
+- Services: `services/media/file_service.go`
+- Jobs: `internal/jobs/media/media_pending_cleanup_batch.go`, `internal/jobs/media/media_cleanup_metrics.go`, `internal/jobs/media/media_pending_cleanup_scheduler.go`; bootstrap `main.go`
 - API: `api/v1/media/file_handler.go`, `routes.go`
 
 ## Phase Sub 08 — Server-owned metadata/kind reset (tasks 01–12, 2026-04-30)
@@ -1741,3 +1741,51 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
   - `docs/modules/media.md`
   - `docs/data-flow.md`
   - `docs/reusable-assets.md`
+
+## Phase Sub 17 — Batch multipart media upload (tasks 01–12, 2026-05-09)
+
+### Scope (baseline)
+
+1. **Create / update** (`POST` / `PUT`) accept **multipart with 1–5** file parts (`files` repeated; legacy single **`file`**).
+2. **Aggregate size:** sum of all parts in one request ≤ **`constants.MaxMediaMultipartTotalBytes`** (2 GiB), combined with per-part cap **`MaxMediaUploadFileBytes`** (Sub 03).
+3. **Parallel uploads:** provider uploads use **`constants.MaxConcurrentMediaUploadWorkers`** (5) with **`errgroup`**; creates persist DB **after** parallel uploads succeed (rollback/compensation documented in code paths).
+4. **PUT bundle semantics:** first part updates row `:id`; additional parts **create new rows** (tail persisted **before** primary update — avoids orphan primary mutation).
+5. **Batch delete:** `POST /api/v1/media/files/batch-delete` JSON `{ "object_keys": [...] }` — max **10** unique keys; duplicates rejected (**2009**); validation before cloud deletes (**all-or-nothing** for unknown keys).
+6. **Partial vs atomic:** **Create batch** — any upload failure aborts entire request after cleanup attempts; **bundle update** — tail failures abort before primary row write; **batch delete** — validated keys then sequential deletes (single failure fails whole batch).
+
+### Constants (`constants/error_msg.go`)
+
+- `MaxMediaFilesPerRequest` (5), `MaxMediaBatchDelete` (10), `MaxMediaMultipartTotalBytes` (2 GiB), `MaxConcurrentMediaUploadWorkers` (5), **`MediaMultipartParseMemoryBytes`** (router + handler parse budget).
+
+### Errors (`pkg/errcode` **2005–2009**)
+
+- Aggregate oversize, too many parts, batch delete count/duplicate — see `pkg/errors/upload_errors.go`, `api/v1/media/file_handler_errors.go`.
+
+### API
+
+- `POST /media/files` — `data: UploadFileResponse[]`
+- `PUT /media/files/:id` — `data: UploadFileResponse[]` (bundle)
+- `POST /media/files/batch-delete` — `data: { "deleted_count": <n> }` (all requested keys deleted after validation)
+
+### Tests
+
+- `tests/sub17_media_batch_upload_test.go` — validation + parallel probe.
+
+### Quality gate
+
+- `golangci-lint run`, `make check-architecture`, `go test ./...`, `go build ./...` (executed in session).
+
+### GitNexus
+
+- Run `npx gitnexus analyze --force` after merge; `gitnexus_impact` on `CreateFiles`, `UpdateFileBundle`, `DeleteFilesByObjectKeys`, `parseAndOpenMultipartParts` before release.
+
+### Rules-pattern alignment (`errors-rule-2` remediation)
+
+- **Constants:** `MediaMultipartParseMemoryBytes` shared by `api/router.go` (`MaxMultipartMemory`) and multipart parse path (`constants/error_msg.go`).
+- **Types:** `OpenedUploadPart`, `PreparedCreatePart`, `PreparedUpdateHead` are **structs only** in **`pkg/entities/media_multipart_parts.go`**; **`OpenUploadParts`**, **`CloseOpenedUploadParts`**, **`DrainDiscard`** in **`pkg/media/multipart_opened_parts.go`** (Rule 7). Refresh session entry + map shape in **`pkg/entities/refresh_session.go`**; JSONB column type in **`pkg/gormjsonb/auth/refresh_token_session_map.go`** (Rule 3); **`DeletedAt`** alias in **`models/deleted_at.go`**.
+- **Auth / mapping (Rule 7):** no `buildMeResponseForCache` in **`services/auth`** — **`GetMe`** / **`UpdateMe`** return **`entities.MeProfile`**; **`completeLoginSuccess`** / cache use **`mapping.BuildMeProfileFromUser`**; **`api/v1/me.go`** maps with **`mapping.ToMeResponseFromProfile`**.
+- **Tests:** batch-delete validation tests under `tests/file_service_batch_delete_validation_test.go` (no `*_test.go` under `services/`).
+- **Sentinel:** `ErrBatchDeleteEmptyKeys` + `constants.MsgBatchDeleteEmptyObjectKeys` (no raw string in `file_service_batch_delete.go`).
+- **Enqueue / jobs:** deferred cleanup enqueue in **`internal/jobs/media/media_orphan_enqueue.go`**; superseded rows via **`jobmedia.EnqueueSupersededPendingCleanup`** from `services/media`; pending-cleanup worker/metrics in **`internal/jobs/media/media_pending_cleanup_batch.go`**, **`internal/jobs/media/media_cleanup_metrics.go`**. RBAC job HTTP adapters: **`internal/jobs/system/system_sync_http.go`** (wired from **`api/system/routes.go`**).
+- **API DTO responses:** `dto.BatchDeleteMediaFilesResponse`, `dto.LocalURLDecodeResponse`, `dto.MediaCleanupMetricsResponse`; auth/system use typed DTOs (no `gin.H`); internal RBAC returns **`dto.RBAC*Response`** via **`pkg/logic/mapping/rbac_internal_response.go`**; `GET /me/permissions` uses **`dto.MyPermissionsResponse`**.
+- **Multipart bind:** `mapping.BindCreateFileMultipart` / `BindUpdateFileMultipart` in `pkg/logic/mapping/multipart_gin_bind.go`.

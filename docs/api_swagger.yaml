@@ -100,6 +100,31 @@ components:
         access_token: { type: string }
         refresh_token: { type: string }
         session_id: { type: string, description: 128-char hex session id }
+    MyPermissionsResponse:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items: { type: string }
+    UserRBACPermissionCodesResponse:
+      type: object
+      properties:
+        permission_codes:
+          type: array
+          items: { type: string }
+    SystemLoginResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        expires_in: { type: integer, description: TTL seconds }
+    PermissionSyncNowResponse:
+      type: object
+      properties:
+        synced: { type: integer }
+    RolePermissionSyncNowResponse:
+      type: object
+      properties:
+        rows: { type: integer }
     SystemLoginRequest:
       type: object
       required: [username, password]
@@ -163,7 +188,7 @@ components:
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     MediaFilePublic:
       type: object
-      description: Public subset of a media_files row (aligned with dto.MediaFilePublic)
+      description: Public subset of a media_files row (canonical struct pkg/entities.MediaFilePublic; dto.MediaFilePublic is a type alias)
       properties:
         id: { type: string, format: uuid }
         kind: { type: string }
@@ -374,7 +399,9 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — envelope `data` is `MyPermissionsResponse`
+            (`{ "permissions": string[] }`, sorted).
         "403":
           description: Forbidden
 
@@ -767,7 +794,7 @@ paths:
               $ref: "#/components/schemas/SystemLoginRequest"
       responses:
         "200":
-          description: access_token + expires_in
+          description: OK — envelope `data` is `SystemLoginResponse` (`access_token`, `expires_in` seconds).
         "401":
           description: Invalid credentials
 
@@ -779,7 +806,9 @@ paths:
         - systemBearer: []
       responses:
         "200":
-          description: synced count
+          description: >-
+            OK — envelope `data` is `PermissionSyncNowResponse`
+            (`{ "synced": int }`).
 
   /api/system/role-permission-sync-now:
     post:
@@ -789,7 +818,9 @@ paths:
         - systemBearer: []
       responses:
         "200":
-          description: rows count
+          description: >-
+            OK — envelope `data` is `RolePermissionSyncNowResponse`
+            (`{ "rows": int }`).
 
   /api/system/create-permission-sync-job:
     post:
@@ -1044,7 +1075,9 @@ paths:
           schema: { type: integer }
       responses:
         "200":
-          description: String array
+          description: >-
+            OK — envelope `data` is `UserRBACPermissionCodesResponse`
+            (`{ "permission_codes": string[] }`, sorted).
 
   /api/internal-v1/rbac/users/{userId}/direct-permissions:
     parameters:

@@ -18,6 +18,8 @@ Các file `*_up.sql` được **nhúng (embed)** vào binary (`migrations/embed.
 
 **Quy ước:** `permission_id` dạng `P{number}`; `permission_name` dạng `resource:action` (JWT / `RequirePermission`). Khi thêm quyền mới: cập nhật `constants/permissions.go`, migration nếu cần seed, rồi `go run ./cmd/syncpermissions` trên môi trường đã có dữ liệu. Ma trận role: `constants/roles_permission.go` + `go run ./cmd/syncrolepermissions`.
 
+**COMMENT / chuỗi SQL và `golang-migrate`:** runner tách file theo **mọi** dấu `;` (không hiểu cú pháp SQL). Vì vậy **không** được có `;` bên trong chuỗi (`'…'`), trong **`$$…$$`**, v.v. — chỉ dùng `;` làm kết thúc từng câu lệnh. Trong `COMMENT ON … IS '…'`, viết mô tả bằng dấu chấm/phẩy thay cho `;` — ví dụ `000007_registration_email_limits.up.sql`.
+
 ## Cách chạy migration với Gin / server hiện tại
 
 1. Cấu hình Postgres giống lúc chạy app (`config/app.yaml` + `.env` — mục `[database]`).
@@ -40,7 +42,7 @@ $env:MIGRATE = "1"
 ## Thêm migration mới
 
 1. Tạo cặp `00000N_mô_tả.up.sql` và `00000N_mô_tả.down.sql` (tăng số so với bản mới nhất).
-2. **golang-migrate** tách lệnh theo `;` và **không** bỏ qua comment `--` — **không đặt `;` trong cùng dòng `-- ...`** (sẽ cắt nhầm). Tránh `;` trong chuỗi hoặc `$$ ... $$` nếu không chủ ý.
+2. **golang-migrate** tách lệnh theo `;` và **không** bỏ qua comment `--` — **không đặt `;` trong cùng dòng `-- ...`** (sẽ cắt nhầm). Tránh mọi `;` “thừa” trong file (kể cả trong chuỗi / dollar-quote); xem mục **COMMENT** ở trên.
 3. `go build` để embed file mới.
 4. Cập nhật bảng trên trong **`migrations/README.md`** và **`docs/database.md`** (Migration history + bảng chi tiết nếu cần).
 

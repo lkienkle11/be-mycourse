@@ -44,7 +44,8 @@ Stores application accounts.  Passwords are bcrypt-hashed.
 | `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Account disabled flag |
 | `email_confirmed` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Email verification status |
 | `confirmation_token` | `VARCHAR(128)` | nullable | One-time email confirmation token |
-| `confirmation_sent_at` | `TIMESTAMPTZ` | nullable | When the confirmation email was sent |
+| `confirmation_sent_at` | `TIMESTAMPTZ` | nullable | When the confirmation email was last sent |
+| `registration_email_send_total` | `INTEGER` | NOT NULL DEFAULT `0` | Successful confirmation emails while pending; not in public JSON; reset on confirm |
 | `refresh_token_session` | `JSONB` | NOT NULL DEFAULT `'{}'` | Active device sessions map (see below) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
@@ -178,6 +179,7 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 | 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; **`media_pending_cloud_cleanup`** |
 | 000005 | `media_bunny_response_fields` | **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** |
 | 000006 | `taxonomy_user_media_refs` | **`categories.image_file_id`**, **`users.avatar_file_id`** (FK → `media_files`); drops legacy **`categories.image_url`**, **`users.avatar_url`** after URL→row backfill |
+| 000007 | `registration_email_limits` | **`users.registration_email_send_total`** — counts successful confirmation emails while pending; reset on email confirm |
 
 **Taxonomy `categories` (post-000006):** includes **`image_file_id`** `UUID` nullable FK → **`media_files(id)`** (replaces removed **`image_url`**).
 

@@ -33,7 +33,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 
 ### `/api/v1` (non-auth subgroup)
 - `GET /health`
-- `POST /auth/register`
+- `POST /auth/register` — pending signup or resend for **unconfirmed** same email; lifetime **15** successful confirmation emails (`users.registration_email_send_total`), Redis **5 / 4h** window per user, headers **`Retry-After`** + **`X-Mycourse-Register-Retry-After`** on **`429`/`4010`**; **`410`/`4009`** when cap exceeded (row deleted); **`502`/`4011`** when Brevo fails after limits.
 - `POST /auth/login`
 - `GET /auth/confirm`
 - `POST /auth/refresh`

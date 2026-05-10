@@ -93,7 +93,8 @@ Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncper
 
 **Upload enrichment:** After Bunny PUT, `UploadBunnyVideo` calls **`GetBunnyVideoByID`**. **Only if that succeeds**, `ApplyBunnyDetailToMetadata` merges video telemetry (`width`, `height`, `length`, `framerate`, `bitrate`, `video_codec`, `audio_codec`) plus `video_id`, `thumbnail_url`, and `embeded_html` into provider metadata. Only non-zero/non-empty values are written. Because Bunny may not have finished transcoding yet, `width`/`height` may still be 0 immediately after upload; they will be populated once **`HandleBunnyVideoWebhook`** (finished) fires. If GET fails entirely, all enrichment keys stay empty until the webhook refreshes them.
 
-**Webhook:** `POST /api/v1/webhook/bunny` now validates Bunny signature v1 on the **raw request body** before JSON parse:
+**Webhook:** `POST /api/v1/webhook/bunny` validates Bunny signature v1 on the **raw request body** before JSON parse. JSON unmarshal and field validation (`VideoLibraryId`, `VideoGuid`, `Status` 0..10) live in **`pkg/logic/mapping`** (`UnmarshalBunnyVideoWebhookRequestJSON`, `ValidateBunnyVideoWebhookRequest`); sentinels **`pkg/errors.ErrBunnyWebhookJSONInvalid`** / **`ErrBunnyWebhookPayloadInvalid`** use **`constants.MsgBunnyWebhook*`**; the handler only chooses HTTP status + errcode.
+
 - Headers must be `X-BunnyStream-Signature-Version: v1`, `X-BunnyStream-Signature-Algorithm: hmac-sha256`, `X-BunnyStream-Signature: <hex>`.
 - Signature is `hex(HMAC-SHA256(rawBody, signingSecret))`, compared in constant time.
 - Signing secret source-of-truth is `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (fallback `BunnyStreamAPIKey` for backward compatibility).

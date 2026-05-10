@@ -318,7 +318,12 @@ paths:
         "201":
           description: Created
         "400": { description: Validation / weak password }
-        "409": { description: Email already exists }
+        "409": { description: Email already exists (confirmed account) }
+        "410": { description: Registration abandoned — lifetime confirmation email cap (code 4009) }
+        "429":
+          description: Registration email rate limited (code 4010); includes Retry-After and X-Mycourse-Register-Retry-After
+        "502": { description: Confirmation email send failed (code 4011) }
+        "500": { description: Internal error }
 
   /api/v1/auth/login:
     post:

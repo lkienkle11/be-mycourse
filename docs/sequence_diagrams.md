@@ -109,14 +109,15 @@ sequenceDiagram
 
 ## 2. User Registration
 
-**Description:** `POST /api/v1/auth/register` — validates input, checks email uniqueness, hashes password, creates user, sends confirmation email.
+**Description:** `POST /api/v1/auth/register` — validates input; creates pending user or updates unconfirmed same email; enforces `registration_email_send_total` (max 15 successful sends) and Redis sliding window (5 per 4h per user id); sends confirmation email via Brevo.
 
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant H as Handler (auth.go register)
-    participant SVC as auth.Register
+    participant SVC as auth.Register (register_flow.go)
     participant DB as PostgreSQL (models.DB)
+    participant R as Redis (register_email_window.go)
     participant Email as pkg/brevo (Brevo API)
 
     C->>H: POST /api/v1/auth/register<br/>{email, password, display_name}
@@ -133,22 +134,33 @@ sequenceDiagram
     end
 
     SVC->>DB: SELECT * FROM users WHERE email=?
-    alt email found
+    alt email found and confirmed
         SVC-->>H: ErrEmailAlreadyExists
         H-->>C: 409 {code:4001}
     end
 
-    SVC->>SVC: bcrypt.GenerateFromPassword(password)
-    SVC->>SVC: uuid.NewV7() → user_code
-    SVC->>SVC: uuid.New() → confirmation_token
-    SVC->>DB: INSERT INTO users(...)
-    DB-->>SVC: ok (user.ID assigned)
+    alt lifetime cap reached (pending)
+        SVC->>DB: DELETE pending user
+        SVC-->>H: ErrRegistrationAbandoned
+        H-->>C: 410 {code:4009}
+    end
 
-    SVC->>Email: SendConfirmationEmail(email, displayName, confirmURL)
-    Email-->>SVC: ok (or error → propagate)
+    SVC->>R: reserve sliding-window slot (Lua)
+    alt window exceeded
+        SVC-->>H: RegistrationEmailRateLimitedError
+        H-->>C: 429 {code:4010} + Retry-After headers
+    end
+
+    SVC->>Email: SendConfirmationEmail(...)
+    alt brevo error
+        SVC->>R: release reservation
+        SVC-->>H: ErrConfirmationEmailSendFailed
+        H-->>C: 502 {code:4011}
+    end
+
+    SVC->>DB: increment registration_email_send_total
     SVC-->>H: nil (success)
-
-    H-->>C: 201 {code:0, message:"registration_success", data:null}
+    H-->>C: 201 {code:0, message:"registration_success"}
 ```
 
 ---

@@ -233,7 +233,7 @@ type RefreshSessionEntry struct {
 }
 ```
 
-The JSONB **`Valuer`/`Scanner`** for the whole map column is **`gormjsonbauth.RefreshTokenSessionMap`** (`pkg/gormjsonb/auth/refresh_token_session_map.go`).
+The JSONB **`Valuer`/`Scanner`** for the whole map column is **`gormjsonbauth.RefreshTokenSessionMap`** (alias to **`sessionColumnJSONB`** in `pkg/gormjsonb/auth/refresh_token_session_map.go`).
 
 ### `models.SystemAppConfig`
 
@@ -489,7 +489,10 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 | 201 | 0 | `null` |
 | 400 | 2001 | `null` — validation failed |
 | 400 | 4003 | `null` — weak password |
-| 409 | 4001 | `null` — email exists |
+| 409 | 4001 | `null` — email exists **and** is already confirmed |
+| 410 | 4009 | `null` — lifetime confirmation-email cap exceeded; pending user removed |
+| 429 | 4010 | `null` — Redis window exceeded; response includes **`Retry-After`** and **`X-Mycourse-Register-Retry-After`** (seconds) |
+| 502 | 4011 | `null` — confirmation email could not be sent |
 | 500 | 9001 | `null` |
 
 **Success response:**

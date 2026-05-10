@@ -9,7 +9,7 @@ The following feature modules are governed by all rules in this document:
 - media
 - taxonomy
 - auth
-- sqlmodel
+- gormjsonb
 - rbaccatalog
 
 Whenever a rule references:
@@ -27,7 +27,7 @@ means:
 - pkg/media/**/*.go
 - pkg/taxonomy/**/*.go
 - pkg/auth/**/*.go
-- pkg/sqlmodel/**/*.go
+- pkg/gormjsonb/**/*.go
 - pkg/rbaccatalog/**/*.go
 
 ### Project Rules

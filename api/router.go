@@ -18,7 +18,7 @@ func ginDefaultCORS() cors.Config {
 		AllowOrigins:     setting.AppSetting.CorsAllowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key", "X-Refresh-Token", "X-Session-Id"},
-		ExposeHeaders:    []string{"X-Token-Expired"},
+		ExposeHeaders:    []string{"X-Token-Expired", constants.HeaderRegisterRetryAfter, constants.HeaderRegisterRetryAfterExtended},
 		AllowCredentials: true,
 	}
 }

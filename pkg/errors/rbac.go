@@ -2,7 +2,6 @@ package errors
 
 import (
 	stderrors "errors"
-	"fmt"
 
 	"mycourse-io-be/constants"
 )
@@ -19,8 +18,3 @@ var (
 	ErrRBACPermissionNameRequired        = stderrors.New(constants.MsgRBACPermissionNameRequired)
 	ErrRBACPermissionNameTooLong         = stderrors.New(constants.MsgRBACPermissionNameTooLong)
 )
-
-// WrapRBACUnknownPermissionID annotates ErrRBACUnknownPermissionID with the offending id (for errors.Is on the base sentinel).
-func WrapRBACUnknownPermissionID(permissionID string) error {
-	return fmt.Errorf("%w: %q", ErrRBACUnknownPermissionID, permissionID)
-}

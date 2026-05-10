@@ -13,6 +13,7 @@ import (
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncmedia "mycourse-io-be/pkg/errors_func/media"
 	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
@@ -70,15 +71,6 @@ func parseAndOpenMultipartParts(c *gin.Context) ([]entities.OpenedUploadPart, fu
 	return parts, closer, nil
 }
 
-func bindUpdateAndCreateMultipart(c *gin.Context) (dto.UpdateFileRequest, dto.CreateFileRequest, error) {
-	updateReq, err := mapping.BindUpdateFileMultipart(c)
-	if err != nil {
-		return dto.UpdateFileRequest{}, dto.CreateFileRequest{}, err
-	}
-	createReq, err := mapping.BindCreateFileMultipart(c)
-	return updateReq, createReq, err
-}
-
 func openMultipartForMutation(c *gin.Context) ([]entities.OpenedUploadPart, func(), bool) {
 	parts, closer, err := parseAndOpenMultipartParts(c)
 	if err != nil {
@@ -131,7 +123,7 @@ func updateFile(c *gin.Context) {
 		defer closer()
 	}
 
-	updateReq, createReq, err := bindUpdateAndCreateMultipart(c)
+	updateReq, createReq, err := mapping.BindUpdateAndCreateMultipart(c)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
@@ -169,7 +161,7 @@ func batchDeleteMediaFiles(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "deleted", dto.BatchDeleteMediaFilesResponse{DeletedCount: len(keys)})
+	response.OK(c, "deleted", mapping.ToBatchDeleteMediaFilesResponse(len(keys)))
 }
 
 func deleteFile(c *gin.Context) {
@@ -201,7 +193,7 @@ func decodeLocalURL(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", dto.LocalURLDecodeResponse{ObjectKey: objectKey})
+	response.OK(c, "ok", mapping.ToLocalURLDecodeResponse(objectKey))
 }
 
 func getVideoStatus(c *gin.Context) {
@@ -216,24 +208,24 @@ func getVideoStatus(c *gin.Context) {
 			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
 			return
 		}
-		if pe, ok := pkgerrors.AsProviderError(err); ok {
+		if pe, ok := errfuncmedia.AsProviderError(err); ok {
 			msg := pe.Error()
 			if strings.TrimSpace(msg) == "" {
 				msg = errcode.DefaultMessage(pe.Code)
 			}
-			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			response.Fail(c, errfuncmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)
 		return
 	}
-	response.OK(c, "ok", dto.VideoStatusResponse{Status: out.Status})
+	response.OK(c, "ok", mapping.ToVideoStatusResponse(out.Status))
 }
 
 func getMediaCleanupMetrics(c *gin.Context) {
-	response.OK(c, "ok", dto.MediaCleanupMetricsResponse{
-		CleanupCloudDeleted: jobmedia.CleanupCloudDeleted.Load(),
-		CleanupCloudFailed:  jobmedia.CleanupCloudFailed.Load(),
-		CleanupCloudRetried: jobmedia.CleanupCloudRetried.Load(),
-	})
+	response.OK(c, "ok", mapping.ToMediaCleanupMetricsResponse(
+		jobmedia.CleanupCloudDeleted.Load(),
+		jobmedia.CleanupCloudFailed.Load(),
+		jobmedia.CleanupCloudRetried.Load(),
+	))
 }

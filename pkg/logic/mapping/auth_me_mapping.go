@@ -38,3 +38,8 @@ func ToMeResponseFromProfile(p *entities.MeProfile) *dto.MeResponse {
 		Permissions:    p.Permissions,
 	}
 }
+
+// ToMyPermissionsResponse maps sorted permission codes to the GET /me/permissions payload.
+func ToMyPermissionsResponse(sortedCodes []string) dto.MyPermissionsResponse {
+	return dto.MyPermissionsResponse{Permissions: sortedCodes}
+}

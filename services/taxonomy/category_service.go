@@ -6,6 +6,7 @@ import (
 	"mycourse-io-be/dto"
 	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
+	"mycourse-io-be/pkg/logic/mapping"
 	repo "mycourse-io-be/repository/taxonomy"
 	mediasvc "mycourse-io-be/services/media"
 )
@@ -23,17 +24,9 @@ func CreateCategory(actorID uint, req dto.CreateCategoryRequest) (*models.Catego
 	if _, err := mediasvc.LoadValidatedProfileImageFile(fileID); err != nil {
 		return nil, err
 	}
-	n, s, st := trimmedTaxonomyFields(req.Name, req.Slug, req.Status)
+	n, s, st := mapping.TrimmedTaxonomyFields(req.Name, req.Slug, req.Status)
 	fid := fileID
-	row := &models.Category{
-		Name:        n,
-		Slug:        s,
-		Status:      st,
-		ImageFileID: &fid,
-	}
-	if actorID > 0 {
-		row.CreatedBy = &actorID
-	}
+	row := mapping.CategoryModelForCreate(actorID, n, s, st, fid)
 	r := repo.NewCategoryRepository(models.DB)
 	if err := r.CreateCategory(row); err != nil {
 		return nil, err
@@ -75,7 +68,7 @@ func UpdateCategory(id uint, req dto.UpdateCategoryRequest) (*models.Category, e
 		return nil, err
 	}
 
-	applyOptionalTaxonomyNameSlugStatus(&row.Name, &row.Slug, &row.Status, req.Name, req.Slug, req.Status)
+	mapping.ApplyOptionalTaxonomyNameSlugStatus(&row.Name, &row.Slug, &row.Status, req.Name, req.Slug, req.Status)
 
 	prevFileID := categoryImageFileIDString(row)
 	if err := mutateCategoryImageFileID(row, req.ImageFileID); err != nil {

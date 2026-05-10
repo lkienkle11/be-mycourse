@@ -116,3 +116,11 @@ func DelLoginInvalidCache(ctx context.Context, normEmail string) {
 	}
 	_ = cache_clients.Redis.Del(ctx, redisLoginInvalidKey(normEmail)).Err()
 }
+
+// DelCachedLoginUserByNormalizedEmail drops the short-lived email→user_id cache entry.
+func DelCachedLoginUserByNormalizedEmail(ctx context.Context, normEmail string) {
+	if !cache_clients.RedisAvailable() || normEmail == "" {
+		return
+	}
+	_ = cache_clients.Redis.Del(ctx, redisLoginUserByEmailKey(normEmail)).Err()
+}

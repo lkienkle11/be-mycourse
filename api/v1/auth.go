@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -10,6 +11,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/pkg/setting"
 	"mycourse-io-be/services/auth"
@@ -26,18 +28,40 @@ func register(c *gin.Context) {
 	}
 
 	if err := auth.Register(req.Email, req.Password, req.DisplayName); err != nil {
-		switch {
-		case errors.Is(err, pkgerrors.ErrWeakPassword):
-			response.Fail(c, http.StatusBadRequest, errcode.WeakPassword, errcode.DefaultMessage(errcode.WeakPassword), nil)
-		case errors.Is(err, pkgerrors.ErrEmailAlreadyExists):
-			response.Fail(c, http.StatusConflict, errcode.EmailAlreadyExists, errcode.DefaultMessage(errcode.EmailAlreadyExists), nil)
-		default:
-			response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
-		}
+		writeRegisterErrorResponse(c, err)
 		return
 	}
 
 	response.Created(c, "registration_success", nil)
+}
+
+func writeRegisterErrorResponse(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, pkgerrors.ErrWeakPassword):
+		response.Fail(c, http.StatusBadRequest, errcode.WeakPassword, errcode.DefaultMessage(errcode.WeakPassword), nil)
+		return
+	case errors.Is(err, pkgerrors.ErrEmailAlreadyExists):
+		response.Fail(c, http.StatusConflict, errcode.EmailAlreadyExists, errcode.DefaultMessage(errcode.EmailAlreadyExists), nil)
+		return
+	case errors.Is(err, pkgerrors.ErrRegistrationAbandoned):
+		response.Fail(c, http.StatusGone, errcode.RegistrationAbandoned, errcode.DefaultMessage(errcode.RegistrationAbandoned), nil)
+		return
+	case errors.Is(err, pkgerrors.ErrConfirmationEmailSendFailed):
+		response.Fail(c, http.StatusBadGateway, errcode.ConfirmationEmailSendFailed, errcode.DefaultMessage(errcode.ConfirmationEmailSendFailed), nil)
+		return
+	default:
+		var rl *pkgerrors.RegistrationEmailRateLimitedError
+		if errors.As(err, &rl) {
+			sec := strconv.FormatInt(rl.RetryAfterSeconds, 10)
+			response.Fail(c, http.StatusTooManyRequests, errcode.RegistrationEmailRateLimited, errcode.DefaultMessage(errcode.RegistrationEmailRateLimited), nil,
+				response.Options{Headers: map[string]string{
+					constants.HeaderRegisterRetryAfter:         sec,
+					constants.HeaderRegisterRetryAfterExtended: sec,
+				}})
+			return
+		}
+		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, errcode.DefaultMessage(errcode.InternalError), nil)
+	}
 }
 
 // POST /api/v1/auth/login
@@ -64,11 +88,7 @@ func login(c *gin.Context) {
 	}
 
 	setAuthCookies(c, result.AccessToken, result.RefreshToken, result.SessionStr, result.RefreshTTL.Seconds())
-	response.OK(c, "login_success", dto.LoginSessionTokensResponse{
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		SessionID:    result.SessionStr,
-	})
+	response.OK(c, "login_success", mapping.ToLoginSessionTokensResponse(result.AccessToken, result.RefreshToken, result.SessionStr))
 }
 
 // GET /api/v1/auth/confirm?token=<token>
@@ -91,11 +111,7 @@ func confirmEmail(c *gin.Context) {
 	}
 
 	setAuthCookies(c, result.AccessToken, result.RefreshToken, result.SessionStr, result.RefreshTTL.Seconds())
-	response.OK(c, "email_confirmed", dto.LoginSessionTokensResponse{
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		SessionID:    result.SessionStr,
-	})
+	response.OK(c, "email_confirmed", mapping.ToLoginSessionTokensResponse(result.AccessToken, result.RefreshToken, result.SessionStr))
 }
 
 // POST /api/v1/auth/refresh
@@ -128,11 +144,7 @@ func refreshToken(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "token_refreshed", dto.LoginSessionTokensResponse{
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		SessionID:    result.SessionStr,
-	})
+	response.OK(c, "token_refreshed", mapping.ToLoginSessionTokensResponse(result.AccessToken, result.RefreshToken, result.SessionStr))
 }
 
 // setAuthCookies writes access_token, refresh_token, and session_id as non-HttpOnly

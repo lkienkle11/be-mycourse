@@ -117,6 +117,10 @@ const (
 	MsgAuthUserNotFound        = "user not found"
 	MsgAuthInvalidSession      = "invalid session"
 	MsgAuthRefreshTokenExpired = "refresh token expired"
+	// Registration confirmation email limits (Sub 18): shared literal for errors.New + JSON default message.
+	MsgAuthRegistrationAbandoned        = "registration was abandoned because confirmation email limits were exceeded"
+	MsgAuthRegistrationEmailRateLimited = "too many confirmation emails were sent recently; please try again later"
+	MsgAuthConfirmationEmailSendFailed  = "confirmation email could not be sent; please try again later"
 )
 
 // MsgMediaDependencyNotConfigured is returned when media cloud clients are nil (RequireInitialized).
@@ -171,6 +175,8 @@ const (
 	MsgBunnyUploadVideoHTTP                = "bunny upload video: HTTP %d"
 	MsgBunnyStreamNotConfiguredRaw         = "bunny stream is not configured"
 	MsgBunnyDeleteVideoFailed              = "bunny delete video failed: %s"
+	MsgBunnyWebhookJSONInvalid             = "bunny webhook: invalid json"
+	MsgBunnyWebhookPayloadInvalid          = "bunny webhook: invalid payload"
 	MsgReadYAML                            = "read yaml %s: %w"
 	MsgParseYAML                           = "parse yaml %s: %w"
 	MsgParseDotEnv                         = "parse %s: %w"

@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/dbschema"
 	"mycourse-io-be/models"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncdb "mycourse-io-be/pkg/errors_func/db"
 	"mycourse-io-be/pkg/sqlnamed"
 )
 
@@ -189,7 +190,7 @@ func AssignUserPermissionByPermissionName(userID uint, permissionName string) er
 	}
 	var p models.Permission
 	if err := db.Where("permission_name = ?", strings.TrimSpace(permissionName)).First(&p).Error; err != nil {
-		return pkgerrors.MapRecordNotFound(err)
+		return errfuncdb.MapRecordNotFound(err)
 	}
 	return AssignUserPermission(userID, p.PermissionID)
 }

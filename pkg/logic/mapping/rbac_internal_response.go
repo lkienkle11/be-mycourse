@@ -67,3 +67,8 @@ func ToRBACRolePtrResponse(r *models.Role) *dto.RBACRoleResponse {
 	v := ToRBACRoleResponse(*r)
 	return &v
 }
+
+// ToUserRBACPermissionCodesResponse maps sorted permission name strings to the internal RBAC API DTO.
+func ToUserRBACPermissionCodesResponse(sortedCodes []string) dto.UserRBACPermissionCodesResponse {
+	return dto.UserRBACPermissionCodesResponse{PermissionCodes: sortedCodes}
+}

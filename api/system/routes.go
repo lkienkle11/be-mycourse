@@ -14,6 +14,7 @@ import (
 	"mycourse-io-be/middleware"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/response"
 	"mycourse-io-be/services"
 )
@@ -55,10 +56,8 @@ func systemLogin(c *gin.Context) {
 		}
 		return
 	}
-	response.OK(c, "system_login_ok", dto.SystemLoginResponse{
-		AccessToken: tok,
-		ExpiresIn:   int(systemauth.SystemAccessTokenTTL.Seconds()),
-	})
+	expiresIn := int(systemauth.SystemAccessTokenTTL.Seconds())
+	response.OK(c, "system_login_ok", mapping.ToSystemLoginResponse(tok, expiresIn))
 }
 
 func permissionSyncNow(c *gin.Context) {
@@ -67,7 +66,7 @@ func permissionSyncNow(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "permission_sync_completed", dto.PermissionSyncNowResponse{Synced: n})
+	response.OK(c, "permission_sync_completed", mapping.ToPermissionSyncNowResponse(n))
 }
 
 func rolePermissionSyncNow(c *gin.Context) {
@@ -76,5 +75,5 @@ func rolePermissionSyncNow(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, errcode.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "role_permission_sync_completed", dto.RolePermissionSyncNowResponse{Rows: n})
+	response.OK(c, "role_permission_sync_completed", mapping.ToRolePermissionSyncNowResponse(n))
 }

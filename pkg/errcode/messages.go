@@ -46,6 +46,10 @@ var defaultMessages = map[int]string{
 	InvalidSession:      "Invalid or missing session",
 	RefreshTokenExpired: "Session has expired, please log in again",
 
+	RegistrationAbandoned:        constants.MsgAuthRegistrationAbandoned,
+	RegistrationEmailRateLimited: constants.MsgAuthRegistrationEmailRateLimited,
+	ConfirmationEmailSendFailed:  constants.MsgAuthConfirmationEmailSendFailed,
+
 	InternalError: "Internal server error",
 	Panic:         "Internal server error",
 

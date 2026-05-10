@@ -179,7 +179,7 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 | 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; **`media_pending_cloud_cleanup`** |
 | 000005 | `media_bunny_response_fields` | **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** |
 | 000006 | `taxonomy_user_media_refs` | **`categories.image_file_id`**, **`users.avatar_file_id`** (FK → `media_files`); drops legacy **`categories.image_url`**, **`users.avatar_url`** after URL→row backfill |
-| 000007 | `registration_email_limits` | **`users.registration_email_send_total`** — counts successful confirmation emails while pending; reset on email confirm |
+| 000007 | `registration_email_limits` | **`users.registration_email_send_total`** — counts successful confirmation emails while pending, reset on email confirm. **`COMMENT`** text contains **no** `;` inside quotes (migrate splits the whole file on every `;`). |
 
 **Taxonomy `categories` (post-000006):** includes **`image_file_id`** `UUID` nullable FK → **`media_files(id)`** (replaces removed **`image_url`**).
 

@@ -315,7 +315,7 @@ The following custom headers are whitelisted in the CORS configuration:
 | JSONB session map (`gormjsonbauth.RefreshTokenSessionMap` → local `sessionColumnJSONB`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `models/deleted_at.go` |
 | Token TTL constants | `constants/auth_token.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` (used by `services/*` and `api/v1/auth.go` cookie max-age) |
 | DB schema / sessions column | `migrations/000001_schema.up.sql` |
-| Registration email lifetime column | `migrations/000007_registration_email_limits.up.sql` — `users.registration_email_send_total` |
+| Registration email lifetime column | `migrations/000007_registration_email_limits.up.sql` — `users.registration_email_send_total`; `COMMENT` không chứa `;` trong chuỗi (migrate tách file theo mọi `;`) |
 
 ---
 

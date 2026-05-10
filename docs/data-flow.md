@@ -38,7 +38,7 @@
 - Parses refresh token, validates session in DB JSONB, refreshes permission list, rotates token/session metadata.
 
 ### Me/Profile
-- `GET /api/v1/me` (JWT) -> `auth.GetMe` (`services/auth`).
+- `GET /api/v1/me` (JWT) -> `auth.GetMe` (`services/auth`) -> **`entities.MeProfile`**; **`api/v1/me.go`** maps to **`dto.MeResponse`** via **`mapping.ToMeResponseFromProfile`**.
 - Cache-first `me` fetch, fallback to DB + permission resolution, then cache write.
 
 ### Permission Check
@@ -75,7 +75,7 @@
 - Media response is mapped through `pkg/logic/mapping` to `dto.UploadFileResponse` (public payload hides internal `provider`; **no `origin_url` in JSON** (Sub 12); Bunny parity top-level fields when populated — `docs/modules/media.md`).
 
 ### Media Video Status + Webhook
-- `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` -> Bunny `GET /library/{libraryID}/videos/{guid}`.
+- `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` (returns **`entities.VideoProviderStatus`**) -> handler maps to **`dto.VideoStatusResponse`** -> Bunny `GET /library/{libraryID}/videos/{guid}`.
 - Numeric Bunny status is normalized by **`pkg/media.BunnyStatusString(status)`** with `unknown` fallback for unsupported values.
 - `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
 - Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); **`ApplyBunnyDetailToMetadata`** refreshes **`video_id` / `thumbnail_url` / `embeded_html`** in JSON and ORM columns; idempotent when DB row missing.

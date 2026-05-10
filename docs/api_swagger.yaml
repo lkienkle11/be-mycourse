@@ -188,7 +188,7 @@ components:
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     MediaFilePublic:
       type: object
-      description: Public subset of a media_files row (aligned with dto.MediaFilePublic)
+      description: Public subset of a media_files row (canonical struct pkg/entities.MediaFilePublic; dto.MediaFilePublic is a type alias)
       properties:
         id: { type: string, format: uuid }
         kind: { type: string }

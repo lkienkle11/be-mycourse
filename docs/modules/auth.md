@@ -4,7 +4,7 @@
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in `pkg/entities` (no `gorm` / `database/sql` there).
-- Types that exist only to satisfy **GORM columns** or **`database/sql/driver`** (`Valuer`/`Scanner`) on `models/*.go` — refresh JSONB map → **`pkg/gormjsonb/auth`**; soft-delete alias → **`pkg/sqlmodel`**. Pure session entry/map shapes → **`pkg/entities`**.
+- Types that exist only to satisfy **GORM columns** or **`database/sql/driver`** (`Valuer`/`Scanner`) on `models/*.go` — refresh JSONB map → **`pkg/gormjsonb/auth`**; soft-delete **`DeletedAt`** alias → **`models/deleted_at.go`**. Pure session entry/map shapes → **`pkg/entities`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Overview
@@ -285,7 +285,7 @@ The following custom headers are whitelisted in the CORS configuration:
 | Session entry persistence | `repository/user_refresh_session.go` — `AddRefreshSession`, `SaveRefreshSession` (called from `services/auth/auth_session_tokens.go` / `services/auth/auth_refresh_rotation.go`) |
 | Redis keys + TTL | `services/cache/auth_user.go` |
 | Session limit constant (`MaxActiveSessions = 5`) | `constants/user_session.go` |
-| JSONB session map (`gormjsonbauth.RefreshTokenSessionMap`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `pkg/sqlmodel` (`deleted_at.go`) |
+| JSONB session map (`gormjsonbauth.RefreshTokenSessionMap`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `models/deleted_at.go` |
 | Token TTL constants | `constants/auth_token.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` (used by `services/*` and `api/v1/auth.go` cookie max-age) |
 | DB schema / sessions column | `migrations/000001_schema.up.sql` |
 

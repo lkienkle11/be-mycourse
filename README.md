@@ -36,7 +36,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql` imports there — same depguard rule as **`models/*.go`**).
-- GORM/JSONB **column** types used on models: refresh-session JSONB **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth`**, GORM **`DeletedAt`** alias in **`pkg/sqlmodel`** — not **`pkg/entities`**.
+- GORM/JSONB **column** types used on models: refresh-session JSONB **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth`**, GORM **`DeletedAt`** alias in **`models/deleted_at.go`** — not **`pkg/entities`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Global Constants Placement Rule (Mandatory)
@@ -64,7 +64,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy: categories / tags / course levels; shared **`pkg/taxonomy`** (`NormalizeTaxonomyStatus`) + `services/taxonomy` |
 | `pkg/entities/` | Shared **domain** structs (no `gorm` / `database/sql` / **no funcs**); depguard **`restrict_models_pkg_entity_schema_only`** — see **`docs/patterns.md`** |
 | `pkg/gormjsonb/auth/` | JSONB **`Valuer`/`Scanner`** for **`users.refresh_token_session`** (`RefreshTokenSessionMap`) — see **`docs/patterns.md`** |
-| `pkg/sqlmodel/` | GORM **`DeletedAt`** alias only (from **`models/user.go`**) — see **`docs/patterns.md`** |
+| `models/deleted_at.go` | GORM **`DeletedAt`** type alias (**`gorm.DeletedAt`**) — see **`docs/patterns.md`** |
 | [`tests/`](tests/) | **All test code** (unit/module-level/integration) — place test packages, fixtures, and shared harnesses here (see **Testing** below). |
 
 ## Quick Start

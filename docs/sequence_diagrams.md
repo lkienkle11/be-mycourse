@@ -360,7 +360,7 @@ sequenceDiagram
             SVC-->>H: ErrUserNotFound
             H-->>C: 404 {code:3004}
         end
-        SVC->>SVC: userPermissionSlice + mapping.BuildMeResponseFromUser(user, perms)
+        SVC->>SVC: userPermissionSlice + mapping.BuildMeProfileFromUser(user, perms)
         Note over SVC: calls PermissionCodesForUser(uid) → SQL UNION
         SVC->>Cache: SetCachedUserMe(ctx, meResponse)
         SVC-->>H: meResponse

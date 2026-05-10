@@ -4,7 +4,7 @@
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql`).
-- GORM / JSONB **column** types for model fields: refresh-session JSONB in **`pkg/gormjsonb/auth`**, soft-delete alias in **`pkg/sqlmodel`**.
+- GORM / JSONB **column** types for model fields: refresh-session JSONB in **`pkg/gormjsonb/auth`**, soft-delete **`DeletedAt`** alias in **`models/deleted_at.go`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Global Constants Placement Rule (Mandatory)
@@ -40,10 +40,10 @@
 ### Asset: issueTokenPair / RefreshSession
 - Name: `issueTokenPair`, `RefreshSession`
 - Type: Function (auth service)
-- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session entry shape in **`pkg/entities/refresh_session.go`**, JSONB column **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth/refresh_token_session_map.go`**, soft-delete alias in **`pkg/sqlmodel/deleted_at.go`**
+- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session entry shape in **`pkg/entities/refresh_session.go`**, JSONB column **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth/refresh_token_session_map.go`**, soft-delete alias in **`models/deleted_at.go`**
 - Purpose: Token issue/rotation and session persistence management.
 - Scope: Any auth/session extension features.
-- Dependencies: `pkg/token`, `pkg/sqlmodel`, `constants` (TTLs), `models`, `repository`, `services/cache`, RBAC permission resolver.
+- Dependencies: `pkg/token`, `constants` (TTLs), `models`, `repository`, `services/cache`, RBAC permission resolver.
 - Current Usage: auth register/login/confirm/refresh flows.
 - Reuse Opportunity:
   - Reuse unchanged for newly protected domain APIs.
@@ -87,12 +87,21 @@
 - Name: `MeResponse`
 - Type: Type/DTO
 - Path: `dto/auth.go`
-- Purpose: Canonical user self payload for auth/me endpoints.
-- Scope: User profile/session related flows.
-- Dependencies: Auth service builders and cache serializer.
-- Current Usage: `services/auth/auth.go`, `services/cache/auth_user.go`, `api/v1/me.go`.
+- Purpose: HTTP JSON contract for **`GET/PATCH /api/v1/me`** (handler boundary only).
+- Scope: User profile/session related API responses.
+- Dependencies: Built from **`entities.MeProfile`** via **`mapping.ToMeResponseFromProfile`**.
+- Current Usage: `api/v1/me.go` (response envelope only).
 - Reuse Opportunity:
-  - Reuse for profile reads and permission-aware user summary payloads.
+  - Keep transport-only; services/cache use **`entities.MeProfile`**.
+
+### Asset: MeProfile (service + cache shape)
+- Name: `MeProfile` (avatar uses **`entities.MediaFilePublic`** — same type as **`dto.MediaFilePublic`** via alias)
+- Type: Type/Entity
+- Path: `pkg/entities/me_profile.go`, `pkg/entities/media_file_public.go`
+- Purpose: Non-DTO user self projection for **`services/auth`** and Redis **`/me`** cache. **`Avatar`** is **`*entities.MediaFilePublic`** (JSON identical to API — **`dto.MediaFilePublic`** is a type alias).
+- Scope: Auth read path + cache serialize/deserialize.
+- Dependencies: **`pkg/entities` only** in the struct definitions; **`dto`** re-exports **`MediaFilePublic`** for handler/DTO field names.
+- Current Usage: `services/auth/auth.go`, `services/auth/me_update.go`, `services/cache/auth_user.go`; built by **`mapping.BuildMeProfileFromUser`**.
 
 ## Utility / Helper Assets
 
@@ -194,13 +203,13 @@
 - Reuse Opportunity: Any new writer of `metadata_json` for Bunny should import these constants.
 
 ### Asset: Mapping helpers for API DTO contracts
-- Name: `ToUploadFileResponse`, `ToCategoryResponse`, `ToCourseLevelResponse`, `ToTagResponse` (+ slice variants)
+- Name: `ToUploadFileResponse`, model→DTO taxonomy mappers, **`CategoryListHTTPPayload`**, **`CategoryRowHTTPPayload`**, **`TagListHTTPPayload`**, **`TagRowHTTPPayload`**, **`CourseLevelListHTTPPayload`**, **`CourseLevelRowHTTPPayload`**, **`BuildMeProfileFromUser`**, **`ToMeResponseFromProfile`**
 - Type: Util/Helper
-- Path: `pkg/logic/mapping/media_file_mapping.go`, `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/taxonomy_course_level_mapping.go`, `pkg/logic/mapping/taxonomy_tag_mapping.go`
-- Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs. **`ToUploadFileResponse`** omits canonical origin from the public DTO (Sub 12 — no `origin_url` on `dto.UploadFileResponse`); internal `entities.File.OriginURL` / DB `origin_url` still store it for server use.
-- Scope: Media and taxonomy transport responses.
+- Path: `pkg/logic/mapping/media_file_mapping.go`, `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/taxonomy_model_mapping.go`, `pkg/logic/mapping/taxonomy_course_level_mapping.go`, `pkg/logic/mapping/taxonomy_tag_mapping.go`, `pkg/logic/mapping/auth_me_mapping.go`
+- Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs. Taxonomy **`HTTPPayload`** helpers let **`api/v1/taxonomy/*_handler.go`** stay free of **`models`** imports (**`restrict_api`**). **`ToUploadFileResponse`** omits canonical origin from the public DTO (Sub 12 — no `origin_url` on `dto.UploadFileResponse`); internal `entities.File.OriginURL` / DB `origin_url` still store it for server use.
+- Scope: Media and taxonomy transport responses; auth /me service→handler bridge.
 - Dependencies: `dto`, `models`, `pkg/entities`.
-- Current Usage: `api/v1/media/file_handler.go`, `api/v1/taxonomy/*_handler.go`.
+- Current Usage: `api/v1/media/file_handler.go`, `api/v1/taxonomy/*_handler.go`, `api/v1/me.go`.
 - Reuse Opportunity:
   - Reuse for all upcoming domain handlers to enforce stable public API contracts.
 
@@ -408,7 +417,7 @@
 - Name: `GetCachedUserMe`, `SetCachedUserMe`, `LoginInvalidCached`, etc.
 - Type: Util/Helper
 - Path: `services/cache/auth_user.go`
-- Purpose: Cache-aside support for login and me endpoints.
+- Purpose: Cache-aside support for login and me endpoints; **`/me`** entries store **`entities.MeProfile`** JSON (same field JSON names as **`dto.MeResponse`**).
 - Scope: High-frequency identity reads and login flows.
 - Dependencies: `pkg/cache_clients`, Redis.
 - Current Usage: `services/auth/auth.go`.
@@ -713,7 +722,7 @@
 - Name: `ToMediaFilePublicFromModel`, `ToMediaFilePublicFromEntity`, `ProfileImageFileAcceptable`
 - Type: Mapper / policy
 - Path: `pkg/logic/mapping/media_public_mapping.go`
-- Purpose: Build **`dto.MediaFilePublic`** for API responses; shared image-kind acceptance rules.
+- Purpose: Build **`entities.MediaFilePublic`** ( **`dto.MediaFilePublic`** alias) for API responses; shared image-kind acceptance rules.
 
 ### Asset: DelCachedUserMe
 - Name: `DelCachedUserMe`

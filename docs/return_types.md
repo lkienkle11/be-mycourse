@@ -105,7 +105,7 @@ type PageInfo struct {
 ### `models.User`
 
 ```go
-// models/user.go — JSONB column type from pkg/gormjsonb/auth; soft-delete alias from pkg/sqlmodel (see depguard restrict_models_schema_only + restrict_models_pkg_entity_schema_only).
+// models/user.go — JSONB column type from pkg/gormjsonb/auth; soft-delete alias type in models/deleted_at.go (gorm import only there — see depguard restrict_models_pkg_entity_schema_only + !models/deleted_at.go).
 type User struct {
     ID                  uint                               `json:"id"`
     UserCode            string                             `json:"user_code"`       // UUIDv7
@@ -121,7 +121,7 @@ type User struct {
     RefreshTokenSession gormjsonbauth.RefreshTokenSessionMap   `json:"-"`               // never serialized
     CreatedAt           time.Time                          `json:"created_at"`
     UpdatedAt           time.Time                          `json:"updated_at"`
-    DeletedAt           sqlmodel.DeletedAt                 `json:"deleted_at,omitempty"`
+    DeletedAt           DeletedAt                          `json:"deleted_at,omitempty"`
 }
 ```
 
@@ -130,7 +130,7 @@ type User struct {
 Returned by `GET /api/v1/me`:
 
 ```go
-// dto/auth.go — nested avatar uses dto.MediaFilePublic (dto/media_public.go)
+// dto/auth.go — nested avatar uses dto.MediaFilePublic (type alias → pkg/entities/media_file_public.go)
 type MeResponse struct {
     UserID         uint               `json:"user_id"`
     UserCode       string             `json:"user_code"` // UUIDv7 string
@@ -373,7 +373,8 @@ type AssignUserPermissionRequest struct {
 | `Login` | `Login(email, password string, rememberMe bool) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidCredentials`, `ErrEmailNotConfirmed`, `ErrUserDisabled`, or DB error |
 | `ConfirmEmail` | `ConfirmEmail(confirmToken string) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidConfirmToken` or DB error |
 | `RefreshSession` | `RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error)` in **`services/auth/auth_refresh_rotation.go`** | `TokenPairResult` on success; `ErrInvalidSession`, `ErrUserNotFound`, `ErrUserDisabled`, `ErrRefreshTokenExpired`, or DB error |
-| `GetMe` | `GetMe(userID uint) (*dto.MeResponse, error)` | `*dto.MeResponse` on success; `ErrUserNotFound` or DB error |
+| `GetMe` | `GetMe(userID uint) (*entities.MeProfile, error)` | `*entities.MeProfile` on success (HTTP handler maps via **`mapping.ToMeResponseFromProfile`**); `ErrUserNotFound` or DB error |
+| `UpdateMe` | `UpdateMe(userID uint, req dto.UpdateMeRequest) (*entities.MeProfile, error)` in **`services/auth/me_update.go`** | Same shape as **`GetMe`** after avatar update |
 | `issueTokenPair` _(internal)_ | `issueTokenPair(user User, rememberMe bool, refreshTTL time.Duration) (TokenPairResult, error)` | `TokenPairResult` or error |
 | `userPermissionSlice` _(internal)_ | `userPermissionSlice(userID uint) ([]string, error)` | Sorted `[]string` of `permission_name` values |
 

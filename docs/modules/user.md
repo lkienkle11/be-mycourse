@@ -22,7 +22,7 @@ Returns the non-sensitive profile fields for the authenticated user together wit
 **Auth:** Bearer JWT (required)  
 **Rate limit:** 120 requests / 1 minute
 
-**Response shape:** `dto.MeResponse` — when an avatar file is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** object (subset of `pkg/entities.File`: `id`, `kind`, `provider`, `filename`, `mime_type`, `size_bytes`, `width`, `height`, `url`, `duration`, `content_fingerprint`, `status`). Omitted when unset.
+**Response shape:** `dto.MeResponse` — when an avatar file is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** value (same underlying type as **`entities.MediaFilePublic`**: `id`, `kind`, `provider`, `filename`, `mime_type`, `size_bytes`, `width`, `height`, `url`, `duration`, `content_fingerprint`, `status`). Omitted when unset.
 
 ```json
 {

@@ -399,7 +399,9 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK — envelope `data` is `MyPermissionsResponse` (`{ "permissions": string[] }`, sorted).
+          description: >-
+            OK — envelope `data` is `MyPermissionsResponse`
+            (`{ "permissions": string[] }`, sorted).
         "403":
           description: Forbidden
 
@@ -804,7 +806,9 @@ paths:
         - systemBearer: []
       responses:
         "200":
-          description: OK — envelope `data` is `PermissionSyncNowResponse` (`{ "synced": int }`).
+          description: >-
+            OK — envelope `data` is `PermissionSyncNowResponse`
+            (`{ "synced": int }`).
 
   /api/system/role-permission-sync-now:
     post:
@@ -814,7 +818,9 @@ paths:
         - systemBearer: []
       responses:
         "200":
-          description: OK — envelope `data` is `RolePermissionSyncNowResponse` (`{ "rows": int }`).
+          description: >-
+            OK — envelope `data` is `RolePermissionSyncNowResponse`
+            (`{ "rows": int }`).
 
   /api/system/create-permission-sync-job:
     post:
@@ -1069,7 +1075,9 @@ paths:
           schema: { type: integer }
       responses:
         "200":
-          description: OK — envelope `data` is `UserRBACPermissionCodesResponse` (`{ "permission_codes": string[] }`, sorted).
+          description: >-
+            OK — envelope `data` is `UserRBACPermissionCodesResponse`
+            (`{ "permission_codes": string[] }`, sorted).
 
   /api/internal-v1/rbac/users/{userId}/direct-permissions:
     parameters:

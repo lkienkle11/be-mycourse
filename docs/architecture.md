@@ -53,7 +53,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 5. **`/api/internal-v1`** — `RateLimitLocal`, `BeforeInterceptor`, **`middleware.RequireInternalAPIKey()`** → internal RBAC HTTP API (`api/v1.RegisterInternalRoutes`).
 6. **Handlers** in `api/v1/*.go` parse/bind DTOs, call **`services/*`**, and respond with **`pkg/response`** helpers (never ad-hoc `gin.H` envelopes).
 
-**Redis:** Auth flows and `GET /api/v1/me` use `services/cache` (TTL-backed JSON and negative login cache — see `docs/modules/auth.md`). If Redis is unavailable, behaviour degrades to database-only where helpers no-op on errors.
+**Redis:** Auth flows and `GET /api/v1/me` use `services/cache` (TTL-backed JSON, negative login cache, and registration confirmation email sliding window — see `docs/modules/auth.md`). If Redis is unavailable, login caches no-op; registration skips the sliding window but keeps the Postgres lifetime cap.
 
 ---
 
@@ -98,7 +98,7 @@ Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are index
 | Method | Path | Auth |
 |--------|------|------|
 | GET | `/api/v1/health` | No |
-| POST | `/api/v1/auth/register` | No |
+| POST | `/api/v1/auth/register` | No — pending signup / unconfirmed resend; **410/4009**, **429/4010** (+ Retry-After headers), **502/4011** per `docs/modules/auth.md` |
 | POST | `/api/v1/auth/login` | No |
 | GET | `/api/v1/auth/confirm` | No |
 | POST | `/api/v1/auth/refresh` | No |

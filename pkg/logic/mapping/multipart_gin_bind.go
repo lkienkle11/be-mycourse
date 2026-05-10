@@ -45,3 +45,13 @@ func BindUpdateFileMultipart(c *gin.Context) (dto.UpdateFileRequest, error) {
 	}
 	return req, nil
 }
+
+// BindUpdateAndCreateMultipart reads multipart text fields for both update and create branches (legacy multipart path).
+func BindUpdateAndCreateMultipart(c *gin.Context) (dto.UpdateFileRequest, dto.CreateFileRequest, error) {
+	updateReq, err := BindUpdateFileMultipart(c)
+	if err != nil {
+		return dto.UpdateFileRequest{}, dto.CreateFileRequest{}, err
+	}
+	createReq, err := BindCreateFileMultipart(c)
+	return updateReq, createReq, err
+}

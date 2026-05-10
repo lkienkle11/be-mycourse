@@ -44,26 +44,33 @@
 
 ### FR-1 Authentication
 
-> **Source:** `services/auth/auth.go`, `api/v1/auth.go`, `api/v1/routes.go`
+> **Source:** `services/auth/auth.go`, `services/auth/register_flow.go`, `api/v1/auth.go`, `api/v1/routes.go`
 
 #### FR-1.1 User Registration
 
-- The system **MUST** allow a new user to register with a unique email address, a password, and a display name.
+- The system **MUST** allow a new user to register with an email address, a password, and a display name.
 - The system **MUST** validate that the password is at least 8 characters long and contains at least one uppercase letter, one lowercase letter, and one special character (not a letter, digit, or space).
-- The system **MUST** reject registration if the email address is already registered (`ErrEmailAlreadyExists`).
+- The system **MUST** reject registration with **`409`** / `4001` EmailAlreadyExists when the email is already registered **and** `email_confirmed` is true.
+- When the email exists but `email_confirmed` is false, the system **MUST** treat the request as a **resend / update pending** flow: update password hash, display name, and confirmation token, then apply the same confirmation-email policies as for a new user.
 - The system **MUST** bcrypt-hash the password before persisting it.
 - The system **MUST** generate a UUIDv7 `user_code` for the new user before insert.
 - The system **MUST** generate a UUID confirmation token, persist it in `users.confirmation_token`, and send a confirmation email via Brevo to the provided email address.
+- The system **MUST** persist **`users.registration_email_send_total`**: increment only after each **successful** Brevo send while pending; cap at **15** — if the next send would exceed the cap, the system **MUST** hard-delete the pending user and return **`410`** with app code **`4009`** RegistrationAbandoned.
+- The system **MUST** enforce a Redis-backed sliding window of **5** successful confirmation emails per **`users.id`** per **4 hours**; when exceeded the system **MUST** return **`429`** with app code **`4010`**, **`Retry-After`**, and **`X-Mycourse-Register-Retry-After`** (seconds until retry).
+- If Brevo fails after limits checks, the system **MUST** return **`502`** with app code **`4011`** ConfirmationEmailSendFailed and **MUST NOT** increment `registration_email_send_total` for that attempt.
 - The registration endpoint **MUST** return HTTP `201 Created` with `code: 0` and `message: "registration_success"` on success. No token is returned.
 
 **Error cases:**
 
 | Condition | HTTP | App Code |
 |-----------|------|----------|
-| Email already registered | 409 | 4001 `EmailAlreadyExists` |
+| Email already registered and confirmed | 409 | 4001 `EmailAlreadyExists` |
 | Password fails strength check | 400 | 4003 `WeakPassword` |
 | Request body fails JSON binding | 400 | 2001 `ValidationFailed` |
-| DB or email-send error | 500 | 9001 `InternalError` |
+| Lifetime confirmation-email cap (row deleted) | 410 | 4009 `RegistrationAbandoned` |
+| Redis window exceeded | 429 | 4010 `RegistrationEmailRateLimited` |
+| Brevo / transport failure after limits | 502 | 4011 `ConfirmationEmailSendFailed` |
+| Other DB / unexpected errors | 500 | 9001 `InternalError` |
 
 ---
 
@@ -73,8 +80,10 @@
 - On match, the system **MUST** atomically:
   1. Set `email_confirmed = true` on the user.
   2. Clear `confirmation_token` to `NULL`.
-  3. Assign the **`learner`** role to the user if not already present (`user_roles` `FirstOrCreate`).
+  3. Set `registration_email_send_total` to **0**.
+  4. Assign the **`learner`** role to the user if not already present (`user_roles` `FirstOrCreate`).
 - After confirmation the system **MUST** issue a full token pair (access + refresh + session) and return it in the JSON body and as cookies (`remember_me` is always `false`).
+- After confirmation the system **MUST** delete the Redis registration confirmation window key for that user and clear the login email→user cache for that normalized email.
 - An invalid or already-consumed token **MUST** return `400` with app code `4006 InvalidConfirmToken`.
 
 ---

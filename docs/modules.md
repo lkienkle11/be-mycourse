@@ -14,8 +14,8 @@
 - If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
 
 ## Implemented Modules
-- **Auth module** (`api/v1/auth.go`, `services/auth/`, `pkg/token`):
-  - Register/login/confirm/refresh lifecycle.
+- **Auth module** (`api/v1/auth.go`, `services/auth/` including `register_flow.go`, `pkg/token`):
+  - Register/login/confirm/refresh lifecycle; registration confirmation email limits (Sub 18) in `register_flow.go` + `services/cache/register_email_window.go`.
 - **User self module** (`api/v1/me.go`):
   - Profile and permission introspection for current user.
 - **RBAC admin module** (`api/v1/internal/*`, `services/rbac/`):

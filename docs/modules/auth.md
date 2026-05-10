@@ -62,7 +62,19 @@ The official contract for **“rotate tokens, then retry”** is still **`401` +
 
 ### `POST /api/v1/auth/register`
 
-Creates a new user and sends a confirmation email.
+Creates a **pending** user (or updates an existing **unconfirmed** user with the same email) and sends a Brevo confirmation email. Confirmed accounts still get **`409`** / `4001` EmailAlreadyExists.
+
+**Implementation:** `services/auth/register_flow.go` (`Register`), `services/auth/register_email_send.go` (lifetime + Brevo send), `services/auth/auth_confirm.go` (`ConfirmEmail` helpers); handler mapping `api/v1/auth.go` (`writeRegisterErrorResponse`); token body mapping **`pkg/logic/mapping/auth_tokens_mapping.go`** (`ToLoginSessionTokensResponse`); Redis window `services/cache/register_email_window.go`; limits in `constants/register_email_limits.go` and HTTP header names in `constants/register_http.go`.
+
+**Limits (Sub 18)**
+
+| Layer | Rule |
+|--------|------|
+| Postgres `users.registration_email_send_total` | At most **15** successful confirmation emails while `email_confirmed = false`. When a send would exceed this cap, the pending row is **hard-deleted** and the API returns **`410 Gone`** with app code **`4009`** RegistrationAbandoned. |
+| Redis `mycourse:auth:register:confirm_email_window:{user_id}` | At most **5** successful sends per **4-hour** sliding window. Exceeded → **`429`** with app code **`4010`**, body default message from `constants.MsgAuthRegistrationEmailRateLimited`, and headers **`Retry-After`** and **`X-Mycourse-Register-Retry-After`** (seconds, same value). CORS **ExposeHeaders** includes these names so browser clients can read them cross-origin (`api/router.go`). |
+| Brevo send failure | After limits pass, if Brevo fails the reserved Redis slot is released and the API returns **`502 Bad Gateway`** with **`4011`** ConfirmationEmailSendFailed. |
+
+If Redis is unavailable, the sliding window is skipped (lifetime cap and Postgres still apply).
 
 **Request body**
 
@@ -77,7 +89,18 @@ Creates a new user and sends a confirmation email.
 **Password rules:** minimum 8 characters, at least one uppercase, one lowercase, and one special character.
 
 **Success:** `201 Created` — `registration_success`  
-**Errors:** `4001` EmailAlreadyExists · `4003` WeakPassword
+
+**Typical errors**
+
+| HTTP | `code` | When |
+|------|--------|------|
+| `400` | `2001` | JSON / validation |
+| `400` | `4003` | Weak password |
+| `409` | `4001` | Email already registered **and** confirmed |
+| `410` | `4009` | Lifetime confirmation-email cap — pending user removed |
+| `429` | `4010` | Redis window exceeded |
+| `502` | `4011` | Confirmation email could not be sent |
+| `500` | `9001` | Other internal errors |
 
 ---
 
@@ -116,11 +139,12 @@ Validates credentials and issues a full token set.
 
 **Errors:** `4002` InvalidCredentials · `4004` EmailNotConfirmed · `4005` UserDisabled
 
-**Redis** — package `mycourse-io-be/services/cache` (`auth_user.go`).
+**Redis** — package `mycourse-io-be/services/cache` (`auth_user.go`, `register_email_window.go`).
 
 - **`mycourse:user:me:{user_id}`** — JSON `dto.MeResponse`, TTL **1 minute**. Set on successful login and on `GET /me` miss.
 - **`mycourse:auth:login:invalid:{normalized_email}`** — negative cache for `4002`. TTL **1 minute**. While present, login returns `4002` without hitting Postgres.
-- **`mycourse:auth:login:user_by_email:{normalized_email}`** — maps normalized email → `user_id`. TTL **30 seconds**.
+- **`mycourse:auth:login:user_by_email:{normalized_email}`** — maps normalized email → `user_id`. TTL **30 seconds**. Cleared on successful **`GET /api/v1/auth/confirm`** and when registration is abandoned (`4009`).
+- **`mycourse:auth:register:confirm_email_window:{user_id}`** — ZSET of successful registration confirmation send timestamps (ms scores); sliding window for **`4010`** (see register endpoint above).
 
 ---
 
@@ -130,6 +154,8 @@ Confirms the user's email and immediately issues a token set (user is logged in 
 On success the user is assigned the **`learner`** role if not already present.
 
 `remember_me` is always `false` for email-confirmation sessions.
+
+After confirmation the service sets **`registration_email_send_total`** back to **`0`**, deletes the registration confirmation Redis window key for that user, and clears the login email→user cache for that normalized email.
 
 **Success:** `200 OK` — `email_confirmed` + three auth cookies + same JSON body shape as login  
 **Errors:** `4006` InvalidConfirmToken
@@ -276,7 +302,8 @@ The following custom headers are whitelisted in the CORS configuration:
 | Concern | Location |
 |---|---|
 | Token generation (access, refresh, session string) | `pkg/token/jwt.go` |
-| Login / ConfirmEmail / RefreshSession business logic | `services/auth/auth.go` (+ `auth_session_tokens.go`, `auth_refresh_rotation.go`) |
+| Login / Register / ConfirmEmail / RefreshSession business logic | `services/auth/auth.go`, `services/auth/register_flow.go`, `services/auth/register_email_send.go`, `services/auth/auth_confirm.go` (+ `auth_session_tokens.go`, `auth_refresh_rotation.go`) |
+| Login / confirm / refresh JSON body (`dto.LoginSessionTokensResponse`) | `pkg/logic/mapping/auth_tokens_mapping.go` — `ToLoginSessionTokensResponse` |
 | Auth middleware (Bearer header only, X-Token-Expired signal) | `middleware/auth_jwt.go` — `requireJWT`, `extractBearerToken` |
 | Cookie issuance (non-HttpOnly, SameSite=Lax) | `api/v1/auth.go` — `setAuthCookies` |
 | Refresh endpoint handler | `api/v1/auth.go` — `refreshToken` |
@@ -285,9 +312,10 @@ The following custom headers are whitelisted in the CORS configuration:
 | Session entry persistence | `repository/user_refresh_session.go` — `AddRefreshSession`, `SaveRefreshSession` (called from `services/auth/auth_session_tokens.go` / `services/auth/auth_refresh_rotation.go`) |
 | Redis keys + TTL | `services/cache/auth_user.go` |
 | Session limit constant (`MaxActiveSessions = 5`) | `constants/user_session.go` |
-| JSONB session map (`gormjsonbauth.RefreshTokenSessionMap`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `models/deleted_at.go` |
+| JSONB session map (`gormjsonbauth.RefreshTokenSessionMap` → local `sessionColumnJSONB`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `models/deleted_at.go` |
 | Token TTL constants | `constants/auth_token.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` (used by `services/*` and `api/v1/auth.go` cookie max-age) |
 | DB schema / sessions column | `migrations/000001_schema.up.sql` |
+| Registration email lifetime column | `migrations/000007_registration_email_limits.up.sql` — `users.registration_email_send_total` |
 
 ---
 

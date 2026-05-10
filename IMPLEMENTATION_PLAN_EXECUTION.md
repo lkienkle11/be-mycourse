@@ -1,3 +1,18 @@
+## Phase Sub 18 — Registration confirmation email limits + documentation
+
+### Behaviour
+- **`POST /api/v1/auth/register`:** pending create or unconfirmed resend; lifetime **15** successful Brevo sends tracked in **`users.registration_email_send_total`**; next attempt at cap **hard-deletes** pending user → **`410` / `4009`**. Redis sliding window **5 sends / 4 hours** per `users.id` → **`429` / `4010`** with **`Retry-After`** and **`X-Mycourse-Register-Retry-After`** (constants in **`constants/register_http.go`**). Brevo failure after limits → **`502` / `4011`**. Implementation: **`services/auth/register_flow.go`**, **`services/auth/register_email_send.go`**, **`services/cache/register_email_window.go`**, **`api/v1/auth.go`** (`writeRegisterErrorResponse`), **`pkg/logic/mapping/auth_tokens_mapping.go`**, **`pkg/errors/register_limits.go`**, **`pkg/errors/auth.go`** sentinels, **`migrations/000007_registration_email_limits.*.sql`**.
+- **`GET /api/v1/auth/confirm`:** resets **`registration_email_send_total`** to **0**, deletes Redis window key, clears login **`user_by_email`** cache for normalized email.
+
+### Documentation
+- Synced per **`docs/patterns.md`** checklist: **`docs/modules/auth.md`**, **`docs/return_types.md`**, **`docs/api_swagger.yaml`**, **`docs/reusable-assets.md`**, **`docs/data-flow.md`**, **`docs/api-overview.md`**, **`docs/modules.md`**, **`README.md`** (error code table), **`docs/database.md`**, **`migrations/README.md`**, **`docs/curl_api.md`**, **`docs/requirements.md`**, **`docs/sequence_diagrams.md`**, **`docs/folder-structure.md`**, **`docs/router.md`**.
+
+### Quality gate
+- **`golangci-lint run`** (incl. `funlen`, `ST1005`) and **`make check-architecture`** pass; **`go build .`** and **`go test ./...`** pass.
+- **Rule 13/14 / Rule 19 (`er-rule-5` audit):** media multipart bundle orchestration (`PrepareCreatePartsSequential`, tail prep, update-bundle head/base) lives in **`pkg/logic/mapping/media_file_batch_mapping.go`** with **`any`** repo boundaries (no **`mapping` → `repository/`** import). Typed provider unwrap/HTTP mapping and GORM not-found / RBAC wrap helpers live under **`pkg/errors_func/{media,db,rbac}/`**. Taxonomy category create/update uses **`mapping.TrimmedTaxonomyFields`**, **`ApplyOptionalTaxonomyNameSlugStatus`**, **`CategoryModelForCreate`**. JSONB session column uses **`sessionColumnJSONB`** + exported alias in **`pkg/gormjsonb/auth`** (Rule 11).
+
+---
+
 ## Phase Sub 16 — Bunny webhook reset/hardening (tasks 01–10)
 
 ### Baseline + impact inventory
@@ -18,7 +33,7 @@
 - **Webhook signature v1 (raw body) added**:
   - `pkg/media/webhook_signature.go`: HMAC-SHA256 expected signature, constant-time compare, strict `v1` + `hmac-sha256` checks.
   - `api/v1/media/webhook_handler.go` flow changed to:
-    1) read raw body bytes, 2) resolve signing secret, 3) verify signature headers/value, 4) unmarshal JSON, 5) validate schema/range, 6) call service.
+    1) read raw body bytes, 2) resolve signing secret, 3) verify signature headers/value, 4) unmarshal JSON + validate schema/range via **`pkg/logic/mapping`** (`UnmarshalBunnyVideoWebhookRequestJSON`, `ValidateBunnyVideoWebhookRequest`; sentinels **`pkg/errors/bunny_webhook_errors.go`**), 5) call service.
   - Reject policy: invalid JSON -> 400, invalid signature/version/algorithm -> 401, invalid payload schema/range -> 422.
 - **Secret source-of-truth hardened**:
   - New config key: `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (yaml `media.bunny_stream_read_only_api_key`).

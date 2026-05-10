@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/dto"
-	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncdb "mycourse-io-be/pkg/errors_func/db"
 	"mycourse-io-be/pkg/query"
 )
 
@@ -53,7 +53,7 @@ func gormSaveRow(db *gorm.DB, row any) error {
 func gormGetByID[T any](db *gorm.DB, id uint) (*T, error) {
 	var row T
 	if err := db.First(&row, id).Error; err != nil {
-		return nil, pkgerrors.MapRecordNotFound(err)
+		return nil, errfuncdb.MapRecordNotFound(err)
 	}
 	return &row, nil
 }

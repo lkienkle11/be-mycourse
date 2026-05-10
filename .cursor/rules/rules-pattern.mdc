@@ -55,14 +55,20 @@ means:
    including both single declarations (`var Err = ...`) and grouped blocks (`var ( ErrA = ... )`) — MUST be placed in the `pkg/errors` directory.
    They must be imported and used directly from `pkg/errors`. Declaring `var errors` or any error blocks outside of `pkg/errors` is strictly prohibited.
 
+   **Error helper functions (non-sentinel, non–error-type methods):** package-level functions that only wrap, unwrap, classify, or map errors (for example `HTTPStatusForProviderCode`, `AsProviderError`, `WrapRBACUnknownPermissionID`, `MapRecordNotFound`) MUST NOT be added under `pkg/errors/**/*.go`; they MUST live under **`pkg/errors_func/<feature>/`** per **Rule 19**.
+
 3. **Type and Struct Definitions**
    Directories need to check:
    - api/**/*.go
    - services/**/*.go
+   - pkg/errors/**/*.go
    - pkg/<feature>/**/*.go
 
-   MUST NOT declare any types or structs directly.
-   All definitions must be centralized in `pkg/entities`, with appropriately named modules and types defined there.
+   For **`api/**/*.go`**, **`services/**/*.go`**, and **`pkg/<feature>/**/*.go`**: MUST NOT declare any types or structs directly; those MUST be centralized in **`pkg/entities`** unless another rule in this document overrides (e.g. **`models/`**, **`dto/`**).
+
+   For **`pkg/errors/**/*.go`**: MUST NOT declare types **except** named types whose primary role is to implement **`error`** per the **`pkg/errors` exception** below. On those types, **only** **`Error()`** and **`Unwrap()`** may appear as methods.
+
+   See the **Exceptions** list below for **`pkg/errors`**, **`pkg/gormjsonb`**, **`models/`**, and **`dto/`**.
 
    Allowed exceptions:
    - Anonymous structs declared inline inside functions.
@@ -73,6 +79,8 @@ means:
 
 * Structs used strictly as database ORM models MUST be placed in `models/` or `dbschema/`.
 * Response structures MUST be placed in `dto/` and named using the `TypeResponse` convention.
+* **`pkg/errors` (typed `error` only):** a **named type** whose primary role is to implement **`error`** MAY be declared in `pkg/errors/**/*.go`. On such a type, **only** the methods **`Error()`** and **`Unwrap()`** are permitted; **any other methods** on types under `pkg/errors/**/*.go` are prohibited (move behavior to `pkg/<feature>/`, `services/`, or **`pkg/errors_func/`** as appropriate). Package-level **functions** on `pkg/errors` other than thin constructors returning those errors MUST follow **Rule 19** and reside in **`pkg/errors_func/<feature>/`**.
+* **`pkg/gormjsonb` (JSONB column aliases):** the named type that carries **`Value`/`Scan`** for a JSONB column MUST be a **type alias** only, of the form **`type Alias = pkg/entities.SomeType`** or **`type Alias = models.SomeType`**. The right-hand side MUST be taken **only** from **`pkg/entities`** or **`models/`** — aliases from any other origin are prohibited. **`Value`** and **`Scan`** remain the only methods on that alias in `pkg/gormjsonb` (see Rules 10–11).
 
 4. **Test Placement**
    Directories need to check:
@@ -104,19 +112,25 @@ means:
 
    Any module or code whose primary responsibility is to **create or enqueue background jobs** or to **process or execute job handlers** (including schedulers, workers, job registration, and job-specific orchestration) MUST reside under `internal/jobs/`. Placing such job-related implementation in `api/`, `services/`, `repository/`, `middleware/`, or anywhere else outside `internal/jobs/` is strictly prohibited.
 
-7. **Services Must Not Return API `*Response` Types**
+7. **English-Only Error Messages in `constants/error_msg.go`**
+   Directories need to check:
+   - constants/error_msg.go
+
+   All error message string constants in this module MUST be written entirely in English. Vietnamese or any other non-English text in these messages is strictly prohibited.
+
+8. **Services Must Not Return API `*Response` Types**
    Directories need to check:
    - services/**/*.go
 
    Functions under `services/` MUST NOT use `dto` types suffixed with `*Response` (or any type defined solely as the HTTP/API response contract for clients) as a return type, nor return structs whose fields mirror those payloads for the purpose of serving the client. The service layer returns domain-oriented values (e.g., `pkg/entities`, `models`, primitives, `error`, or internal non-DTO result types). Building and returning user-facing response data using `dto/*Response` is strictly limited to `api/**/*.go` handlers, with mapping performed via `pkg/logic/mapping` as required elsewhere in this document.
 
-8. **Jobs Folder Structure by Feature**
+9. **Jobs Folder Structure by Feature**
    Directories need to check:
    - internal/jobs/**/*.go
 
    Every job-related module MUST be grouped under a **meaningfully named subfolder** that reflects its functional area (e.g., media, auth, sync). Placing `.go` files or packages **directly under** `internal/jobs/` (at the root of `internal/jobs`) with no intermediate feature folder is strictly prohibited. Create new folders as needed and move related job modules into them.
 
-9. **JSONB `Value` / `Scan` Implementations in `pkg/gormjsonb`**
+10. **JSONB `Value` / `Scan` Implementations in `pkg/gormjsonb`**
    Directories need to check:
    - **/*.go
 
@@ -125,26 +139,26 @@ means:
 
    Any pair of methods that implement JSONB persistence for a custom type — specifically `Value()` (custom type → database / JSONB) and `Scan()` (database / JSONB → custom type), including `driver.Valuer` / `sql.Scanner` patterns used with GORM JSONB columns — MUST be implemented in `pkg/gormjsonb/`, in a module named and scoped for that type. Declaring these methods on types outside `pkg/gormjsonb/` is strictly prohibited.
 
-10. **`pkg/gormjsonb` Grouping and Method-Only Modules**
+11. **`pkg/gormjsonb` Grouping and Method-Only Modules**
    Directories need to check:
    - pkg/gormjsonb/**/*.go
 
-   Modules under `pkg/gormjsonb/` MUST be organized into **subfolders grouped by functional area** (no loose modules only at `pkg/gormjsonb/` root when multiple concerns exist). Each file MUST contain **only** the type definitions required for JSONB mapping and, for each mapped type, exactly **`Value`** and **`Scan`**. Declaring **any other function or method** (package-level helpers, extra receivers, constructors, etc.) under `pkg/gormjsonb/` is strictly prohibited; those MUST be moved to the appropriate package.
+   Modules under `pkg/gormjsonb/` MUST be organized into **subfolders grouped by functional area** (no loose modules only at `pkg/gormjsonb/` root when multiple concerns exist). Each file MUST contain **only** what is required for JSONB mapping: a **type alias** (not a new distinct struct/type) pointing **only** to a type defined in **`pkg/entities`** or **`models/`**, plus for that alias exactly **`Value`** and **`Scan`**. Declaring **any other function or method** (package-level helpers, extra receivers, constructors, etc.) under `pkg/gormjsonb/` is strictly prohibited; those MUST be moved to the appropriate package.
 
-11. **Pure Types Only in `pkg/entities` (No Functions)**
+12. **Pure Types Only in `pkg/entities` (No Functions)**
    Directories need to check:
    - pkg/entities/**/*.go
 
    Files under `pkg/entities` MUST contain only pure type definitions (e.g., structs, type aliases, interfaces where appropriate). Declaring any function or method (`func`, including receivers and constructors) is strictly prohibited.
 
-12. **API Response Type Enforcement (`dto/*Response` Only)**
+13. **API Response Type Enforcement (`dto/*Response` Only)**
    Directories need to check:
    - api/**/*.go
 
    This applies **only** to functions whose signature includes an **API response payload** type (the value returned to the client as the handler response). For those functions, that payload type MUST NOT be `models`, `pkg/entities`, or any entity type from those packages; declaring custom inline/module-local response structs is also strictly prohibited. Such payloads MUST be defined in `dto/` using the `*Response` suffix, with corresponding mapping in `pkg/logic/mapping`.
    Functions that do **not** return an API response payload (e.g., helpers that only return `error`, or signatures with no response body type) are **not** covered by this rule and may keep their existing return types unchanged.
 
-13. **Mapping Functions Must Reside in `pkg/logic/mapping`**
+14. **Mapping Functions Must Reside in `pkg/logic/mapping`**
    Directories need to check:
    - **/*.go
 
@@ -154,33 +168,51 @@ means:
 
    Any request/response mapping function (including `dto -> pkg/entities`, `dto -> models`, `models -> pkg/entities -> dto`, or equivalent transformations) declared outside `pkg/logic/mapping/**/*.go` is prohibited and MUST be flagged.
 
-14. **GORM-Only Types in `models/`**
+15. **GORM-Only Types in `models/`**
    Directories need to check:
    - models/**/*.go
 
    Across all modules under `models/`, every declared type/subtype MUST be linked to GORM integration. Any non-GORM type/subtype definition is strictly prohibited and MUST be moved to the appropriate domain layer (e.g., `pkg/entities`).
 
-15. **Strict Separation Between `models/` and `pkg/entities`**
+16. **Strict Separation Between `models/` and `pkg/entities`**
    Directories need to check:
    - models/**/*.go
    - pkg/entities/**/*.go
 
    `models/` and `pkg/entities` MUST remain strictly decoupled. Code under `models/` MUST NOT import, reference, call, or depend on anything from `pkg/entities`, and code under `pkg/entities` MUST NOT import, reference, call, or depend on anything from `models/`.
 
-16. **No Types/Structs or Functions in `constants/`**
+17. **No Types/Structs or Functions in `constants/`**
    Directories need to check:
    - constants/**/*.go
 
    Across all modules under `constants/`, declaring any `type` or `struct` is strictly prohibited. All such definitions MUST be converted and moved to `pkg/entities`.
    In addition, `constants/` MUST NOT contain any functions under any circumstances (including error helper functions or any other utility functions).
 
-17. **No DB-Linked Types in `pkg/entities`**
+18. **No DB-Linked Types in `pkg/entities`**
    Directories need to check:
    - pkg/entities/**/*.go
 
    Across all modules under `pkg/entities`, any type definition that is created by linking to database concerns is strictly prohibited.
 
-18. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
+
+19. **`pkg/errors_func/` — error-related functions only**
+
+   Directories need to check:
+   - pkg/errors_func/**/*.go
+
+   **Purpose:** hold **package-level functions** for error handling that MUST NOT live in `pkg/errors/**/*.go` (see **Rule 2** and the **`pkg/errors` exception** under **Rule 3**): unwrap/classify helpers, HTTP or errcode mapping from errors, `fmt.Errorf` wrappers around sentinels, GORM `ErrRecordNotFound` translation, and similar. **Examples of misplaced code today (must move here when touched):** `HTTPStatusForProviderCode`, `AsProviderError` in `pkg/errors/provider_error.go`; `WrapRBACUnknownPermissionID` in `pkg/errors/rbac.go`; `MapRecordNotFound` in `pkg/errors/not_found.go`.
+
+   **Layout:** organize under **`pkg/errors_func/<feature>/`** where `<feature>` reflects the concern (e.g. `media`, `rbac`, `auth`, `system`). Do not mix unrelated helpers in the same subfolder.
+
+   **Strict prohibitions under `pkg/errors_func/**/*.go`:**
+   - No `type`, `struct`, or **type alias** definitions.
+   - No methods (no `Error()`, no `Unwrap()`, no receivers of any kind).
+   - No `var` blocks for errors or custom messages (sentinels and typed errors stay in **`pkg/errors`** per **Rule 2** / **Rule 3**).
+   - No `const` declarations (use **`constants/`** per **Rule 1**).
+
+   **Required:** only top-level **`func`** declarations. Implementations may take and return `error`, primitives, or pointers to types defined in **`pkg/errors`** (or other packages), but **must not** introduce new home-grown error types in this tree.
+
+20. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Before writing ANY new function, examine its inputs and outputs:
 
 * **Mechanism Logic (belongs to `pkg/<feature>/**/*.go`):**
@@ -190,7 +222,7 @@ means:
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
 
-19. **No “Homeless Functions” & No “Fake Methods” in Services**
+21. **No “Homeless Functions” & No “Fake Methods” in Services**
 
 * **No Homeless Functions:**
   Standalone utility (stateless) functions are STRICTLY PROHIBITED inside the `services/` directory (except for `New...` constructors).
@@ -200,8 +232,9 @@ means:
   If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
   If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature>/**/*.go`.
 
-20. **Strict One-Way Dependency Direction for `pkg/`**
+22. **Strict One-Way Dependency Direction for `pkg/`**
 
 * Code inside `pkg/<feature>/**/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.
 * They may ONLY depend on standard Go libraries, external third-party libraries, and shared entities such as `pkg/entities` or common models.
+

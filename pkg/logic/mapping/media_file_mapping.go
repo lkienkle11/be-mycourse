@@ -70,3 +70,27 @@ func ToUploadFileResponsesFromPointers(files []*entities.File) []dto.UploadFileR
 	}
 	return out
 }
+
+// ToBatchDeleteMediaFilesResponse builds the batch-delete success payload.
+func ToBatchDeleteMediaFilesResponse(deletedCount int) dto.BatchDeleteMediaFilesResponse {
+	return dto.BatchDeleteMediaFilesResponse{DeletedCount: deletedCount}
+}
+
+// ToLocalURLDecodeResponse maps a decoded object key to the public DTO.
+func ToLocalURLDecodeResponse(objectKey string) dto.LocalURLDecodeResponse {
+	return dto.LocalURLDecodeResponse{ObjectKey: objectKey}
+}
+
+// ToVideoStatusResponse maps a Bunny/video pipeline status string to the public DTO.
+func ToVideoStatusResponse(status string) dto.VideoStatusResponse {
+	return dto.VideoStatusResponse{Status: status}
+}
+
+// ToMediaCleanupMetricsResponse maps worker counters to the public metrics DTO.
+func ToMediaCleanupMetricsResponse(deleted, failed, retried uint64) dto.MediaCleanupMetricsResponse {
+	return dto.MediaCleanupMetricsResponse{
+		CleanupCloudDeleted: deleted,
+		CleanupCloudFailed:  failed,
+		CleanupCloudRetried: retried,
+	}
+}

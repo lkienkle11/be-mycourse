@@ -48,6 +48,77 @@
 - Reuse Opportunity:
   - Reuse unchanged for newly protected domain APIs.
 
+### Asset: Register (pending signup / resend)
+- Name: `Register`
+- Type: Function (auth service)
+- Path: `services/auth/register_flow.go`, `services/auth/register_email_send.go`
+- Purpose: Create pending user or update unconfirmed same email; enforce lifetime + Redis sliding window; send Brevo confirmation; increment `registration_email_send_total` only after successful send.
+- Scope: `POST /api/v1/auth/register` only.
+- Dependencies: `models`, `pkg/brevo`, `pkg/errors` (sentinels + `RegistrationEmailRateLimitedError`), `constants/register_email_limits.go`, `services/cache/register_email_window.go`, `services/cache/auth_user.go`.
+- Current Usage: `api/v1/auth.go` (`register` → `writeRegisterErrorResponse`).
+- Reuse Opportunity:
+  - Extend only with explicit product requirements (never bypass `pkg/errors` + `pkg/errcode` mapping in handlers).
+
+### Asset: TryReserveRegisterConfirmationSend / Release / Delete window
+- Name: `TryReserveRegisterConfirmationSend`, `ReleaseRegisterConfirmationSend`, `DeleteRegisterConfirmationEmailWindow`
+- Type: Functions (cache)
+- Path: `services/cache/register_email_window.go`
+- Purpose: Atomic Redis ZSET sliding window for registration confirmation sends per `users.id`.
+- Scope: Registration email rate limit (pairs with `constants.RedisKeyRegisterConfirmEmailWindowPrefix`).
+- Dependencies: `github.com/redis/go-redis/v9` Lua script; `pkg/cache_clients`.
+- Current Usage: `services/auth/register_flow.go`; cleared on `auth.ConfirmEmail` success.
+- Reuse Opportunity:
+  - Pattern reference for other Redis sliding-window caps (keep scripts colocated with the feature cache file).
+
+### Asset: RegistrationEmailRateLimitedError
+- Name: `RegistrationEmailRateLimitedError`
+- Type: Typed error (`pkg/errors`, not `pkg/entities`)
+- Path: `pkg/errors/register_limits.go`
+- Purpose: Carry `RetryAfterSeconds` for HTTP **429** + `4010` mapping.
+- Scope: Register handler only.
+- Dependencies: `constants.MsgAuthRegistrationEmailRateLimited`.
+- Current Usage: `api/v1/auth.go` (`errors.As` → `response.Options.Headers`).
+- Reuse Opportunity:
+  - Same pattern as `ProviderError` for other bounded-retry upstream flows (always **`pkg/errors`**, never entities).
+
+### Asset: ToLoginSessionTokensResponse
+- Name: `ToLoginSessionTokensResponse`
+- Type: Function (mapping)
+- Path: `pkg/logic/mapping/auth_tokens_mapping.go`
+- Purpose: Build `dto.LoginSessionTokensResponse` for login / confirm / refresh JSON bodies (Rule 13).
+- Scope: Auth handlers only.
+- Current Usage: `api/v1/auth.go`.
+- Reuse Opportunity:
+  - Any future endpoint that returns the same three-token envelope.
+
+### Asset: ToMyPermissionsResponse / ToUserRBACPermissionCodesResponse
+- Name: `ToMyPermissionsResponse`, `ToUserRBACPermissionCodesResponse`
+- Type: Function (mapping)
+- Path: `pkg/logic/mapping/auth_me_mapping.go`; `pkg/logic/mapping/rbac_internal_response.go`
+- Purpose: Map sorted permission code slices to `dto.MyPermissionsResponse` and `dto.UserRBACPermissionCodesResponse`.
+- Current Usage: `api/v1/me.go`; `api/v1/internal/rbac_handler_user_bindings.go`.
+
+### Asset: Media misc response mappers
+- Name: `ToBatchDeleteMediaFilesResponse`, `ToLocalURLDecodeResponse`, `ToVideoStatusResponse`, `ToMediaCleanupMetricsResponse`
+- Type: Function (mapping)
+- Path: `pkg/logic/mapping/media_file_mapping.go`
+- Purpose: Small `dto.*Response` constructors for media routes (Rule 13).
+- Current Usage: `api/v1/media/file_handler.go`.
+
+### Asset: System API response mappers
+- Name: `ToSystemLoginResponse`, `ToPermissionSyncNowResponse`, `ToRolePermissionSyncNowResponse`
+- Type: Function (mapping)
+- Path: `pkg/logic/mapping/system_response_mapping.go`
+- Purpose: System lane JSON payloads (`api/system/routes.go`).
+- Current Usage: `api/system/routes.go`.
+
+### Asset: BindUpdateAndCreateMultipart
+- Name: `BindUpdateAndCreateMultipart`
+- Type: Function (mapping)
+- Path: `pkg/logic/mapping/multipart_gin_bind.go`
+- Purpose: Single entry that binds both update + create multipart text fields (Rule 14 — no duplicate wrapper under `api/`).
+- Current Usage: `api/v1/media/file_handler.go`.
+
 ### Asset: ListPermissions
 - Name: `ListPermissions`
 - Type: Function (service list pattern)
@@ -336,26 +407,26 @@
 - **Constants** (`constants/bunny_video.go`): `FinishedWebhookBunnyStatus`, `SignBunnyIFrameRegex` — literals only (Global Constants Placement).
 - **Bunny video status** (`constants/bunny_video_status.go`): Bunny webhook status constants **0..10** live in `constants/bunny_video_status.go`; status-name mapping helper is `pkg/media.BunnyStatusString(status)`.
 - **Webhook signature helpers** (`pkg/media/webhook_signature.go`): `BunnyWebhookSigningSecret`, `BunnyWebhookSignatureExpectedHex`, `IsBunnyWebhookSignatureValid` (v1 + hmac-sha256 + constant-time compare on raw body).
-- Current Usage: `api/v1/media/webhook_handler.go`, `services/media/video_service.go`, `tests/sub04_media_pipeline_test.go`, `tests/sub16_bunny_webhook_test.go`.
+- Current Usage: `api/v1/media/webhook_handler.go` (handler + signature), `pkg/logic/mapping/bunny_webhook_request.go` (JSON + field checks), `pkg/errors/bunny_webhook_errors.go` (sentinels), `services/media/video_service.go`, `tests/sub04_media_pipeline_test.go`, `tests/sub16_bunny_webhook_test.go`.
 
 ### Asset: Media provider typed error + HTTP mapping
-- Name: `ProviderError`, `AsProviderError`, `HTTPStatusForProviderCode`
-- Type: Error / helper
-- Path: `pkg/errors/provider_error.go`
+- Name: `ProviderError` (type in **`pkg/errors`**); `AsProviderError`, `HTTPStatusForProviderCode` (functions in **`pkg/errors_func/media`**)
+- Type: Error + helpers
+- Path: `pkg/errors/provider_error.go`; `pkg/errors_func/media/provider_error_funcs.go`
 - Purpose: Carry `errcode` 9010–9018 for B2/Bunny/encode client failures; map to HTTP 500/502/503/504.
 - Scope: Media handlers and provider clients.
-- Dependencies: `errors`, `net/http`, `pkg/errcode`.
-- Current Usage: `pkg/media/clients.go`, `api/v1/media/file_handler.go`, `services/media/file_service.go`.
+- Dependencies: `errors`, `net/http`, `pkg/errcode`, `pkg/errors`.
+- Current Usage: `pkg/media/clients.go`, `api/v1/media/file_handler.go` / `file_handler_errors.go` / `webhook_handler.go`, `services/media/file_service.go`.
 - Reuse Opportunity: Extend with more provider-specific codes without changing handler shape.
 
 ### Asset: Stable “not found” for API boundaries
-- Name: `ErrNotFound`, `MapRecordNotFound`
+- Name: `ErrNotFound` (sentinel in **`pkg/errors`**); `MapRecordNotFound` (**`pkg/errors_func/db`**)
 - Type: Sentinel + mapper
-- Path: `pkg/errors/not_found.go`
+- Path: `pkg/errors/not_found.go`; `pkg/errors_func/db/map_record_not_found.go`
 - Purpose: Let `api/**` handlers use `errors.Is(err, ErrNotFound)` for HTTP **404** without importing `gorm.io/gorm`; services/repository map `gorm.ErrRecordNotFound` at the edge.
 - Scope: Internal RBAC handlers, taxonomy update handler, any future CRUD that must not leak ORM types through `services`.
-- Dependencies: `errors`, `gorm.io/gorm` (mapper only, inside `pkg/errors`).
-- Current Usage: `api/v1/internal/rbac_handler.go`, `api/v1/taxonomy/handlers_common.go`, `services/rbac/rbac.go`, `repository/taxonomy/gorm_shared.go`.
+- Dependencies: `errors`, `gorm.io/gorm` (mapper only, inside **`pkg/errors_func/db`**).
+- Current Usage: `api/v1/internal/rbac_handler.go`, `api/v1/taxonomy/handlers_common.go`, `services/rbac/rbac.go`, `services/rbac/rbac_roles.go`, `services/rbac/rbac_permissions.go`, `repository/taxonomy/gorm_shared.go`, `repository/taxonomy/repositories.go`.
 - Reuse Opportunity: Prefer this over returning raw GORM errors from `services` when handlers need a not-found branch.
 
 ### Asset: Media upstream errcodes (9010–9018)
@@ -365,7 +436,7 @@
 - Purpose: Stable API codes + default JSON messages for media upstream failures.
 - Scope: Clients of `pkg/response` and observability.
 - Dependencies: `constants` for shared message literals.
-- Current Usage: `pkg/errors/provider_error.go`, `api/v1/media/file_handler.go`.
+- Current Usage: `pkg/errors/provider_error.go`, `pkg/errors_func/media/provider_error_funcs.go`, `api/v1/media/file_handler.go`, `api/v1/media/file_handler_errors.go`, `api/v1/media/webhook_handler.go`.
 - Reuse Opportunity: Reference from tests and dashboards; keep messages only in `constants/error_msg.go`.
 
 ### Asset: Generic parsing / metadata primitives (utils)
@@ -483,7 +554,7 @@
 - For error flows, keep `pkg/errcode/*` as code/message mapping tables; source literals should come from `constants/*`.
 
 ### Convention Examples (Reference Implementations)
-- `pkg/errors/provider_error.go`: typed error pattern for provider/upstream failures with stable code + HTTP status mapping helpers.
+- `pkg/errors/provider_error.go` + `pkg/errors_func/media/provider_error_funcs.go`: typed **`ProviderError`** plus unwrap/HTTP helper **functions** (Rule 19).
 - `pkg/errors/upload_errors.go`: sentinel error pattern with shared message constant and `errors.Is`-friendly flow.
 - Reuse these two patterns when creating new errors so all modules stay consistent.
 

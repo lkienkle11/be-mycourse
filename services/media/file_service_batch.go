@@ -10,30 +10,11 @@ import (
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logic/mapping"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
 	mediarepo "mycourse-io-be/repository/media"
 )
-
-func prepareCreatePartsSequential(req dto.CreateFileRequest, parts []entities.OpenedUploadPart, remaining *int64) ([]entities.PreparedCreatePart, error) {
-	out := make([]entities.PreparedCreatePart, 0, len(parts))
-	for _, p := range parts {
-		payload, filename, mime, kind, provider, objectKey, err := prepareCreateMultipartBody(req, p.File, p.Header, remaining)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, entities.PreparedCreatePart{
-			Header:    p.Header,
-			Payload:   payload,
-			Filename:  filename,
-			Mime:      mime,
-			Kind:      kind,
-			Provider:  provider,
-			ObjectKey: objectKey,
-		})
-	}
-	return out, nil
-}
 
 func persistPreparedCreates(clients *entities.CloudClients, prepared []entities.PreparedCreatePart, uploaded []entities.ProviderUploadResult) ([]*entities.File, error) {
 	if len(prepared) == 0 {
@@ -74,7 +55,7 @@ func CreateFiles(req dto.CreateFileRequest, parts []entities.OpenedUploadPart) (
 	}
 	clients := pkgmedia.Cloud
 	remaining := constants.MaxMediaMultipartTotalBytes
-	prepared, err := prepareCreatePartsSequential(req, parts, &remaining)
+	prepared, err := mapping.PrepareCreatePartsSequential(req, parts, &remaining, prepareCreateMultipartBody)
 	if err != nil {
 		return nil, err
 	}
@@ -85,51 +66,17 @@ func CreateFiles(req dto.CreateFileRequest, parts []entities.OpenedUploadPart) (
 	return persistPreparedCreates(clients, prepared, uploaded)
 }
 
-func composePreparedUpdateHead(
-	part entities.OpenedUploadPart,
-	fp string,
-	payload []byte,
-	filename, mime string,
-	payloadNorm []byte,
-	filenameNorm, mimeNorm string,
-	kind, provider, resolvedObjectKey string,
-) *entities.PreparedUpdateHead {
-	return &entities.PreparedUpdateHead{
-		Header:            part.Header,
-		Payload:           payload,
-		Filename:          filename,
-		Mime:              mime,
-		Fingerprint:       fp,
-		PayloadNorm:       payloadNorm,
-		FilenameNorm:      filenameNorm,
-		MimeNorm:          mimeNorm,
-		Kind:              kind,
-		Provider:          provider,
-		ResolvedObjectKey: resolvedObjectKey,
-	}
-}
-
 func prepareUpdateBundleHead(repo *mediarepo.FileRepository, prevRow *models.MediaFile, req dto.UpdateFileRequest, part entities.OpenedUploadPart, remaining *int64) (*entities.File, *entities.PreparedUpdateHead, error) {
-	payload, filename, mime, err := readMultipartPayloadLimited(part.File, part.Header, remaining)
-	if err != nil {
-		return nil, nil, err
-	}
-	fp := utils.ContentFingerprint(payload)
-	if req.SkipUploadIfUnchanged && prevRow.ContentFingerprint != "" && fp == prevRow.ContentFingerprint {
-		ent, serr := saveUnchangedFingerprintMetadata(repo, prevRow, filename, prevRow.RowVersion)
-		if serr != nil {
-			return nil, nil, serr
-		}
-		return ent, nil, nil
-	}
-
-	payloadNorm, filenameNorm, mimeNorm, kind, provider, resolvedObjectKey, err := normalizeUpdateMultipartPayload(filename, mime, payload)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	head := composePreparedUpdateHead(part, fp, payload, filename, mime, payloadNorm, filenameNorm, mimeNorm, kind, provider, resolvedObjectKey)
-	return nil, head, nil
+	return mapping.PrepareUpdateBundleHead(repo, prevRow, req, part, remaining, mapping.UpdateBundleHeadDeps{
+		ReadPayload: func(p entities.OpenedUploadPart, rem *int64) ([]byte, string, string, error) {
+			return readMultipartPayloadLimited(p.File, p.Header, rem)
+		},
+		ContentFingerprint: utils.ContentFingerprint,
+		SaveUnchangedFingerprint: func(r any, prev *models.MediaFile, filename string, rowVersion int64) (*entities.File, error) {
+			return saveUnchangedFingerprintMetadata(r.(*mediarepo.FileRepository), prev, filename, rowVersion)
+		},
+		NormalizeUpdate: normalizeUpdateMultipartPayload,
+	})
 }
 
 func persistUpdatedHeadFromPrepared(clients *entities.CloudClients, repo *mediarepo.FileRepository, prevRow *models.MediaFile, head *entities.PreparedUpdateHead, uploaded entities.ProviderUploadResult) (*entities.File, error) {
@@ -143,25 +90,25 @@ func persistUpdatedHeadFromPrepared(clients *entities.CloudClients, repo *mediar
 }
 
 func prepareOptionalTailPrepared(createReq dto.CreateFileRequest, parts []entities.OpenedUploadPart, remaining *int64) ([]entities.PreparedCreatePart, error) {
-	if len(parts) <= 1 {
-		return nil, nil
-	}
-	return prepareCreatePartsSequential(createReq, parts[1:], remaining)
+	return mapping.PrepareOptionalTailPrepared(createReq, parts, remaining, prepareCreateMultipartBody)
 }
 
 func loadUpdateBundleBase(objectKey string, req dto.UpdateFileRequest, parts []entities.OpenedUploadPart) (*mediarepo.FileRepository, *models.MediaFile, *entities.CloudClients, []*entities.File, error) {
-	if len(parts) == 0 {
-		return nil, nil, nil, nil, pkgerrors.ErrMediaFilesRequired
-	}
-	repo, prevRow, err := loadUpdateFileTarget(objectKey, req)
+	repoAny, prevRow, clients, out, err := mapping.LoadUpdateBundleBase(objectKey, req, parts, mapping.LoadUpdateBundleDeps{
+		LoadTarget: func(ok string, rq dto.UpdateFileRequest) (any, *models.MediaFile, error) {
+			return loadUpdateFileTarget(ok, rq)
+		},
+		RequireMedia: func() error {
+			return pkgmedia.RequireInitialized(pkgmedia.Cloud)
+		},
+		GetClients: func() *entities.CloudClients {
+			return pkgmedia.Cloud
+		},
+	})
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
-		return nil, nil, nil, nil, err
-	}
-	out := make([]*entities.File, len(parts))
-	return repo, prevRow, pkgmedia.Cloud, out, nil
+	return repoAny.(*mediarepo.FileRepository), prevRow, clients, out, nil
 }
 
 // UpdateFileBundle updates the row at objectKey with parts[0] and creates additional rows for parts[1:]

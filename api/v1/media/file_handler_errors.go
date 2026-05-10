@@ -9,6 +9,7 @@ import (
 
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncmedia "mycourse-io-be/pkg/errors_func/media"
 	"mycourse-io-be/pkg/response"
 )
 
@@ -52,12 +53,12 @@ func respondMediaMutationError(c *gin.Context, err error, includeExecutableRejec
 		response.Fail(c, http.StatusConflict, errcode.Conflict, err.Error(), nil)
 		return true
 	}
-	if pe, ok := pkgerrors.AsProviderError(err); ok {
+	if pe, ok := errfuncmedia.AsProviderError(err); ok {
 		msg := pe.Error()
 		if strings.TrimSpace(msg) == "" {
 			msg = errcode.DefaultMessage(pe.Code)
 		}
-		response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+		response.Fail(c, errfuncmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 		return true
 	}
 	return false

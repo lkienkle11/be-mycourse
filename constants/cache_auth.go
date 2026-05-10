@@ -12,4 +12,6 @@ const (
 	RedisKeyUserMePrefix           = "mycourse:user:me:"
 	RedisKeyLoginInvalidPrefix     = "mycourse:auth:login:invalid:"
 	RedisKeyLoginUserByEmailPrefix = "mycourse:auth:login:user_by_email:"
+	// RedisKeyRegisterConfirmEmailWindowPrefix — ZSET of successful-send timestamps (score = unix ms) per user id.
+	RedisKeyRegisterConfirmEmailWindowPrefix = "mycourse:auth:register:confirm_email_window:"
 )

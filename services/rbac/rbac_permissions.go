@@ -8,6 +8,7 @@ import (
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncdb "mycourse-io-be/pkg/errors_func/db"
 	"mycourse-io-be/pkg/sqlnamed"
 )
 
@@ -137,7 +138,7 @@ func UpdatePermission(permissionID string, newPermissionID *string, permissionNa
 	}
 	var p models.Permission
 	if err := db.Where("permission_id = ?", permissionID).First(&p).Error; err != nil {
-		return nil, pkgerrors.MapRecordNotFound(err)
+		return nil, errfuncdb.MapRecordNotFound(err)
 	}
 	if err := rbacApplyRenamedPermissionID(db, &p, newPermissionID); err != nil {
 		return nil, err

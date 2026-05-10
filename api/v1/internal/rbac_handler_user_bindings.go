@@ -49,7 +49,7 @@ func listUserPermissionsInternal(c *gin.Context) {
 		list = append(list, code)
 	}
 	sort.Strings(list)
-	response.OK(c, "ok", dto.UserRBACPermissionCodesResponse{PermissionCodes: list})
+	response.OK(c, "ok", mapping.ToUserRBACPermissionCodesResponse(list))
 }
 
 func assignUserRoleInternal(c *gin.Context) {

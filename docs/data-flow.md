@@ -24,9 +24,10 @@
 ## End-to-End Flows (Current)
 
 ### Auth Register
-- `POST /api/v1/auth/register` -> `api/v1/auth.go:register` -> `auth.Register` (`services/auth`).
-- DB uniqueness check and user create in `models.DB`.
-- Confirmation email side effect through `pkg/brevo`.
+- `POST /api/v1/auth/register` -> `api/v1/auth.go:register` -> `auth.Register` in **`services/auth/register_flow.go`** (pending create or unconfirmed resend); **`services/auth/register_email_send.go`** enforces lifetime cap + Brevo send + counter increment.
+- Enforces **`users.registration_email_send_total`** lifetime cap (**15** successful sends while pending; next attempt **deletes** row -> **`410` / `4009`**) and Redis sliding window (**5 / 4h** per `user_id` -> **`429` / `4010`** + **`Retry-After`** + **`X-Mycourse-Register-Retry-After`**).
+- Confirmation email via **`pkg/brevo`**. On success increments `registration_email_send_total` and keeps Redis window entry from the pre-send reservation (`services/cache/register_email_window.go`).
+- **`GET /api/v1/auth/confirm`** -> `auth.ConfirmEmail` (**`services/auth/auth.go`** + **`services/auth/auth_confirm.go`** helpers): resets `registration_email_send_total`, deletes Redis window, clears login email cache.
 
 ### Auth Login
 - `POST /api/v1/auth/login` -> `auth.Login` (`services/auth`).
@@ -77,7 +78,7 @@
 ### Media Video Status + Webhook
 - `GET /api/v1/media/videos/:id/status` -> `api/v1/media/getVideoStatus` -> `services/media.GetVideoStatus` (returns **`entities.VideoProviderStatus`**) -> handler maps to **`dto.VideoStatusResponse`** -> Bunny `GET /library/{libraryID}/videos/{guid}`.
 - Numeric Bunny status is normalized by **`pkg/media.BunnyStatusString(status)`** with `unknown` fallback for unsupported values.
-- `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware and calls `services/media.HandleBunnyVideoWebhook`.
+- `POST /api/v1/webhook/bunny` is mounted outside auth/permission middleware; `api/v1/media/bunnyWebhook` verifies signature on raw bytes, then **`pkg/logic/mapping`** (`UnmarshalBunnyVideoWebhookRequestJSON`, `ValidateBunnyVideoWebhookRequest`) parses/validates the JSON before **`services/media.HandleBunnyVideoWebhook`**.
 - Webhook applies metadata/duration sync when status matches finished (`constants.FinishedWebhookBunnyStatus`); **`ApplyBunnyDetailToMetadata`** refreshes **`video_id` / `thumbnail_url` / `embeded_html`** in JSON and ORM columns; idempotent when DB row missing.
 
 ### Orphan Image Cleanup Flow (Sub 07 + Sub 14 FK path)

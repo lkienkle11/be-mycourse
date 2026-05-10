@@ -159,11 +159,20 @@ curl -X POST {{BASE_URL}}/api/v1/auth/register \
 
 **Error examples:**
 ```json
-// 409 — email already registered
+// 409 — email already registered (confirmed)
 { "code": 4001, "message": "Email address is already registered", "data": null }
 
+// 410 — lifetime confirmation email cap (pending user removed)
+{ "code": 4009, "message": "registration was abandoned because confirmation email limits were exceeded", "data": null }
+
+// 429 — Redis window (also Retry-After + X-Mycourse-Register-Retry-After headers)
+{ "code": 4010, "message": "too many confirmation emails were sent recently; please try again later", "data": null }
+
+// 502 — Brevo failure after limits
+{ "code": 4011, "message": "confirmation email could not be sent; please try again later", "data": null }
+
 // 400 — weak password
-{ "code": 4003, "message": "Password does not meet strength requirements", "data": null }
+{ "code": 4003, "message": "Password must be at least 8 characters and contain uppercase, lowercase, and special characters", "data": null }
 
 // 400 — validation failure (missing field)
 { "code": 2001, "message": "Key: 'RegisterRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag", "data": null }

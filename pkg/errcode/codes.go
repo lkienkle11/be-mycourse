@@ -35,14 +35,17 @@ const (
 	TooManyRequests = 3006
 
 	// Auth (4xxx)
-	EmailAlreadyExists  = 4001
-	InvalidCredentials  = 4002
-	WeakPassword        = 4003
-	EmailNotConfirmed   = 4004
-	UserDisabled        = 4005
-	InvalidConfirmToken = 4006
-	InvalidSession      = 4007
-	RefreshTokenExpired = 4008
+	EmailAlreadyExists           = 4001
+	InvalidCredentials           = 4002
+	WeakPassword                 = 4003
+	EmailNotConfirmed            = 4004
+	UserDisabled                 = 4005
+	InvalidConfirmToken          = 4006
+	InvalidSession               = 4007
+	RefreshTokenExpired          = 4008
+	RegistrationAbandoned        = 4009
+	RegistrationEmailRateLimited = 4010
+	ConfirmationEmailSendFailed  = 4011
 
 	// Server (9xxx)
 	InternalError = 9001

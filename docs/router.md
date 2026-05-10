@@ -16,7 +16,7 @@
 - Root middleware stack:
   - `httperr.Middleware()`
   - `httperr.Recovery()`
-  - CORS
+  - CORS (`api/router.go` — `ExposeHeaders` includes **`X-Token-Expired`**, **`Retry-After`**, **`X-Mycourse-Register-Retry-After`** so browser clients can read token-expiry and registration rate-limit hints cross-origin)
   - gzip
 
 - Groups:

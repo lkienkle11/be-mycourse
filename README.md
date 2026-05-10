@@ -270,6 +270,9 @@ For validation errors, `data` may contain field-level details:
 | `4006`| `InvalidConfirmToken`| Invalid or expired confirmation token          |
 | `4007`| `InvalidSession`     | Session string unknown, missing, or UUID mismatch |
 | `4008`| `RefreshTokenExpired`| Session has expired — re-login required        |
+| `4009`| `RegistrationAbandoned` | Pending registration removed — confirmation email lifetime limit |
+| `4010`| `RegistrationEmailRateLimited` | Too many confirmation emails in the sliding window |
+| `4011`| `ConfirmationEmailSendFailed` | Confirmation email could not be sent (upstream) |
 | `9001`| `InternalError`      | Internal server error                          |
 | `9998`| `Panic`              | Unhandled panic (internal server error)        |
 | `9999`| `Unknown`            | Unknown error                                  |

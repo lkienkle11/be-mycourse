@@ -1,17 +1,15 @@
 package media
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/constants"
-	"mycourse-io-be/dto"
 	"mycourse-io-be/pkg/errcode"
-	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncmedia "mycourse-io-be/pkg/errors_func/media"
+	"mycourse-io-be/pkg/logic/mapping"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/response"
 	mediaservice "mycourse-io-be/services/media"
@@ -45,19 +43,6 @@ func verifyBunnyWebhookSignature(c *gin.Context, rawBody []byte) bool {
 	return true
 }
 
-func decodeBunnyWebhookRequest(c *gin.Context, rawBody []byte) (dto.BunnyVideoWebhookRequest, bool) {
-	var req dto.BunnyVideoWebhookRequest
-	if err := json.Unmarshal(rawBody, &req); err != nil {
-		response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), nil)
-		return dto.BunnyVideoWebhookRequest{}, false
-	}
-	if req.VideoLibraryID <= 0 || strings.TrimSpace(req.VideoGUID) == "" || req.Status < 0 || req.Status > 10 {
-		response.Fail(c, http.StatusUnprocessableEntity, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), nil)
-		return dto.BunnyVideoWebhookRequest{}, false
-	}
-	return req, true
-}
-
 func bunnyWebhook(c *gin.Context) {
 	rawBody, ok := readBunnyWebhookRawBody(c)
 	if !ok {
@@ -66,15 +51,20 @@ func bunnyWebhook(c *gin.Context) {
 	if !verifyBunnyWebhookSignature(c, rawBody) {
 		return
 	}
-	req, ok := decodeBunnyWebhookRequest(c, rawBody)
-	if !ok {
+	req, err := mapping.UnmarshalBunnyVideoWebhookRequestJSON(rawBody)
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), nil)
+		return
+	}
+	if err := mapping.ValidateBunnyVideoWebhookRequest(req); err != nil {
+		response.Fail(c, http.StatusUnprocessableEntity, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), nil)
 		return
 	}
 
 	if err := mediaservice.HandleBunnyVideoWebhook(c.Request.Context(), req); err != nil {
-		if pe, ok := pkgerrors.AsProviderError(err); ok {
+		if pe, ok := errfuncmedia.AsProviderError(err); ok {
 			msg := pe.Error()
-			response.Fail(c, pkgerrors.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
+			response.Fail(c, errfuncmedia.HTTPStatusForProviderCode(pe.Code), pe.Code, msg, nil)
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, errcode.BadRequest, err.Error(), nil)

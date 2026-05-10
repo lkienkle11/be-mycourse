@@ -5,7 +5,7 @@ import (
 
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
-	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncdb "mycourse-io-be/pkg/errors_func/db"
 )
 
 type CategoryRepository struct {
@@ -35,7 +35,7 @@ func (r *CategoryRepository) CreateCategory(row *models.Category) error {
 func (r *CategoryRepository) GetCategoryByID(id uint) (*models.Category, error) {
 	var row models.Category
 	if err := r.db.Preload("ImageFile").First(&row, id).Error; err != nil {
-		return nil, pkgerrors.MapRecordNotFound(err)
+		return nil, errfuncdb.MapRecordNotFound(err)
 	}
 	return &row, nil
 }

@@ -7,6 +7,8 @@ import (
 
 	"mycourse-io-be/models"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	errfuncdb "mycourse-io-be/pkg/errors_func/db"
+	errfuncrbac "mycourse-io-be/pkg/errors_func/rbac"
 	"mycourse-io-be/pkg/sqlnamed"
 )
 
@@ -39,7 +41,7 @@ func GetRole(id uint, withPerms bool) (*models.Role, error) {
 	}
 	var r models.Role
 	if err := q.First(&r, id).Error; err != nil {
-		return nil, pkgerrors.MapRecordNotFound(err)
+		return nil, errfuncdb.MapRecordNotFound(err)
 	}
 	return &r, nil
 }
@@ -66,7 +68,7 @@ func UpdateRole(id uint, name *string, description *string) (*models.Role, error
 	}
 	var r models.Role
 	if err := db.First(&r, id).Error; err != nil {
-		return nil, pkgerrors.MapRecordNotFound(err)
+		return nil, errfuncdb.MapRecordNotFound(err)
 	}
 	if name != nil && *name != "" {
 		r.Name = *name
@@ -114,7 +116,7 @@ func replaceRolePermissionRows(tx *gorm.DB, roleID uint, permissionIDs []string)
 			return err
 		}
 		if n == 0 {
-			return pkgerrors.WrapRBACUnknownPermissionID(pid)
+			return errfuncrbac.WrapRBACUnknownPermissionID(pid)
 		}
 		if err := tx.Create(&models.RolePermission{RoleID: roleID, PermissionID: pid}).Error; err != nil {
 			return err
@@ -131,7 +133,7 @@ func SetRolePermissions(roleID uint, permissionIDs []string) (*models.Role, erro
 	}
 	var role models.Role
 	if err := db.First(&role, roleID).Error; err != nil {
-		return nil, pkgerrors.MapRecordNotFound(err)
+		return nil, errfuncdb.MapRecordNotFound(err)
 	}
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		return replaceRolePermissionRows(tx, roleID, permissionIDs)

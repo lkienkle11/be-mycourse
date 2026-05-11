@@ -15,6 +15,30 @@
 
 ## Function / Method Assets
 
+### Asset: pkg/logger (Zap bootstrap + context)
+- **Name:** `InitFromSettings`, `Init`, `Sync`, `WithRequestID`, `FromContext`
+- **Type:** Package (`pkg/logger`)
+- **Path:** `pkg/logger/`
+- **Purpose:** Single process-wide logger (via `zap.ReplaceGlobals`), optional JSON file tee for ELK/Filebeat, request correlation fields, optional `zap.RedirectStdLog`.
+- **Scope:** All layers after `main` bootstrap; HTTP handlers use `FromContext` for `request_id`. Context correlation uses an **unexported sentinel + `var` in `pkg/logger`** (Rule 1 / staticcheck SA1029 — not a `const` in `pkg/`, not a string `context` key).
+- **Dependencies:** `go.uber.org/zap`, `mycourse-io-be/pkg/setting` (`LogSetting`), `zapcore.NewTee` when `LOG_FILE_PATH` set.
+- **Current usage:** `main.go`, `middleware/request_logger.go`, `pkg/httperr`, `internal/jobs/*`, `pkg/cache_clients`, `api/v1/media/webhook_handler.go`.
+- **Reuse:** Prefer `logger.FromContext(ctx)` in new handlers/services; use `zap.L()` only where no context exists.
+
+### Asset: PendingCloudCleanupCounters (media job metrics boundary)
+- **Name:** `PendingCloudCleanupCounters`
+- **Type:** Function (service)
+- **Path:** `services/media/cleanup_job_metrics.go`
+- **Purpose:** Expose pending-cloud cleanup atomic counters to HTTP without `api/` importing `internal/jobs/media` (Rule 6).
+- **Current usage:** `api/v1/media/file_handler.go` (`getMediaCleanupMetrics`).
+
+### Asset: System HTTP job adapters (system lane)
+- **Name:** `SystemHTTPCreatePermissionSyncJob`, `SystemHTTPCreateRolePermissionSyncJob`, `SystemHTTPStopPermissionSyncJob`, `SystemHTTPStopRolePermissionSyncJob`
+- **Type:** `gin.HandlerFunc` wrappers
+- **Path:** `services/system_job_http.go`
+- **Purpose:** Delegate to `internal/jobs/system` so `api/system` stays free of `internal/jobs` imports (Rule 6).
+- **Current usage:** `api/system/routes.go`.
+
 ### Asset: PermissionCodesForUser
 - Name: `PermissionCodesForUser`
 - Type: Function (service)
@@ -40,7 +64,7 @@
 ### Asset: issueTokenPair / RefreshSession
 - Name: `issueTokenPair`, `RefreshSession`
 - Type: Function (auth service)
-- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session entry shape in **`pkg/entities/refresh_session.go`**, JSONB column **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth/refresh_token_session_map.go`**, soft-delete alias in **`models/deleted_at.go`**
+- Path: `services/auth/auth_session_tokens.go` (`issueTokenPair`); `services/auth/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `repository/user_refresh_session.go` (`AddRefreshSession`, `SaveRefreshSession`); session entry shape in **`pkg/entities/refresh_session.go`**, JSONB column **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth/refresh_token_session_map.go`**, carrier→entity in **`pkg/logic/mapping/auth_refresh_session_mapping.go`** (`ToRefreshTokenSessionEntity`), soft-delete alias in **`models/deleted_at.go`**
 - Purpose: Token issue/rotation and session persistence management.
 - Scope: Any auth/session extension features.
 - Dependencies: `pkg/token`, `constants` (TTLs), `models`, `repository`, `services/cache`, RBAC permission resolver.

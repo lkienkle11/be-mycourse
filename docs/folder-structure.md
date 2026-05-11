@@ -122,14 +122,14 @@ be-mycourse/
 - `pkg/cache_clients/`: Redis client setup and lifecycle.
 - `pkg/dbmigrate/`: migration runner utility.
 - `pkg/entities/`: pure shared domain structs/DTO shapes reused across layers (**no** **`gorm.io/gorm`** / **`database/sql`** / **no functions** — depguard **`restrict_models_pkg_entity_schema_only`** applies here same as **`models/*.go`**).
-- `pkg/gormjsonb/auth/`: Postgres JSONB **`Valuer`/`Scanner`** for **`users.refresh_token_session`** (`RefreshTokenSessionMap` — local **`sessionColumnJSONB`** + exported alias per Rule 11).
+- `pkg/gormjsonb/auth/`: Postgres JSONB **`Valuer`/`Scanner`** for **`users.refresh_token_session`** (`RefreshTokenSessionMap` — **defined type** over local **`sessionColumnJSONB`**; Rule 3 / Rule 11).
 - `pkg/envbool/`: environment bool parsing helpers.
 - `pkg/errors/`: central shared package for reusable functional errors/sentinel vars and typed feature structs (**only** **`Error()`** / **`Unwrap()`** on typed errors) — e.g. **`auth.go`**, **`register_limits.go`**, **`system.go`**, **`media_errors.go`**, **`upload_errors.go`**, **`provider_error.go`** (`ProviderError` body only).
 - `pkg/errors_func/`: **functions only** (Rule 19), grouped by feature — **`media/`** (`AsProviderError`, `HTTPStatusForProviderCode`), **`db/`** (`MapRecordNotFound`), **`rbac/`** (`WrapRBACUnknownPermissionID`).
 - `pkg/errcode/`: app error code constants and default messages.
 - `pkg/httperr/`: centralized HTTP error middleware and typed errors.
-- `pkg/logger/`: structured logger setup.
-- `pkg/logic/`: **`mapping/`** (model ↔ entity/DTO) and **`utils/`** (generic primitives). **No `helper/` subtree** — media policy lives in **`pkg/media/`**; taxonomy status helper in **`pkg/taxonomy/`**.
+- `pkg/logger/`: Uber **Zap** bootstrap (`InitFromSettings`, `Init`, `Sync`), **`WithRequestID` / `FromContext`** for correlation fields; ELK-ready **JSON file** sink when `LOG_FILE_PATH` is set.
+- `pkg/logic/`: **`mapping/`** (model ↔ entity/DTO; includes **`auth_refresh_session_mapping.go`** — **`ToRefreshTokenSessionEntity`** for refresh JSONB → **`entities.RefreshTokenSessionMap`**) and **`utils/`** (generic primitives). **No `helper/` subtree** — media policy lives in **`pkg/media/`**; taxonomy status helper in **`pkg/taxonomy/`**.
 - `pkg/media/`: media provider clients (`clients.go` for upload/delete/public URL HTTP, `clients_setting_attach.go` for `NewCloudClientsFromSetting` / B2+Gcore+Bunny Storage wiring, `clients_bunny_get.go` for Bunny Stream GET + JSON parse, `setup.go`, …) **and** media-domain helpers (resolver, metadata, multipart bind, orphan URL scan, local URL codec, `RequireInitialized`, …).
 - `pkg/taxonomy/`: taxonomy-only shared helpers (e.g. status normalization).
 - `pkg/mailtmpl/`: HTML email template rendering.

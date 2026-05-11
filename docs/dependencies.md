@@ -14,7 +14,7 @@
 - `github.com/go-playground/validator/v10`: request validation.
 - `github.com/redis/go-redis/v9`: Redis integration.
 - `github.com/golang-migrate/migrate/v4`: SQL migration runner.
-- `go.uber.org/zap`: logging.
+- `go.uber.org/zap`: structured logging; **`pkg/logger`** centralizes init (`Init` / `InitFromSettings`), **`zapcore.NewTee`** when **`LOG_FILE_PATH`** is set (JSON lines for Filebeat), global fields (`service`, `env`, `version`), optional **`zap.RedirectStdLog`**. See **`docs/patterns.md`**.
 
 ## Integration Libraries
 - `github.com/supabase-community/supabase-go`: Supabase client.

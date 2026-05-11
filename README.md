@@ -36,7 +36,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 ## Global Type Placement Rule (Mandatory)
 
 - For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql` imports there — same depguard rule as **`models/*.go`**).
-- GORM/JSONB **column** types used on models: refresh-session JSONB **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth`**, GORM **`DeletedAt`** alias in **`models/deleted_at.go`** — not **`pkg/entities`**.
+- GORM/JSONB **column** types used on models: refresh-session JSONB **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth`**, carrier→domain map in **`pkg/logic/mapping/auth_refresh_session_mapping.go`** (**`ToRefreshTokenSessionEntity`**, Rule 14), GORM **`DeletedAt`** alias in **`models/deleted_at.go`** — not **`pkg/entities`**.
 - Do not declare new reusable/domain types inline inside logic implementation files.
 
 ## Global Constants Placement Rule (Mandatory)
@@ -63,7 +63,8 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
 | [`docs/modules/media.md`](docs/modules/media.md) | Media: B2+Gcore+Bunny, `media_files`, **`video_id` / `thumbnail_url` / `embeded_html`**, webhook + status, policy in `media_resolver.go`; **per-part and aggregate 2 GiB**, **≤5 parts/request**, batch delete **≤10 keys**, multipart + proxy (`docs/deploy.md`) |
 | [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy: categories / tags / course levels; shared **`pkg/taxonomy`** (`NormalizeTaxonomyStatus`) + `services/taxonomy` |
 | `pkg/entities/` | Shared **domain** structs (no `gorm` / `database/sql` / **no funcs**); depguard **`restrict_models_pkg_entity_schema_only`** — see **`docs/patterns.md`** |
-| `pkg/gormjsonb/auth/` | JSONB **`Valuer`/`Scanner`** for **`users.refresh_token_session`** (`RefreshTokenSessionMap`) — see **`docs/patterns.md`** |
+| `pkg/gormjsonb/auth/` | JSONB **`Valuer`/`Scanner`** for **`users.refresh_token_session`** (**`RefreshTokenSessionMap`** defined type) — see **`docs/patterns.md`** |
+| `pkg/logic/mapping/auth_refresh_session_mapping.go` | **`ToRefreshTokenSessionEntity`** — JSONB carrier → **`entities.RefreshTokenSessionMap`** (Rule 14) — see **`docs/patterns.md`** |
 | `models/deleted_at.go` | GORM **`DeletedAt`** type alias (**`gorm.DeletedAt`**) — see **`docs/patterns.md`** |
 | [`tests/`](tests/) | **All test code** (unit/module-level/integration) — place test packages, fixtures, and shared harnesses here (see **Testing** below). |
 
@@ -77,6 +78,7 @@ Backend scaffold aligned to the monolith layout in `36.md` (inspired by `openedu
    - `APP_BASE_URL` — public base URL of this server, used in outgoing emails (no trailing slash), e.g. `https://api.mycourse.io`
    - `CORS_ALLOWED_ORIGINS` — comma-separated list of allowed frontend origins, e.g. `http://localhost:3000,https://mycourse.io`
    - `CLI_REGISTER_NEW_SYSTEM_USER` — optional; when `true`/`1`/`yes`/`y`/`on`, after DB connect the binary runs the privileged-user registration CLI and exits (see `docs/architecture.md`).
+   - **Logging (Uber Zap):** optional env keys `LOG_LEVEL`, `LOG_FORMAT` (`json` \| `console`), `LOG_FILE_PATH` (append-only NDJSON file + `zapcore.NewTee` for ELK/Filebeat), `LOG_SERVICE_NAME`, `LOG_ENVIRONMENT`, `APP_VERSION`, `LOG_REDIRECT_STDLOG` — wired via `config/app*.yaml` → `setting.LogSetting` → `pkg/logger` (see `docs/patterns.md`).
 3. Run:
 
 ```bash

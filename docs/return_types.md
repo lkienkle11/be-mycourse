@@ -233,7 +233,7 @@ type RefreshSessionEntry struct {
 }
 ```
 
-The JSONB **`Valuer`/`Scanner`** for the whole map column is **`gormjsonbauth.RefreshTokenSessionMap`** (alias to **`sessionColumnJSONB`** in `pkg/gormjsonb/auth/refresh_token_session_map.go`).
+The JSONB **`Valuer`/`Scanner`** for the whole map column is **`gormjsonbauth.RefreshTokenSessionMap`** (**defined type** over **`sessionColumnJSONB`** in `pkg/gormjsonb/auth/refresh_token_session_map.go`). Repository code that needs **`entities.RefreshTokenSessionMap`** uses **`mapping.ToRefreshTokenSessionEntity`** in **`pkg/logic/mapping/auth_refresh_session_mapping.go`** (Rule 14).
 
 ### `models.SystemAppConfig`
 

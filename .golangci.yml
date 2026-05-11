@@ -72,8 +72,33 @@ linters:
                 structs + GORM mapping."
             - pkg: "mycourse-io-be/api"
               desc: "AI Rule Violation: models/ MUST NOT know about HTTP controllers."
+            - pkg: "mycourse-io-be/pkg/entities"
+              desc: "AI Rule Violation: models/ MUST NOT import pkg/entities (Rule 16 strict
+                separation)."
 
-        # Rule 4: Bảo vệ tầng repository (Thủ kho)
+        # pkg/gormjsonb: models/ must import carriers → gormjsonb MUST NOT import models/ (cycle).
+        # dto/ forbidden here per rules-pattern Rule 3 / Rule 21.
+        restrict_pkg_gormjsonb:
+          files:
+            - "**/pkg/gormjsonb/**/*.go"
+            - "**/pkg/gormjsonb/*.go"
+          deny:
+            - pkg: "mycourse-io-be/models"
+              desc: "AI Rule Violation: pkg/gormjsonb MUST NOT import models/ (import cycle with
+                models referencing the carrier; rules-pattern Rule 3 & 11)."
+            - pkg: "mycourse-io-be/dto"
+              desc: "AI Rule Violation: pkg/gormjsonb MUST NOT import dto/ (rules-pattern Rule 3
+                & 21)."
+
+        # Rule 16: entities ↔ models decoupling (other direction from restrict_models deny).
+        restrict_pkg_entities_no_models:
+          files:
+            - "**/pkg/entities/**/*.go"
+            - "**/pkg/entities/*.go"
+          deny:
+            - pkg: "mycourse-io-be/models"
+              desc: "AI Rule Violation: pkg/entities MUST NOT import models/ (Rule 16)."
+
         restrict_repository:
           files:
             - "**/repository/**/*.go"

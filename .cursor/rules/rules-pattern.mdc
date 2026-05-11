@@ -64,7 +64,7 @@ means:
    - pkg/errors/**/*.go
    - pkg/<feature>/**/*.go
 
-   For **`api/**/*.go`**, **`services/**/*.go`**, and **`pkg/<feature>/**/*.go`**: MUST NOT declare any types or structs directly; those MUST be centralized in **`pkg/entities`** unless another rule in this document overrides (e.g. **`models/`**, **`dto/`**).
+   For **`api/**/*.go`**, **`services/**/*.go`**, and **`pkg/<feature>/**/*.go`**: MUST NOT declare any types or structs directly; those MUST be centralized in **`pkg/entities`** unless another rule in this document overrides (e.g. **`models/`**, **`dto/`**, or the **`pkg/gormjsonb`** JSONB column carrier exception below).
 
    For **`pkg/errors/**/*.go`**: MUST NOT declare types **except** named types whose primary role is to implement **`error`** per the **`pkg/errors` exception** below. On those types, **only** **`Error()`** and **`Unwrap()`** may appear as methods.
 
@@ -80,7 +80,7 @@ means:
 * Structs used strictly as database ORM models MUST be placed in `models/` or `dbschema/`.
 * Response structures MUST be placed in `dto/` and named using the `TypeResponse` convention.
 * **`pkg/errors` (typed `error` only):** a **named type** whose primary role is to implement **`error`** MAY be declared in `pkg/errors/**/*.go`. On such a type, **only** the methods **`Error()`** and **`Unwrap()`** are permitted; **any other methods** on types under `pkg/errors/**/*.go` are prohibited (move behavior to `pkg/<feature>/`, `services/`, or **`pkg/errors_func/`** as appropriate). Package-level **functions** on `pkg/errors` other than thin constructors returning those errors MUST follow **Rule 19** and reside in **`pkg/errors_func/<feature>/`**.
-* **`pkg/gormjsonb` (JSONB column aliases):** the named type that carries **`Value`/`Scan`** for a JSONB column MUST be a **type alias** only, of the form **`type Alias = pkg/entities.SomeType`** or **`type Alias = models.SomeType`**. The right-hand side MUST be taken **only** from **`pkg/entities`** or **`models/`** — aliases from any other origin are prohibited. **`Value`** and **`Scan`** remain the only methods on that alias in `pkg/gormjsonb` (see Rules 10–11).
+* **`pkg/gormjsonb` (JSONB column carrier types):** the **named type** whose receivers implement **`Value`/`Scan`** for a JSONB column MUST be a **defined type** in Go (`type Col Underlying` — a distinct named type, **not** a **type alias** `type Col = ...`). Declare it **only** under **`pkg/gormjsonb/**/*.go`**. **Do not** declare that same JSONB column carrier type under **`pkg/entities`** — **`pkg/entities`** may hold **underlying domain data shapes** only (e.g. maps, structs, type aliases among pure data) with **no** **`Value`/`Scan`** methods and **without** duplicating the ORM JSONB carrier type. The **`pkg/gormjsonb`** defined type’s **underlying type** (struct fields, map keys/values, slice elements, embedded types, etc.) MAY use types from **the Go standard library**, **approved third-party libraries**, **`pkg/entities`**, and **other `pkg/<feature>/` packages** when needed for the stored JSON shape or serialization, subject to **Rule 21** (including the **`pkg/gormjsonb` import exception** there). **Types defined under `models/`** MUST NOT appear in that underlying, and **`pkg/gormjsonb` MUST NOT import `models/`** for carrier composition: **Rule 11** requires **`models/**/*.go`** to import **`pkg/gormjsonb`** so at least one GORM model field uses the carrier — if **`pkg/gormjsonb`** also imported **`models/`**, those imports together would form a forbidden **`models` ↔ `pkg/gormjsonb` Go import cycle**. Keep **row-level** GORM structs in **`models/`** (they **hold** the carrier on a field); keep **JSON document** shapes inside the carrier **underlying** in **`pkg/entities`**, primitives, stdlib, or other **`pkg/<feature>`** that does not re-import this **`pkg/gormjsonb`** package in a cycle. **`dto/`** types (including `*Response` HTTP contract types) MUST NOT appear in that underlying — keep API payloads in **`dto/`** / **`api/`** and map via **`pkg/logic/mapping`**. Prefer **`pkg/entities`** for nested JSON shapes when practical. On that **`pkg/gormjsonb`** defined type, **`Value`** and **`Scan`** MUST both be present (see Rules 10–11). **Additional methods** on that same defined type are permitted **only** when they are **contract methods that GORM invokes directly** on the carrier during persistence or schema interaction for this project’s GORM usage (document or reference the hook when adding one). **Any other methods** on the carrier (domain or application behavior unrelated to that GORM contract) are prohibited — move them to **`pkg/<feature>/`**, **`services/`**, or elsewhere as appropriate.
 
 4. **Test Placement**
    Directories need to check:
@@ -132,20 +132,26 @@ means:
 
    Every job-related module MUST be grouped under a **meaningfully named subfolder** that reflects its functional area (e.g., media, auth, sync). Placing `.go` files or packages **directly under** `internal/jobs/` (at the root of `internal/jobs`) with no intermediate feature folder is strictly prohibited. Create new folders as needed and move related job modules into them.
 
-10. **JSONB `Value` / `Scan` Implementations in `pkg/gormjsonb`**
+10. **JSONB `Value` / `Scan` and GORM contract methods in `pkg/gormjsonb`**
    Directories need to check:
    - **/*.go
 
    Excluded paths:
    - tests/**
 
-   Any pair of methods that implement JSONB persistence for a custom type — specifically `Value()` (custom type → database / JSONB) and `Scan()` (database / JSONB → custom type), including `driver.Valuer` / `sql.Scanner` patterns used with GORM JSONB columns — MUST be implemented in `pkg/gormjsonb/`, in a module named and scoped for that type. Declaring these methods on types outside `pkg/gormjsonb/` is strictly prohibited.
+   For any custom JSONB column carrier used with GORM:
+   - **`Value()`** and **`Scan()`** (custom type ↔ database / JSONB), including `driver.Valuer` / `sql.Scanner` patterns — **MUST** be implemented on the carrier **defined type** under **`pkg/gormjsonb/`**, in a package scoped to that business area. Declaring **`Value`** or **`Scan`** on such a carrier **outside** **`pkg/gormjsonb/`** is strictly prohibited.
+   - Each **immediate subfolder of `pkg/gormjsonb/`** (each child package, e.g. `pkg/gormjsonb/auth/`) **MUST** declare **at least one** JSONB carrier **defined type** that implements **`Value`** and **`Scan`** (see **Rule 11**).
+   - **Additional receiver methods** on that carrier are allowed **only** under the same criterion as the **`pkg/gormjsonb`** exception in **Rule 3** (GORM-invoked contract methods only). Unrelated receivers are prohibited.
 
-11. **`pkg/gormjsonb` Grouping and Method-Only Modules**
+11. **`pkg/gormjsonb` layout, carriers, and allowed helpers**
    Directories need to check:
    - pkg/gormjsonb/**/*.go
 
-   Modules under `pkg/gormjsonb/` MUST be organized into **subfolders grouped by functional area** (no loose modules only at `pkg/gormjsonb/` root when multiple concerns exist). Each file MUST contain **only** what is required for JSONB mapping: a **type alias** (not a new distinct struct/type) pointing **only** to a type defined in **`pkg/entities`** or **`models/`**, plus for that alias exactly **`Value`** and **`Scan`**. Declaring **any other function or method** (package-level helpers, extra receivers, constructors, etc.) under `pkg/gormjsonb/` is strictly prohibited; those MUST be moved to the appropriate package.
+   - **Grouping:** organize code under **`pkg/gormjsonb/`** into **subfolders whose names reflect the corresponding business / functional areas** (e.g. auth, media). When multiple concerns exist, avoid leaving unrelated packages **only** at **`pkg/gormjsonb/`** root without meaningful subfolders.
+   - **Carrier defined types:** each JSONB column carrier MUST be a **defined type** (**not** a **type alias**), declared **only** under **`pkg/gormjsonb/**/*.go`**, **not** duplicated under **`pkg/entities`**. Its **underlying** type MUST follow the **composition rules** in the **`pkg/gormjsonb`** exception in **Rule 3** and the **`pkg/gormjsonb` import exception** in **Rule 21** (stdlib, third-party, **`pkg/entities`**, other **`pkg/<feature>/`** as allowed — **not** types defined under **`models/`** in the underlying, **not** **`dto/`** / HTTP contract types; rationale in **Rule 3** avoids **`models` ↔ `pkg/gormjsonb`** import cycles with **Rule 11**). Each such carrier **MUST** implement both **`Value`** and **`Scan`**.
+   - **Mandatory use in `models/`:** every JSONB **carrier** **defined type** under **`pkg/gormjsonb/**/*.go`** **MUST** be referenced as a field type (or embedded type) on **at least one** GORM-linked struct under **`models/**/*.go`** (see **Rule 15**), which implies **`models` → `pkg/gormjsonb`** imports — therefore **`pkg/gormjsonb`** MUST NOT import **`models/`** for the carrier **underlying** (see **Rule 3** and **Rule 21**). A carrier that is **not** used from **`models/`** is invalid unused persistence surface — it **MUST** be flagged, **removed**, and replaced with **`pkg/entities`** (or **`models/`**) shapes and wiring as appropriate, or merged into an existing carrier that **is** referenced from **`models/`**.
+   - **Package-level helpers and extra types in `pkg/gormjsonb`:** **Package-level functions** and **helper types** (if any) are permitted **only** when they exist **solely** to support **`Value`**, **`Scan`**, or **other allowed GORM-direct contract methods** on the carrier in that package (same scope as **Rule 3** / **Rule 10**). **Do not** place helpers, constructors, or functions that are used only from application code and **not** from those persistence methods or from GORM’s direct use of the carrier; move those to **`pkg/<feature>/`**, **`services/`**, **`pkg/errors_func/`**, or another appropriate package.
 
 12. **Pure Types Only in `pkg/entities` (No Functions)**
    Directories need to check:
@@ -168,7 +174,7 @@ means:
    - tests/**
    - pkg/logic/mapping/**/*.go
 
-   Any request/response mapping function (including `dto -> pkg/entities`, `dto -> models`, `models -> pkg/entities -> dto`, or equivalent transformations) declared outside `pkg/logic/mapping/**/*.go` is prohibited and MUST be flagged.
+   Any request/response mapping function (including `dto -> pkg/entities`, `dto -> models`, `models -> pkg/entities -> dto`, or equivalent transformations), **and any application-layer conversion to or from a `pkg/gormjsonb` JSONB carrier type** (e.g. `pkg/gormjsonb` ↔ `pkg/entities`, `pkg/gormjsonb` ↔ `dto`, or reshaping **`models/`** values for handlers/services **other than** what GORM performs via the carrier’s **`Value`** / **`Scan`** on the database path — those **`Value`** / **`Scan`** implementations **MUST** remain under **`pkg/gormjsonb`** per Rules 10–11), declared outside `pkg/logic/mapping/**/*.go` is prohibited and MUST be flagged.
 
 15. **GORM-Only Types in `models/`**
    Directories need to check:
@@ -214,7 +220,13 @@ means:
 
    **Required:** only top-level **`func`** declarations. Implementations may take and return `error`, primitives, or pointers to types defined in **`pkg/errors`** (or other packages), but **must not** introduce new home-grown error types in this tree.
 
-20. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
+20a. **`repository/` — persistence only (data access)**
+   Directories need to check:
+   - repository/**/*.go
+
+   Code under **`repository/**/*.go`** MUST be limited to **data access**: executing queries (GORM / SQL), scanning or returning **`models/`** (or row types), opening/committing/rolling back **transactions** at the persistence boundary, and surfacing **`error`** from the driver/ORM. It MUST NOT encode **business rules** ("When?", "Who?", policy branches, authorization decisions, or domain invariants) and MUST NOT orchestrate **use-case** flows — those belong in **`services/`**. Do **not** treat **`repository/`** as the home for generic "How?" helpers that do **not** touch the database; those belong under **`pkg/<feature>/`** per **Rule 20b**. Request/response or entity reshaping for the application MUST follow **Rule 14** (`pkg/logic/mapping`), not ad-hoc mapping inside **`repository/`**. **`internal/jobs/`** MAY call **`repository/`** per **Rule 6**; keep **policy** in **`services/`** or shared **`pkg/`** as appropriate so jobs do not grow into a second domain layer.
+
+20b. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
    Directories need to check:
    - services/**/*.go
    - pkg/**/*.go
@@ -234,4 +246,5 @@ means:
 * Code inside `pkg/<feature>/**/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.
 * They may ONLY depend on standard Go libraries, external third-party libraries, and shared entities such as `pkg/entities` or common models.
+* **`pkg/gormjsonb` import exception:** packages under **`pkg/gormjsonb/**/*.go`** MAY additionally import **other `pkg/<feature>/` packages** when required for the JSONB carrier’s **underlying** type or for **helpers** permitted under Rules 10–11, **if** doing so does not introduce **import cycles**. They **MUST NOT** import **`models/`** for carrier **underlying** composition (same **import-cycle** rationale as **Rule 3** with **Rule 11**). The prohibitions above still apply: **no** **`api/`**, **`services/`**, **`repository/`**, **`dto/`**, or **`internal/`** (e.g. jobs) imports from **`pkg/gormjsonb`**. Align with **Rule 3**: **`dto/`** and `*Response` types MUST NOT be used inside the carrier **underlying** type.
 

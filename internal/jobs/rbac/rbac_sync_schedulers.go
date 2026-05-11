@@ -2,10 +2,10 @@ package jobrbac
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/rbacsync"
@@ -34,7 +34,7 @@ func (b *syncJobBundle) stop() {
 
 func (b *syncJobBundle) start(db *gorm.DB, logLabel string, onTick func(*gorm.DB)) {
 	if db == nil {
-		log.Printf("%s: skipped (nil database)", logLabel)
+		zap.L().Info("rbac sync job skipped", zap.String("job", logLabel), zap.String("reason", "nil database"))
 		return
 	}
 	b.stop()
@@ -52,7 +52,7 @@ func (b *syncJobBundle) start(db *gorm.DB, logLabel string, onTick func(*gorm.DB
 		})
 	}()
 
-	log.Printf("%s: started (interval=%s)", logLabel, b.interval)
+	zap.L().Info("rbac sync job started", zap.String("job", logLabel), zap.Duration("interval", b.interval))
 }
 
 var (
@@ -71,10 +71,10 @@ func StartPermissionSyncJob(db *gorm.DB) {
 	permissionSyncJob.start(db, "permission-sync-job", func(db *gorm.DB) {
 		n, err := rbacsync.SyncPermissionsFromConstants(db)
 		if err != nil {
-			log.Printf("permission-sync-job: failed: %v", err)
+			zap.L().Error("permission sync job tick failed", zap.Error(err))
 			return
 		}
-		log.Printf("permission-sync-job: synced %d permissions", n)
+		zap.L().Info("permission sync job synced", zap.Int("count", n))
 	})
 }
 
@@ -89,9 +89,9 @@ func StartRolePermissionSyncJob(db *gorm.DB) {
 	rolePermissionSyncJob.start(db, "role-permission-sync-job", func(db *gorm.DB) {
 		n, err := rbacsync.SyncRolePermissionsFromConstants(db)
 		if err != nil {
-			log.Printf("role-permission-sync-job: failed: %v", err)
+			zap.L().Error("role-permission sync job tick failed", zap.Error(err))
 			return
 		}
-		log.Printf("role-permission-sync-job: rebuilt %d role_permission rows", n)
+		zap.L().Info("role-permission sync job rebuilt", zap.Int("rows", n))
 	})
 }

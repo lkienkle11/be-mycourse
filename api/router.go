@@ -54,6 +54,7 @@ func InitRouter() *gin.Engine {
 	// Per-request bodies up to the aggregate multi-file cap (see constants.MaxMediaMultipartTotalBytes)
 	// may be accepted when parts are streamed from disk; reverse proxies must still allow ≥ 2G (docs/deploy.md).
 	router.MaxMultipartMemory = constants.MediaMultipartParseMemoryBytes // must match handler ParseMultipartForm budget (see constants/error_msg.go)
+	router.Use(middleware.RequestLogger())
 	router.Use(httperr.Middleware())
 	router.Use(httperr.Recovery())
 	router.Use(cors.New(ginDefaultCORS()))

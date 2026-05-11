@@ -60,6 +60,18 @@ type Supabase struct {
 	DBURL          string
 }
 
+// Logging holds Uber Zap / structured logging options (YAML + env expansion).
+// See docs/patterns.md (logging) and pkg/logger.
+type Logging struct {
+	Level          string
+	Format         string // "json" | "console"
+	FilePath       string
+	ServiceName    string
+	Environment    string
+	Version        string
+	RedirectStdLog bool
+}
+
 type Media struct {
 	AppMediaProvider          string
 	B2KeyID                   string
@@ -87,6 +99,7 @@ var (
 	SupabaseSetting = &Supabase{}
 	BrevoSetting    = &Brevo{}
 	MediaSetting    = &Media{}
+	LogSetting      = &Logging{}
 )
 
 type yamlConfig struct {
@@ -97,6 +110,17 @@ type yamlConfig struct {
 	Supabase yamlSupabase `yaml:"supabase"`
 	Brevo    yamlBrevo    `yaml:"brevo"`
 	Media    yamlMedia    `yaml:"media"`
+	Logging  yamlLogging  `yaml:"logging"`
+}
+
+type yamlLogging struct {
+	Level          string `yaml:"level"`
+	Format         string `yaml:"format"`
+	FilePath       string `yaml:"file_path"`
+	ServiceName    string `yaml:"service_name"`
+	Environment    string `yaml:"environment"`
+	Version        string `yaml:"version"`
+	RedirectStdlog string `yaml:"redirect_stdlog"`
 }
 
 type yamlServer struct {

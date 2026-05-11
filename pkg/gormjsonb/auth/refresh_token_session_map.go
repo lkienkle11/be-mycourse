@@ -12,8 +12,9 @@ import (
 // sessionColumnJSONB is the local JSONB wrapper type (Rule 11: methods only on a type defined in this package).
 type sessionColumnJSONB entities.RefreshTokenSessionMap
 
-// RefreshTokenSessionMap is the Postgres JSONB column type for users.refresh_token_session (exported alias).
-type RefreshTokenSessionMap = sessionColumnJSONB
+// RefreshTokenSessionMap is the Postgres JSONB column type for users.refresh_token_session.
+// Defined type (not alias) per Rule 3 / Rule 11 — Value/Scan are implemented on this name.
+type RefreshTokenSessionMap sessionColumnJSONB
 
 func (m sessionColumnJSONB) Value() (driver.Value, error) {
 	if m == nil {
@@ -49,5 +50,18 @@ func (m *sessionColumnJSONB) Scan(src any) error {
 		return err
 	}
 	*m = sessionColumnJSONB(out)
+	return nil
+}
+
+func (m RefreshTokenSessionMap) Value() (driver.Value, error) {
+	return sessionColumnJSONB(m).Value()
+}
+
+func (m *RefreshTokenSessionMap) Scan(src any) error {
+	var u sessionColumnJSONB
+	if err := (&u).Scan(src); err != nil {
+		return err
+	}
+	*m = RefreshTokenSessionMap(u)
 	return nil
 }

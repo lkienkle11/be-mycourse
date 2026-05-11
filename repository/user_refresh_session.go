@@ -12,6 +12,7 @@ import (
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logic/mapping"
 )
 
 // SaveRefreshSession atomically updates a single existing session entry inside
@@ -78,7 +79,7 @@ func AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry entiti
 			First(&u).Error; err != nil {
 			return err
 		}
-		sessions := mergeNewRefreshSession(entities.RefreshTokenSessionMap(u.RefreshTokenSession), sessionStr, entry)
+		sessions := mergeNewRefreshSession(mapping.ToRefreshTokenSessionEntity(u.RefreshTokenSession), sessionStr, entry)
 		data, err := json.Marshal(sessions)
 		if err != nil {
 			return err

@@ -2,8 +2,9 @@ package jobrbac
 
 import (
 	"context"
-	"log"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // runPeriodicSyncLoop runs runOnce immediately, then on every tick until ctx is cancelled.
@@ -14,7 +15,7 @@ func runPeriodicSyncLoop(ctx context.Context, interval time.Duration, jobName st
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("%s: stopped", jobName)
+			zap.L().Info("rbac periodic job stopped", zap.String("job", jobName))
 			return
 		case <-ticker.C:
 			runOnce()

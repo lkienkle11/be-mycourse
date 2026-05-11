@@ -10,5 +10,6 @@ type RefreshSessionEntry struct {
 }
 
 // RefreshTokenSessionMap is the in-memory shape of users.refresh_token_session JSONB
-// (session id → metadata). JSONB Valuer/Scanner: **`pkg/gormjsonb/auth`** (`RefreshTokenSessionMap` alias over local `sessionColumnJSONB`).
+// (session id → metadata). JSONB Valuer/Scanner: **`pkg/gormjsonb/auth`** (`RefreshTokenSessionMap` defined type over `sessionColumnJSONB`).
+// From DB model field to this map type, use **`pkg/logic/mapping.ToRefreshTokenSessionEntity`** (Rule 14).
 type RefreshTokenSessionMap map[string]RefreshSessionEntry

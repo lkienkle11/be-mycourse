@@ -3,13 +3,14 @@ package httperr
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"go.uber.org/zap"
 
 	"mycourse-io-be/pkg/errcode"
+	"mycourse-io-be/pkg/logger"
 	appresponse "mycourse-io-be/pkg/response"
 	appvalidate "mycourse-io-be/pkg/validate"
 )
@@ -30,10 +31,10 @@ func Middleware() gin.HandlerFunc {
 	}
 }
 
-// Recovery replaces gin.Recovery with a JSON body on panic (still logs stack in debug).
+// Recovery replaces gin.Recovery with a JSON body on panic; logs via Zap + stack field.
 func Recovery() gin.HandlerFunc {
 	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-		log.Printf("panic: %v", recovered)
+		logger.FromContext(c.Request.Context()).Error("panic recovered", zap.Any("panic", recovered), zap.Stack("stack"))
 		if c.Writer.Written() {
 			return
 		}

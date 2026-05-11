@@ -2,9 +2,9 @@ package cache_clients
 
 import (
 	"context"
-	"log"
 
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"mycourse-io-be/pkg/setting"
 )
@@ -25,6 +25,6 @@ func SetupRedis() {
 	})
 
 	if err := Redis.Ping(context.Background()).Err(); err != nil {
-		log.Printf("redis not ready: %v", err)
+		zap.L().Warn("redis not ready", zap.Error(err))
 	}
 }

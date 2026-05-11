@@ -8,7 +8,6 @@ import (
 
 	"mycourse-io-be/dto"
 	"mycourse-io-be/internal/appdb"
-	jobsystem "mycourse-io-be/internal/jobs/system"
 	"mycourse-io-be/internal/rbacsync"
 	"mycourse-io-be/internal/systemauth"
 	"mycourse-io-be/middleware"
@@ -32,10 +31,10 @@ func RegisterRoutes(g *gin.RouterGroup) {
 	authd.Use(middleware.RequireSystemAccessToken(db))
 	authd.POST("/permission-sync-now", permissionSyncNow)
 	authd.POST("/role-permission-sync-now", rolePermissionSyncNow)
-	authd.POST("/create-permission-sync-job", jobsystem.HTTPCreatePermissionSyncJob)
-	authd.POST("/create-role-permission-sync-job", jobsystem.HTTPCreateRolePermissionSyncJob)
-	authd.POST("/delete-permission-sync-job", jobsystem.HTTPStopPermissionSyncJob)
-	authd.POST("/delete-role-permission-sync-job", jobsystem.HTTPStopRolePermissionSyncJob)
+	authd.POST("/create-permission-sync-job", services.SystemHTTPCreatePermissionSyncJob)
+	authd.POST("/create-role-permission-sync-job", services.SystemHTTPCreateRolePermissionSyncJob)
+	authd.POST("/delete-permission-sync-job", services.SystemHTTPStopPermissionSyncJob)
+	authd.POST("/delete-role-permission-sync-job", services.SystemHTTPStopRolePermissionSyncJob)
 }
 
 func systemLogin(c *gin.Context) {

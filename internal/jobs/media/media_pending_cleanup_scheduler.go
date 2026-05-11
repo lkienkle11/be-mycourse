@@ -2,13 +2,13 @@ package jobmedia
 
 import (
 	"context"
-	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"mycourse-io-be/constants"
@@ -52,12 +52,12 @@ func StopMediaPendingCleanupJob() {
 // StartMediaPendingCleanupJob starts (or replaces) the media pending cloud cleanup loop.
 func StartMediaPendingCleanupJob(db *gorm.DB) {
 	if db == nil {
-		log.Println("media-pending-cleanup-job: skipped (nil database)")
+		zap.L().Info("media pending cleanup job skipped", zap.String("reason", "nil database"))
 		return
 	}
 	interval := mediaPendingCleanupIntervalFromEnv()
 	if interval <= 0 {
-		log.Println("media-pending-cleanup-job: skipped (MEDIA_CLEANUP_INTERVAL_SEC=0)")
+		zap.L().Info("media pending cleanup job skipped", zap.String("reason", "MEDIA_CLEANUP_INTERVAL_SEC=0"))
 		return
 	}
 	StopMediaPendingCleanupJob()
@@ -73,7 +73,7 @@ func StartMediaPendingCleanupJob(db *gorm.DB) {
 		runMediaPendingCleanupLoop(ctx, db, interval)
 	}()
 
-	log.Printf("media-pending-cleanup-job: started (interval=%s)", interval)
+	zap.L().Info("media pending cleanup job started", zap.Duration("interval", interval))
 }
 
 func runMediaPendingCleanupLoop(ctx context.Context, db *gorm.DB, interval time.Duration) {
@@ -89,7 +89,7 @@ func runMediaPendingCleanupLoop(ctx context.Context, db *gorm.DB, interval time.
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("media-pending-cleanup-job: stopped")
+			zap.L().Info("media pending cleanup job stopped")
 			return
 		case <-ticker.C:
 			runOnce()

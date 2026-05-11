@@ -1,6 +1,7 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,9 +13,26 @@ import (
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logger"
 	"mycourse-io-be/pkg/logic/utils"
 	"mycourse-io-be/pkg/setting"
+
+	"go.uber.org/zap"
 )
+
+// formatBunnyHTTPBodyForLog returns a human-readable body string for logs (pretty JSON when valid).
+func formatBunnyHTTPBodyForLog(body []byte) string {
+	if len(body) == 0 {
+		return "(empty)"
+	}
+	if json.Valid(body) {
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, body, "", "  "); err == nil {
+			return buf.String()
+		}
+	}
+	return string(body)
+}
 
 func bunnyStreamAuthorizedGET(ctx context.Context, hc *http.Client, urlStr, apiKey string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
@@ -23,6 +41,17 @@ func bunnyStreamAuthorizedGET(ctx context.Context, hc *http.Client, urlStr, apiK
 	}
 	req.Header.Set("AccessKey", apiKey)
 	req.Header.Set("accept", "application/json")
+
+	// GET has no entity body; log explicitly so traces stay symmetric with response_body.
+	requestBody := "(empty: HTTP GET has no request body)"
+	logger.FromContext(ctx).Info(
+		"bunny get video HTTP request",
+		zap.String("method", req.Method),
+		zap.String("url", urlStr),
+		zap.String("request_body", requestBody),
+		zap.String("header_accept", req.Header.Get("Accept")),
+		zap.Bool("header_access_key_set", strings.TrimSpace(req.Header.Get("AccessKey")) != ""),
+	)
 	return hc.Do(req)
 }
 
@@ -61,8 +90,15 @@ func decodeBunnyVideoDetailBody(body []byte) (*entities.BunnyVideoDetail, error)
 	return &out, nil
 }
 
-func parseBunnyVideoGetResponse(resp *http.Response) (*entities.BunnyVideoDetail, error) {
+func parseBunnyVideoGetResponse(ctx context.Context, resp *http.Response) (*entities.BunnyVideoDetail, error) {
 	body, _ := io.ReadAll(resp.Body)
+	logger.FromContext(ctx).Info(
+		"bunny get video HTTP response",
+		zap.Int("status", resp.StatusCode),
+		zap.String("content_type", resp.Header.Get("Content-Type")),
+		zap.Int64("content_length", resp.ContentLength),
+		zap.String("response_body", formatBunnyHTTPBodyForLog(body)),
+	)
 	if resp.StatusCode >= 300 {
 		return nil, bunnyVideoGetError(resp, body)
 	}
@@ -83,5 +119,5 @@ func GetBunnyVideoByID(c *entities.CloudClients, ctx context.Context, videoGUID 
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	return parseBunnyVideoGetResponse(resp)
+	return parseBunnyVideoGetResponse(ctx, resp)
 }

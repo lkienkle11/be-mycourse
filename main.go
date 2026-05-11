@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 
+	"go.uber.org/zap"
+
 	"mycourse-io-be/api"
 	"mycourse-io-be/config"
 	"mycourse-io-be/internal/appcli"
@@ -14,6 +16,7 @@ import (
 	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/cache_clients"
+	"mycourse-io-be/pkg/logger"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
@@ -22,11 +25,8 @@ import (
 )
 
 func mustCoreSettingsAndDB() {
-	if err := setting.Setup(); err != nil {
-		log.Fatalf("setup setting failed: %v", err)
-	}
 	if err := models.Setup(); err != nil {
-		log.Fatalf("setup postgres ([database]) failed: %v", err)
+		zap.L().Fatal("setup postgres ([database]) failed", zap.Error(err))
 	}
 	appdb.Set(models.DB)
 	rbac.SetRBACDB(models.DB)
@@ -37,14 +37,14 @@ func mustCoreSettingsAndDB() {
 
 func mustSupabaseRedisAndMedia() {
 	if err := supabasepkg.SetupDatabase(); err != nil {
-		log.Fatalf("setup supabase postgres (DBURL) failed: %v", err)
+		zap.L().Fatal("setup supabase postgres (DBURL) failed", zap.Error(err))
 	}
 	if err := supabasepkg.Setup(); err != nil {
-		log.Printf("supabase HTTP client is not initialized: %v", err)
+		zap.L().Warn("supabase HTTP client is not initialized", zap.Error(err))
 	}
 	cache_clients.SetupRedis()
 	if err := pkgmedia.Setup(); err != nil {
-		log.Fatalf("setup media sdk clients failed: %v", err)
+		zap.L().Fatal("setup media sdk clients failed", zap.Error(err))
 	}
 }
 
@@ -53,9 +53,9 @@ func maybeMigrateFromEnv() {
 		return
 	}
 	if err := models.MigrateDatabase(); err != nil {
-		log.Fatalf("migrate database failed: %v", err)
+		zap.L().Fatal("migrate database failed", zap.Error(err))
 	}
-	log.Println("sql migrations applied (see migrations/*.up.sql)")
+	zap.L().Info("sql migrations applied (see migrations/*.up.sql)")
 }
 
 func mustBackgroundConsumers() {
@@ -72,10 +72,18 @@ func mustBootstrapRuntime() {
 }
 
 func main() {
+	if err := setting.Setup(); err != nil {
+		log.Fatalf("setup setting failed: %v", err)
+	}
+	if _, err := logger.InitFromSettings(); err != nil {
+		log.Fatalf("logger init failed: %v", err)
+	}
+	defer logger.Sync()
+
 	mustBootstrapRuntime()
 
 	router := api.InitRouter()
 	if err := router.Run(":" + setting.ServerSetting.Port); err != nil {
-		log.Fatalf("server run failed: %v", err)
+		zap.L().Fatal("server run failed", zap.Error(err))
 	}
 }

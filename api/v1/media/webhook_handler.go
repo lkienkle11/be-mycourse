@@ -1,7 +1,6 @@
 package media
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 
@@ -10,6 +9,7 @@ import (
 	"mycourse-io-be/constants"
 	"mycourse-io-be/pkg/errcode"
 	errfuncmedia "mycourse-io-be/pkg/errors_func/media"
+	"mycourse-io-be/pkg/logger"
 	"mycourse-io-be/pkg/logic/mapping"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/response"
@@ -45,7 +45,7 @@ func verifyBunnyWebhookSignature(c *gin.Context, rawBody []byte) bool {
 }
 
 func bunnyWebhook(c *gin.Context) {
-	fmt.Println("bunnyWebhook start readBunnyWebhookRawBody")
+	logger.FromContext(c.Request.Context()).Debug("bunny webhook request received")
 	rawBody, ok := readBunnyWebhookRawBody(c)
 	if !ok {
 		return

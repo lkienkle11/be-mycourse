@@ -55,3 +55,12 @@ media:
   bunny_storage_endpoint: "${MEDIA_BUNNY_STORAGE_ENDPOINT}"
   bunny_storage_password: "${MEDIA_BUNNY_STORAGE_PASSWORD}"
   local_file_url_secret: "${LOCAL_FILE_URL_SECRET}"
+
+logging:
+  level: "${LOG_LEVEL}"
+  format: "${LOG_FORMAT}"
+  file_path: "${LOG_FILE_PATH}"
+  service_name: "${LOG_SERVICE_NAME}"
+  environment: "${LOG_ENVIRONMENT}"
+  version: "${APP_VERSION}"
+  redirect_stdlog: "${LOG_REDIRECT_STDLOG}"

@@ -312,7 +312,8 @@ The following custom headers are whitelisted in the CORS configuration:
 | Session entry persistence | `repository/user_refresh_session.go` — `AddRefreshSession`, `SaveRefreshSession` (called from `services/auth/auth_session_tokens.go` / `services/auth/auth_refresh_rotation.go`) |
 | Redis keys + TTL | `services/cache/auth_user.go` |
 | Session limit constant (`MaxActiveSessions = 5`) | `constants/user_session.go` |
-| JSONB session map (`gormjsonbauth.RefreshTokenSessionMap` → local `sessionColumnJSONB`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `models/deleted_at.go` |
+| JSONB session map (`gormjsonbauth.RefreshTokenSessionMap` defined type → `sessionColumnJSONB`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `models/deleted_at.go` |
+| JSONB carrier → domain session map (`ToRefreshTokenSessionEntity`) | `pkg/logic/mapping/auth_refresh_session_mapping.go` |
 | Token TTL constants | `constants/auth_token.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` (used by `services/*` and `api/v1/auth.go` cookie max-age) |
 | DB schema / sessions column | `migrations/000001_schema.up.sql` |
 | Registration email lifetime column | `migrations/000007_registration_email_limits.up.sql` — `users.registration_email_send_total`; `COMMENT` không chứa `;` trong chuỗi (migrate tách file theo mọi `;`) |

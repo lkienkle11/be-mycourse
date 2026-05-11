@@ -15,7 +15,7 @@
 
 ## Primary Request Flow
 1. HTTP request enters Gin router (`api/router.go`).
-2. Global middleware executes (`httperr`, recovery, CORS, gzip, interceptors).
+2. Global middleware executes (**`middleware.RequestLogger`** → structured access log + **`X-Request-ID`** on context, then `httperr`, recovery, CORS, gzip, interceptors).
 3. Group middleware executes (JWT/API key/system token/rate limit depending route group).
 4. Handler validates input DTO and calls service.
 5. Service executes business logic, persistence, and optional cache.

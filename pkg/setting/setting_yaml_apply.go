@@ -3,6 +3,8 @@ package setting
 import (
 	"os"
 	"strings"
+
+	"mycourse-io-be/pkg/envbool"
 )
 
 func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
@@ -17,6 +19,7 @@ func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
 	expandYAMLServerDBApp(c, expand)
 	expandYAMLIntegrations(c, expand)
 	expandYAMLMediaSection(c, expand)
+	expandYAMLLoggingSection(c, expand)
 }
 
 func expandYAMLServerDBApp(c *yamlConfig, expand func(string) string) {
@@ -49,6 +52,16 @@ func expandYAMLIntegrations(c *yamlConfig, expand func(string) string) {
 	c.Brevo.SenderName = expand(c.Brevo.SenderName)
 }
 
+func expandYAMLLoggingSection(c *yamlConfig, expand func(string) string) {
+	c.Logging.Level = expand(c.Logging.Level)
+	c.Logging.Format = expand(c.Logging.Format)
+	c.Logging.FilePath = expand(c.Logging.FilePath)
+	c.Logging.ServiceName = expand(c.Logging.ServiceName)
+	c.Logging.Environment = expand(c.Logging.Environment)
+	c.Logging.Version = expand(c.Logging.Version)
+	c.Logging.RedirectStdlog = expand(c.Logging.RedirectStdlog)
+}
+
 func expandYAMLMediaSection(c *yamlConfig, expand func(string) string) {
 	c.Media.AppMediaProvider = expand(c.Media.AppMediaProvider)
 	c.Media.B2KeyID = expand(c.Media.B2KeyID)
@@ -74,6 +87,61 @@ func applyYAMLToGlobals(c *yamlConfig) {
 	applyYAMLAppBrevoGlobals(c)
 	applyYAMLRedisSupabaseGlobals(c)
 	applyYAMLMediaGlobals(c)
+	applyYAMLLoggingGlobals(c)
+}
+
+func applyYAMLLoggingGlobals(c *yamlConfig) {
+	level := strings.TrimSpace(c.Logging.Level)
+	if level == "" {
+		level = "info"
+	}
+	LogSetting.Level = level
+
+	format := strings.TrimSpace(strings.ToLower(c.Logging.Format))
+	if format == "" {
+		format = defaultLogFormatFromRunMode()
+	}
+	LogSetting.Format = format
+
+	LogSetting.FilePath = strings.TrimSpace(c.Logging.FilePath)
+	LogSetting.ServiceName = effectiveLogServiceName(c.Logging.ServiceName)
+	LogSetting.Environment = effectiveLogEnvironment(c.Logging.Environment)
+	LogSetting.Version = effectiveLogVersion(c.Logging.Version)
+	LogSetting.RedirectStdLog = envbool.ParseTrue(c.Logging.RedirectStdlog)
+}
+
+func defaultLogFormatFromRunMode() string {
+	if strings.EqualFold(strings.TrimSpace(ServerSetting.RunMode), "debug") {
+		return "console"
+	}
+	return "json"
+}
+
+func effectiveLogServiceName(s string) string {
+	s = strings.TrimSpace(s)
+	if s != "" {
+		return s
+	}
+	return "be-mycourse"
+}
+
+func effectiveLogEnvironment(s string) string {
+	s = strings.TrimSpace(s)
+	if s != "" {
+		return s
+	}
+	if e := strings.TrimSpace(os.Getenv("STAGE")); e != "" {
+		return e
+	}
+	return "default"
+}
+
+func effectiveLogVersion(s string) string {
+	s = strings.TrimSpace(s)
+	if s != "" {
+		return s
+	}
+	return strings.TrimSpace(os.Getenv("APP_VERSION"))
 }
 
 func applyYAMLServerGlobals(c *yamlConfig) {

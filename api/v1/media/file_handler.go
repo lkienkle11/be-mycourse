@@ -9,7 +9,6 @@ import (
 
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
-	jobmedia "mycourse-io-be/internal/jobs/media"
 	"mycourse-io-be/pkg/entities"
 	"mycourse-io-be/pkg/errcode"
 	pkgerrors "mycourse-io-be/pkg/errors"
@@ -223,9 +222,6 @@ func getVideoStatus(c *gin.Context) {
 }
 
 func getMediaCleanupMetrics(c *gin.Context) {
-	response.OK(c, "ok", mapping.ToMediaCleanupMetricsResponse(
-		jobmedia.CleanupCloudDeleted.Load(),
-		jobmedia.CleanupCloudFailed.Load(),
-		jobmedia.CleanupCloudRetried.Load(),
-	))
+	d, f, r := mediaservice.PendingCloudCleanupCounters()
+	response.OK(c, "ok", mapping.ToMediaCleanupMetricsResponse(d, f, r))
 }

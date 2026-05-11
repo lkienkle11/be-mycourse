@@ -14,6 +14,7 @@
 
 ## Route Hierarchy
 - Root middleware stack:
+  - `middleware.RequestLogger()` — structured access log + **`X-Request-ID`** propagation (see `docs/patterns.md`).
   - `httperr.Middleware()`
   - `httperr.Recovery()`
   - CORS (`api/router.go` — `ExposeHeaders` includes **`X-Token-Expired`**, **`Retry-After`**, **`X-Mycourse-Register-Retry-After`** so browser clients can read token-expiry and registration rate-limit hints cross-origin)

@@ -44,7 +44,7 @@ Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileRespons
 |---|---|---|
 | OPTIONS | `/media/files` | CORS/preflight support |
 | GET | `/media/files` | List persisted records from `media_files` with pagination |
-| GET | `/media/files/cleanup-metrics` | Ops: deferred cleanup counters — registered **before** `/:id` |
+| GET | `/media/files/cleanup-metrics` | Ops: deferred cleanup counters (handler → **`services/media.PendingCloudCleanupCounters`**, Rule 6) — registered **before** `/:id` |
 | POST | `/media/files` | Multipart upload **1–5** file parts per request (field **`files`**, repeated; legacy **`file`** still accepted as a single part). Response **`data`** is an **array** of `UploadFileResponse` (one entry per part). |
 | OPTIONS | `/media/files/batch-delete` | CORS/preflight |
 | POST | `/media/files/batch-delete` | JSON `{ "object_keys": ["<object_key>", ...] }` — delete up to **10** distinct keys (permission `media_file:delete`). All keys must exist or the request fails validation (see Sub 17). Success `data` includes **`deleted_count`**. |

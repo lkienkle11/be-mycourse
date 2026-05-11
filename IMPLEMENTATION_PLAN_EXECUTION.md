@@ -1,3 +1,56 @@
+## Phase Sub 19 — Uber Zap structured logging + ELK-ready sinks (tasks 01–08, 2026-05-11) ✅
+
+### Baseline / lifecycle (state machine)
+- **Bootstrap order:** `main` → `setting.Setup()` → `logger.InitFromSettings()` (wraps `logger.Init` with `setting.LogSetting`) → **`defer logger.Sync()`** → `mustBootstrapRuntime()` → `api.InitRouter()` → `router.Run`.
+- **Pre-Zap failures:** only stdlib **`log.Fatalf`** is used if `setting.Setup` or `logger.InitFromSettings` fails (no globals yet).
+- **Global logger:** `zap.ReplaceGlobals` — **Spring Boot–style** single factory for the process; consumers use **`zap.L()`** / **`zap.S()`** or **`logger.FromContext(ctx)`** for request-scoped fields.
+- **Shutdown:** `defer logger.Sync()` in `main` flushes sinks (stdout EINVAL on some OSes ignored by Zap idiom).
+
+### ELK-ready contract (no Elastic in repo)
+- **`LOG_FORMAT`:** `json` → stdout JSON (ISO8601 timestamps); `console` → development console encoder (color levels on TTY).
+- **`LOG_FILE_PATH`:** when set, **`zapcore.NewTee`** adds a **second core** writing **NDJSON** (always JSON, one object per line) regardless of stdout format — intended for **Filebeat** sidecar / host path mount. Infra (Elasticsearch, Kibana, ingest pipelines) stays **outside** this repository.
+- **Suggested env keys:** `LOG_LEVEL`, `LOG_FORMAT`, `LOG_FILE_PATH`, `LOG_SERVICE_NAME`, `LOG_ENVIRONMENT`, `APP_VERSION`, `LOG_REDIRECT_STDLOG` — all wired through `config/app*.yaml` `logging:` + `${VAR}` expansion.
+
+### HTTP / Gin
+- **`middleware.RequestLogger`:** first global middleware; generates or honors **`X-Request-ID`** (`constants.HeaderRequestID`); sets Gin key `constants.GinContextKeyRequestID`; **`logger.WithRequestID`** stores the id on `context.Context` using an **unexported sentinel type + `var` in `pkg/logger`** (avoids `const` in `pkg/` per Rule 1 and string keys per staticcheck SA1029); access log field **`http_request`** with method, path, status, latency, `response_bytes`, `client_ip`, `request_id` — **no body** (PII-safe default).
+- **`pkg/httperr.Recovery`:** logs panic with **`logger.FromContext`** + **`zap.Stack`**.
+
+### Inventory — logging call sites (post-migration + deferred)
+
+| Area | File(s) | Status |
+|------|---------|--------|
+| Process entry | `main.go` | Zap after Init; stdlib `log` only pre-Init fatals |
+| Gin access + correlation | `middleware/request_logger.go`, `constants/logging_http.go` | **New** |
+| Zap package | `pkg/logger/{init,context}.go` | **New** |
+| HTTP errors / panic | `pkg/httperr/middleware.go` | Zap |
+| Media webhook (debug noise) | `api/v1/media/webhook_handler.go` | `Debug` via `FromContext` |
+| RBAC background jobs | `internal/jobs/rbac/rbac_sync_schedulers.go`, `interval_sync_loop.go` | Zap |
+| Media cleanup job | `internal/jobs/media/media_pending_cleanup_scheduler.go` | Zap |
+| Redis ping | `pkg/cache_clients/redis.go` | Zap `Warn` |
+| Standalone CLIs | `cmd/syncpermissions/main.go`, `cmd/syncrolepermissions/main.go` | **Deferred** — still stdlib `log` (no `setting`+`logger` bootstrap in those binaries) |
+
+### GitNexus (representative)
+- `npx gitnexus analyze --force` after substantive edits.
+- **`InitRouter`:** upstream **LOW** (`main` caller).
+- **`Init` (`pkg/logger`):** new leaf; **`RequestLogger`:** middleware only — **LOW** blast radius.
+
+### Tests / quality gate
+- **`tests/sub19_logger_test.go`:** `FromContext` request_id field; JSON file sink + global fields; level **error** drops **info** on file core.
+- **`golangci-lint cache clean` → `golangci-lint run`** → **`make check-architecture`** → clean; **`go fmt ./...`**, **`go vet ./...`**, **`go test ./...`**, **`go build ./...`** → clean.
+
+### Documentation sync
+- **`docs/patterns.md`** (logging section), **`docs/architecture.md`**, **`docs/router.md`**, **`docs/data-flow.md`**, **`docs/folder-structure.md`**, **`docs/dependencies.md`**, **`docs/reusable-assets.md`**, **`README.md`**, **`.env.example`**, all **`config/app*.yaml`** (`logging:` block).
+
+### Handoff
+- Sub **19** closed. **`phase-02-start`** remains the next plan gate for course-domain work unless another sub-phase is scheduled.
+
+### Follow-up — `rules-pattern` / `er-rule6` compliance (same release window)
+- **Rule 1 + SA1029:** removed `const` context key from `pkg/logger`; use unexported **`requestIDContextKey`** + **`var requestIDKey`** in `pkg/logger/context.go` (no string `context.WithValue` key).
+- **Rule 3 / 11 / 14:** `gormjsonbauth.RefreshTokenSessionMap` is a **defined type** with `Value`/`Scan` only (no app helpers on the carrier); repository uses **`mapping.ToRefreshTokenSessionEntity(u.RefreshTokenSession)`** from **`pkg/logic/mapping/auth_refresh_session_mapping.go`**.
+- **Rule 6:** `api/v1/media/file_handler.go` no longer imports **`internal/jobs/media`** — metrics via **`services/media.PendingCloudCleanupCounters`**. `api/system/routes.go` no longer imports **`internal/jobs/system`** — job HTTP entrypoints wrapped in **`services/system_job_http.go`**.
+
+---
+
 ## Phase Sub 18 — Registration confirmation email limits + documentation
 
 ### Behaviour
@@ -1797,7 +1850,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 ### Rules-pattern alignment (`errors-rule-2` remediation)
 
 - **Constants:** `MediaMultipartParseMemoryBytes` shared by `api/router.go` (`MaxMultipartMemory`) and multipart parse path (`constants/error_msg.go`).
-- **Types:** `OpenedUploadPart`, `PreparedCreatePart`, `PreparedUpdateHead` are **structs only** in **`pkg/entities/media_multipart_parts.go`**; **`OpenUploadParts`**, **`CloseOpenedUploadParts`**, **`DrainDiscard`** in **`pkg/media/multipart_opened_parts.go`** (Rule 7). Refresh session entry + map shape in **`pkg/entities/refresh_session.go`**; JSONB column type in **`pkg/gormjsonb/auth/refresh_token_session_map.go`** (Rule 3); **`DeletedAt`** alias in **`models/deleted_at.go`**.
+- **Types:** `OpenedUploadPart`, `PreparedCreatePart`, `PreparedUpdateHead` are **structs only** in **`pkg/entities/media_multipart_parts.go`**; **`OpenUploadParts`**, **`CloseOpenedUploadParts`**, **`DrainDiscard`** in **`pkg/media/multipart_opened_parts.go`** (Rule 7). Refresh session entry + map shape in **`pkg/entities/refresh_session.go`**; JSONB column type in **`pkg/gormjsonb/auth/refresh_token_session_map.go`** (Rule 3); carrier→entity in **`pkg/logic/mapping/auth_refresh_session_mapping.go`** (Rule 14); **`DeletedAt`** alias in **`models/deleted_at.go`**.
 - **Auth / mapping (Rule 7):** no `buildMeResponseForCache` in **`services/auth`** — **`GetMe`** / **`UpdateMe`** return **`entities.MeProfile`**; **`completeLoginSuccess`** / cache use **`mapping.BuildMeProfileFromUser`**; **`api/v1/me.go`** maps with **`mapping.ToMeResponseFromProfile`**.
 - **Tests:** batch-delete validation tests under `tests/file_service_batch_delete_validation_test.go` (no `*_test.go` under `services/`).
 - **Sentinel:** `ErrBatchDeleteEmptyKeys` + `constants.MsgBatchDeleteEmptyObjectKeys` (no raw string in `file_service_batch_delete.go`).

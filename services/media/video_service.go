@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"mycourse-io-be/constants"
 	"mycourse-io-be/dto"
 	"mycourse-io-be/models"
 	"mycourse-io-be/pkg/entities"
 	pkgerrors "mycourse-io-be/pkg/errors"
+	"mycourse-io-be/pkg/logger"
 	"mycourse-io-be/pkg/logic/utils"
 	pkgmedia "mycourse-io-be/pkg/media"
 	"mycourse-io-be/pkg/setting"
@@ -83,52 +86,135 @@ func applyBunnyFinishedWebhookToRow(row *models.MediaFile, video *entities.Bunny
 	return nil
 }
 
+func bunnyWebhookHandleLogger(ctx context.Context, req dto.BunnyVideoWebhookRequest) *zap.Logger {
+	return logger.FromContext(ctx).With(
+		zap.String("component", "bunny_webhook"),
+		zap.String("bunny_webhook_service", "HandleBunnyVideoWebhook"),
+		zap.Int("video_library_id", req.VideoLibraryID),
+		zap.String("video_guid", req.VideoGUID),
+		zap.Int("status", req.Status),
+	)
+}
+
+func handleBunnyWebhookNonFinishBranch(ctx context.Context, log *zap.Logger, videoGUID string, status int) {
+	log.Debug("bunny webhook: non-finish status branch",
+		zap.String("bunny_webhook_stage", "service_status_non_finish"),
+	)
+	if err := markBunnyWebhookFailedStatus(ctx, videoGUID, status); err != nil {
+		log.Warn("bunny webhook: mark failed status returned error (acknowledged to provider anyway)",
+			zap.String("bunny_webhook_stage", "service_mark_failed_error"),
+			zap.Error(err),
+		)
+	}
+}
+
+func applyBunnyWebhookFinishedPersist(log *zap.Logger, row *models.MediaFile, video *entities.BunnyVideoDetail, trimmedGUID string) error {
+	if err := applyBunnyFinishedWebhookToRow(row, video, trimmedGUID); err != nil {
+		log.Warn("bunny webhook: applyBunnyFinishedWebhookToRow failed", zap.Error(err))
+		return err
+	}
+	repo := repository.New(models.DB).Media
+	if err := repo.UpsertByObjectKey(row); err != nil {
+		log.Warn("bunny webhook: UpsertByObjectKey failed", zap.Error(err))
+		return err
+	}
+	log.Debug("bunny webhook: DB row updated after finished webhook",
+		zap.String("bunny_webhook_stage", "service_db_upsert_ok"),
+		zap.String("media_file_id", row.ID),
+	)
+	return nil
+}
+
+func markBunnyWebhookFailedPersist(log *zap.Logger, videoGUID string) error {
+	repo := repository.New(models.DB).Media
+	row, err := repo.GetByBunnyVideoID(strings.TrimSpace(videoGUID))
+	if err != nil {
+		log.Debug("bunny webhook: mark failed — no DB row",
+			zap.String("bunny_webhook_stage", "service_mark_failed_no_row"),
+			zap.Error(err),
+		)
+		return err
+	}
+	row.Status = constants.FileStatusFailed
+	if err := repo.UpsertByObjectKey(row); err != nil {
+		log.Warn("bunny webhook: mark failed — UpsertByObjectKey error",
+			zap.String("bunny_webhook_stage", "service_mark_failed_upsert_error"),
+			zap.Error(err),
+		)
+		return err
+	}
+	log.Debug("bunny webhook: media row marked as failed",
+		zap.String("bunny_webhook_stage", "service_mark_failed_ok"),
+		zap.String("media_file_id", row.ID),
+	)
+	return nil
+}
+
 func HandleBunnyVideoWebhook(ctx context.Context, req dto.BunnyVideoWebhookRequest) error {
+	log := bunnyWebhookHandleLogger(ctx, req)
 	if err := pkgmedia.RequireInitialized(pkgmedia.Cloud); err != nil {
+		log.Warn("bunny webhook: media cloud client not initialized", zap.Error(err))
 		return err
 	}
 	status := req.Status
 	if !isBunnyWebhookStatusSupported(status) {
+		log.Debug("bunny webhook: unsupported status, no-op",
+			zap.String("bunny_webhook_stage", "service_status_unsupported"),
+		)
 		return nil
 	}
 	if !isBunnyWebhookFinishStatus(status) {
-		if markBunnyWebhookFailedStatus(req.VideoGUID, status) != nil {
-			return nil
-		}
+		handleBunnyWebhookNonFinishBranch(ctx, log, req.VideoGUID, status)
 		return nil
 	}
+	log.Debug("bunny webhook: finish status, applying to DB",
+		zap.String("bunny_webhook_stage", "service_apply_finished_start"),
+	)
 	return applyBunnyWebhookFinishedStatus(ctx, req.VideoGUID)
 }
 
 func applyBunnyWebhookFinishedStatus(ctx context.Context, videoGUID string) error {
+	log := logger.FromContext(ctx).With(
+		zap.String("component", "bunny_webhook"),
+		zap.String("bunny_webhook_service", "applyBunnyWebhookFinishedStatus"),
+		zap.String("video_guid", videoGUID),
+	)
 	trimmedGUID := strings.TrimSpace(videoGUID)
 	video, err := pkgmedia.GetBunnyVideoByID(pkgmedia.Cloud, ctx, trimmedGUID)
 	if err != nil {
+		log.Warn("bunny webhook: GetBunnyVideoByID failed", zap.Error(err))
 		return err
 	}
+	log.Debug("bunny webhook: fetched video detail from Bunny API",
+		zap.String("bunny_webhook_stage", "service_bunny_get_ok"),
+	)
 	repo := repository.New(models.DB).Media
 	row, err := repo.GetByBunnyVideoID(trimmedGUID)
 	if err != nil {
 		// idempotent retry safety: if local DB row does not exist, acknowledge without failing webhook.
+		log.Debug("bunny webhook: no local media row for video_guid, skipping DB update",
+			zap.String("bunny_webhook_stage", "service_db_row_missing"),
+			zap.Error(err),
+		)
 		return nil
 	}
-	if err := applyBunnyFinishedWebhookToRow(row, video, trimmedGUID); err != nil {
-		return err
-	}
-	return repo.UpsertByObjectKey(row)
+	return applyBunnyWebhookFinishedPersist(log, row, video, trimmedGUID)
 }
 
-func markBunnyWebhookFailedStatus(videoGUID string, status int) error {
+func markBunnyWebhookFailedStatus(ctx context.Context, videoGUID string, status int) error {
+	log := logger.FromContext(ctx).With(
+		zap.String("component", "bunny_webhook"),
+		zap.String("bunny_webhook_service", "markBunnyWebhookFailedStatus"),
+		zap.String("video_guid", videoGUID),
+		zap.Int("status", status),
+	)
 	if status != constants.BunnyFailed && status != constants.BunnyPresignedUploadFailed {
+		log.Debug("bunny webhook: status is not a failure code, skipping mark",
+			zap.String("bunny_webhook_stage", "service_mark_failed_skip"),
+		)
 		return nil
 	}
-	repo := repository.New(models.DB).Media
-	row, err := repo.GetByBunnyVideoID(strings.TrimSpace(videoGUID))
-	if err != nil {
-		return err
-	}
-	row.Status = constants.FileStatusFailed
-	return repo.UpsertByObjectKey(row)
+	return markBunnyWebhookFailedPersist(log, videoGUID)
 }
 
 func isBunnyWebhookFinishStatus(status int) bool {

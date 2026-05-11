@@ -106,11 +106,13 @@ means:
    Directories need to check:
    - api/**/*.go
    - services/**/*.go
-   - repository/**/*.go
-   - middleware/**/*.go
-   - pkg/**/*.go
+   - internal/jobs/**/*.go
 
-   Any module or code whose primary responsibility is to **create or enqueue background jobs** or to **process or execute job handlers** (including schedulers, workers, job registration, and job-specific orchestration) MUST reside under `internal/jobs/`. Placing such job-related implementation in `api/`, `services/`, `repository/`, `middleware/`, or anywhere else outside `internal/jobs/` is strictly prohibited.
+   Any module or code whose primary responsibility is to **implement** background jobs — **enqueue** pipelines, **job handlers** and workers, **schedulers**, **registration** of jobs, and **job-specific orchestration** — MUST reside under `internal/jobs/`. Duplicating that implementation in `api/` or embedding it in `services/` (instead of delegating to `internal/jobs/`) is strictly prohibited.
+
+   **Call direction:** HTTP handlers under `api/` MUST NOT import `internal/jobs/` or enqueue or run job logic directly; they MUST go through `services/`. Only `services/` may call into `internal/jobs/` (e.g. to enqueue work or expose job-related operations the API needs). The API uses job-related behavior only via the service layer.
+
+   **Dependencies:** `internal/jobs/` MAY use the database layer (`repository/`, `models/`, or other approved persistence access) as needed for job execution. `internal/jobs/` MUST NOT import or call `services/` — dependencies flow `services/` → `internal/jobs/` only, never the reverse.
 
 7. **English-Only Error Messages in `constants/error_msg.go`**
    Directories need to check:
@@ -213,6 +215,10 @@ means:
    **Required:** only top-level **`func`** declarations. Implementations may take and return `error`, primitives, or pointers to types defined in **`pkg/errors`** (or other packages), but **must not** introduce new home-grown error types in this tree.
 
 20. **Mechanism Logic vs. Business Logic (The Data Nature Filter)**
+   Directories need to check:
+   - services/**/*.go
+   - pkg/**/*.go
+
    Before writing ANY new function, examine its inputs and outputs:
 
 * **Mechanism Logic (belongs to `pkg/<feature>/**/*.go`):**
@@ -222,17 +228,8 @@ means:
 * **Business Logic (belongs to `services/`):**
   If the function answers "When?" or "Who?", depends on business rules (conditional logic based on policies), or manipulates domain models, it belongs in `services/`.
 
-21. **No “Homeless Functions” & No “Fake Methods” in Services**
 
-* **No Homeless Functions:**
-  Standalone utility (stateless) functions are STRICTLY PROHIBITED inside the `services/` directory (except for `New...` constructors).
-
-* **No Fake Methods:**
-  Do not bypass the rule by attaching helper functions to a service struct (e.g., `func (s *courseService) parseBoolean()`).
-  If a function is declared as a method of a service struct, its implementation MUST actively use the receiver’s state (e.g., `s.repo`, `s.config`, `s.logger`).
-  If the method only processes input parameters without using the struct’s state, it is considered a “Fake Method” and MUST be moved to `pkg/<feature>/**/*.go`.
-
-22. **Strict One-Way Dependency Direction for `pkg/`**
+21. **Strict One-Way Dependency Direction for `pkg/`**
 
 * Code inside `pkg/<feature>/**/*.go` sits at the lowest level of the dependency chain.
 * Files within `pkg/` MUST NOT import `api/`, `services/`, or `repository/` under ANY circumstances.

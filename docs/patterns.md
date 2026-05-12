@@ -1,151 +1,159 @@
 # Patterns and Conventions
 
+## DDD Layer Conventions
 
-## Global Type Placement Rule (Mandatory)
+### Layer responsibilities
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in **`pkg/entities`** (no `gorm` / `database/sql` — **`restrict_models_pkg_entity_schema_only`**).
-- GORM / JSONB **column** types for `models/*.go` fields: refresh-session JSONB **`Valuer`/`Scanner`** in **`pkg/gormjsonb/auth`**, soft-delete **`DeletedAt`** alias in **`models/deleted_at.go`** (only that file under **`models/`** may import **`gorm.io/gorm`** — see **`.golangci.yml`** `restrict_models_pkg_entity_schema_only` + `!**/models/deleted_at.go`).
-- Do not declare new reusable/domain types inline inside logic implementation files.
+| Layer | What goes here |
+|-------|---------------|
+| `domain/` | Entities (plain Go structs), repository interfaces, domain-specific errors, domain constants (TTLs, limits relevant only to that domain) |
+| `infra/` | GORM repository implementations, cloud SDK clients, external API adapters, crypto implementations |
+| `application/` | Use-case services — orchestrate domain + infra; no HTTP types |
+| `delivery/` | Gin handlers, route registration, request/response DTOs, mapping from domain/application types to API shapes |
 
-## Global Constants Placement Rule (Mandatory)
+### Dependency rule (strict)
 
-- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
-- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
-- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+```
+delivery → application → infra → domain
+```
 
-## Architectural Patterns
-- Layered monolith: `api` -> `services` -> `models`.
-- Cross-cutting concerns isolated in `middleware` and `pkg/*`.
-- RBAC policy-as-code through constants + DB sync.
-- Shared **error/sentinel message strings** (and small related numeric caps) belong in **`constants/error_msg.go`** — see file header; numeric JSON codes stay in `pkg/errcode`. If the same sentence is both API default `message` and `errors.New` text, **`pkg/errcode/messages.go` must use the constant** from `error_msg.go` (example: `MsgFileTooLargeUpload` ↔ `FileTooLarge`).
-- **Centralized functional errors:** all reusable functional/sentinel errors (`var Err...`) and typed domain errors (`struct ...Error`) must be placed in **`pkg/errors`**. Domain modules (including `services/*`, `repository/*`, `pkg/media/*`) must import from `pkg/errors` instead of declaring duplicate error vars/types.
+- `domain` MUST NOT import any other internal layer.
+- `application` MUST NOT import `delivery`.
+- `infra` MUST NOT import `application` or `delivery`.
+- Cross-domain dependencies (e.g. Auth needing RBAC) are injected as **interfaces** defined in the consuming domain and adapted in `internal/server/wire.go`.
 
-## Error / ErrorCode Convention (Mandatory)
-- Reusable/sentinel/typed errors must be defined in `pkg/errors`.
-- Message strings must be centralized in `constants` and referenced by `pkg/errcode/messages.go` (do not duplicate literal text).
-- Every business/functional error must have a corresponding numeric code in `pkg/errcode/codes.go`.
-- Never set error code/message directly inside `services/*`, `repository/*`, or other feature modules. Those layers only return/propagate errors from `pkg/errors` and map via `pkg/errcode`.
+---
 
-## Constants Placement Convention (Mandatory)
-- All constants must be declared under `constants/*` (messages, status, limits, parameters, default values, error-related constants, and any other shared constant).
-- Do not declare module-level business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, or other feature folders.
-- If a new constant is needed, create/extend the appropriate file in `constants/` and import it where used.
-- Keep `pkg/errcode/codes.go` and `pkg/errcode/messages.go` as mapping tables only; source message literals and shared numeric/enum constants must come from `constants/*` whenever applicable.
+## Constants Placement
 
-### Error Implementation Examples (for AI agents)
-- **Bunny webhook JSON/payload sentinels** (`ErrBunnyWebhookJSONInvalid`, `ErrBunnyWebhookPayloadInvalid` in **`pkg/errors/bunny_webhook_errors.go`**): use **`constants.MsgBunnyWebhookJSONInvalid`** / **`MsgBunnyWebhookPayloadInvalid`**; **`pkg/logic/mapping/bunny_webhook_request.go`** unmarshals and validates; **`api/v1/media/webhook_handler.go`** maps to HTTP **400** / **422** + **`errcode.ValidationFailed`**.
-- **Typed provider error pattern**: define **`pkg/errors.ProviderError`** (only **`Error()`** / **`Unwrap()`** on the type). Use **`pkg/errors_func/media`** for **`AsProviderError`** and **`HTTPStatusForProviderCode`** (Rule 19).
-- **GORM record-not-found mapping:** use **`pkg/errors_func/db.MapRecordNotFound`** from **`services/`** and **`repository/taxonomy`** (maps to **`pkg/errors.ErrNotFound`**).
-- **RBAC unknown permission wrap:** use **`pkg/errors_func/rbac.WrapRBACUnknownPermissionID`** (wraps **`pkg/errors.ErrRBACUnknownPermissionID`**).
-- **Sentinel upload error pattern**: follow `pkg/errors/upload_errors.go` where sentinel `Err...` uses shared message constant from `constants/error_msg.go`, and handler maps it to code in `pkg/errcode`.
-- **Auth session sentinels** (`ErrEmailAlreadyExists`, `ErrInvalidCredentials`, …): live in **`pkg/errors/auth.go`** with **`constants.MsgAuth*`**; **`services/auth`** returns those same values; handlers use **`errors.Is(err, pkgerrors.Err…)`** (see `api/v1/auth.go`, `api/v1/me.go`).
-- **Profile / taxonomy image FK:** **`pkg/errors/attachment.go`** (`ErrInvalidProfileMediaFile`) uses **`constants.MsgInvalidProfileMediaFile`**; **`services/media/profile_media_validate.go`** returns that sentinel; taxonomy + **`PATCH /me`** handlers map with **`errors.Is`** (see `api/v1/taxonomy/handlers_common.go`, `api/v1/me.go`).
-- Minimal checklist when adding new errors:
-  1. Add message constant in `constants/error_msg.go`.
-  2. Add numeric code in `pkg/errcode/codes.go`.
-  3. Wire default message in `pkg/errcode/messages.go` using that constant.
-  4. Declare sentinel/typed error in `pkg/errors/*`.
-  5. In handler boundary, map error -> `errcode` (never hardcode in service/repository).
+- Domain-specific constants (TTLs, limits, status values unique to one domain) belong **inside** that domain package (e.g. `internal/auth/domain/token_ttl.go`, `internal/media/domain/bunny_status_codes.go`).
+- **Cross-domain constants** belong in `internal/shared/constants/` — currently only 5 files:
+  - `dbschema_name.go` — PostgreSQL table/relation names
+  - `error_msg.go` — reusable error message strings + numeric caps
+  - `media.go` — media upload limits, multipart constants
+  - `permissions.go` — `AllPermissions` catalog
+  - `register_http.go` — registration rate-limit HTTP header names
+- Do NOT declare business constants inline inside service, infra, or delivery files.
+
+---
+
+## Error Handling
+
+### Error definition
+
+- Domain errors (not reused cross-domain) live in `internal/<domain>/domain/errors.go`.
+- Shared/cross-domain sentinel errors live in `internal/shared/errors/`.
+- Every user-facing error must have a numeric code in `internal/shared/errors/` (or `pkg/httperr`).
+
+### Error propagation
+
+- Application and infra layers return domain errors or wrap them.
+- Delivery (handler) layer is the only place that maps errors to HTTP status codes and error codes.
+- Never hardcode HTTP status or error codes in `application/` or `infra/`.
+
+### GORM not-found mapping
+
+Map `gorm.ErrRecordNotFound` to the shared `ErrNotFound` sentinel at the infra/repository boundary.
+
+---
 
 ## API Patterns
-- Standardized response envelope via `pkg/response`.
-- DTO-centric bind/validate in handlers (`dto/*`).
-- List/filter APIs should rely on `dto.BaseFilter`.
+
+- All JSON responses use the standard envelope via `internal/shared/response` — never raw `gin.H`.
+- List endpoints use a `BaseFilter` struct that provides `page`, `per_page`, `sort_by`, `sort_order`, `search_by`, `search_data`.
+- Fine-grained permission guards are applied **at the route level** using `middleware.RequirePermission`.
+
+---
 
 ## Security Patterns
-- JWT-based auth with permission projection in claims.
-- Route-group-level security boundaries:
-  - public/authenticated/internal/system.
-- Permission middleware checks by `resource:action` names.
 
-## Structured logging (Uber Zap — `pkg/logger`, Phase Sub 19)
+- JWT-based auth: `Authorization: Bearer <token>` header only (cookies are set for the browser but are not read by the middleware).
+- Route security tiers:
+  - **unauthenticated** — public endpoints (register, login, confirm, refresh, health)
+  - **authenticated** — `AuthJWT` middleware validates the Bearer token
+  - **permission-gated** — `RequirePermission` checks the JWT embedded permission set
+  - **internal** — `RequireInternalAPIKey` for RBAC admin API
+  - **system** — `RequireSystemAccessToken` for privileged operations
 
-- **Bootstrap:** `main` calls `setting.Setup()` first, then `logger.InitFromSettings()`, then `defer logger.Sync()`. Until `InitFromSettings` succeeds, only the stdlib `log` package may be used for fatal errors during setting/logger setup.
-- **Global logger (Spring-style factory):** `Init` / `InitFromSettings` call `zap.ReplaceGlobals`. After that, any package may use **`zap.L()`** (structured) or **`zap.S()`** (Sugared) without passing a logger pointer.
-- **Per-request fields:** Gin `middleware.RequestLogger()` generates or reads **`X-Request-ID`** (`constants.HeaderRequestID`), echoes the same header on the response, and attaches the id to `c.Request.Context()` via **`logger.WithRequestID`** (private sentinel key inside **`pkg/logger`** — not a string key). Handlers and services should log with **`logger.FromContext(ctx)`** so every line automatically includes **`request_id`**.
-- **Do not log HTTP bodies by default** (PII). The access middleware logs method, path, status, latency, response byte size, client IP, and `request_id` only.
-- **Configuration:** YAML block `logging:` in `config/app*.yaml` (merged with `.env` placeholders). Env keys (all optional unless noted):
-  - **`LOG_LEVEL`**: `debug` | `info` | `warn` | `error` (default **info** when unset in YAML).
-  - **`LOG_FORMAT`**: `json` | `console` — if unset, defaults to **console** when `server.run_mode` is `debug`, else **json**.
-  - **`LOG_FILE_PATH`**: when non-empty, opens an append-only file and **`zapcore.NewTee`**s a **second core** that always writes **JSON** (one object per line) for Filebeat/Logstash/Elastic. Stdout still follows **`LOG_FORMAT`**. Infra (Elastic stack, ingest pipelines) is **out of repo**; the log **line contract** is NDJSON with ISO8601 timestamps.
-  - **`LOG_SERVICE_NAME`**, **`LOG_ENVIRONMENT`**, **`APP_VERSION`** (version), **`LOG_REDIRECT_STDLOG`**: global fields / optional `zap.RedirectStdLog` for third-party stdlib `log` usage.
-- **Example — handler:** `logger.FromContext(c.Request.Context()).Info("created", zap.String("id", id))`
-- **Example — background job (no HTTP ctx):** `zap.L().Info("tick", zap.String("job", "media-cleanup"))`
-- **Panic path:** `pkg/httperr.Recovery` logs with **`logger.FromContext`** + **`zap.Stack`**.
+---
+
+## Structured Logging (Uber Zap)
+
+- **Bootstrap:** `main.go` calls `setting.Setup()` first, then `logger.InitFromSettings()`, then `defer logger.Sync()`. Only stdlib `log` is used before logger init.
+- **Global logger:** `logger.InitFromSettings()` calls `zap.ReplaceGlobals`. Any package may use `zap.L()` or `zap.S()` after that.
+- **Per-request fields:** `middleware.RequestLogger()` generates `X-Request-ID`, attaches it to `c.Request.Context()` via `logger.WithRequestID`. Handlers and services log with `logger.FromContext(ctx)` for automatic `request_id` inclusion.
+- **Do not log HTTP bodies** (PII risk). Access log includes method, path, status, latency, bytes, IP, and `request_id`.
+- **Config keys** (all optional): `LOG_LEVEL`, `LOG_FORMAT` (`json`/`console`), `LOG_FILE_PATH` (append-only NDJSON for Filebeat), `LOG_SERVICE_NAME`, `LOG_ENVIRONMENT`, `APP_VERSION`.
+
+```go
+// In a handler
+logger.FromContext(c.Request.Context()).Info("created", zap.String("id", id))
+
+// In a background job
+zap.L().Info("tick", zap.String("job", "media-cleanup"))
+```
+
+---
 
 ## Data Access Patterns
-- GORM as primary ORM.
-- Raw SQL only when needed (RBAC joins/deletes), with named-param helper (`pkg/sqlnamed`).
-- Embedded SQL migrations using `golang-migrate`.
-- **PostgreSQL table (relation) names in Go:** keep string literals only in **`constants/dbschema_name.go`**. Call sites use **`dbschema`** accessors — e.g. `dbschema.RBAC.Permissions()`, `dbschema.Media.Files()`, `dbschema.Taxonomy.Tags()`, `dbschema.System.AppConfig()`, `dbschema.AppUser.Table()` — in GORM `TableName()`, dynamic `fmt.Sprintf` SQL, and service templates. Do **not** scatter hardcoded table names in `models/*`, `dbschema/*`, or `services/*`. **`constants` must not import `dbschema`** (prevents import cycles; `dbschema` imports `constants`).
 
-## Domain packages vs `pkg/logic/utils` (Mandatory)
+- GORM as primary ORM. Raw SQL only when required (e.g. complex RBAC joins).
+- Embedded SQL migrations via `golang-migrate`.
+- PostgreSQL table names: defined once in `internal/shared/constants/dbschema_name.go`. All GORM `TableName()` methods and raw SQL reference these constants — no hardcoded string literals.
 
-- **`pkg/logic/utils/*`:** generic, cross-feature primitives (parsing, fingerprints, path params, URL joins) without domain coupling.
-- **`pkg/media/*`:** media domain — provider HTTP/SDK (`clients.go`, `setup.go`, …) **and** the same-tree policy/helpers previously under `pkg/logic/helper`: resolver/metadata/multipart/upload keys/orphan URL scan/local URL codec/Bunny status enum/runtime guard (`RequireInitialized`). Do **not** duplicate Bunny `video_id` / thumbnail / embed policy outside `pkg/media` (see `media_resolver.go`).
-- **`pkg/taxonomy/*`:** small taxonomy-only helpers (e.g. `NormalizeTaxonomyStatus` in `pkg/taxonomy/status.go`).
-- **`pkg/requestutil/*`:** transport-adjacent parsing shared by handlers (e.g. `ParsePermissionIDParam` in `params.go`).
-- **`pkg/logic/mapping/*`:** model ↔ entity / DTO mapping only. Handlers must not construct `dto.*Response` literals for JSON payloads when a mapper exists — e.g. **`mapping.ToLoginSessionTokensResponse`**, **`mapping.ToMyPermissionsResponse`**, **`mapping.ToUserRBACPermissionCodesResponse`**, **`mapping.ToSystemLoginResponse`**, media helpers in **`media_file_mapping.go`**, multipart **`BindUpdateAndCreateMultipart`** in **`multipart_gin_bind.go`**, Bunny webhook **`UnmarshalBunnyVideoWebhookRequestJSON`** / **`ValidateBunnyVideoWebhookRequest`** in **`bunny_webhook_request.go`** (sentinels in **`pkg/errors`**), media bundle **`PrepareCreatePartsSequential`** / **`PrepareOptionalTailPrepared`** / **`PrepareUpdateBundleHead`** / **`LoadUpdateBundleBase`** in **`media_file_batch_mapping.go`** (injected callbacks from **`services/media`**; **`mapping` MUST NOT import `repository/`** — repo handles use **`any`** at the boundary), taxonomy category row helpers **`TrimmedTaxonomyFields`**, **`ApplyOptionalTaxonomyNameSlugStatus`**, **`CategoryModelForCreate`** in **`taxonomy_category_mapping.go`**.
-- Import alias consistency: packages that import `pkg/logic/utils` must use the **`utils.*`** alias (never `util.*`) to avoid undefined-symbol mistakes.
+---
 
-### Documentation-only requests (Mandatory)
+## Testing
 
-If the user asks for **documentation only** (docs, markdown, OpenAPI):
+Tests are **co-located** with their packages, not in a separate `tests/` directory.
 
-- Update files under **`docs/`** and **`docs/api_swagger.yaml`** as needed.
-- **Do not** change production **`*.go`** or **`tests/*.go`** unless the same request explicitly asks for code.
+| Convention | Rule |
+|-----------|------|
+| Package name | `<package>_test` (black-box) or `<package>` (white-box) |
+| File naming | `<something>_test.go` adjacent to the code under test |
+| Location | Same directory as the package being tested |
 
-### Full documentation sync when API or schema changes (Mandatory)
+Current test files:
 
-When public JSON, DTOs, DB migrations, or persistence columns change for a documented feature, **update every maintained doc that references that feature**, not only `docs/modules/media.md`. Minimum checklist:
+| File | Package |
+|------|---------|
+| `internal/media/application/batch_delete_test.go` | `application_test` |
+| `internal/media/application/batch_upload_test.go` | `application_test` |
+| `internal/media/infra/pipeline_test.go` | `infra_test` |
+| `internal/media/infra/orphan_safety_test.go` | `infra_test` |
+| `internal/media/infra/orphan_image_test.go` | `infra_test` |
+| `internal/media/infra/bunny_webhook_test.go` | `infra_test` |
+| `internal/media/delivery/server_owned_test.go` | `delivery_test` |
+| `internal/shared/utils/webp_test.go` | `utils_test` |
+| `internal/shared/logger/logger_test.go` | `logger_test` |
 
-1. `docs/modules/<domain>.md` — behaviour, migrations, field tables, code pointers.
-2. `docs/return_types.md` — example JSON / tables.
-3. `docs/api_swagger.yaml` — `components.schemas` and path response refs if used.
-4. `docs/reusable-assets.md` — reusable assets (media, taxonomy, utils, errors) and usage.
-5. `docs/data-flow.md` — request/persistence flow bullets.
-6. `docs/api-overview.md` — route inventory / one-line contract.
-7. `docs/modules.md`, `README.md`, `docs/architecture.md` — module map and directory table.
-8. `docs/database.md` — table and/or migration history.
-9. `migrations/README.md` — version row for new SQL files.
-10. `docs/curl_api.md` — cURL sections and webhook notes where applicable.
-11. `docs/requirements.md` — FR bullets if behaviour is normative.
-12. `IMPLEMENTATION_PLAN_EXECUTION.md` (repo root) — execution / audit trail when the team uses it.
-13. `docs/router.md`, `docs/deploy.md` — only when routing or proxy behaviour for that API changes.
+Run all tests:
 
-## Services layer file naming (Mandatory)
+```bash
+go test ./...
+```
 
-- Under `services/` (including subpackages such as `services/media/`), **do not** name a `.go` source file with a **filename** prefix `helper_` or suffix `_helper` (examples to avoid: `helper_orphan.go`, `orphan_helper.go`).
-- **Why:** those patterns read as misplaced “helper” packages instead of the **service** layer.
-- Put reusable non-orchestration logic in **`pkg/media`**, **`pkg/taxonomy`**, **`pkg/logic/utils`**, or **`pkg/requestutil`** as appropriate; keep `services/` filenames aligned with domain or capability (e.g. `file_service.go`). Deferred cloud cleanup **enqueue** helpers and **worker** batch logic live under **`internal/jobs/<feature>/`** (e.g. **`internal/jobs/media/`** — `media_orphan_enqueue.go`, `media_pending_cleanup_batch.go`, `media_pending_cleanup_scheduler.go`; **`internal/jobs/rbac/`** for RBAC sync loops; **`internal/jobs/system/`** for system HTTP job adapters).
+---
 
-## Type Placement Convention
-- From now on, for every new code written in any module under `pkg/*` that contains logic handling, all newly introduced reusable types must be created in `pkg/entities` (new file/module or existing entity module), not inline in that logic package file.
-- Do not declare new reusable types inside logic-orchestration layers such as `repository/*`, `services/*`, or ad-hoc feature logic files.
-- All shared/new types must be defined in **`pkg/entities`** (new module file or existing module file) and referenced from other layers.
-- Exception for tests: any type created for test scope can be declared directly inside files under `tests/` when it is only used by those tests.
-- Repository exception remains limited: only the repository initialization type may be declared directly in `repository/*`; other reusable/shared types still belong to `pkg/entities`.
+## Linting
 
-## Tests directory (`tests/`)
-- **Module-level tests** (integration or black-box packages that import `mycourse-io-be`, shared test harnesses, fixtures used across features, or any test code intentionally kept out of production packages) **belong under repository root `tests/`** (see `tests/README.md`).
-- Prefer **`tests/`** when a test suite spans multiple packages or mirrors a user-facing “module” of the API rather than a single `.go` file.
-- **All tests** must live under repository root `tests/`; do not add colocated `*_test.go` files next to production implementation files.
+- `golangci-lint` is configured at repo root via `.golangci.yml`.
+- **`revive file-length-limit`**: max 300 logical lines per `.go` file. Split oversized files by cohesive concern within the same package.
+- **`funlen`**: max 30 lines / 25 statements per function. Extract unexported helpers when you touch a long function.
+- When a function grows past `funlen`, prefer **unexported helpers in the same package** rather than moving logic to a different layer.
 
-## Linting and static analysis (Mandatory baseline)
+```bash
+golangci-lint run
+```
 
-- **`make check-architecture`** (see root **`Makefile`**) enforces **≤ 3** `*.go` files directly under **`services/`** and **`repository/`**, and requires each business subfolder name to match **`^[a-z0-9_]+$`** with at least one `.go` file — keeps the service layer split by domain (`services/auth/`, `services/rbac/`, `services/media/`, …).
-- **`golangci-lint`** is configured at repo root via `.golangci.yml`. **depguard** must declare explicit `rules.main.allow` entries (`$gostd`, `mycourse-io-be`, `github.com`, `golang.org`, `gorm.io`, `google.golang.org`, `gopkg.in`, `go.uber.org`, `go.mongodb.org`, …); without this, depguard’s default “Main” list blocks normal internal and third-party imports.
-- **depguard layer rules** use the real Go import path **`mycourse-io-be/repository`** (singular `repository/`, not `repositories/`). The repository-layer rule is named **`restrict_repository`** with file glob **`**/repository/**/*.go`** — keep these aligned if folders are renamed.
-- **`restrict_pkg`** (files **`pkg/**/*.go`**) blocks **`mycourse-io-be/repository`** so **`pkg/logic/mapping`** and other **`pkg/*`** trees cannot import the data layer — use **`any`** / callbacks at boundaries when mapping needs repo-shaped hooks (see **`media_file_batch_mapping.go`**).
-- **`restrict_api`** (files `**/api/**/*.go`) blocks **`mycourse-io-be/models`**, **`mycourse-io-be/repository`**, **`gorm.io/gorm`**, and **`database/sql`** so HTTP handlers stay transport-only. **`pkg/errors.ErrNotFound`** is the stable “missing row” sentinel for `errors.Is` in handlers; **`pkg/errors_func/db.MapRecordNotFound`** maps `gorm.ErrRecordNotFound` in services and taxonomy repository helpers. **`api/system`** reads the primary DB via **`internal/appdb.Conn()`** (set from `main` right after `models.Setup()`). Taxonomy HTTP handlers (`api/v1/taxonomy/*_handler.go`) wire **`mapping.CategoryListHTTPPayload`**, **`CategoryRowHTTPPayload`**, and the tag/course-level equivalents so **`api/`** never imports **`models`** — **`services/taxonomy/*.go`** return **`models.Category`** / **`models.Tag`** / **`models.CourseLevel`**; DTO responses are built only in **`pkg/logic/mapping`**.
-- **gocritic ruleguard** (`rules.go`): package-level **`const (`** blocks under `services/`, `repository/`, `models/`, `dbschema/`, `api/`, `pkg/*` should move to **`constants/`**; the matcher **excludes** **`pkg/errcode`** only (numeric `codes.go`). Example: Bunny webhook status integers live in **`constants/bunny_video_status.go`**, while string mapping is handled in **`pkg/media.BunnyStatusString`**.
-- **`restrict_models_schema_only`** excludes only **`models/setup.go`** (DB bootstrap). **`models/*.go`** (including **`models/user.go`**) stay schema-only except **`models/deleted_at.go`**, which holds the GORM soft-delete alias **`DeletedAt = gorm.DeletedAt`** and is the **only** `models/*.go` file allowed to import **`gorm.io/gorm`** (see **`restrict_models_pkg_entity_schema_only`** + **`!**/models/deleted_at.go`**). Depguard **`restrict_models_pkg_entity_schema_only`** applies the **same** `gorm` / `database/sql` ban to **`pkg/entities/*.go`**, so **`pkg/entities`** holds **pure domain** shapes only (structs/type aliases only — **no functions** under Rule 7). Session payload shapes (**`RefreshSessionEntry`**, **`RefreshTokenSessionMap`**) live in **`pkg/entities`**. The JSONB **`Valuer`/`Scanner`** for `users.refresh_token_session` lives in **`pkg/gormjsonb/auth`** as **`sessionColumnJSONB`** with exported **defined type** **`RefreshTokenSessionMap`** (same underlying map as entities; Rule 3 / Rule 11 — no type alias; `Value`/`Scan` on **`RefreshTokenSessionMap`** only). Carrier → **`entities.RefreshTokenSessionMap`** conversion lives in **`pkg/logic/mapping/auth_refresh_session_mapping.go`** (**`ToRefreshTokenSessionEntity`**, Rule 14). **`services/`** MUST NOT return **`dto/*Response`** types (Rule 7) — e.g. **`GetMe`** / **`UpdateMe`** return **`entities.MeProfile`**; taxonomy list/create/update return **`models.*`**; handlers map via **`pkg/logic/mapping`**. Depguard **`deny_import_pkg_types`** forbids **`mycourse-io-be/pkg/types`** — use **`pkg/entities`** + **`pkg/gormjsonb/auth`** as above. Multipart open/close helpers (**`OpenUploadParts`**, **`CloseOpenedUploadParts`**, **`DrainDiscard`**) live in **`pkg/media`** (`multipart_opened_parts.go`). Session JSONB writes (**`SaveRefreshSession`**, **`AddRefreshSession`**) live in **`repository/user_refresh_session.go`**; the concurrent-session cap is **`constants.MaxActiveSessions`**. JWT TTLs live in **`constants/auth_token.go`**. Raw RBAC SQL templates live in **`constants/rbac_sql.go`**. Refresh rotation entrypoints: **`services/auth_refresh_rotation.go`** vs **`services/auth/auth.go`** (**`revive` `file-length-limit`**).
-- **revive `file-length-limit`:** max **300** logical lines per `.go` file (see `.golangci.yml`: skips blank lines and comments). When a file grows past the limit, split by **cohesive concern** in the same package (examples: `pkg/media/clients_bunny_get.go` for Bunny Stream GET/parse, `pkg/media/clients_setting_attach.go` for B2/Gcore/Bunny **Storage** wiring from `setting.MediaSetting` (`NewCloudClientsFromSetting` + `attach*` helpers), `pkg/setting/setting_yaml_apply.go` for YAML expand/apply, `services/rbac/rbac_permissions.go` / `services/rbac/rbac_roles.go`, `services/media/file_service_upload.go`, `api/v1/internal/rbac_handler_user_bindings.go`).
-- **funlen / gocyclo:** prefer **unexported helpers** in the same package instead of “god” functions — same behaviour and signatures at boundaries, smaller units for review. **funlen** is currently **30 lines / 25 statements**; shrink helpers when you touch a long function. Examples in-tree: Bunny GET split (`bunnyStreamAuthorizedGET`, `parseBunnyVideoGetResponse`, `decodeBunnyVideoDetailBody` in `pkg/media/clients_bunny_get.go`), upload entity composition (`newFileEntityUploadCore`, `attachStreamFieldsToFile` in `pkg/media/media_upload_entity.go`), typed metadata (`buildVideoTypedMetadata` / `buildImageTypedMetadata` in `pkg/media/media_metadata.go`), auth flows (`registerAssertEmailAvailable`, `completeLoginSuccess`, `refreshLoadUserAndEntry` in `services/auth/auth.go`), multipart normalisation (`prepareCreateMultipartBody` in `services/media/file_service.go`; `normalizeUpdateMultipartPayload` + `runUpdateFileMultipartBody` in `services/media/file_service_upload.go`), finished-webhook metadata (`patchBunnyWebhookMetadataJSON`, `applyBunnyFinishedWebhookToRow` in `services/media/video_service.go`), orphan URL branches (`orphanCleanupBunnyMatch`, `orphanCleanupB2Match` in `pkg/media/media_url_orphan.go`), permission row updates (`rbacApplyRenamedPermissionID`, `rbacApplyPermissionNameUpdate` in `services/rbac_permissions.go`).
-- **Sentinel / `errors.New` text** must satisfy **staticcheck ST1005** (lowercase first letter, no trailing punctuation quirks). User-visible HTTP default messages still come from `pkg/errcode/messages.go` and **`constants/error_msg.go`** — keep those literals aligned when the same string backs both API `message` and a sentinel `Err…`.
-- **`dto.BaseFilter` read-only helpers** (`GetPage`, `GetPerPage`, `GetOffset`, `GetSortOrder`, `HasSearch`, `HasSort`) use **value receivers** so embedded list DTOs (e.g. `CategoryFilter`) implement `dto.TaxonomyListFilter` for shared taxonomy list binding in `api/v1/taxonomy/handlers_common.go`.
+---
 
-## Operational Patterns
-- Sync CLI commands for RBAC catalogs.
-- Optional in-memory periodic jobs for sync (`internal/jobs/rbac_sync_schedulers.go` + `interval_sync_loop.go`).
-- Redis cache-aside for auth/me pathways.
+## Documentation Sync
+
+When public JSON, DTOs, DB migrations, or persistence columns change for a documented feature, update every maintained doc referencing that feature. Minimum checklist:
+
+1. `docs/modules/<domain>.md`
+2. `docs/data-flow.md`
+3. `docs/router.md`
+4. `docs/modules.md`, `README.md`, `docs/architecture.md`
+5. `docs/database.md` (if schema changed)

@@ -1,190 +1,238 @@
 # Media Module
 
+## Overview
 
-## Global Type Placement Rule (Mandatory)
+The media module (`internal/media/`) provides a unified API surface for file and video uploads with cloud storage providers. It handles:
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+- **Non-video files** — upload to Backblaze B2; public URL via Gcore CDN
+- **Videos** — upload and stream via BunnyCDN Stream
+- **Local** — reversible signed URL token (dev/fallback)
 
-> **Status:** Sub 04 (B2 URL, keys, Bunny status + webhook), Sub 06 (`row_version`, `content_fingerprint`, deferred cleanup), Sub 09 (Bunny parity: `video_id`, `thumbnail_url`, `embeded_html` on API + `media_files` + metadata JSON), Sub 10 (`NewCloudClientsFromSetting` — B2/Gcore/Bunny Storage SDK init from `setting.MediaSetting` only), **Sub 12** (public **`dto.UploadFileResponse`** has **no** `origin_url` key — canonical URL is server-only in DB / `entities.File`; see below), **Sub 17** (multi-file multipart create/update + batch delete + aggregate 2 GiB cap — see **Upload size and transport**).
-
-**Cross-references:** `docs/return_types.md` (JSON examples), `docs/api_swagger.yaml` (`UploadFileResponse`), `docs/data-flow.md`, `docs/reusable-assets.md`, `docs/database.md` (`media_files`), `migrations/README.md` (000003–000005), `IMPLEMENTATION_PLAN_EXECUTION.md` (execution notes).
+Provider selection is **server-side only** (`setting.MediaSetting.AppMediaProvider`) — never accepted from client request params.
 
 ---
 
-## Overview
+## Directory Layout
 
-Media module provides a unified API surface for file and video uploads with provider-aware URL behavior:
-
-- Non-video files: upload storage at B2, distribution URL through Gcore CDN as **`{CDN}/{bucket}/{object_key}`** (bucket from `setting.MediaSetting.B2Bucket` after `setting.Setup()`, falling back to `CloudClients.B2BucketName` from the same `MediaSetting` snapshot used at SDK init). Object keys for B2 default uploads: **8 random digits + `-` + sanitized filename** (`pkg/media/media_upload_keys.go`). Bunny Stream videos use the API **GUID** as `object_key`.
-- Videos: playback/distribution URL through Bunny Stream.
-- Local provider: reversible signed URL token that can be decoded back to object key.
-
-Media persists upload metadata into `media_files` after successful cloud operations (create/update) and marks rows deleted on successful delete sync. **Phase Sub 06** adds optimistic concurrency (`row_version`), SHA-256 hex `content_fingerprint`, deferred superseded-cloud deletes (`media_pending_cloud_cleanup` + worker in `internal/jobs/media/media_pending_cleanup_scheduler.go`), and multipart field binding via `pkg/media/media_multipart.go` (aligned with `ParseMetadataFromRaw`).
-
-SDK clients are initialized once at app startup: `main.go` calls `setting.Setup()` first, then `pkg/media.Setup()` → **`NewCloudClientsFromSetting`** in `pkg/media/clients_setting_attach.go` (B2, Gcore API, Bunny **Storage** credentials from trimmed **`setting.MediaSetting`** — no direct `os.Getenv` in that constructor). Upload/delete/runtime HTTP and URL helpers remain in `pkg/media/clients.go` and related files. Clients are then reused by the media service flow.
-Provider source-of-truth is server-side config (`setting.MediaSetting.AppMediaProvider`) and is never accepted from client request params.
-
-**Layering:** Kind/provider resolution and **Bunny presentation policy** (thumbnail URL fields from GET-video JSON, `video_id` string from numeric `id` vs `guid`, embed URL + iframe HTML in metadata) live in **`pkg/media/media_resolver.go`** (`EnrichBunnyVideoDetail`, `ApplyBunnyDetailToMetadata`, `ResolveBunnyEmbedURL`, …). **`pkg/media/clients.go`** performs Bunny upload/delete HTTP and related helpers; GET flow lives in **`pkg/media/clients_bunny_get.go`** (`bunnyStreamAuthorizedGET`, `parseBunnyVideoGetResponse`, `decodeBunnyVideoDetailBody`) unmarshalling into `pkg/entities.BunnyVideoDetail`, then invokes resolver helpers (same `pkg/media` package). **`services/media`** orchestrates only.
-
-Metadata parsing and typed inference are handled in **`pkg/media/media_metadata.go`** instead of the service layer.
-`kind` and `metadata` values coming from multipart request text fields are parsed only for backward-compat validation and then ignored; server-side extractor/provider outputs are the only source for persisted and returned metadata.
-When server cannot infer kind from MIME/extension and no app-level provider override is configured, upload provider falls back to `Local` by policy.
-Generic raw metadata primitives (`DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`), multipart loose-bool parsing (`ParseBoolLoose`), and upload-byte fingerprinting (`ContentFingerprint`) live in `pkg/logic/utils/parsing.go` and must be called through `utils.*` import alias in **`pkg/media`** / service code.
-
-**Convention (mandatory, enforced since sub15):** `parsing.go` MUST include a blank-import decoder (`_ "format/pkg"`) for every image format that the upload pipeline can produce or receive. Current set: `image/gif`, `image/jpeg`, `image/png` (stdlib) + `_ "golang.org/x/image/webp"` (added sub15 — required because the sub11 bimg/CGO pipeline converts all image uploads to WebP before persisting; without the decoder registered, `image.DecodeConfig` returns `(0,0)` for WebP payloads). If a future sub adds AVIF, HEIC, or any other format, the corresponding decoder blank-import MUST be added to `parsing.go` in the same commit.
-Public API responses are mapped by `pkg/logic/mapping` to `dto.UploadFileResponse`, and internal provider selection is **not** exposed as a top-level field. **`origin_url` is not part of the public contract** (removed from `dto.UploadFileResponse`); the DB column `media_files.origin_url` and `entities.File.OriginURL` (JSON `json:"-"`) still hold the provider-origin URL for persistence, orphan resolution, and delete operations.
+```
+internal/media/
+├── domain/
+│   ├── file.go                    # File entity
+│   ├── repository.go              # FileRepository + PendingCleanupRepository interfaces
+│   ├── errors.go                  # Domain errors
+│   ├── bunny_status_codes.go      # Bunny numeric video status constants
+│   ├── bunny_webhook.go           # Bunny webhook payload types
+│   └── meta_keys.go               # JSON metadata key constants (video_id, thumbnail_url, etc.)
+├── application/
+│   ├── media_service.go           # MediaService: create/update/delete/list files, batch delete, video status, webhook
+│   └── service_upload_helpers.go  # Upload orchestration helpers
+├── infra/
+│   ├── gorm_file_repo.go          # GormFileRepository
+│   ├── gorm_cleanup_repo.go       # GormPendingCleanupRepository
+│   ├── cloud_clients.go           # B2 + BunnyCDN SDK client init (NewCloudClientsFromSetting)
+│   ├── media_metadata.go          # Typed metadata inference (image/video/document)
+│   ├── webp_encode.go             # WebP encoding via bimg/libvips (CGO)
+│   ├── webp_encode_stub.go        # Stub for CGO_ENABLED=0 builds
+│   └── bunny_webhook_*.go         # Bunny webhook signature verification
+├── delivery/
+│   ├── handler.go                 # HTTP handlers
+│   ├── routes.go                  # RegisterRoutes (authenticated) + RegisterWebhookRoutes (no-auth)
+│   ├── dto.go                     # UploadFileResponse, VideoStatusResponse, etc.
+│   ├── mapping.go                 # Domain/entity → DTO mapping
+│   └── server_owned_test.go       # delivery_test
+└── jobs/
+    ├── orphan_enqueuer.go         # OrphanEnqueuer: enqueue superseded file cleanup
+    ├── cleanup_scheduler.go       # Background cleanup worker
+    ├── cleanup_constants.go       # Cleanup job constants
+    └── global_counters.go         # GlobalCounters (metrics)
+```
 
 ---
 
 ## API Surface
 
-| Method | Path | Purpose |
-|---|---|---|
-| OPTIONS | `/media/files` | CORS/preflight support |
-| GET | `/media/files` | List persisted records from `media_files` with pagination |
-| GET | `/media/files/cleanup-metrics` | Ops: deferred cleanup counters (handler → **`services/media.PendingCloudCleanupCounters`**, Rule 6) — registered **before** `/:id` |
-| POST | `/media/files` | Multipart upload **1–5** file parts per request (field **`files`**, repeated; legacy **`file`** still accepted as a single part). Response **`data`** is an **array** of `UploadFileResponse` (one entry per part). |
-| OPTIONS | `/media/files/batch-delete` | CORS/preflight |
-| POST | `/media/files/batch-delete` | JSON `{ "object_keys": ["<object_key>", ...] }` — delete up to **10** distinct keys (permission `media_file:delete`). All keys must exist or the request fails validation (see Sub 17). Success `data` includes **`deleted_count`**. |
-| OPTIONS | `/media/files/:id` | CORS/preflight support |
-| GET | `/media/files/:id` | Build file detail from object key |
-| PUT | `/media/files/:id` | Multipart **bundle update** (**1–5** parts): **first** part updates the row at `:id`; **additional** parts create **new** rows (same owner/provider/kind policy). Response **`data`** is an **array** (`[updated, ...created]`). Same reuse/version/fingerprint fields as single-file update (optional `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`). Conflict → **409**. |
-| DELETE | `/media/files/:id` | Delete object on configured provider |
-| OPTIONS | `/media/files/local/:token` | CORS/preflight support |
-| GET | `/media/files/local/:token` | Decode local signed token to object key |
-| GET | `/media/videos/:id/status` | Bunny video processing status by GUID |
-| POST | `/webhook/bunny` | Bunny callback (no auth middleware) |
+All routes below are under `/api/v1`. Authenticated routes require `Authorization: Bearer <token>` and the indicated permission.
+
+| Method | Path | Auth | Permission | Purpose |
+|--------|------|------|-----------|---------|
+| OPTIONS | `/media/files` | JWT | — | CORS preflight |
+| GET | `/media/files` | JWT | `media_file:read` | List files (paginated) |
+| GET | `/media/files/cleanup-metrics` | JWT | `media_file:read` | Deferred cleanup counters |
+| POST | `/media/files` | JWT | `media_file:create` | Upload 1–5 file parts |
+| OPTIONS | `/media/files/batch-delete` | JWT | — | CORS preflight |
+| POST | `/media/files/batch-delete` | JWT | `media_file:delete` | Delete up to 10 files by object key |
+| OPTIONS | `/media/files/:id` | JWT | — | CORS preflight |
+| GET | `/media/files/:id` | JWT | `media_file:read` | Get file detail |
+| PUT | `/media/files/:id` | JWT | `media_file:update` | Bundle update (1–5 parts) |
+| DELETE | `/media/files/:id` | JWT | `media_file:delete` | Delete single file |
+| OPTIONS | `/media/files/local/:token` | JWT | — | CORS preflight |
+| GET | `/media/files/local/:token` | JWT | `media_file:read` | Decode local signed URL token |
+| GET | `/media/videos/:id/status` | JWT | `media_file:read` | Bunny video processing status |
+| POST | `/webhook/bunny` | **None** | — | Bunny Stream callback (no-filter lane) |
 
 ---
 
 ## Permissions
 
 | Permission ID | Permission Name |
-|---|---|
+|--------------|----------------|
 | P26 | `media_file:read` |
 | P27 | `media_file:create` |
 | P28 | `media_file:update` |
 | P29 | `media_file:delete` |
 
-Role mapping: `constants/roles_permission.go` — sync via `go run ./cmd/syncpermissions` and `go run ./cmd/syncrolepermissions`.
+---
+
+## Upload Pipeline
+
+### Single file upload (`POST /media/files`)
+
+1. Bind multipart form fields (1–5 `files` parts; legacy `file` field accepted for single part).
+2. Validate per-part size ≤ `MaxMediaUploadFileBytes` (2 GiB).
+3. Validate aggregate size ≤ `MaxMediaMultipartTotalBytes` (2 GiB).
+4. Validate part count ≤ `MaxMediaFilesPerRequest` (5).
+5. For each part concurrently (up to `MaxConcurrentMediaUploadWorkers = 5`):
+   a. **Executable check** (non-image, non-video only): reject if extension or magic bytes match denylist → HTTP 400 / code 2004.
+   b. **WebP encoding** (images only): acquire encode gate, run `EncodeWebP` via bimg/libvips (CGO), update payload/filename/MIME/size.
+   c. **Provider upload**: B2 (non-video) or Bunny Stream (video).
+   d. **Metadata inference**: typed `ImageMetadata`, `VideoMetadata`, or `DocumentMetadata` inferred server-side from MIME/extension.
+6. Persist to `media_files` (DB create).
+7. Return array of `UploadFileResponse` (one entry per part).
+
+### Bundle update (`PUT /media/files/:id`)
+
+- First part updates the row at `:id`.
+- Additional parts create new rows.
+- Response is an array `[updated, ...created]`.
+- Supports `reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged` for optimistic concurrency.
+- Conflict → HTTP 409.
+
+### Batch delete (`POST /media/files/batch-delete`)
+
+- JSON body: `{ "object_keys": ["key1", "key2"] }`.
+- Max 10 distinct keys; duplicates rejected; missing key → validation error (all-or-nothing).
 
 ---
 
-## Runtime descriptor (`dto.UploadFileResponse`)
+## WebP Image Encoding (Sub 11)
 
-- `url`, `object_key` (no `origin_url` in public JSON — Sub 12)
-- `metadata`: typed **`UploadFileMetadata`** (nested), zero defaults when unknown
-- **Not returned:** internal `provider` string (server-owned routing)
+All image uploads are **synchronously converted to WebP** before upload to the storage provider.
 
-**Top-level Bunny-related fields (Sub 09; JSON `omitempty` when empty):**
+- Implementation: `bimg`/libvips (CGO). Requires `CGO_ENABLED=1` and `libvips-dev pkg-config` at build time.
+- Concurrency: bounded by a semaphore in `internal/shared/utils/` (`AcquireEncodeGate` / `ReleaseEncodeGate`); cap = `MaxConcurrentImageEncode` (4).
+- `CGO_ENABLED=0` builds: stub returns `ErrImageEncodeBusy` → HTTP 503 / code 9017.
+- After encoding: `payload`, `filename` (`.webp`), `mime` (`image/webp`), and `sizeBytes` are updated before provider upload.
 
-| Field | Meaning |
-|-------|---------|
+---
+
+## Executable Denylist (Sub 11)
+
+Non-image, non-video file uploads are checked against an extension + magic-byte denylist:
+
+- **Extensions:** `.exe .msi .dmg .app .deb .rpm .sh .bash .zsh .fish .bat .cmd .com .ps1 .vbs .jse .scr .pif .jar .war .ear .dll .so .dylib .elf`
+- **Magic bytes:** PE/MZ, ELF, Mach-O variants, shebang (`#!`)
+- Rejected files → HTTP 400 / code 2004
+
+---
+
+## Bunny Integration
+
+### Video upload
+
+After Bunny PUT, `GetBunnyVideoByID` is called. If successful, `ApplyBunnyDetailToMetadata` merges:
+- `video_id`, `thumbnail_url`, `embeded_html`
+- Video telemetry: `width`, `height`, `length`, `framerate`, `bitrate`, `video_codec`, `audio_codec`
+
+Because Bunny may not have finished transcoding, `width`/`height` may be 0 immediately after upload. The Bunny webhook populates them when transcoding completes.
+
+### Bunny webhook (`POST /webhook/bunny`)
+
+Mounted on the **no-filter lane** (no JWT, no rate limit).
+
+1. Validate Bunny signature v1 on raw request body.
+   - Headers required: `X-BunnyStream-Signature-Version: v1`, `X-BunnyStream-Signature-Algorithm: hmac-sha256`, `X-BunnyStream-Signature: <hex>`
+   - Signature: `hex(HMAC-SHA256(rawBody, signingSecret))`
+   - Signing secret: `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (fallback: `BunnyStreamAPIKey`)
+2. Parse and validate JSON payload (`VideoLibraryId`, `VideoGuid`, `Status` 0..10).
+3. Handle by status:
+   - `Finished (3)` and `Resolution finished (4)`: load row, fetch Bunny detail, merge metadata, update DB.
+   - `Failed (5)` and `PresignedUploadFailed (8)`: mark row `FAILED` (idempotent).
+   - Other statuses: accepted and intentionally ignored (idempotent callbacks).
+
+---
+
+## Response Contract (`UploadFileResponse`)
+
+Public fields returned in API responses:
+
+| Field | Notes |
+|-------|-------|
+| `url` | Public distribution URL |
+| `object_key` | Storage object key |
+| `metadata` | Typed `UploadFileMetadata` (nested) |
 | `bunny_video_id` | Bunny video GUID |
-| `bunny_library_id` | Stream library id |
-| `video_id` | Numeric Bunny **`id`** from GET-video when unmarshalled; else GUID from `FormatBunnyVideoIDString` |
-| `thumbnail_url` | From API `thumbnailUrl` / `defaultThumbnailUrl` after `EnrichBunnyVideoDetail` |
-| `embeded_html` | Escaped `<iframe …>`; `ResolveBunnyEmbedHTML` from play-base URL → `/embed/{libraryId}/{guid}` |
-| `duration`, `video_provider`, `row_version`, `content_fingerprint` | As before (Sub 06 for last two) |
+| `bunny_library_id` | Bunny library ID |
+| `video_id` | Numeric Bunny ID or GUID |
+| `thumbnail_url` | From Bunny `thumbnailUrl` / `defaultThumbnailUrl` |
+| `embeded_html` | Escaped `<iframe ...>` embed HTML |
+| `duration` | Video duration in seconds |
+| `row_version` | Optimistic concurrency version (Sub 06) |
+| `content_fingerprint` | SHA-256 hex of file bytes (Sub 06) |
 
-**Persistence:** Same logical values appear in **`media_files`** columns (`video_id`, `thumbnail_url`, `embeded_html`, migration **`000005_media_bunny_response_fields`**) and in **`metadata_json`** under keys from **`constants/media_meta_keys.go`**. `ToMediaEntity` prefers columns, then JSON fallback for legacy rows.
-
-**Upload enrichment:** After Bunny PUT, `UploadBunnyVideo` calls **`GetBunnyVideoByID`**. **Only if that succeeds**, `ApplyBunnyDetailToMetadata` merges video telemetry (`width`, `height`, `length`, `framerate`, `bitrate`, `video_codec`, `audio_codec`) plus `video_id`, `thumbnail_url`, and `embeded_html` into provider metadata. Only non-zero/non-empty values are written. Because Bunny may not have finished transcoding yet, `width`/`height` may still be 0 immediately after upload; they will be populated once **`HandleBunnyVideoWebhook`** (finished) fires. If GET fails entirely, all enrichment keys stay empty until the webhook refreshes them.
-
-**Webhook:** `POST /api/v1/webhook/bunny` validates Bunny signature v1 on the **raw request body** before JSON parse. JSON unmarshal and field validation (`VideoLibraryId`, `VideoGuid`, `Status` 0..10) live in **`pkg/logic/mapping`** (`UnmarshalBunnyVideoWebhookRequestJSON`, `ValidateBunnyVideoWebhookRequest`); sentinels **`pkg/errors.ErrBunnyWebhookJSONInvalid`** / **`ErrBunnyWebhookPayloadInvalid`** use **`constants.MsgBunnyWebhook*`**; the handler only chooses HTTP status + errcode.
-
-- Headers must be `X-BunnyStream-Signature-Version: v1`, `X-BunnyStream-Signature-Algorithm: hmac-sha256`, `X-BunnyStream-Signature: <hex>`.
-- Signature is `hex(HMAC-SHA256(rawBody, signingSecret))`, compared in constant time.
-- Signing secret source-of-truth is `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (fallback `BunnyStreamAPIKey` for backward compatibility).
-- Callback DTO follows Bunny docs exactly: `VideoLibraryId` (number), `VideoGuid` (string), `Status` (0..10).
-
-Service behavior by status:
-- `Finished (3)` and `Resolution finished (4)`: load row, fetch Bunny detail, merge telemetry via `patchBunnyWebhookMetadataJSON` + `ApplyBunnyDetailToMetadata`, then copy derived columns (`VideoID`, `ThumbnailURL`, `EmbededHTML`, duration, status/URLs) and `UpsertByObjectKey`.
-- `Failed (5)` and `PresignedUploadFailed (8)`: best-effort mark local row `FAILED` (idempotent if row not found).
-- Other statuses (`0,1,2,6,7,9,10`) are accepted and ignored intentionally for idempotent callbacks.
+**`origin_url` is NOT in the public API response** (Sub 12). The DB column and `File.OriginURL` (JSON `"-"`) are server-only for orphan resolution and delete routing.
 
 ---
 
-## Phase Sub 14 — FK-based orphan enqueue (taxonomy + user avatar)
+## Orphan Cleanup (Sub 06 + Sub 14)
 
-When **`categories.image_file_id`** or **`users.avatar_file_id`** is replaced or the parent row is removed, **`EnqueueOrphanCleanupForMediaFileID`** (package **`internal/jobs/media`**) resolves the **`media_files`** row and inserts **`media_pending_cloud_cleanup`** (skips **Local** rows with no cloud object). This complements the Sub 07 **URL-string** path (`EnqueueOrphanImageCleanup` in the same package).
+When a file is **replaced** or a parent row is **deleted**, the superseded cloud object is queued for deferred deletion:
 
-## Phase Sub 06 — orphan / reuse / deferred cleanup (summary)
+- **FK-based (Sub 14):** taxonomy `categories.image_file_id` or `users.avatar_file_id` replacement → `OrphanEnqueuer.EnqueueOrphanCleanupForFileID`
+- **URL-based (Sub 07):** `EnqueueOrphanImageCleanupByURL` — resolves URL pattern to cloud object key
 
-- **Migration:** `000004_media_orphan_safety.up.sql` — `row_version`, `content_fingerprint`; table `media_pending_cloud_cleanup`.
-- **Superseded cloud object:** queued for deferred delete, not inline at replace time.
-- **Reuse / fingerprint / optimistic lock:** see bullets in earlier sections; errors **409** with `ErrMediaOptimisticLock` / `ErrMediaReuseMismatch`.
-- **Worker:** `internal/jobs/media/media_pending_cleanup_scheduler.go`; batch processor `internal/jobs/media/media_pending_cleanup_batch.go`; metrics `internal/jobs/media/media_cleanup_metrics.go`.
+The background cleanup worker in `jobs/cleanup_scheduler.go` processes `media_pending_cloud_cleanup` rows asynchronously. Local provider rows are skipped.
 
 ---
 
-## Upstream errors (Sub 04)
+## Upload Size and Transport
 
-- B2 bucket not configured → **9010** (`B2BucketNotConfigured`), HTTP **500**.
-- Bunny Stream not configured → **9011**.
-- Bunny create / upload / invalid API response → **9012** / **9013** / **9014** (HTTP **502**).
-- Bunny video not found / Bunny get-video failed → **9015** / **9016**.
-- Messages: **`constants/error_msg.go`**; **`pkg/errcode/messages.go`** imports those constants.
+| Limit | Value | Code |
+|-------|-------|------|
+| Per-part cap | 2 GiB (`MaxMediaUploadFileBytes`) | 2003 FileTooLarge |
+| Aggregate per-request | 2 GiB (`MaxMediaMultipartTotalBytes`) | 2005 MediaMultipartTotalTooLarge |
+| Parts per request | 1–5 (`MaxMediaFilesPerRequest`) | 2006 MediaTooManyFilesInRequest |
+| Batch delete | max 10 keys | 3001 BadRequest |
 
----
-
-## Upload size and transport
-
-- **Per-part cap (Sub 03):** each file part ≤ **`constants.MaxMediaUploadFileBytes`** (2 GiB).
-- **Per-request aggregate cap (Sub 17):** sum of all parts in one `POST`/`PUT` multipart body ≤ **`constants.MaxMediaMultipartTotalBytes`** (also 2 GiB). Enforcement uses declared `FileHeader.Size` when known and cumulative streaming limits via `readMultipartPayloadLimited` when bodies are read.
-- **Part count (Sub 17):** at least **1** and at most **`constants.MaxMediaFilesPerRequest` (5)** parts (`files` / `file`).
-- **Parallel uploads (Sub 17):** provider uploads for multiple parts run concurrently with **`constants.MaxConcurrentMediaUploadWorkers`** (5); DB persists creates **after** uploads succeed (create batch); bundle update persists **tail creates first**, then **primary row update** so the primary row is not mutated if tail persistence fails.
-- **Batch delete (Sub 17):** `POST /media/files/batch-delete` — max **`constants.MaxMediaBatchDelete` (10)** unique `object_keys`; duplicates rejected; missing key → error (all-or-nothing validation before cloud deletes).
-- Oversize / too many parts → HTTP **413** / **400** with errcodes **`FileTooLarge` (2003)**, **`MediaMultipartTotalTooLarge` (2005)**, **`MediaTooManyFilesInRequest` (2006)** as applicable (see `pkg/errcode`, `constants/error_msg.go`).
-- Gin **`MaxMultipartMemory`** 64 MiB — large bodies spill to temp files during parse; reverse proxies must still allow ≥ **2 GiB** request bodies where needed — see `docs/router.md`, `docs/deploy.md` (`client_max_body_size`).
+Gin `MaxMultipartMemory` = 64 MiB (set in `internal/server/router.go`). Large parts spill to temp disk during parse. **Reverse proxies must allow ≥ 2 GiB request bodies** — see `docs/deploy.md`.
 
 ---
 
-## Phase Sub 11 — WebP encoding, executable denylist (2026-05-02)
+## Provider Errors
 
-### WebP image encoding
-
-- All image uploads (`POST /media/files`, `PUT /media/files/:id` — each multipart part) are **synchronously converted to WebP** before upload to the storage provider using **`bimg`/libvips** (CGO).
-- Concurrency is bounded by a buffered-channel semaphore in **`pkg/logic/utils/image_encode_gate.go`** (`AcquireEncodeGate` / `ReleaseEncodeGate`); cap = **`constants.MaxConcurrentImageEncode`** (4).
-- The actual WebP conversion lives in **`pkg/logic/utils/webp_encode.go`** (`//go:build cgo`). A `//go:build !cgo` stub in **`pkg/logic/utils/webp_encode_stub.go`** returns `ErrImageEncodeBusy` (errcode **9017**) for `CGO_ENABLED=0` builds (CI, local review).
-- Image detection (`IsImageMIMEOrExt`) lives in **`pkg/media/media_resolver.go`** alongside the existing kind/provider resolvers.
-- After encoding: `payload`, `filename` (`.webp` extension), `mime` ("image/webp"), and `sizeBytes` are updated in service before the `uploadToProvider` call.
-- **Build requirement:** `CGO_ENABLED=1` and `libvips-dev pkg-config` on the build machine. `Makefile` `build` target and `.github/workflows/deploy-dev.yml` both set `CGO_ENABLED=1`.
-- **Errors:** encode failure → `ProviderError{Code: 9017}` → HTTP **503**.
-
-### Executable/script file denylist
-
-- `POST /media/files` rejects **non-image, non-video** files whose extension or magic-byte header matches the denylist.
-- Logic lives in **`pkg/logic/utils/executable_check.go`** (`IsExecutableUploadRejected`). Extension list: `.exe .msi .dmg .app .deb .rpm .sh .bash .zsh .fish .bat .cmd .com .ps1 .vbs .jse .scr .pif .jar .war .ear .dll .so .dylib .elf`. Magic bytes: PE/MZ, ELF, Mach-O variants, shebang (`#!`).
-- Returns sentinel **`ErrExecutableUploadRejected`** (`pkg/errors/media_errors.go`) → handler maps to HTTP **400** + errcode **2004**.
-
-### New error codes (Sub 11)
-
-| Code | Name | HTTP | Message constant |
-|------|------|------|-----------------|
-| 2004 | `ExecutableUploadRejected` | 400 | `MsgExecutableUploadRejected` |
-| 9017 | `ImageEncodeBusy` | 503 | `MsgImageEncodeBusy` |
+| Code | Name | HTTP | Condition |
+|------|------|------|-----------|
+| 9010 | `B2BucketNotConfigured` | 500 | B2 bucket not configured |
+| 9011 | `BunnyStreamNotConfigured` | 500 | Bunny Stream not configured |
+| 9012 | `BunnyCreateFailed` | 502 | Bunny video create request failed |
+| 9013 | `BunnyUploadFailed` | 502 | Bunny video upload request failed |
+| 9014 | `BunnyInvalidAPIResponse` | 502 | Bunny returned invalid response |
+| 9015 | `BunnyVideoNotFound` | 502 | Bunny video not found |
+| 9016 | `BunnyGetVideoFailed` | 502 | Bunny GET video request failed |
+| 9017 | `ImageEncodeBusy` | 503 | WebP encode gate at capacity |
 
 ---
 
-## Phase Sub 12 — Public JSON omits `origin_url` (2026-05-02)
+## Implementation Reference
 
-- **`dto.UploadFileResponse`** has **no** `OriginURL` field — the JSON key **`origin_url`** does **not** appear in list/get/create/update media responses.
-- **`mapping.ToUploadFileResponse`** builds only public-safe fields; use **`url`** for the distribution/public link pattern.
-- **Persistence:** `media_files.origin_url` and in-memory **`entities.File.OriginURL`** remain for server-side orphan lookup, delete routing, and upload bookkeeping (`entities.File.OriginURL` uses **`json:"-"`** so raw entity JSON never exposes it).
-
----
-
-## Provider rules
-
-- `Local`, B2+Gcore, Bunny Stream — provider from server config only; `setting.MediaSetting` after `Setup()`.
-- Local token decode: **`pkg/media.DecodeLocalURLToken`**.
-
----
-
-## Testing
-
-- All tests under repository root **`tests/`** (`README.md`, `docs/patterns.md`).
-- Bunny / mapping: `tests/sub04_media_pipeline_test.go`; orphan safety: `tests/sub06_media_orphan_safety_test.go` where applicable.
+| Concern | Location |
+|---------|----------|
+| File entity + repository interfaces | `internal/media/domain/` |
+| MediaService use-cases | `internal/media/application/media_service.go` |
+| GORM repositories | `internal/media/infra/gorm_file_repo.go`, `gorm_cleanup_repo.go` |
+| Cloud SDK client init | `internal/media/infra/cloud_clients.go` |
+| Metadata inference | `internal/media/infra/media_metadata.go` |
+| WebP encoding | `internal/shared/utils/webp_encode.go` (CGO), `webp_encode_stub.go` (no-CGO) |
+| HTTP handlers | `internal/media/delivery/handler.go` |
+| Route registration | `internal/media/delivery/routes.go` |
+| Orphan cleanup jobs | `internal/media/jobs/` |
+| DB migrations | `migrations/000003_media_metadata.*`, `000004_media_orphan_safety.*`, `000005_media_bunny_response_fields.*` |

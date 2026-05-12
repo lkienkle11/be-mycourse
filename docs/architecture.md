@@ -1,154 +1,175 @@
 # Backend Architecture
 
-
-## Global Type Placement Rule (Mandatory)
-
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
-
-## Global Constants Placement Rule (Mandatory)
-
-- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
-- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
-- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
-
 ## Overview
 
-The **MyCourse** backend is a **Go 1.25** monolith (`module mycourse-io-be`): **Gin** for HTTP, **GORM** (and **sqlx** where needed) for PostgreSQL, **Redis** for auth-related caching, optional **Supabase** HTTP + DB helpers, **golang-migrate** SQL files under `migrations/`, and a **unified JSON envelope** via `pkg/response` plus numeric codes in `pkg/errcode`.
+The **MyCourse** backend is a **Go 1.25** monolith (`module mycourse-io-be`) organized with **Domain-Driven Design (DDD)**. Each business capability is a bounded context under `internal/<domain>/`, divided into four layers with a strict dependency rule.
 
-The layout follows a **practical layered style** (handlers → services → models/adapters), not a separate `delivery/http` / `core/ports` tree. The composition root is **`main.go`** at the repository root.
+**Tech stack:** Gin (HTTP), GORM + PostgreSQL (persistence), Redis (cache), golang-jwt (auth), Brevo SMTP (email), Backblaze B2 + BunnyCDN (storage/streaming), Uber Zap (logging), Viper/YAML (config).
 
 ---
 
-## GitNexus snapshot
+## DDD Layer Model
 
-Indexing the repo with GitNexus (run from repo root):
+Each bounded context under `internal/` follows this layer structure:
+
+```
+domain/         ← Core business entities, repository interfaces, domain errors
+                   No framework dependencies. Pure Go structs and interfaces.
+
+infra/          ← Concrete implementations: GORM repositories, cloud SDK clients,
+                   crypto, external API adapters. Implements domain interfaces.
+
+application/    ← Use-case services (e.g. AuthService, MediaService).
+                   Orchestrates domain + infra; owns business rules and workflows.
+
+delivery/       ← HTTP handlers, route registration, request/response DTOs,
+                   mapping from domain types to API contracts.
+```
+
+### Dependency rule
+
+```
+delivery → application → infra → domain
+```
+
+- `domain` never imports any other layer.
+- `application` never imports `delivery`.
+- `infra` never imports `application` or `delivery`.
+- Cross-domain dependencies are handled via **interfaces** defined in the consuming domain and adapted in `internal/server/wire.go`.
+
+---
+
+## Bounded Contexts
+
+| Context | Path | Responsibility |
+|---------|------|---------------|
+| **auth** | `internal/auth/` | User registration, login, email confirmation, JWT sessions, token refresh |
+| **media** | `internal/media/` | File/video upload, B2/Bunny storage, orphan cleanup, webhooks |
+| **rbac** | `internal/rbac/` | Roles, permissions, user-role/user-permission bindings |
+| **taxonomy** | `internal/taxonomy/` | Categories, tags, course levels |
+| **system** | `internal/system/` | Privileged operations, RBAC sync, scheduler control |
+
+---
+
+## Shared Infrastructure (`internal/shared/`)
+
+Cross-cutting concerns that are not domain-specific:
+
+| Package | Purpose |
+|---------|---------|
+| `internal/shared/db/` | GORM setup, PostgreSQL connection, SQL migrations |
+| `internal/shared/cache/` | Redis client (`go-redis v9`) |
+| `internal/shared/setting/` | YAML config loading with env-var substitution |
+| `internal/shared/logger/` | Uber Zap bootstrap, `WithRequestID`, `FromContext` |
+| `internal/shared/token/` | JWT generation and validation |
+| `internal/shared/middleware/` | Gin middleware: CORS, auth JWT, RBAC permission checks, rate limiting, request logger |
+| `internal/shared/response/` | Unified `{ code, message, data }` response envelope |
+| `internal/shared/validate/` | Request validation helpers |
+| `internal/shared/brevo/` | Brevo SMTP email client |
+| `internal/shared/mailtmpl/` | HTML email templates |
+| `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
+| `internal/shared/constants/` | Cross-domain constants (only 5 files: dbschema names, error messages, media limits, permission IDs, register HTTP headers) |
+| `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint) |
+
+---
+
+## Composition Root
+
+Dependency injection lives in **`internal/server/wire.go`**. The `Wire()` function:
+
+1. Instantiates all infrastructure (GORM repos, cloud clients, Redis).
+2. Constructs application services in dependency order:
+   - RBAC (no cross-domain deps)
+   - System (no cross-domain deps)
+   - Media (no cross-domain deps)
+   - Taxonomy (depends on Media for image validation)
+   - Auth (depends on RBAC + Media)
+3. Wraps cross-domain interface adapters (e.g. `rbacPermissionReader`, `mediaProfileImageValidator`).
+4. Returns `*Services` and `*Handlers` structs.
+
+`main.go` calls `server.Wire(db, redis)` and passes the results to `server.InitRouter()`.
+
+---
+
+## HTTP Request Path
+
+```
+main.go
+  └── setting.Setup()         — load YAML + env vars
+  └── logger.InitFromSettings() — init Uber Zap global logger
+  └── shareddb.Setup()        — connect PostgreSQL (GORM)
+  └── supabasepkg.Setup()     — Supabase HTTP client (optional)
+  └── cache.SetupRedis()      — connect Redis
+  └── mediainfra.NewCloudClientsFromSetting() — init B2/Bunny SDK
+  └── maybeMigrateFromEnv()   — apply SQL migrations if MIGRATE=1
+  └── server.Wire(db, redis)  — dependency injection
+  └── mediajobs.StartMediaPendingCleanupJob() — background worker
+  └── server.InitRouter(svcs, handlers)
+        └── gin.New()
+        └── middleware.RequestLogger()  — structured access log + X-Request-ID
+        └── httperr.Middleware()        — centralized error handling
+        └── httperr.Recovery()          — panic recovery
+        └── cors.New(...)               — CORS
+        └── gzip.Gzip(...)             — response compression
+        └── /api/system  ← privileged ops (system JWT, rate limit by IP)
+        └── /api/v1 (no-filter) ← webhook callbacks (no auth)
+        └── /api/v1 (standard) ← public + authenticated routes
+        └── /api/internal-v1  ← RBAC admin (internal API key)
+  └── router.Run(":"+port)
+```
+
+---
+
+## Route Groups
+
+| Group | Middleware | Purpose |
+|-------|-----------|---------|
+| `/api/system` | `BeforeInterceptor`, `RateLimitSystemIP(10,3)`, `RequireSystemAccessToken` | Privileged operators: RBAC sync, scheduler control |
+| `/api/v1` (no-filter) | none (mounts before `BeforeInterceptor`) | Webhook callbacks that bypass JWT |
+| `/api/v1` unauthenticated | `BeforeInterceptor`, `RateLimitLocal(60,1)` | Register, login, confirm, refresh |
+| `/api/v1` authenticated | `BeforeInterceptor`, `RateLimitLocal(120,1)`, `AuthJWT` | Protected user endpoints |
+| `/api/internal-v1` | `RateLimitLocal(60,1)`, `BeforeInterceptor`, `RequireInternalAPIKey` | Internal RBAC administration |
+
+---
+
+## Configuration
+
+- YAML files under `config/` (`app.yaml`, `app-<STAGE>.yaml`) with values replaced from environment variables.
+- `STAGE` environment variable selects the config file (e.g. `STAGE=prod` loads `app-prod.yaml`).
+- Key environment variables: `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `MIGRATE`, `CLI_REGISTER_NEW_SYSTEM_USER`.
+
+---
+
+## Background Jobs
+
+| Job | Location | Trigger |
+|-----|----------|---------|
+| Media pending cleanup worker | `internal/media/jobs/` | Started in `main.go` after wiring |
+| RBAC permission sync | `internal/system/` | `/api/system/permission-sync-now` or scheduled |
+| Role-permission sync | `internal/system/` | `/api/system/role-permission-sync-now` or scheduled |
+
+---
+
+## GitNexus
 
 ```bash
 npx gitnexus analyze --force
 ```
 
-Typical graph stats (refresh after large changes; run `npx gitnexus analyze --force` then read MCP context): on the order of **~767** nodes, **~1,837** edges, **~19** clusters, **~62** execution flows. MCP resource `gitnexus://repo/be-mycourse/context` lists current counts and staleness.
-
-**Functional clusters** (high cohesion areas in the graph) include, among others: **Services** (business logic), **V1** (HTTP handlers under `api/v1`), **Middleware**, **Httperr** / **Response** (cross-cutting HTTP), **Dto**, **Token**, **Setting**, **Constants**, **Dbschema**.
-
-Useful queries (CLI examples; set `-r be-mycourse` when multiple repos are indexed):
-
-- `npx gitnexus query -r be-mycourse "JWT auth refresh"`
-- `npx gitnexus context -r be-mycourse InitRouter`
+MCP resource `gitnexus://repo/be-mycourse/context` lists current graph stats and staleness. Use `gitnexus_query`, `gitnexus_context`, and `gitnexus_impact` before modifying any symbol.
 
 ---
 
-## HTTP request path
-
-1. **`main.go`** loads settings (`setting.Setup()`), initializes **Uber Zap** (`logger.InitFromSettings()` + `defer logger.Sync()`), DB, optional privileged-user **CLI** when `CLI_REGISTER_NEW_SYSTEM_USER` is truthy (then exits), Supabase clients, Redis, optional migrate (`MIGRATE=1`), system config bootstrap, queue consumers, then **`api.InitRouter()`**.
-2. **`api/router.go`** attaches global middleware: **`middleware.RequestLogger()`** (structured access log + **`X-Request-ID`** on context), `pkg/httperr` (validation + recovery), **CORS**, **gzip**, then groups under **`/api`**.
-3. **`/api/system`** — `BeforeInterceptor`, **`RateLimitSystemIP(10, 3)`** (overridable per IP via `middleware.SetSystemRateLimitOverride`), short-lived system JWT for privileged operators: login + permission / role-permission sync and in-memory 12h jobs (`api/system`, `services/system.go`, `internal/jobs/rbac`, `internal/jobs/media`, `internal/jobs/system`).
-4. **`/api/v1`** has two registration lanes:
-   - **No-filter lane** (mounted first, no `BeforeInterceptor`) → `api/v1.RegisterNoFilterRoutes` (currently `POST /api/v1/webhook/bunny`).
-   - **Standard lane** uses `middleware.BeforeInterceptor()`, then splits into:
-     - **Authenticated subtree** — `RateLimitLocal` + **`middleware.AuthJWT()`** → `api/v1.RegisterAuthenRoutes`.
-     - **Unauthenticated subtree** — `RateLimitLocal` only → `api/v1.RegisterNotAuthenRoutes`.
-5. **`/api/internal-v1`** — `RateLimitLocal`, `BeforeInterceptor`, **`middleware.RequireInternalAPIKey()`** → internal RBAC HTTP API (`api/v1.RegisterInternalRoutes`).
-6. **Handlers** in `api/v1/*.go` parse/bind DTOs, call **`services/*`**, and respond with **`pkg/response`** helpers (never ad-hoc `gin.H` envelopes). **`api/`** does **not** import **`internal/jobs/**`** (Rule 6) — background job metrics and job HTTP adapters go through **`services/media`** and **`services/system_job_http.go`**.
-
-**Redis:** Auth flows and `GET /api/v1/me` use `services/cache` (TTL-backed JSON, negative login cache, and registration confirmation email sliding window — see `docs/modules/auth.md`). If Redis is unavailable, login caches no-op; registration skips the sliding window but keeps the Postgres lifetime cap.
-
----
-
-## Directory map (authoritative)
-
-| Path | Role |
-|------|------|
-| `main.go` | Process entry: settings, **Zap logger** (`pkg/logger`), DB, cache, migrate flag, bootstrap, queues, router, listen on `setting.ServerSetting.Port` (default **8080**). |
-| `api/router.go` | Gin engine, global middleware, `/api/system`, `/api/v1`, `/api/internal-v1` groups. |
-| `api/system/` | Privileged system routes (rate limit, system JWT, RBAC sync / job control). Handlers use **`internal/appdb.Conn()`** (wired from `main` after `models.Setup`); **`api/`** does not import **`models`** or **`gorm.io/gorm`** (depguard `restrict_api`). Job start/stop HTTP routes call **`services/system_job_http.go`**, which delegates to **`internal/jobs/system/system_sync_http.go`**; immediate `*-sync-now` handlers stay in `routes.go`. |
-| `api/v1/` | Versioned handlers and route modules: `auth.go`, `me.go`, `routes.go`, `taxonomy/*`, `internal/*`, … |
-| `middleware/` | **`RequestLogger`** (Zap structured HTTP access + request correlation), JWT auth, RBAC permission checks, API key for internal routes, rate limit, shared `BeforeInterceptor`. |
-| `services/` | Business logic (`auth.go`, `rbac.go`, …) plus `services/cache/` for Redis. **Do not** name files `helper_*` or `*_helper` here; use domain-oriented names and delegate reusable pieces to **`pkg/media`**, **`pkg/taxonomy`**, **`pkg/logic/utils`**, or **`pkg/requestutil`** (see `docs/patterns.md`). Media service enforces server-owned upload contracts (kind/provider/metadata inference). |
-| `internal/jobs/` | Feature subfolders only (no loose `*.go` at root): **`rbac/`** — 12h RBAC sync tickers (`rbac_sync_schedulers.go`, `interval_sync_loop.go`); **`media/`** — pending-cleanup scheduler/worker/metrics (`media_pending_cleanup_*.go`, `media_cleanup_metrics.go`), orphan/superseded enqueue (`media_orphan_enqueue.go`); **`system/`** — HTTP adapters for start/stop (wired from `/api/system`). |
-| `internal/rbacsync/` | RBAC sync: permissions from `constants.AllPermissions`, role matrix from `constants.RolePermissions`. |
-| `dto/` | Request/response and query DTOs; **`dto.BaseFilter`** for list endpoints (see README). |
-| `models/` | GORM models and DB setup (`setup.go`, taxonomy models, …). |
-| `migrations/` | Versioned SQL migrations (embedded / migrate tooling). |
-| `pkg/response` | Unified `{ code, message, data }` (and health shape). |
-| `pkg/errors` | Shared functional/sentinel errors and typed feature errors (e.g. provider errors, upload sentinel errors). New reusable `Err*` and typed errors must be declared here, then imported by handlers, services, and `repository/`. |
-| `pkg/errcode` | Application error codes. |
-| `pkg/httperr` | Gin middleware for errors and panic recovery. |
-| `pkg/setting` | YAML config with per-stage files and `.env` substitution; includes **`logging`** block → **`setting.LogSetting`** consumed by **`pkg/logger`**. |
-| `pkg/token`, `pkg/validate`, `pkg/logger`, `pkg/supabase`, `pkg/envbool`, … | Cross-cutting utilities. |
-| `pkg/media/` | Media provider HTTP/SDK (`clients.go`, `clients_setting_attach.go` for `NewCloudClientsFromSetting`, `setup.go`, …) **and** domain helpers in the same package (`media_resolver.go`, `media_metadata.go`, `media_multipart.go`, orphan cleanup URL helpers, local URL codec, `RequireInitialized`, …). **`NewCloudClientsFromSetting`** wires B2 / Gcore / Bunny Storage from **`setting.MediaSetting`** at startup. **Bunny `video_id` / thumbnail / embed HTML policy** lives in `media_resolver.go` — do not duplicate in callers. |
-| `pkg/taxonomy/` | Taxonomy-only helpers (e.g. `NormalizeTaxonomyStatus` in `status.go`). |
-| `pkg/logic/mapping/`, `pkg/logic/utils/` | Model ↔ entity mapping and generic cross-feature primitives. **`pkg/logic/helper/` was removed** — do not reintroduce. |
-| `config/` | System bootstrap (`InitSystem`, default configs). |
-| `pkg/cache_clients/` | Redis client wiring. |
-| `queues/` | Async consumer placeholder. |
-| `constants/` | RBAC (`roles.go`, `permissions.go`, `roles_permission.go`), domain enums (e.g. `media.go`), **`dbschema_name.go`** (Postgres **relation names** used by GORM/`dbschema`/raw SQL), and **`error_msg.go`** — canonical **string literals for errors/sentinels** (and tightly coupled numeric caps such as `MaxMediaUploadFileBytes`). **`pkg/errcode/messages.go`** holds the code→message map but **must import** string constants from here when the same wording is used for sentinels (e.g. **`MsgFileTooLargeUpload`** for `FileTooLarge` + `ErrFileExceedsMaxUploadSize`) so copy cannot drift. |
-| `dbschema/` | Table-name accessors per domain (`RBAC`, `Media`, `Taxonomy`, `System`, `AppUser`); values come from **`constants/dbschema_name.go`** only — models’ `TableName()` and RBAC raw SQL should use these, not hardcoded table strings. |
-| `cmd/syncpermissions/` | Upsert `permissions.permission_name` by `permission_id` (`//go:generate` from `main.go`). |
-| `cmd/syncrolepermissions/` | Rebuild `role_permissions` from `constants/roles_permission.go`. |
-| `tracing/`, `runtime/` | Observability / runtime placeholders. |
-| `tests/` | **All tests (unit/module-level/integration)** — Go test packages, shared harnesses, and fixtures must live in this tree and should not live next to production code. See `docs/patterns.md` and `README.md` (**Testing**). |
-
----
-
-## Public API surface (`/api/v1`)
-
-| Method | Path | Auth |
-|--------|------|------|
-| GET | `/api/v1/health` | No |
-| POST | `/api/v1/auth/register` | No — pending signup / unconfirmed resend; **410/4009**, **429/4010** (+ Retry-After headers), **502/4011** per `docs/modules/auth.md` |
-| POST | `/api/v1/auth/login` | No |
-| GET | `/api/v1/auth/confirm` | No |
-| POST | `/api/v1/auth/refresh` | No |
-| GET | `/api/v1/me` | JWT |
-| GET | `/api/v1/me/permissions` | JWT + permission middleware |
-| OPTIONS | `/api/v1/media/files` | JWT + permission middleware |
-| GET | `/api/v1/media/files` | JWT + permission middleware |
-| POST | `/api/v1/media/files` | JWT + permission middleware |
-| OPTIONS | `/api/v1/media/files/:id` | JWT + permission middleware |
-| GET | `/api/v1/media/files/:id` | JWT + permission middleware |
-| PUT | `/api/v1/media/files/:id` | JWT + permission middleware |
-| DELETE | `/api/v1/media/files/:id` | JWT + permission middleware |
-| OPTIONS | `/api/v1/media/files/local/:token` | JWT + permission middleware |
-| GET | `/api/v1/media/files/local/:token` | JWT + permission middleware |
-| GET | `/api/v1/media/videos/:id/status` | JWT + permission middleware |
-| POST | `/api/v1/webhook/bunny` | No-filter lane (outside `BeforeInterceptor`, no JWT/permission middleware) |
-
-Exact permission constants for `/me/permissions` are wired in `api/v1/routes.go`.
-
----
-
-## Internal API (`/api/internal-v1`)
-
-RBAC administration (permissions, roles, user-role and user-direct-permission assignments) is exposed under **`/api/internal-v1/rbac/...`** and protected by **`RequireInternalAPIKey`**. See `api/v1/internal/rbac_handler.go`, `api/v1/internal/routes.go`, and `api/v1/routes.go` for the full route table.
-
----
-
-## Configuration & environment
-
-- **YAML** under `config/` (`app.yaml`, `app-<STAGE>.yaml`) with values overridden from **environment variables** (see `pkg/setting` and `.env.example`).
-- **CORS** allowed origins from `CORS_ALLOWED_ORIGINS` (comma-separated); see README for header contract with the frontend.
-- **RBAC sync from constants** — immediate runs or 12h in-memory jobs via **`/api/system`** (`create-*-sync-job`, `delete-*-sync-job`, `*-sync-now`). Secrets live in **`system_app_config`** (singleton row); privileged operators in **`system_privileged_users`**.
-- **`CLI_REGISTER_NEW_SYSTEM_USER`** — when truthy, after DB init the binary prompts for CLI app password + new privileged credentials, writes `system_privileged_users`, prints English success/failure, then exits.
-
----
-
-## Related documentation
+## Related Documentation
 
 | Document | Contents |
 |----------|----------|
-| [`README.md`](../README.md) | Quick start, CORS, response format, error codes, project structure summary. |
-| [`docs/deploy.md`](deploy.md) | Full-stack VPS deploy, Nginx, PM2, CI/CD. |
-| [`docs/database.md`](database.md) | Database schema, tables, and migration history. |
-| [`docs/requirements.md`](requirements.md) | Functional & non-functional requirements for all features. |
-| [`docs/sequence_diagrams.md`](sequence_diagrams.md) | Mermaid sequence diagrams for every system flow. |
-| [`docs/return_types.md`](return_types.md) | Go service return types and full JSON response shapes per API. |
-| [`docs/curl_api.md`](curl_api.md) | Complete API reference with cURL examples and Postman scripts. |
-| [`docs/modules/auth.md`](modules/auth.md) | Auth service and cache behaviour. |
-| [`docs/modules/user.md`](modules/user.md) | User profile endpoints — `GET /me`, `GET /me/permissions`. |
-| [`docs/modules/media.md`](modules/media.md) | Media upload: cloud gateway, **`pkg/media`** (clients + policy) vs **`pkg/logic/utils`** (generic primitives), Bunny parity fields (**`video_id`**, **`thumbnail_url`**, **`embeded_html`**), **2 GiB** cap + multipart tuning. |
-| [`docs/modules/course.md`](modules/course.md), [`lesson.md`](modules/lesson.md), [`enrollment.md`](modules/enrollment.md) | Domain module notes (planned features). |
-
-When this repository sits next to the Next.js app in a monorepo (e.g. **`mycourse-full`**), the frontend deploy runbook is at [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md).
+| [`README.md`](../README.md) | Quick start, CORS, response format, error codes |
+| [`docs/folder-structure.md`](folder-structure.md) | Complete directory tree |
+| [`docs/router.md`](router.md) | Full API route table |
+| [`docs/data-flow.md`](data-flow.md) | End-to-end request flows |
+| [`docs/patterns.md`](patterns.md) | Coding conventions and patterns |
+| [`docs/modules/auth.md`](modules/auth.md) | Auth domain deep-dive |
+| [`docs/modules/media.md`](modules/media.md) | Media domain deep-dive |
+| [`docs/modules/rbac.md`](modules/rbac.md) | RBAC domain deep-dive |
+| [`docs/modules/taxonomy.md`](modules/taxonomy.md) | Taxonomy domain deep-dive |

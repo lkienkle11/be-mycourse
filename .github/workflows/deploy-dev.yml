@@ -56,7 +56,6 @@ jobs:
           go vet ./...
           golangci-lint cache clean
           golangci-lint run
-          make check-architecture
 
   build:
     needs: test

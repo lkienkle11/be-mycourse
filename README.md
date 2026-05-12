@@ -295,4 +295,4 @@ Every GET list endpoint embeds `BaseFilter` in its DTO for consistent pagination
 
 ## CI/CD
 
-Pushing to **`master`** triggers `.github/workflows/deploy-dev.yml`: builds `mycourse-io-be-dev`, `rsync`s to the server, then runs `scripts/pm2-reload-with-binary-rollback.sh`. See [`docs/deploy.md`](docs/deploy.md) for the full runbook.
+Pushing to **`master`** triggers `.github/workflows/deploy-dev.yml`: the test job runs **`go test`**, **`go vet`**, **`golangci-lint run`**, and **`make build`** (CGO + libvips on the runner), then the pipeline builds `mycourse-io-be-dev`, `rsync`s to the server, and runs `scripts/pm2-reload-with-binary-rollback.sh`. See [`docs/deploy.md`](docs/deploy.md) for the full runbook.

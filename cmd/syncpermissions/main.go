@@ -5,11 +5,13 @@
 package main
 
 import (
+	"context"
 	"log"
 
-	"mycourse-io-be/internal/rbacsync"
-	"mycourse-io-be/models"
-	"mycourse-io-be/pkg/setting"
+	"mycourse-io-be/internal/shared/db"
+	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/system/application"
+	"mycourse-io-be/internal/system/infra"
 )
 
 func main() {
@@ -17,11 +19,13 @@ func main() {
 	if err := setting.Setup(); err != nil {
 		log.Fatalf("syncpermissions: setup setting: %v", err)
 	}
-	if err := models.Setup(); err != nil {
+	if err := db.Setup(); err != nil {
 		log.Fatalf("syncpermissions: setup postgres: %v", err)
 	}
 
-	count, err := rbacsync.SyncPermissionsFromConstants(models.DB)
+	syncer := infra.NewGormPermissionSyncer(db.Conn())
+	entries := application.AllPermissionEntries()
+	count, err := syncer.SyncPermissionsFromCatalog(context.Background(), entries)
 	if err != nil {
 		log.Fatalf("syncpermissions: %v", err)
 	}

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"mycourse-io-be/pkg/errcode"
+	apperrors "mycourse-io-be/internal/shared/errors"
 )
 
 // HTTPError is an application error with HTTP status and a numeric application error_code.
@@ -35,37 +35,37 @@ func (e *HTTPError) Unwrap() error { return e.Err }
 // New builds an HTTPError. If message is empty, DefaultMessage(appCode) is used.
 func New(status, appCode int, errorKey, message string, cause error) *HTTPError {
 	if message == "" {
-		message = errcode.DefaultMessage(appCode)
+		message = apperrors.DefaultMessage(appCode)
 	}
 	return &HTTPError{Status: status, AppCode: appCode, Code: errorKey, Message: message, Err: cause}
 }
 
 func BadRequest(message string) *HTTPError {
-	return New(http.StatusBadRequest, errcode.BadRequest, "bad_request", message, nil)
+	return New(http.StatusBadRequest, apperrors.BadRequest, "bad_request", message, nil)
 }
 
 func Unauthorized(message string) *HTTPError {
-	return New(http.StatusUnauthorized, errcode.Unauthorized, "unauthorized", message, nil)
+	return New(http.StatusUnauthorized, apperrors.Unauthorized, "unauthorized", message, nil)
 }
 
 func Forbidden(message string) *HTTPError {
-	return New(http.StatusForbidden, errcode.Forbidden, "forbidden", message, nil)
+	return New(http.StatusForbidden, apperrors.Forbidden, "forbidden", message, nil)
 }
 
 func NotFound(message string) *HTTPError {
-	return New(http.StatusNotFound, errcode.NotFound, "not_found", message, nil)
+	return New(http.StatusNotFound, apperrors.NotFound, "not_found", message, nil)
 }
 
 func Conflict(message string) *HTTPError {
-	return New(http.StatusConflict, errcode.Conflict, "conflict", message, nil)
+	return New(http.StatusConflict, apperrors.Conflict, "conflict", message, nil)
 }
 
 func TooManyRequests(message string) *HTTPError {
-	return New(http.StatusTooManyRequests, errcode.TooManyRequests, "too_many_requests", message, nil)
+	return New(http.StatusTooManyRequests, apperrors.TooManyRequests, "too_many_requests", message, nil)
 }
 
 func Internal(message string, cause error) *HTTPError {
-	return New(http.StatusInternalServerError, errcode.InternalError, "internal_error", message, cause)
+	return New(http.StatusInternalServerError, apperrors.InternalError, "internal_error", message, cause)
 }
 
 // AsHTTPError returns (*HTTPError, true) if err unwraps to HTTPError.
@@ -79,5 +79,5 @@ func AsHTTPError(err error) (*HTTPError, bool) {
 
 // Errorf wraps fmt.Errorf as internal server error (avoid for client-facing messages).
 func Errorf(format string, args ...interface{}) *HTTPError {
-	return New(http.StatusInternalServerError, errcode.InternalError, "internal_error", errcode.DefaultMessage(errcode.InternalError), fmt.Errorf(format, args...))
+	return New(http.StatusInternalServerError, apperrors.InternalError, "internal_error", apperrors.DefaultMessage(apperrors.InternalError), fmt.Errorf(format, args...))
 }

@@ -1,6 +1,7 @@
 package appcli
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -11,8 +12,9 @@ import (
 	"golang.org/x/term"
 	"gorm.io/gorm"
 
+	"mycourse-io-be/internal/system/application"
+	sysinfra "mycourse-io-be/internal/system/infra"
 	"mycourse-io-be/pkg/envbool"
-	"mycourse-io-be/services"
 )
 
 // MaybeRunRegisterNewSystemUser returns true if the process handled CLI registration and should exit.
@@ -32,7 +34,8 @@ func runRegister(db *gorm.DB) {
 	if !ok {
 		return
 	}
-	if err := services.RegisterSystemPrivilegedUser(db, username, userPw); err != nil {
+	sysSvc := newSystemService(db)
+	if err := sysSvc.RegisterPrivilegedUser(context.Background(), username, userPw); err != nil {
 		fmt.Fprintf(os.Stderr, "Failure: could not register user (%v).\n", err)
 		return
 	}
@@ -45,7 +48,8 @@ func cliVerifyAppPassword(db *gorm.DB) bool {
 		fmt.Fprintln(os.Stderr, "Failure: could not read app password.")
 		return false
 	}
-	cfg, err := services.GetSystemAppConfig(db)
+	cfgRepo := sysinfra.NewGormAppConfigRepository(db)
+	cfg, err := cfgRepo.Get(context.Background())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failure: could not load system configuration (%v).\n", err)
 		return false
@@ -123,4 +127,13 @@ func openControllingConsole() (*os.File, error) {
 		return f, err
 	}
 	return os.OpenFile("/dev/tty", os.O_RDWR, 0)
+}
+
+func newSystemService(db *gorm.DB) *application.SystemService {
+	return application.NewSystemService(
+		sysinfra.NewGormAppConfigRepository(db),
+		sysinfra.NewGormPrivilegedUserRepository(db),
+		sysinfra.NewGormPermissionSyncer(db),
+		sysinfra.NewGormRolePermissionSyncer(db),
+	)
 }

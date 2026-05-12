@@ -10,16 +10,18 @@
 | `infra/` | GORM repository implementations, cloud SDK clients, external API adapters, crypto implementations |
 | `application/` | Use-case services — orchestrate domain + infra; no HTTP types |
 | `delivery/` | Gin handlers, route registration, request/response DTOs, mapping from domain/application types to API shapes |
+| `jobs/` *(if any)* | Background workers, schedulers, tickers, and orphan/cleanup enqueuers. Started from `main.go` (not by an HTTP request). Examples: `internal/media/jobs/` (pending cloud cleanup worker, `OrphanEnqueuer`), `internal/system/jobs/` (RBAC sync schedulers). A module only needs this folder when it owns long-running or scheduled background work. |
 
 ### Dependency rule (strict)
 
 ```
-delivery → application → infra → domain
+delivery, jobs → application → infra → domain
 ```
 
 - `domain` MUST NOT import any other internal layer.
-- `application` MUST NOT import `delivery`.
-- `infra` MUST NOT import `application` or `delivery`.
+- `application` MUST NOT import `delivery` or `jobs`.
+- `infra` MUST NOT import `application`, `delivery`, or `jobs`.
+- `jobs` (when present) MAY import its own `application` and/or `domain` package, but MUST NOT import `delivery`. Treat `jobs` as a peer "entry point" to `delivery` — `delivery` is triggered by HTTP, `jobs` is triggered by a ticker/scheduler.
 - Cross-domain dependencies (e.g. Auth needing RBAC) are injected as **interfaces** defined in the consuming domain and adapted in `internal/server/wire.go`.
 
 ---

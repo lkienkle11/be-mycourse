@@ -9,7 +9,10 @@ domain/       ← entities, interfaces, errors
 infra/        ← GORM repos, external SDK clients
 application/  ← use-case service
 delivery/     ← HTTP handlers, routes, DTOs
+jobs/         ← (if any) background workers / schedulers — started from main.go
 ```
+
+A module only adds `jobs/` when it owns scheduled or long-running background work (e.g. `internal/media/jobs/` for pending cloud cleanup, `internal/system/jobs/` for RBAC sync schedulers). Modules without background work simply omit the folder.
 
 See [`docs/architecture.md`](architecture.md) for the full dependency rule.
 

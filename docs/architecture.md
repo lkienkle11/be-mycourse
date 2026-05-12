@@ -24,17 +24,24 @@ application/    ← Use-case services (e.g. AuthService, MediaService).
 
 delivery/       ← HTTP handlers, route registration, request/response DTOs,
                    mapping from domain types to API contracts.
+
+jobs/           ← (Optional) Background workers, schedulers, tickers,
+                   orphan/cleanup enqueuers. Started from main.go, not from an
+                   HTTP request. A module only adds this folder when it owns
+                   long-running or scheduled work. See internal/media/jobs/
+                   and internal/system/jobs/ for canonical examples.
 ```
 
 ### Dependency rule
 
 ```
-delivery → application → infra → domain
+delivery, jobs → application → infra → domain
 ```
 
 - `domain` never imports any other layer.
-- `application` never imports `delivery`.
-- `infra` never imports `application` or `delivery`.
+- `application` never imports `delivery` or `jobs`.
+- `infra` never imports `application`, `delivery`, or `jobs`.
+- `jobs` (when present) may import its own module's `application` and/or `domain` package, but never `delivery`. Treat `jobs` as a peer "entry point" to `delivery`: HTTP-triggered work lives in `delivery`, time-/ticker-triggered work lives in `jobs`.
 - Cross-domain dependencies are handled via **interfaces** defined in the consuming domain and adapted in `internal/server/wire.go`.
 
 ---

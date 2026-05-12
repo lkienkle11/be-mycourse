@@ -39,7 +39,7 @@ be-mycourse/
 │   │   ├── application/            # SystemService, catalog.go, roles_permission.go
 │   │   ├── infra/                  # GORM repos, crypto
 │   │   ├── delivery/               # HTTP handlers, routes
-│   │   └── jobs/                   # (scheduler placeholders)
+│   │   └── jobs/                   # RBAC permission + role-permission sync schedulers
 │   ├── taxonomy/
 │   │   ├── domain/
 │   │   ├── application/            # TaxonomyService
@@ -135,6 +135,7 @@ be-mycourse/
 | `application/` | `SystemService`: permission sync, role-permission sync, scheduler control, system login |
 | `infra/` | GORM repos (`AppConfig`, `PrivilegedUser`), `PermissionSyncer`, `RolePermissionSyncer`, crypto |
 | `delivery/` | `Handler`, `routes.go` — system API under `/api/system` |
+| `jobs/` | RBAC permission-sync and role-permission-sync schedulers (`sync_schedulers.go`) — ticker-driven, started/stopped via `/api/system` endpoints |
 
 ### `internal/shared/`
 

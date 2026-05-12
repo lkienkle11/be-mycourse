@@ -247,6 +247,21 @@ Mounted on the **no-filter lane** (no JWT, no rate limit).
    - `Failed (5)` and `PresignedUploadFailed (8)`: mark row `FAILED` (idempotent).
    - Other statuses: accepted and intentionally ignored (idempotent callbacks).
 
+> **Persistence note (regression fix, May 2026).** The repository method
+> `UpsertByObjectKey` used to call `Assign(struct) + FirstOrCreate(struct)`,
+> which made GORM compile the UPDATE from the struct and silently skip every
+> zero-value field. That meant the Bunny webhook could correctly compute
+> `row.Duration = 190` but the SQL written to PostgreSQL still kept
+> `duration = 0`. The repository now performs an **explicit
+> `Updates(map[string]any{...})`** with every editable column listed by
+> name — including `duration`, `metadata_json`, `status`, `thumbnail_url`,
+> and `row_version + 1` — so an idempotent webhook callback always rewrites
+> the full row. The same fix protects the create path: when no row exists
+> the repository falls back to `db.Create(row)`. The column map is
+> exercised by `TestBuildUpsertUpdateColumns_persistsWebhookFields` and
+> `TestBuildUpsertUpdateColumns_zeroValuesStillPresent` in
+> `internal/media/infra/upsert_columns_test.go`.
+
 ---
 
 ## Response Contract (`UploadFileResponse`)
@@ -279,7 +294,10 @@ never serialised onto the response.
 The typed sub-object is derived from the stored `metadata_json` blob on
 every read (see `rowToFile` in `internal/media/infra/repos.go`). Both
 write paths (CREATE / UPDATE) and read paths (LIST / GET) reuse the same
-builder (`BuildTypedMetadata`) so the shape is always consistent:
+builder (`BuildTypedMetadata`) so the shape is always consistent. The
+write path also mirrors these exact typed keys back into `metadata_json`
+via `ApplyTypedMetadataToRaw`; for videos this means `duration_seconds`
+is persisted in JSONB, not only returned in memory.
 
 | JSON key            | Type     | Populated for |
 |---------------------|----------|---------------|
@@ -304,7 +322,12 @@ builder (`BuildTypedMetadata`) so the shape is always consistent:
 Even though the API only returns the typed `metadata` field above, the
 `media_files.metadata_json` JSONB column persists the full provider blob so
 operations like analytics, debugging, and re-derivation of typed fields
-remain possible. For Bunny videos this includes:
+remain possible. The column exists from `000003_media_metadata`; migration
+`000008_media_metadata_json_storage` reasserts the JSONB default for existing
+environments, backfills the typed metadata keys (`duration_seconds`,
+`width_bytes`, `height_bytes`, `fps`, ...), and adds the GIN index
+`idx_media_files_metadata_json_gin` for server-side JSONB queries. For Bunny
+videos this includes:
 
 ```jsonc
 {
@@ -315,12 +338,20 @@ remain possible. For Bunny videos this includes:
   "video_id": "7312c208-054f-413f-82b2-3666a271f4f4",
   "thumbnail_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/.../thumbnail.jpg",
   "embeded_html": "<iframe ...></iframe>",
-  // Typed-mirrored keys (consumed by BuildTypedMetadata)
+  // Provider-native Bunny keys
   "length": 190,
   "width": 1920,
   "height": 1080,
   "framerate": 23.976,
   "video_codec": "x264",
+  // Typed UploadFileMetadata keys persisted by ApplyTypedMetadataToRaw
+  "duration_seconds": 190,
+  "width_bytes": 1920,
+  "height_bytes": 1080,
+  "fps": 23.976,
+  "size_bytes": 586177908,
+  "mime_type": "video/mp4",
+  "extension": ".mp4",
   // Bunny-only enrichment kept for server-side use
   "output_codecs": "x264",
   "available_resolutions": "360p,480p,720p,240p,1080p",
@@ -392,4 +423,4 @@ Gin `MaxMultipartMemory` = 64 MiB (set in `internal/server/router.go`). Large pa
 | HTTP handlers | `internal/media/delivery/handler.go` |
 | Route registration | `internal/media/delivery/routes.go` |
 | Orphan cleanup jobs | `internal/media/jobs/` |
-| DB migrations | `migrations/000003_media_metadata.*`, `000004_media_orphan_safety.*`, `000005_media_bunny_response_fields.*` |
+| DB migrations | `migrations/000003_media_metadata.*`, `000004_media_orphan_safety.*`, `000005_media_bunny_response_fields.*`, `000008_media_metadata_json_storage.*` |

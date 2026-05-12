@@ -142,7 +142,7 @@ Direct permission grants (supplement role-based permissions).
 
 ## `media_files`
 
-Product media uploads (files and Bunny Stream videos). Created in migration **`000003_media_metadata`**; extended by **`000004_media_orphan_safety`** and **`000005_media_bunny_response_fields`**. GORM model: `models/media_file.go`; entity: `pkg/entities/file.go`. Full API contract: **`docs/modules/media.md`**, **`docs/return_types.md`**.
+Product media uploads (files and Bunny Stream videos). Created in migration **`000003_media_metadata`**; extended by **`000004_media_orphan_safety`**, **`000005_media_bunny_response_fields`**, and **`000008_media_metadata_json_storage`**. GORM model: `internal/media/infra/repos.go`; entity: `internal/media/domain/media.go`. Full API contract: **`docs/modules/media.md`**.
 
 | Column | Type (summary) | Notes |
 |--------|----------------|-------|
@@ -157,8 +157,32 @@ Product media uploads (files and Bunny Stream videos). Created in migration **`0
 | **`embeded_html`** | TEXT | Sub 09 — escaped iframe HTML (JSON key spelling `embeded_html`) |
 | `duration`, `video_provider` | BIGINT / VARCHAR | |
 | `row_version`, `content_fingerprint` | BIGINT / VARCHAR | Sub 06 |
-| `metadata_json` | JSONB | Includes keys from `constants/media_meta_keys.go` |
+| `metadata_json` | JSONB | Server-side provider metadata store. Defaults to `{}`. Bunny upload/webhook writes provider-native telemetry plus the typed `UploadFileMetadata` keys (`duration_seconds`, `width_bytes`, `height_bytes`, `fps`, ...). Read paths derive the public typed `metadata` response from this blob. Not returned directly in API responses. GIN-indexed by `idx_media_files_metadata_json_gin` from migration `000008`. Writes use explicit `Updates(map[string]any{...})` so the column is always rewritten on webhook callbacks (see persistence note below). |
 | `created_at`, `updated_at`, `deleted_at` | TIMESTAMPTZ | Soft delete |
+
+### Upsert persistence semantics
+
+`UpsertByObjectKey` (`internal/media/infra/repos.go`) is the single write
+path shared by uploads (create) and Bunny webhooks / failure marks
+(update). It is intentionally implemented as:
+
+1. `SELECT ... WHERE object_key = ? AND deleted_at IS NULL` — find the
+   active row.
+2. **Not found** → `INSERT` via `db.Create(row)` (lets table defaults like
+   `metadata_json DEFAULT '{}'::jsonb` apply).
+3. **Found** → `UPDATE` via `db.Model(&mediaFileRow{}).Where("id = ?",
+   existing.ID).Updates(map[string]any{ ... })` enumerating every editable
+   column (`status`, `duration`, `thumbnail_url`, `metadata_json`,
+   `row_version + 1`, ...) by name.
+
+The map-based update is **required**: an earlier
+`Assign(struct)+FirstOrCreate(struct)` implementation made GORM compile
+the UPDATE from the struct and silently skip zero-value fields, which
+caused the Bunny webhook to leave `media_files.duration = 0` and
+`metadata_json` unchanged even though the in-memory entity had the right
+values. The map-based path always rewrites every column, so a re-played
+webhook is idempotent and the typed `duration_seconds` / flat `duration`
+view always agree with what Bunny reported.
 
 ---
 
@@ -180,6 +204,7 @@ They are resolved at login time, embedded in the access token's `permissions` ar
 | 000005 | `media_bunny_response_fields` | **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** |
 | 000006 | `taxonomy_user_media_refs` | **`categories.image_file_id`**, **`users.avatar_file_id`** (FK → `media_files`); drops legacy **`categories.image_url`**, **`users.avatar_url`** after URL→row backfill |
 | 000007 | `registration_email_limits` | **`users.registration_email_send_total`** — counts successful confirmation emails while pending, reset on email confirm. **`COMMENT`** text contains **no** `;` inside quotes (migrate splits the whole file on every `;`). |
+| 000008 | `media_metadata_json_storage` | Ensures **`media_files.metadata_json`** exists as JSONB metadata storage with default `{}`, backfills typed keys such as **`duration_seconds`**, **`width_bytes`**, **`height_bytes`**, **`fps`**, and adds GIN index **`idx_media_files_metadata_json_gin`**. The JSON blob remains server-side only; API exposes the typed `metadata` view. |
 
 **Taxonomy `categories` (post-000006):** includes **`image_file_id`** `UUID` nullable FK → **`media_files(id)`** (replaces removed **`image_url`**).
 

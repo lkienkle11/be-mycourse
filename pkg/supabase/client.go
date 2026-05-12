@@ -2,11 +2,11 @@ package supabase
 
 import (
 	"fmt"
-	"mycourse-io-be/constants"
 
 	supabase "github.com/supabase-community/supabase-go"
 
-	"mycourse-io-be/pkg/setting"
+	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/setting"
 )
 
 var Client *supabase.Client

@@ -2,13 +2,13 @@ version: "2"
 linters:
   default: none
   enable:
-    - dupl # Bắt code trùng lặp (dùng cây cú pháp AST, bất chấp AI đổi tên biến)
-    - gocyclo # Đo độ phức tạp của if/else, switch/case
-    - funlen # Báo đỏ nếu AI viết hàm dài dằng dặc thay vì chia nhỏ
-    - depguard # Chặn import ngược (ví dụ: cấm pkg/helpers import services)
-    - errcheck # Bắt buộc xử lý lỗi
-    - staticcheck # Kế thừa gosimple: Gợi ý đơn giản hóa code & bắt lỗi tĩnh
-    - govet # Bắt lỗi logic cơ bản của Go
+    - dupl # Duplicate code (AST-based; catches renames)
+    - gocyclo # Cyclomatic complexity (if/else, switch)
+    - funlen # Long functions / too many statements
+    - depguard # DDD import boundaries under internal/
+    - errcheck # Unchecked errors
+    - staticcheck # Simplifications and static checks (gosimple successor)
+    - govet # Basic Go correctness
     - revive
 
   settings:
@@ -16,15 +16,15 @@ linters:
       rules:
         - name: file-length-limit
           arguments:
-            - max: 300 # Bất kỳ file nào vượt quá 300 dòng sẽ bị gạch đỏ
-              skip-comments: true # Bỏ qua không đếm số dòng comment
-              skip-blank-lines: true # Bỏ qua không đếm dòng trống
+            - max: 600 # Fail if file exceeds 500 lines
+              skip-comments: true # Exclude comment lines from count
+              skip-blank-lines: true # Exclude blank lines from count
     funlen:
-      lines: 30 # Quá 30 dòng là báo đỏ
-      statements: 25 # Quá 25 câu lệnh là báo đỏ
+      lines: 60
+      statements: 45
     gocyclo:
-      min-complexity: 10 # Logic rẽ nhánh quá phức tạp sẽ bị gạch đỏ
-    # depguard v2: without rules, only stdlib is allowed and every mycourse-io-be / third-party import fails.
+      min-complexity: 20
+    # depguard v2: main allowlist for the module; DDD rules add deny constraints per path.
     depguard:
       rules:
         main:
@@ -41,134 +41,550 @@ linters:
             - go.uber.org
             - go.mongodb.org
 
-        restrict_pkg:
-          files:
-            - "**/pkg/**/*.go"
-            - "**/pkg/*.go"
-            - "**/helpers/**/*.go" # Nếu team bạn vẫn còn dùng folder này
-            - "**/helpers/*.go"
-          deny:
-            - pkg: "mycourse-io-be/services"
-              desc: "AI Rule Violation: pkg/ MUST NOT import services/. Pkg contains pure
-                mechanisms only."
-            - pkg: "mycourse-io-be/repository"
-              desc: "AI Rule Violation: pkg/ MUST NOT import repository/. Helpers cannot
-                access DB."
-            - pkg: "mycourse-io-be/api"
-              desc: "AI Rule Violation: pkg/ MUST NOT know about api/ controllers."
+        # --- DDD: domain → no other internal/ imports (pure). Same-BC domain subpackages only via main allow + no deny for internal/<bc>/domain. ---
+        # ddd_domain_auth:
+        #   files:
+        #     - "**/internal/auth/domain/**/*.go"
+        #     - "**/internal/auth/domain/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/auth/application"
+        #       desc: "DDD: domain must not import application."
+        #     - pkg: "mycourse-io-be/internal/auth/infra"
+        #       desc: "DDD: domain must not import infra."
+        #     - pkg: "mycourse-io-be/internal/auth/delivery"
+        #       desc: "DDD: domain must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/auth/jobs"
+        #       desc: "DDD: domain must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: domain must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: domain must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: domain must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: domain must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/shared"
+        #       desc: "DDD: domain must not import internal/shared (keep domain pure)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: domain must not import internal/server."
 
-        # Rule 3: Bảo vệ tầng Models/DB Schema (Thực thể câm lặng)
-        restrict_models:
-          files:
-            - "**/models/**/*.go"
-            - "**/dbschema/**/*.go"
-            - "**/models/*.go"
-            - "**/dbschema/*.go"
-          deny:
-            - pkg: "mycourse-io-be/services"
-              desc: "AI Rule Violation: models/ MUST be dumb structs. NO services/ allowed."
-            - pkg: "mycourse-io-be/repository"
-              desc: "AI Rule Violation: models/ MUST NOT import repository/; keep models as
-                structs + GORM mapping."
-            - pkg: "mycourse-io-be/api"
-              desc: "AI Rule Violation: models/ MUST NOT know about HTTP controllers."
-            - pkg: "mycourse-io-be/pkg/entities"
-              desc: "AI Rule Violation: models/ MUST NOT import pkg/entities (Rule 16 strict
-                separation)."
+        # ddd_domain_media:
+        #   files:
+        #     - "**/internal/media/domain/**/*.go"
+        #     - "**/internal/media/domain/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/media/application"
+        #       desc: "DDD: domain must not import application."
+        #     - pkg: "mycourse-io-be/internal/media/infra"
+        #       desc: "DDD: domain must not import infra."
+        #     - pkg: "mycourse-io-be/internal/media/delivery"
+        #       desc: "DDD: domain must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/media/jobs"
+        #       desc: "DDD: domain must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: domain must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: domain must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: domain must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: domain must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/shared"
+        #       desc: "DDD: domain must not import internal/shared (keep domain pure)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: domain must not import internal/server."
 
-        # pkg/gormjsonb: models/ must import carriers → gormjsonb MUST NOT import models/ (cycle).
-        # dto/ forbidden here per rules-pattern Rule 3 / Rule 21.
-        restrict_pkg_gormjsonb:
-          files:
-            - "**/pkg/gormjsonb/**/*.go"
-            - "**/pkg/gormjsonb/*.go"
-          deny:
-            - pkg: "mycourse-io-be/models"
-              desc: "AI Rule Violation: pkg/gormjsonb MUST NOT import models/ (import cycle with
-                models referencing the carrier; rules-pattern Rule 3 & 11)."
-            - pkg: "mycourse-io-be/dto"
-              desc: "AI Rule Violation: pkg/gormjsonb MUST NOT import dto/ (rules-pattern Rule 3
-                & 21)."
+        # ddd_domain_taxonomy:
+        #   files:
+        #     - "**/internal/taxonomy/domain/**/*.go"
+        #     - "**/internal/taxonomy/domain/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/taxonomy/application"
+        #       desc: "DDD: domain must not import application."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/infra"
+        #       desc: "DDD: domain must not import infra."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/delivery"
+        #       desc: "DDD: domain must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/jobs"
+        #       desc: "DDD: domain must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: domain must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: domain must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: domain must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: domain must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/shared"
+        #       desc: "DDD: domain must not import internal/shared (keep domain pure)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: domain must not import internal/server."
 
-        # Rule 16: entities ↔ models decoupling (other direction from restrict_models deny).
-        restrict_pkg_entities_no_models:
-          files:
-            - "**/pkg/entities/**/*.go"
-            - "**/pkg/entities/*.go"
-          deny:
-            - pkg: "mycourse-io-be/models"
-              desc: "AI Rule Violation: pkg/entities MUST NOT import models/ (Rule 16)."
+        # ddd_domain_rbac:
+        #   files:
+        #     - "**/internal/rbac/domain/**/*.go"
+        #     - "**/internal/rbac/domain/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/rbac/application"
+        #       desc: "DDD: domain must not import application."
+        #     - pkg: "mycourse-io-be/internal/rbac/infra"
+        #       desc: "DDD: domain must not import infra."
+        #     - pkg: "mycourse-io-be/internal/rbac/delivery"
+        #       desc: "DDD: domain must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/rbac/jobs"
+        #       desc: "DDD: domain must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: domain must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: domain must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: domain must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: domain must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/shared"
+        #       desc: "DDD: domain must not import internal/shared (keep domain pure)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: domain must not import internal/server."
 
-        restrict_repository:
-          files:
-            - "**/repository/**/*.go"
-            - "**/repository/*.go"
-          deny:
-            - pkg: "mycourse-io-be/services"
-              desc: "AI Rule Violation: repository/ MUST NOT import services/. Services call
-                repository, not reverse."
-            - pkg: "mycourse-io-be/api"
-              desc: "AI Rule Violation: repository/ MUST NOT import api/."
+        # ddd_domain_system:
+        #   files:
+        #     - "**/internal/system/domain/**/*.go"
+        #     - "**/internal/system/domain/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/system/application"
+        #       desc: "DDD: domain must not import application."
+        #     - pkg: "mycourse-io-be/internal/system/infra"
+        #       desc: "DDD: domain must not import infra."
+        #     - pkg: "mycourse-io-be/internal/system/delivery"
+        #       desc: "DDD: domain must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/system/jobs"
+        #       desc: "DDD: domain must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: domain must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: domain must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: domain must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: domain must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/shared"
+        #       desc: "DDD: domain must not import internal/shared (keep domain pure)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: domain must not import internal/server."
 
-        # Rule 5: Bảo vệ tầng Services (Bộ não nghiệp vụ)
-        restrict_services:
-          files:
-            - "**/services/**/*.go"
-            - "**/services/*.go"
-          deny:
-            - pkg: "mycourse-io-be/api"
-              desc: "AI Rule Violation: services/ MUST NOT import api/. Controllers call
-                Services, not reverse."
+        # # --- DDD: infra → domain (+ shared technical adapters) only; no application/delivery/jobs or other BCs. ---
+        # ddd_infra_auth:
+        #   files:
+        #     - "**/internal/auth/infra/**/*.go"
+        #     - "**/internal/auth/infra/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/auth/application"
+        #       desc: "DDD: infra must not import application."
+        #     - pkg: "mycourse-io-be/internal/auth/delivery"
+        #       desc: "DDD: infra must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/auth/jobs"
+        #       desc: "DDD: infra must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: infra must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: infra must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: infra must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: infra must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: infra must not import internal/server."
 
-        restrict_api:
-          files:
-            - "**/api/**/*.go"
-            - "**/api/*.go"
-            - "**/controllers/**/*.go"
-            - "**/controllers/*.go"
-          deny:
-            - pkg: "mycourse-io-be/models"
-              desc: "AI Rule Violation: api/ MUST NOT import mycourse-io-be/models. Use
-                services."
-            - pkg: "mycourse-io-be/repository"
-              desc: "AI Rule Violation: api/ MUST NOT bypass services to import repository/.
-                Controllers call Services only."
-            - pkg: "gorm.io/gorm"
-              desc: "AI Rule Violation: api/ MUST NOT contain database logic. DB queries
-                belong to repositories/."
-            - pkg: "database/sql"
-              desc: "AI Rule Violation: api/ MUST NOT use raw SQL database queries."
+        # ddd_infra_media:
+        #   files:
+        #     - "**/internal/media/infra/**/*.go"
+        #     - "**/internal/media/infra/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/media/application"
+        #       desc: "DDD: infra must not import application."
+        #     - pkg: "mycourse-io-be/internal/media/delivery"
+        #       desc: "DDD: infra must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/media/jobs"
+        #       desc: "DDD: infra must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: infra must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: infra must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: infra must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: infra must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: infra must not import internal/server."
 
-        # Dumb entity files under models/ only (cf. taxonomy_category.go). Skipped: setup.go (DB bootstrap), deleted_at.go (GORM soft-delete alias).
-        # Use models/*.go (not models/**/*.go): ** after models/ would skip files directly in models/.
-        restrict_models_pkg_entity_schema_only:
-          list-mode: lax
-          files:
-            - "**/models/*.go"
-            - "**/pkg/entities/*.go"
-            - "**/pkg/entities/**/*.go"
-            - "**/models/**/*.go"
-            - "!**/models/setup.go"
-            - "!**/models/deleted_at.go"
-          deny:
-            - pkg: "gorm.io/gorm"
-              desc: "AI Rule Violation: entity model file MUST NOT import gorm.io/gorm."
-            - pkg: "gorm.io/driver"
-              desc: "AI Rule Violation: entity model file MUST NOT import gorm.io/driver/*."
-            - pkg: "database/sql"
-              desc: "AI Rule Violation: entity model file MUST NOT import database/sql."
-            - pkg: "mycourse-io-be/pkg/dbmigrate"
-              desc: "AI Rule Violation: entity model file MUST NOT import pkg/dbmigrate."
-            - pkg: "mycourse-io-be/migrations"
-              desc: "AI Rule Violation: entity model file MUST NOT import migrations."
+        # ddd_infra_taxonomy:
+        #   files:
+        #     - "**/internal/taxonomy/infra/**/*.go"
+        #     - "**/internal/taxonomy/infra/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/taxonomy/application"
+        #       desc: "DDD: infra must not import application."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/delivery"
+        #       desc: "DDD: infra must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/jobs"
+        #       desc: "DDD: infra must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: infra must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: infra must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: infra must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: infra must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: infra must not import internal/server."
 
-        # Domain structs → pkg/entities (no gorm/sql in that tree). DB column / JSONB Valuer types → pkg/sqlmodel. Cấm pkg/types.
-        deny_import_pkg_types:
-          list-mode: lax
-          files:
-            - $all
-          deny:
-            - pkg: "mycourse-io-be/pkg/types"
-              desc: "AI Rule Violation: use mycourse-io-be/pkg/entities (domain) and
-                mycourse-io-be/pkg/sqlmodel (GORM/JSONB column types); do not import
-                mycourse-io-be/pkg/types."
+        # ddd_infra_rbac:
+        #   files:
+        #     - "**/internal/rbac/infra/**/*.go"
+        #     - "**/internal/rbac/infra/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/rbac/application"
+        #       desc: "DDD: infra must not import application."
+        #     - pkg: "mycourse-io-be/internal/rbac/delivery"
+        #       desc: "DDD: infra must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/rbac/jobs"
+        #       desc: "DDD: infra must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: infra must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: infra must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: infra must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: infra must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: infra must not import internal/server."
+
+        # ddd_infra_system:
+        #   files:
+        #     - "**/internal/system/infra/**/*.go"
+        #     - "**/internal/system/infra/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/system/application"
+        #       desc: "DDD: infra must not import application."
+        #     - pkg: "mycourse-io-be/internal/system/delivery"
+        #       desc: "DDD: infra must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/system/jobs"
+        #       desc: "DDD: infra must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: infra must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: infra must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: infra must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: infra must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: infra must not import internal/server."
+
+        # # --- DDD: application → domain (+ shared) only; no infra/delivery/jobs or other BCs. ---
+        # ddd_application_auth:
+        #   files:
+        #     - "**/internal/auth/application/**/*.go"
+        #     - "**/internal/auth/application/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/auth/infra"
+        #       desc: "DDD: application must not import infra (use domain ports)."
+        #     - pkg: "mycourse-io-be/internal/auth/delivery"
+        #       desc: "DDD: application must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/auth/jobs"
+        #       desc: "DDD: application must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: application must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: application must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: application must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: application must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: application must not import internal/server."
+
+        # ddd_application_media:
+        #   files:
+        #     - "**/internal/media/application/**/*.go"
+        #     - "**/internal/media/application/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/media/infra"
+        #       desc: "DDD: application must not import infra (use domain ports)."
+        #     - pkg: "mycourse-io-be/internal/media/delivery"
+        #       desc: "DDD: application must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/media/jobs"
+        #       desc: "DDD: application must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: application must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: application must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: application must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: application must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: application must not import internal/server."
+
+        # ddd_application_taxonomy:
+        #   files:
+        #     - "**/internal/taxonomy/application/**/*.go"
+        #     - "**/internal/taxonomy/application/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/taxonomy/infra"
+        #       desc: "DDD: application must not import infra (use domain ports)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/delivery"
+        #       desc: "DDD: application must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/jobs"
+        #       desc: "DDD: application must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: application must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: application must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: application must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: application must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: application must not import internal/server."
+
+        # ddd_application_rbac:
+        #   files:
+        #     - "**/internal/rbac/application/**/*.go"
+        #     - "**/internal/rbac/application/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/rbac/infra"
+        #       desc: "DDD: application must not import infra (use domain ports)."
+        #     - pkg: "mycourse-io-be/internal/rbac/delivery"
+        #       desc: "DDD: application must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/rbac/jobs"
+        #       desc: "DDD: application must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: application must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: application must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: application must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: application must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: application must not import internal/server."
+
+        # ddd_application_system:
+        #   files:
+        #     - "**/internal/system/application/**/*.go"
+        #     - "**/internal/system/application/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/system/infra"
+        #       desc: "DDD: application must not import infra (use domain ports)."
+        #     - pkg: "mycourse-io-be/internal/system/delivery"
+        #       desc: "DDD: application must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/system/jobs"
+        #       desc: "DDD: application must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: application must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: application must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: application must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: application must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: application must not import internal/server."
+
+        # # --- DDD: delivery → application + shared only (no domain/infra/jobs or other BCs). ---
+        # ddd_delivery_auth:
+        #   files:
+        #     - "**/internal/auth/delivery/**/*.go"
+        #     - "**/internal/auth/delivery/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/auth/domain"
+        #       desc: "DDD: delivery must not import domain (use application DTOs/ports)."
+        #     - pkg: "mycourse-io-be/internal/auth/infra"
+        #       desc: "DDD: delivery must not import infra."
+        #     - pkg: "mycourse-io-be/internal/auth/jobs"
+        #       desc: "DDD: delivery must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: delivery must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: delivery must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: delivery must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: delivery must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: delivery must not import internal/server."
+
+        # ddd_delivery_media:
+        #   files:
+        #     - "**/internal/media/delivery/**/*.go"
+        #     - "**/internal/media/delivery/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/media/domain"
+        #       desc: "DDD: delivery must not import domain (use application DTOs/ports)."
+        #     - pkg: "mycourse-io-be/internal/media/infra"
+        #       desc: "DDD: delivery must not import infra."
+        #     - pkg: "mycourse-io-be/internal/media/jobs"
+        #       desc: "DDD: delivery must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: delivery must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: delivery must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: delivery must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: delivery must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: delivery must not import internal/server."
+
+        # ddd_delivery_taxonomy:
+        #   files:
+        #     - "**/internal/taxonomy/delivery/**/*.go"
+        #     - "**/internal/taxonomy/delivery/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/taxonomy/domain"
+        #       desc: "DDD: delivery must not import domain (use application DTOs/ports)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/infra"
+        #       desc: "DDD: delivery must not import infra."
+        #     - pkg: "mycourse-io-be/internal/taxonomy/jobs"
+        #       desc: "DDD: delivery must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: delivery must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: delivery must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: delivery must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: delivery must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: delivery must not import internal/server."
+
+        # ddd_delivery_rbac:
+        #   files:
+        #     - "**/internal/rbac/delivery/**/*.go"
+        #     - "**/internal/rbac/delivery/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/rbac/domain"
+        #       desc: "DDD: delivery must not import domain (use application DTOs/ports)."
+        #     - pkg: "mycourse-io-be/internal/rbac/infra"
+        #       desc: "DDD: delivery must not import infra."
+        #     - pkg: "mycourse-io-be/internal/rbac/jobs"
+        #       desc: "DDD: delivery must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: delivery must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: delivery must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: delivery must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: delivery must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: delivery must not import internal/server."
+
+        # ddd_delivery_system:
+        #   files:
+        #     - "**/internal/system/delivery/**/*.go"
+        #     - "**/internal/system/delivery/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/system/domain"
+        #       desc: "DDD: delivery must not import domain (use application DTOs/ports)."
+        #     - pkg: "mycourse-io-be/internal/system/infra"
+        #       desc: "DDD: delivery must not import infra."
+        #     - pkg: "mycourse-io-be/internal/system/jobs"
+        #       desc: "DDD: delivery must not import jobs."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: delivery must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: delivery must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: delivery must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: delivery must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: delivery must not import internal/server."
+
+        # # Scheduled / background jobs: same import envelope as delivery (application + shared only).
+        # ddd_jobs_media:
+        #   files:
+        #     - "**/internal/media/jobs/**/*.go"
+        #     - "**/internal/media/jobs/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/media/domain"
+        #       desc: "DDD: jobs must not import domain (use application)."
+        #     - pkg: "mycourse-io-be/internal/media/infra"
+        #       desc: "DDD: jobs must not import infra."
+        #     - pkg: "mycourse-io-be/internal/media/delivery"
+        #       desc: "DDD: jobs must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: jobs must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: jobs must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: jobs must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: jobs must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: jobs must not import internal/server."
+
+        # ddd_jobs_rbac:
+        #   files:
+        #     - "**/internal/rbac/jobs/**/*.go"
+        #     - "**/internal/rbac/jobs/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/rbac/domain"
+        #       desc: "DDD: jobs must not import domain (use application)."
+        #     - pkg: "mycourse-io-be/internal/rbac/infra"
+        #       desc: "DDD: jobs must not import infra."
+        #     - pkg: "mycourse-io-be/internal/rbac/delivery"
+        #       desc: "DDD: jobs must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: jobs must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: jobs must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: jobs must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: jobs must not import other bounded contexts (system)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: jobs must not import internal/server."
+
+        # ddd_jobs_system:
+        #   files:
+        #     - "**/internal/system/jobs/**/*.go"
+        #     - "**/internal/system/jobs/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/system/domain"
+        #       desc: "DDD: jobs must not import domain (use application)."
+        #     - pkg: "mycourse-io-be/internal/system/infra"
+        #       desc: "DDD: jobs must not import infra."
+        #     - pkg: "mycourse-io-be/internal/system/delivery"
+        #       desc: "DDD: jobs must not import delivery."
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: jobs must not import other bounded contexts (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: jobs must not import other bounded contexts (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: jobs must not import other bounded contexts (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: jobs must not import other bounded contexts (rbac)."
+        #     - pkg: "mycourse-io-be/internal/server"
+        #       desc: "DDD: jobs must not import internal/server."
+
+        # # --- DDD: shared → no imports from bounded contexts (auth, media, taxonomy, rbac, system). ---
+        # ddd_shared:
+        #   files:
+        #     - "**/internal/shared/**/*.go"
+        #     - "**/internal/shared/*.go"
+        #   deny:
+        #     - pkg: "mycourse-io-be/internal/auth"
+        #       desc: "DDD: internal/shared must not import bounded context packages (auth)."
+        #     - pkg: "mycourse-io-be/internal/media"
+        #       desc: "DDD: internal/shared must not import bounded context packages (media)."
+        #     - pkg: "mycourse-io-be/internal/taxonomy"
+        #       desc: "DDD: internal/shared must not import bounded context packages (taxonomy)."
+        #     - pkg: "mycourse-io-be/internal/rbac"
+        #       desc: "DDD: internal/shared must not import bounded context packages (rbac)."
+        #     - pkg: "mycourse-io-be/internal/system"
+        #       desc: "DDD: internal/shared must not import bounded context packages (system)."

@@ -3,13 +3,13 @@ package supabase
 import (
 	"database/sql"
 	"errors"
-	"mycourse-io-be/constants"
 	"strings"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"mycourse-io-be/pkg/setting"
+	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/setting"
 )
 
 // GormDB is a separate pool to the Supabase-hosted Postgres (session/pooler URL).

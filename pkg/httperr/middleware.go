@@ -9,10 +9,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 
-	"mycourse-io-be/pkg/errcode"
-	"mycourse-io-be/pkg/logger"
-	appresponse "mycourse-io-be/pkg/response"
-	appvalidate "mycourse-io-be/pkg/validate"
+	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/logger"
+	appresponse "mycourse-io-be/internal/shared/response"
+	appvalidate "mycourse-io-be/internal/shared/validate"
 )
 
 // Middleware runs after handlers: if nothing was written and c.Errors has entries,
@@ -38,7 +38,7 @@ func Recovery() gin.HandlerFunc {
 		if c.Writer.Written() {
 			return
 		}
-		writeErrorBody(c, http.StatusInternalServerError, errcode.Panic, errcode.DefaultMessage(errcode.Panic), nil)
+		writeErrorBody(c, http.StatusInternalServerError, apperrors.Panic, apperrors.DefaultMessage(apperrors.Panic), nil)
 	})
 }
 
@@ -46,13 +46,13 @@ func respondJSONOrValidation(c *gin.Context, err error) bool {
 	var syn *json.SyntaxError
 	var typ *json.UnmarshalTypeError
 	if errors.As(err, &syn) || errors.As(err, &typ) {
-		writeErrorBody(c, http.StatusBadRequest, errcode.InvalidJSON, errcode.DefaultMessage(errcode.InvalidJSON), nil)
+		writeErrorBody(c, http.StatusBadRequest, apperrors.InvalidJSON, apperrors.DefaultMessage(apperrors.InvalidJSON), nil)
 		return true
 	}
 	var ve validator.ValidationErrors
 	if errors.As(err, &ve) {
 		details := appvalidate.FlattenErrors(ve)
-		writeErrorBody(c, http.StatusBadRequest, errcode.ValidationFailed, errcode.DefaultMessage(errcode.ValidationFailed), gin.H{"details": details})
+		writeErrorBody(c, http.StatusBadRequest, apperrors.ValidationFailed, apperrors.DefaultMessage(apperrors.ValidationFailed), gin.H{"details": details})
 		return true
 	}
 	return false
@@ -65,11 +65,11 @@ func respondHTTPErrorIfAny(c *gin.Context, err error) bool {
 	}
 	appCode := he.AppCode
 	if appCode == 0 {
-		appCode = errcode.Unknown
+		appCode = apperrors.Unknown
 	}
 	msg := he.Message
 	if msg == "" {
-		msg = errcode.DefaultMessage(appCode)
+		msg = apperrors.DefaultMessage(appCode)
 	}
 	writeErrorBody(c, he.Status, appCode, msg, nil)
 	return true
@@ -85,11 +85,11 @@ func respondError(c *gin.Context, err error) {
 	if respondHTTPErrorIfAny(c, err) {
 		return
 	}
-	msg := errcode.DefaultMessage(errcode.Unknown)
+	msg := apperrors.DefaultMessage(apperrors.Unknown)
 	if gin.Mode() == gin.DebugMode {
 		msg = err.Error()
 	}
-	writeErrorBody(c, http.StatusInternalServerError, errcode.Unknown, msg, nil)
+	writeErrorBody(c, http.StatusInternalServerError, apperrors.Unknown, msg, nil)
 }
 
 // writeErrorBody writes the unified error envelope: { code, message, data }.

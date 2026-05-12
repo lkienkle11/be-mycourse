@@ -1,55 +1,187 @@
-# Router Snapshot
-
-
-## Global Type Placement Rule (Mandatory)
-
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+# Router
 
 ## Initialization
-- Router is created in `api.InitRouter()`.
-- `InitRouter` sets `router.MaxMultipartMemory = constants.MediaMultipartParseMemoryBytes` (64 MiB) so large multipart bodies spill to disk during parse; per-part cap (`constants.MaxMediaUploadFileBytes`), per-request part count / aggregate cap (`MaxMediaFilesPerRequest`, `MaxMediaMultipartTotalBytes`), and streaming guards are enforced in media handlers/services (see **`docs/modules/media.md`**).
-- `main.go` runs `router.Run(":"+port)` after service/bootstrap initialization.
 
-## Route Hierarchy
-- Root middleware stack:
-  - `middleware.RequestLogger()` — structured access log + **`X-Request-ID`** propagation (see `docs/patterns.md`).
-  - `httperr.Middleware()`
-  - `httperr.Recovery()`
-  - CORS (`api/router.go` — `ExposeHeaders` includes **`X-Token-Expired`**, **`Retry-After`**, **`X-Mycourse-Register-Retry-After`** so browser clients can read token-expiry and registration rate-limit hints cross-origin)
-  - gzip
+Router is created in `internal/server/router.go` → `InitRouter(svc *Services, h *Handlers) *gin.Engine`.
 
-- Groups:
-  - `/api/v1` (no-filter lane)
-    - no `BeforeInterceptor`
-    - mounted by `RegisterNoFilterRoutes` (currently webhook callbacks)
-  - `/api/system`
-    - `BeforeInterceptor`
-    - `RateLimitSystemIP`
-    - protected subgroup with `RequireSystemAccessToken`
-  - `/api/v1` (standard lane)
-    - `BeforeInterceptor`
-    - authenticated subgroup: `RateLimitLocal` + `AuthJWT`
-    - non-auth subgroup: `RateLimitLocal`
-  - `/api/internal-v1`
-    - `RateLimitLocal`
-    - `BeforeInterceptor`
-    - `RequireInternalAPIKey`
+Key setup:
+- `router.MaxMultipartMemory = constants.MediaMultipartParseMemoryBytes` (64 MiB) — large multipart bodies spill to temp disk during parse; per-part and aggregate caps are enforced in the media handler.
+- `main.go` runs `router.Run(":"+setting.ServerSetting.Port)` after wiring.
 
-## Route Registration Units
+---
 
-For **per-domain contracts** (handlers, DTOs, provider policy), see **`docs/api-overview.md`** and the module deep-dives **`docs/modules/taxonomy.md`** / **`docs/modules/media.md`**.
+## Global Middleware Stack
 
-- `api/system/routes.go` → system operations (`RegisterRoutes` receives the Gin group only; handlers use **`internal/appdb.Conn()`** for the shared GORM handle so **`api/`** does not import **`mycourse-io-be/models`** or **GORM** — see `docs/patterns.md` / depguard `restrict_api`).
-- `api/v1/routes.go` -> **`GET`/`PATCH` `/me`**, me permissions, and mounts taxonomy + media route groups.
-- `api/v1/taxonomy/routes.go` -> taxonomy CRUD endpoint registration (`levels`, `categories`, `tags`).
-- `api/v1/media/routes.go` -> media upload endpoint registration (`/media/files` with GET/POST/PUT/DELETE/OPTIONS + local token decode + video status route) and webhook route mount used by no-filter lane. Response schema for list/get/create/update: **`dto.UploadFileResponse`** (no **`origin_url`** — Sub 12) including optional Bunny fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** — `docs/modules/media.md`, `docs/api_swagger.yaml`.
+Applied to all routes in this order:
 
-## Media request contract notes
-- `POST/PUT /api/v1/media/files` reads multipart text fields through **`pkg/logic/mapping`** (`BindCreateFileMultipart` / `BindUpdateFileMultipart`), but `kind` and `metadata` are ignored by service business flow (server-owned policy).
-- Effective kind/provider are resolved server-side (`ResolveMediaKindFromServer`, `ResolveUploadProvider`).
+1. `middleware.RequestLogger()` — structured access log + `X-Request-ID` propagation
+2. `httperr.Middleware()` — centralized error handling
+3. `httperr.Recovery()` — panic recovery + stack log
+4. `cors.New(ginDefaultCORS())` — CORS with `AllowCredentials: true`
+5. `gzip.Gzip(gzip.DefaultCompression)` — response compression
 
-## Authorization Pattern
-- Authentication middleware on group level.
-- Fine-grained permission middleware (`RequirePermission`) is used at endpoint level, including taxonomy CRUD permissions.
+---
+
+## Route Groups
+
+### `/api/system` — Privileged system operations
+
+```
+Middleware: BeforeInterceptor, RateLimitSystemIP(10 req/s, burst 3)
+```
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/system/login` | None | Obtain system access token |
+| POST | `/api/system/permission-sync-now` | System token | Immediate permission sync |
+| POST | `/api/system/role-permission-sync-now` | System token | Immediate role-permission sync |
+| POST | `/api/system/create-permission-sync-job` | System token | Start 12h periodic permission sync job |
+| POST | `/api/system/create-role-permission-sync-job` | System token | Start 12h periodic role-permission sync job |
+| POST | `/api/system/delete-permission-sync-job` | System token | Stop permission sync job |
+| POST | `/api/system/delete-role-permission-sync-job` | System token | Stop role-permission sync job |
+
+---
+
+### `/api/v1` no-filter lane — Webhook callbacks
+
+```
+Middleware: none (mounted before BeforeInterceptor)
+```
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/webhook/bunny` | None | Bunny Stream video status webhook |
+
+---
+
+### `/api/v1` unauthenticated — Public endpoints
+
+```
+Middleware: BeforeInterceptor, RateLimitLocal(60 req/s, burst 1)
+```
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/health` | Health check |
+| POST | `/api/v1/auth/register` | Register (pending user + confirmation email) |
+| POST | `/api/v1/auth/login` | Login — issues access/refresh tokens |
+| GET | `/api/v1/auth/confirm` | Confirm email (issues tokens on success) |
+| POST | `/api/v1/auth/refresh` | Rotate token pair via `X-Refresh-Token` / `X-Session-Id` headers |
+
+---
+
+### `/api/v1` authenticated — Protected user endpoints
+
+```
+Middleware: BeforeInterceptor, RateLimitLocal(120 req/s, burst 1), AuthJWT
+```
+
+#### Auth / Me
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| GET | `/api/v1/me` | None (JWT only) | Get current user profile |
+| PATCH | `/api/v1/me` | None (JWT only) | Update current user profile |
+| DELETE | `/api/v1/me` | None (JWT only) | Delete current user account |
+| GET | `/api/v1/me/permissions` | `user:read` | Get current user permission list |
+
+#### Taxonomy
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| GET | `/api/v1/taxonomy/levels` | `course_level:read` | List course levels |
+| POST | `/api/v1/taxonomy/levels` | `course_level:create` | Create course level |
+| PATCH | `/api/v1/taxonomy/levels/:id` | `course_level:update` | Update course level |
+| DELETE | `/api/v1/taxonomy/levels/:id` | `course_level:delete` | Delete course level |
+| GET | `/api/v1/taxonomy/categories` | `category:read` | List categories |
+| POST | `/api/v1/taxonomy/categories` | `category:create` | Create category |
+| PATCH | `/api/v1/taxonomy/categories/:id` | `category:update` | Update category |
+| DELETE | `/api/v1/taxonomy/categories/:id` | `category:delete` | Delete category |
+| GET | `/api/v1/taxonomy/tags` | `tag:read` | List tags |
+| POST | `/api/v1/taxonomy/tags` | `tag:create` | Create tag |
+| PATCH | `/api/v1/taxonomy/tags/:id` | `tag:update` | Update tag |
+| DELETE | `/api/v1/taxonomy/tags/:id` | `tag:delete` | Delete tag |
+
+#### Media Files
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| OPTIONS | `/api/v1/media/files` | — | CORS preflight |
+| GET | `/api/v1/media/files` | `media_file:read` | List media files (paginated) |
+| GET | `/api/v1/media/files/cleanup-metrics` | `media_file:read` | Orphan cleanup counters |
+| POST | `/api/v1/media/files` | `media_file:create` | Upload 1–5 file parts |
+| OPTIONS | `/api/v1/media/files/batch-delete` | — | CORS preflight |
+| POST | `/api/v1/media/files/batch-delete` | `media_file:delete` | Batch delete up to 10 files |
+| OPTIONS | `/api/v1/media/files/:id` | — | CORS preflight |
+| GET | `/api/v1/media/files/:id` | `media_file:read` | Get single file |
+| PUT | `/api/v1/media/files/:id` | `media_file:update` | Bundle update (1–5 parts) |
+| DELETE | `/api/v1/media/files/:id` | `media_file:delete` | Delete single file |
+| OPTIONS | `/api/v1/media/files/local/:token` | — | CORS preflight |
+| GET | `/api/v1/media/files/local/:token` | `media_file:read` | Decode local signed URL token |
+| GET | `/api/v1/media/videos/:id/status` | `media_file:read` | Bunny video processing status |
+
+---
+
+### `/api/internal-v1` — Internal RBAC administration
+
+```
+Middleware: RateLimitLocal(60 req/s, burst 1), BeforeInterceptor, RequireInternalAPIKey
+```
+
+#### RBAC Permissions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/internal-v1/rbac/permissions` | List all permissions |
+| POST | `/api/internal-v1/rbac/permissions` | Create a permission |
+| PATCH | `/api/internal-v1/rbac/permissions/:permissionId` | Update a permission |
+| DELETE | `/api/internal-v1/rbac/permissions/:permissionId` | Delete a permission |
+
+#### RBAC Roles
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/internal-v1/rbac/roles` | List all roles |
+| POST | `/api/internal-v1/rbac/roles` | Create a role |
+| GET | `/api/internal-v1/rbac/roles/:id` | Get role by ID |
+| PATCH | `/api/internal-v1/rbac/roles/:id` | Update a role |
+| PUT | `/api/internal-v1/rbac/roles/:id/permissions` | Set (replace) role permissions |
+| DELETE | `/api/internal-v1/rbac/roles/:id` | Delete a role |
+
+#### RBAC User Bindings
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/internal-v1/rbac/users/:userId/roles` | List user roles |
+| GET | `/api/internal-v1/rbac/users/:userId/permissions` | List user effective permissions |
+| GET | `/api/internal-v1/rbac/users/:userId/direct-permissions` | List user direct permissions |
+| POST | `/api/internal-v1/rbac/users/:userId/roles` | Assign role to user |
+| DELETE | `/api/internal-v1/rbac/users/:userId/roles/:roleId` | Remove role from user |
+| POST | `/api/internal-v1/rbac/users/:userId/direct-permissions` | Assign direct permission to user |
+| DELETE | `/api/internal-v1/rbac/users/:userId/direct-permissions/:permissionId` | Remove direct permission from user |
+
+---
+
+## Authorization Summary
+
+| Group | Auth mechanism |
+|-------|---------------|
+| `/api/system` | System JWT (`RequireSystemAccessToken`) |
+| `/api/v1` no-filter | None |
+| `/api/v1` unauthenticated | None (rate limited) |
+| `/api/v1` authenticated | `AuthJWT` (Bearer token) + `RequirePermission` per endpoint |
+| `/api/internal-v1` | `RequireInternalAPIKey` (`X-API-Key` header) |
+
+---
+
+## Route Source Files
+
+| Route group | Source |
+|-------------|--------|
+| System routes | `internal/system/delivery/routes.go` |
+| Auth / me routes | `internal/auth/delivery/routes.go` |
+| Taxonomy routes | `internal/taxonomy/delivery/routes.go` |
+| Media routes | `internal/media/delivery/routes.go` |
+| Media webhook routes | `internal/media/delivery/routes.go` (`RegisterWebhookRoutes`) |
+| RBAC routes | `internal/rbac/delivery/routes.go` |
+| Router mounting | `internal/server/router.go` |

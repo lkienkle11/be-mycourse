@@ -1,87 +1,81 @@
-# Module: RBAC (Role-Based Access Control)
+# RBAC Module
 
-Manages roles, permissions, and role-permission assignments. This is an **internal admin** module — its endpoints are restricted to internal/admin actors and are not exposed to regular authenticated users.
-
----
-
-## Responsibility
-
-| Concern | Description |
-|---------|-------------|
-| Role management | Create and query roles (e.g. admin, instructor, student) |
-| Permission management | Define granular permissions (e.g. `course:create`, `media:delete`); media **response** shape and Bunny fields are **`docs/modules/media.md`** (not RBAC-owned) |
-| Role-permission assignment | Bind permissions to roles; query effective permissions for a role |
-| Seed | Pre-populate base roles and permissions at startup via `rbac_seed.go` |
+The RBAC module (`internal/rbac/`) manages roles, permissions, and user-role/user-permission bindings. It is an **internal admin** module — endpoints are restricted to internal actors via an API key and are not exposed to regular users.
 
 ---
 
 ## Directory Layout
 
 ```
-api/v1/internal/
-├── rbac_handler.go       # HTTP handlers for role/permission management
-└── routes.go             # Route registration for /api/v1/internal/*
-
-services/
-├── rbac.go               # Core RBAC service: role/permission CRUD, binding logic
-└── rbac_seed.go          # Seeding logic: creates base roles and permissions on startup
-
-middleware/
-└── rbac.go               # Middleware: RequirePermission(perm string) enforces access control
+internal/rbac/
+├── domain/
+│   ├── permission.go        # Permission entity
+│   └── role.go              # Role entity
+├── application/
+│   └── rbac_service.go      # RBACService: full permission/role/user binding CRUD
+├── infra/
+│   ├── gorm_permission_repo.go
+│   ├── gorm_role_repo.go
+│   ├── gorm_user_role_repo.go
+│   ├── gorm_user_permission_repo.go
+│   └── sql_templates.go     # Raw SQL for complex joins
+└── delivery/
+    ├── handler.go            # HTTP handlers
+    └── routes.go             # Route registration under /api/internal-v1/rbac
 ```
 
 ---
 
 ## API Endpoints
 
-All endpoints are under `/api/v1/internal/` and require **internal/admin** authorization.
+All endpoints are under `/api/internal-v1/rbac/` and require the `X-API-Key` internal API key header.
 
-| Method | Path | Handler | Description |
-|--------|------|---------|-------------|
-| GET | `/api/v1/internal/roles` | `ListRoles` | List all roles |
-| POST | `/api/v1/internal/roles` | `CreateRole` | Create a new role |
-| GET | `/api/v1/internal/permissions` | `ListPermissions` | List all permissions |
-| POST | `/api/v1/internal/permissions` | `CreatePermission` | Create a new permission |
-| POST | `/api/v1/internal/roles/:id/permissions` | `AssignPermission` | Assign permission(s) to a role |
-| DELETE | `/api/v1/internal/roles/:id/permissions/:pid` | `RevokePermission` | Remove permission from a role |
-| GET | `/api/v1/internal/roles/:id/permissions` | `GetRolePermissions` | List permissions for a role |
+### Permissions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/rbac/permissions` | List all permissions |
+| POST | `/rbac/permissions` | Create a new permission |
+| PATCH | `/rbac/permissions/:permissionId` | Update a permission |
+| DELETE | `/rbac/permissions/:permissionId` | Delete a permission |
+
+### Roles
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/rbac/roles` | List all roles |
+| POST | `/rbac/roles` | Create a new role |
+| GET | `/rbac/roles/:id` | Get role by ID |
+| PATCH | `/rbac/roles/:id` | Update a role |
+| PUT | `/rbac/roles/:id/permissions` | Set (replace) all permissions for a role |
+| DELETE | `/rbac/roles/:id` | Delete a role |
+
+### User Bindings
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/rbac/users/:userId/roles` | List roles assigned to a user |
+| GET | `/rbac/users/:userId/permissions` | List effective permissions for a user (roles + direct) |
+| GET | `/rbac/users/:userId/direct-permissions` | List only direct-assigned permissions |
+| POST | `/rbac/users/:userId/roles` | Assign a role to a user |
+| DELETE | `/rbac/users/:userId/roles/:roleId` | Remove a role from a user |
+| POST | `/rbac/users/:userId/direct-permissions` | Assign a direct permission to a user |
+| DELETE | `/rbac/users/:userId/direct-permissions/:permissionId` | Remove a direct permission from a user |
 
 ---
 
-## Data Flow
+## Permission Middleware
 
-```
-HTTP Request
-  └─ middleware/rbac.go  (RequirePermission → checks token claims)
-       └─ api/v1/internal/rbac_handler.go  (bind DTO, validate)
-            └─ services/rbac/  (package `rbac`: business logic, DB operations)
-                 └─ database (roles, permissions, role_permissions tables)
-                      └─ HTTP Response
-```
-
-### Startup Seeding
-
-```
-Application boot
-  └─ services/rbac/rbac_seed.go  (SeedRBACDefaults)
-       └─ Upsert base roles: admin, instructor, student
-       └─ Upsert base permissions (P1–P13 fixed, P14+ extensible)
-       └─ Bind permissions to roles (additive only — never removes existing bindings)
-```
-
----
-
-## Middleware: `RequirePermission`
-
-Located in `middleware/rbac.go`. Used throughout all protected endpoints:
+`middleware.RequirePermission(checker, actions...)` is used throughout all protected endpoints:
 
 ```go
-router.Use(middleware.RequirePermission("course:create"))
+// Example: require media_file:read permission
+media.GET("", middleware.RequirePermission(pc, constants.AllPermissions.MediaFileRead), h.listFiles)
 ```
 
-- Reads the authenticated user's role from the JWT claims.
-- Loads the role's effective permissions from cache (`services/cache/auth_user.go`) or DB.
-- Returns `403 Forbidden` if the required permission is not present.
+- Reads JWT embedded permissions first (fast path).
+- If the required permission is absent from claims, falls back to DB lookup via `RBACService.PermissionCodesForUser`.
+- Returns `403 Forbidden` if the permission is not present.
 - Returns `401 Unauthorized` if no valid JWT is provided.
 
 ---
@@ -94,51 +88,69 @@ router.Use(middleware.RequirePermission("course:create"))
 
 Examples:
 
-| Permission | Meaning |
-|-----------|---------|
-| `course:create` | Create a new course |
-| `course:update` | Update any course |
-| `course:delete` | Delete any course |
-| `media:upload` | Upload media files |
-| `media:delete` | Delete media files |
-| `user:list` | List all users |
-| `rbac:manage` | Manage roles and permissions |
+| Permission Name | Meaning |
+|----------------|---------|
+| `user:read` | Read user data |
+| `media_file:read` | List/get media files |
+| `media_file:create` | Upload media files |
+| `media_file:delete` | Delete media files |
+| `category:create` | Create a taxonomy category |
+| `tag:update` | Update a taxonomy tag |
 
 ---
 
-## Role Hierarchy (Base Seed)
+## RBAC Sync
 
-| Role | Description | Base Permissions |
-|------|-------------|-----------------|
-| `admin` | Full access | All permissions (P1–P13 + all P14+) |
-| `instructor` | Content creator | Course CRUD on own content, media upload |
-| `student` | Learner | Read-only on courses, enrollment management |
+Permission and role-permission bindings are managed as **code** in constants and synced to the database:
+
+```bash
+# Upsert permission names from constants.AllPermissions
+go run ./cmd/syncpermissions
+
+# Rebuild role_permissions table from constants.RolePermissions
+go run ./cmd/syncrolepermissions
+```
+
+Or via the system API:
+```
+POST /api/system/permission-sync-now
+POST /api/system/role-permission-sync-now
+```
 
 ---
 
-## Dependencies
+## Cross-Domain Usage
 
-| Dependency | Purpose |
-|------------|---------|
-| `middleware/auth_jwt` | JWT validation (must run before RBAC middleware) |
-| `services/cache/auth_user.go` | Caches role-permission mappings to reduce DB load |
-| `pkg/errcode` | Standard error codes (`ErrPermissionDenied`, `ErrUnauthorized`) |
-| `pkg/response` | Standard response envelope |
+Auth and other domains need to check permissions without importing the RBAC application layer. This is handled via the `PermissionChecker` interface defined in `internal/shared/middleware/`:
+
+```go
+type PermissionChecker interface {
+    PermissionCodesForUser(userID uint) (map[string]struct{}, error)
+}
+```
+
+`internal/server/wire.go` adapts `RBACService` to this interface and injects it into the middleware and all domain handlers that need permission checking.
 
 ---
 
 ## Critical Rules
 
-- **Permission bindings are additive only**: the seeder NEVER removes existing P1–P13 permissions or changes existing roles. New permissions are added as P14+.
-- **Role names are stable**: do not rename `admin`, `instructor`, or `student` — JWT claims reference role names directly.
-- **Cache invalidation**: after any role-permission change, the auth user cache (`services/cache/auth_user.go`) must be invalidated for affected users. Affected users must re-login to receive updated JWT claims.
+- **Permission bindings are additive** in the seeder: it never removes existing permissions.
+- **Role names are stable**: do not rename `admin`, `instructor`, `learner` — JWT claims reference role names.
+- **Cache invalidation**: after role-permission changes, affected users must re-login to receive updated JWT claims (no real-time push).
 
 ---
 
-## Reusable Assets
+## Implementation Reference
 
-| Asset | Type | Location | Notes |
-|-------|------|----------|-------|
-| `RequirePermission` | Middleware | `middleware/rbac.go` | Use on any route requiring access control |
-| Role/Permission DTOs | Data type | `dto/` | Request/response shapes for RBAC operations |
-| RBAC seed function | Utility | `services/rbac/rbac_seed.go` | Call at startup to ensure base data exists |
+| Concern | Location |
+|---------|----------|
+| RBACService | `internal/rbac/application/rbac_service.go` |
+| GORM repositories | `internal/rbac/infra/` |
+| HTTP handlers | `internal/rbac/delivery/handler.go` |
+| Route registration | `internal/rbac/delivery/routes.go` |
+| Permission middleware | `internal/shared/middleware/` |
+| Permission constants catalog | `internal/shared/constants/permissions.go` |
+| Permission sync CLI | `cmd/syncpermissions/main.go` |
+| Role-permission sync CLI | `cmd/syncrolepermissions/main.go` |
+| Cross-domain interface adapter | `internal/server/wire.go` (`rbacPermissionReader`, `rbacPermissionUseCase`) |

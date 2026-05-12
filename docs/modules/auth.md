@@ -1,39 +1,55 @@
 # Auth Module
 
-
-## Global Type Placement Rule (Mandatory)
-
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable **domain** types must be declared in `pkg/entities` (no `gorm` / `database/sql` there).
-- Types that exist only to satisfy **GORM columns** or **`database/sql/driver`** (`Valuer`/`Scanner`) on `models/*.go` — refresh JSONB map → **`pkg/gormjsonb/auth`**; soft-delete **`DeletedAt`** alias → **`models/deleted_at.go`**. Pure session entry/map shapes → **`pkg/entities`**.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-
 ## Overview
 
-Authentication uses **stateful JWT sessions** backed by Postgres.  
-Three cookies are issued on every successful login or email confirmation and rotated explicitly via a dedicated refresh endpoint.
+The auth module (`internal/auth/`) manages user authentication using **stateful JWT sessions** backed by PostgreSQL. Three tokens are issued on every successful login or email confirmation and rotated via a dedicated refresh endpoint.
 
-| Cookie | Contents | TTL |
-|---|---|---|
-| `access_token` | Signed HS256 JWT with user identity + `permissions` claim (`permission_name` strings, e.g. `user:read`) | 15 minutes |
-| `refresh_token` | Signed HS256 JWT with `user_id` + `uuid` (session correlator) | 30 days (non-remember-me) / 14 days (remember-me) |
-| `session_id` | 128-char hex string — identifies the device session in the DB | same as `refresh_token` |
+| Token | Contents | TTL |
+|-------|----------|-----|
+| `access_token` | Signed HS256 JWT with user identity + `permissions` claim | 15 minutes |
+| `refresh_token` | Signed HS256 JWT with `user_id` + `uuid` (session correlator) | 30 days (standard) / 14 days (remember-me) |
+| `session_id` | 128-char hex string — identifies the device session in the DB | Same as `refresh_token` |
 
-All three cookies are **non-HttpOnly**, `SameSite=Lax`, and `Secure` in production (`RunMode=release`).  
-This allows the client-side JavaScript layer to read the tokens and attach them to outgoing requests as custom headers.  
-Tokens are also returned in the JSON response body (login, confirm, refresh) so Server-side callers can relay them without parsing `Set-Cookie`.
+All three are issued as **non-HttpOnly** cookies (`SameSite=Lax`, `Secure` in production) and also returned in the JSON response body, so server-side callers can relay them without parsing `Set-Cookie`.
+
+---
+
+## Directory Layout
+
+```
+internal/auth/
+├── domain/
+│   ├── user.go                  # User entity
+│   ├── repository.go            # UserRepository + RefreshSessionRepository interfaces
+│   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, etc.)
+│   └── token_ttl.go             # AccessTokenTTL, RefreshTokenTTL, RememberMeRefreshTTL
+├── application/
+│   ├── auth_service.go          # AuthService: Register, Login, ConfirmEmail, RefreshSession, GetMe, UpdateMe, DeleteMe
+│   ├── cache_keys.go            # Redis key patterns
+│   └── email_limits.go          # Confirmation email limits
+├── infra/
+│   ├── gorm_user_repo.go        # GormUserRepository
+│   ├── gorm_session_repo.go     # GormRefreshSessionRepository
+│   ├── crypto.go                # Password hashing (bcrypt)
+│   └── session_limits.go        # MaxActiveSessions constant
+└── delivery/
+    ├── handler.go               # HTTP handlers: Register, Login, ConfirmEmail, RefreshToken, GetMe, PatchMe, DeleteMe, GetMyPermissions
+    ├── routes.go                # Route registration
+    ├── dto.go                   # Request/response DTOs
+    └── mapping.go               # Domain → DTO mapping
+```
 
 ---
 
 ## Auth Header Convention
 
-**All protected endpoints require the access token via the `Authorization` header only.**  
-Cookies are NOT read by the auth middleware.
+**All protected endpoints require the access token via the `Authorization` header only.** Cookies are NOT read by the auth middleware.
 
 ```
 Authorization: Bearer <access_token>
 ```
 
-When the access token is expired the middleware returns:
+When the access token is expired:
 
 ```
 HTTP/1.1 401 Unauthorized
@@ -42,19 +58,11 @@ X-Token-Expired: true
 { "code": 3002, "message": "token expired", "data": null }
 ```
 
-The `X-Token-Expired: true` response header is the signal to the client to call `POST /api/v1/auth/refresh` rather than treating this as a permanent auth failure.
-
-### Missing `Authorization` vs expired token
-
-`middleware.AuthJWT` (`requireJWT` in `middleware/auth_jwt.go`) distinguishes:
-
-| Situation | HTTP | `X-Token-Expired` | Typical JSON `message` |
-|-----------|------|-------------------|-------------------------|
-| No `Authorization: Bearer …`, or empty token after `Bearer` | `401` | **not set** | `missing bearer token` |
-| Access JWT present but cryptographically expired | `401` | **`true`** | `token expired` |
-| Access JWT present but invalid / malformed | `401` | not set | `invalid token` |
-
-The official contract for **“rotate tokens, then retry”** is still **`401` + `X-Token-Expired: true`**. The **MyCourse Next.js** client additionally treats **`401` with no non-empty Bearer on the request** as refresh-eligible when `refresh_token` and `session_id` cookies exist (e.g. user cleared only `access_token`). Other integrators may treat `missing bearer token` as a hard logout unless they implement the same heuristic.
+| Situation | HTTP | `X-Token-Expired` | JSON `message` |
+|-----------|------|-------------------|----------------|
+| No `Authorization: Bearer …` or empty token | `401` | not set | `missing bearer token` |
+| Expired access JWT | `401` | `true` | `token expired` |
+| Invalid/malformed JWT | `401` | not set | `invalid token` |
 
 ---
 
@@ -62,45 +70,26 @@ The official contract for **“rotate tokens, then retry”** is still **`401` +
 
 ### `POST /api/v1/auth/register`
 
-Creates a **pending** user (or updates an existing **unconfirmed** user with the same email) and sends a Brevo confirmation email. Confirmed accounts still get **`409`** / `4001` EmailAlreadyExists.
+Creates a **pending** user (or re-sends confirmation to an existing unconfirmed user) and sends a Brevo confirmation email.
 
-**Implementation:** `services/auth/register_flow.go` (`Register`), `services/auth/register_email_send.go` (lifetime + Brevo send), `services/auth/auth_confirm.go` (`ConfirmEmail` helpers); handler mapping `api/v1/auth.go` (`writeRegisterErrorResponse`); token body mapping **`pkg/logic/mapping/auth_tokens_mapping.go`** (`ToLoginSessionTokensResponse`); Redis window `services/cache/register_email_window.go`; limits in `constants/register_email_limits.go` and HTTP header names in `constants/register_http.go`.
-
-**Limits (Sub 18)**
-
-| Layer | Rule |
-|--------|------|
-| Postgres `users.registration_email_send_total` | At most **15** successful confirmation emails while `email_confirmed = false`. When a send would exceed this cap, the pending row is **hard-deleted** and the API returns **`410 Gone`** with app code **`4009`** RegistrationAbandoned. |
-| Redis `mycourse:auth:register:confirm_email_window:{user_id}` | At most **5** successful sends per **4-hour** sliding window. Exceeded → **`429`** with app code **`4010`**, body default message from `constants.MsgAuthRegistrationEmailRateLimited`, and headers **`Retry-After`** and **`X-Mycourse-Register-Retry-After`** (seconds, same value). CORS **ExposeHeaders** includes these names so browser clients can read them cross-origin (`api/router.go`). |
-| Brevo send failure | After limits pass, if Brevo fails the reserved Redis slot is released and the API returns **`502 Bad Gateway`** with **`4011`** ConfirmationEmailSendFailed. |
-
-If Redis is unavailable, the sliding window is skipped (lifetime cap and Postgres still apply).
-
-**Request body**
-
+**Request:**
 ```json
-{
-  "email":        "user@example.com",
-  "password":     "Str0ng!pw",
-  "display_name": "Alice"
-}
+{ "email": "user@example.com", "password": "Str0ng!pw", "display_name": "Alice" }
 ```
 
-**Password rules:** minimum 8 characters, at least one uppercase, one lowercase, and one special character.
+**Password rules:** minimum 8 characters, at least one uppercase, one lowercase, one special character.
 
-**Success:** `201 Created` — `registration_success`  
+**Confirmation email limits:**
 
-**Typical errors**
+| Layer | Rule |
+|-------|------|
+| Postgres `users.registration_email_send_total` | At most **15** successful sends while `email_confirmed = false`. Next send deletes the pending row → **`410`** / `4009` RegistrationAbandoned |
+| Redis sliding window `mycourse:auth:register:confirm_email_window:{user_id}` | At most **5** sends per **4-hour** window. Exceeded → **`429`** / `4010` + `Retry-After` / `X-Mycourse-Register-Retry-After` headers |
+| Brevo failure | If Brevo fails after limits pass, the Redis slot is released → **`502`** / `4011` ConfirmationEmailSendFailed |
 
-| HTTP | `code` | When |
-|------|--------|------|
-| `400` | `2001` | JSON / validation |
-| `400` | `4003` | Weak password |
-| `409` | `4001` | Email already registered **and** confirmed |
-| `410` | `4009` | Lifetime confirmation-email cap — pending user removed |
-| `429` | `4010` | Redis window exceeded |
-| `502` | `4011` | Confirmation email could not be sent |
-| `500` | `9001` | Other internal errors |
+**Success:** `201 Created`
+
+**Errors:** `2001` ValidationFailed · `4003` WeakPassword · `4001` EmailAlreadyExists (confirmed) · `4009` RegistrationAbandoned · `4010` Rate limited · `4011` Email send failed
 
 ---
 
@@ -108,229 +97,154 @@ If Redis is unavailable, the sliding window is skipped (lifetime cap and Postgre
 
 Validates credentials and issues a full token set.
 
-**Request body**
-
+**Request:**
 ```json
-{
-  "email":       "user@example.com",
-  "password":    "Str0ng!pw",
-  "remember_me": false
-}
+{ "email": "user@example.com", "password": "Str0ng!pw", "remember_me": false }
 ```
 
-`remember_me` is optional (defaults to `false`).
+`remember_me` controls TTL rotation behavior:
+- `false` → remaining lifetime of session carries forward on each rotation (fixed horizon)
+- `true` → refresh TTL always renewed to 14 days from each rotation (sliding window)
 
-- `false` → refresh token TTL = **30 days** (initial). On each rotation the remaining lifetime of the old token is carried forward — the session has a fixed total horizon.
-- `true` → refresh token TTL = **14 days**, always renewed from the time of each rotation (sliding window — active users never expire).
-
-**Success:** `200 OK` — `login_success` + three auth cookies + JSON body
-
+**Success:** `200 OK` + three auth cookies + JSON body:
 ```json
 {
-  "code": 0,
-  "message": "login_success",
-  "data": {
-    "access_token":  "<jwt>",
-    "refresh_token": "<jwt>",
-    "session_id":    "<128-char-hex>"
-  }
+  "code": 0, "message": "login_success",
+  "data": { "access_token": "<jwt>", "refresh_token": "<jwt>", "session_id": "<128-char-hex>" }
 }
 ```
 
 **Errors:** `4002` InvalidCredentials · `4004` EmailNotConfirmed · `4005` UserDisabled
 
-**Redis** — package `mycourse-io-be/services/cache` (`auth_user.go`, `register_email_window.go`).
-
-- **`mycourse:user:me:{user_id}`** — JSON `dto.MeResponse`, TTL **1 minute**. Set on successful login and on `GET /me` miss.
-- **`mycourse:auth:login:invalid:{normalized_email}`** — negative cache for `4002`. TTL **1 minute**. While present, login returns `4002` without hitting Postgres.
-- **`mycourse:auth:login:user_by_email:{normalized_email}`** — maps normalized email → `user_id`. TTL **30 seconds**. Cleared on successful **`GET /api/v1/auth/confirm`** and when registration is abandoned (`4009`).
-- **`mycourse:auth:register:confirm_email_window:{user_id}`** — ZSET of successful registration confirmation send timestamps (ms scores); sliding window for **`4010`** (see register endpoint above).
+**Redis keys used:**
+- `mycourse:user:me:{user_id}` — cached `MeResponse`, TTL 1 minute
+- `mycourse:auth:login:invalid:{normalized_email}` — negative login cache, TTL 1 minute
+- `mycourse:auth:login:user_by_email:{normalized_email}` — email → user_id, TTL 30 seconds
 
 ---
 
 ### `GET /api/v1/auth/confirm?token=<token>`
 
-Confirms the user's email and immediately issues a token set (user is logged in after confirmation).  
-On success the user is assigned the **`learner`** role if not already present.
+Confirms email, assigns the `learner` role, and immediately issues a token set. Resets `registration_email_send_total` to 0 and clears Redis window + email→user cache.
 
-`remember_me` is always `false` for email-confirmation sessions.
+**Success:** `200 OK` + auth cookies + same body shape as login
 
-After confirmation the service sets **`registration_email_send_total`** back to **`0`**, deletes the registration confirmation Redis window key for that user, and clears the login email→user cache for that normalized email.
-
-**Success:** `200 OK` — `email_confirmed` + three auth cookies + same JSON body shape as login  
 **Errors:** `4006` InvalidConfirmToken
 
 ---
 
 ### `POST /api/v1/auth/refresh`
 
-Rotates the token pair for an existing session.  
-The client sends the current `refresh_token` and `session_id` via custom request headers:
+Rotates the token pair for an existing session. The client sends tokens via custom headers (not cookies):
 
 ```
 X-Refresh-Token: <refresh_jwt>
 X-Session-Id:    <128-char-hex>
 ```
 
-No request body is required.
-
-**Success:** `200 OK` — `token_refreshed`
-
+**Success:** `200 OK`
 ```json
 {
-  "code": 0,
-  "message": "token_refreshed",
-  "data": {
-    "access_token":  "<new_jwt>",
-    "refresh_token": "<new_jwt>",
-    "session_id":    "<same-128-char-hex>"
-  }
+  "code": 0, "message": "token_refreshed",
+  "data": { "access_token": "<new_jwt>", "refresh_token": "<new_jwt>", "session_id": "<same-hex>" }
 }
 ```
 
-The `session_id` value is **unchanged** across rotations. The client must update its stored `access_token` and `refresh_token` and may optionally refresh the `session_id` cookie (it is the same value).
-
-**Errors:**
-
-| Code | When |
-|---|---|
-| `4007` InvalidSession | `session_id` not found or refresh token UUID mismatch |
-| `4008` RefreshTokenExpired | DB-stored `refresh_token_expired` has passed |
-| `4005` UserDisabled | Account was disabled after the session was created |
-| `3001` BadRequest | Missing `X-Refresh-Token` or `X-Session-Id` header |
-
-**TTL rules on rotation:**
-
-| `remember_me` | New refresh TTL |
-|---|---|
-| `true` | Always `14 days` from now |
-| `false` | `time.Until(old refresh_token_expired)` — remaining time only, no extension |
+**Errors:** `4007` InvalidSession · `4008` RefreshTokenExpired · `4005` UserDisabled · `3001` BadRequest (missing headers)
 
 ---
 
-### `GET /api/v1/me`
+### `GET /api/v1/me` (JWT required)
 
-Returns the current user profile and effective permission names (colon form, same as `permissions.permission_name`), same shape as `dto.MeResponse`.
+Returns the current user's profile and effective permission names. Redis cache-first; DB fallback with up to **1 minute** staleness.
 
-Requires `Authorization: Bearer <access_token>`.
+---
 
-**Redis:** If `mycourse:user:me:{user_id}` exists and unmarshals correctly, the handler returns it and skips the DB.
+### `PATCH /api/v1/me` (JWT required)
 
-Profile and permissions may therefore lag writes by up to **1 minute**.
+Updates profile fields (display name, avatar `image_file_id`). Validates the avatar against `media_files` via a Media domain interface.
+
+---
+
+### `DELETE /api/v1/me` (JWT required)
+
+Deletes the current user account.
+
+---
+
+### `GET /api/v1/me/permissions` (JWT + `user:read` permission)
+
+Returns the full list of effective permission names for the current user.
 
 ---
 
 ## Token Refresh Flow (Client-Driven)
 
-Token refresh is now the **client's responsibility** — the middleware no longer silently renews expired tokens. The expected client flow is:
-
 ```
-Client request → BE (valid access token) → 200 OK
-Client request → BE (expired access token)
+Client → BE (valid access token) → 200 OK
+Client → BE (expired access token)
   └─ BE: HTTP 401, X-Token-Expired: true
 
 Client → POST /api/v1/auth/refresh
              X-Refresh-Token: <refresh_jwt>
              X-Session-Id:    <session_id>
-  ├─ [valid] → 200: new access_token + refresh_token
-  │             Client stores new tokens, retries original request → 200 OK
-  └─ [invalid/expired] → 401 / 403 → Client forces re-login
+  ├─ [valid] → 200: new access_token + refresh_token → client retries
+  └─ [invalid/expired] → 401/403 → force re-login
 ```
-
-The FE Axios interceptor in `src/api/instance.ts` implements this flow with a **mutex** to prevent multiple concurrent requests from each triggering their own refresh simultaneously.
 
 ---
 
 ## Session Model
 
-Session state lives in `users.refresh_token_session` — a `JSONB` column mapping **session string → metadata**:
+Session state lives in `users.refresh_token_session` — a JSONB column mapping session string → metadata:
 
 ```json
 {
   "<128-char hex session_id>": {
-    "refresh_token_uuid":    "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "refresh_token_uuid":    "xxxxxxxx-...",
     "remember_me":           false,
     "refresh_token_expired": "2026-05-03T12:00:00Z"
   }
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `refresh_token_uuid` | string (UUID) | Embedded in the refresh JWT. Must match on rotation to prevent reuse across sessions. |
-| `remember_me` | bool | Governs TTL extension logic during token rotation. |
-| `refresh_token_expired` | timestamp | Authoritative expiry in Postgres. JWT `exp` is secondary; this field is always checked. |
-
-The session key is 128 hex chars generated as `HMAC-SHA512(JWT_secret, 32-random-bytes)`.
-
-### Session limit
-
-A user may have **at most 5 concurrent sessions**.  
-When a 6th login occurs the session with the earliest `refresh_token_expired` is evicted inside a **database transaction**.
-
----
-
-## CORS Headers
-
-The following custom headers are whitelisted in the CORS configuration:
-
-| Direction | Header | Purpose |
-|---|---|---|
-| Request (client → BE) | `X-Refresh-Token` | Carries the refresh JWT to `POST /auth/refresh` |
-| Request (client → BE) | `X-Session-Id` | Carries the session ID to `POST /auth/refresh` |
-| Response (BE → client) | `X-Token-Expired` | `"true"` when a 401 is due to access token expiry |
+- Session key: `HMAC-SHA512(JWT_secret, 32-random-bytes)` → hex encoded
+- Max **5 concurrent sessions** per user. On the 6th login the session with the earliest `refresh_token_expired` is evicted inside a DB transaction.
+- Session rotation updates the entry **in-place** — the count does not increase on rotation.
 
 ---
 
 ## Error Codes
 
 | Code | Constant | When |
-|---|---|---|
-| `4001` | `EmailAlreadyExists` | Register with a taken email |
+|------|----------|------|
+| `4001` | `EmailAlreadyExists` | Register with a confirmed taken email |
 | `4002` | `InvalidCredentials` | Wrong email or password |
 | `4003` | `WeakPassword` | Password fails strength check |
 | `4004` | `EmailNotConfirmed` | Login before confirming email |
 | `4005` | `UserDisabled` | Account has been disabled |
 | `4006` | `InvalidConfirmToken` | Confirm with stale or unknown token |
-| `4007` | `InvalidSession` | `session_id` / refresh token missing, unknown, or UUID mismatch |
-| `4008` | `RefreshTokenExpired` | DB-stored `refresh_token_expired` has passed |
+| `4007` | `InvalidSession` | session_id or UUID mismatch |
+| `4008` | `RefreshTokenExpired` | DB-stored expiry has passed |
+| `4009` | `RegistrationAbandoned` | Lifetime email cap reached — pending user deleted |
+| `4010` | `RegistrationEmailRateLimited` | Redis sliding window exceeded |
+| `4011` | `ConfirmationEmailSendFailed` | Brevo send failure |
 
 ---
 
 ## Implementation Reference
 
 | Concern | Location |
-|---|---|
-| Token generation (access, refresh, session string) | `pkg/token/jwt.go` |
-| Login / Register / ConfirmEmail / RefreshSession business logic | `services/auth/auth.go`, `services/auth/register_flow.go`, `services/auth/register_email_send.go`, `services/auth/auth_confirm.go` (+ `auth_session_tokens.go`, `auth_refresh_rotation.go`) |
-| Login / confirm / refresh JSON body (`dto.LoginSessionTokensResponse`) | `pkg/logic/mapping/auth_tokens_mapping.go` — `ToLoginSessionTokensResponse` |
-| Auth middleware (Bearer header only, X-Token-Expired signal) | `middleware/auth_jwt.go` — `requireJWT`, `extractBearerToken` |
-| Cookie issuance (non-HttpOnly, SameSite=Lax) | `api/v1/auth.go` — `setAuthCookies` |
-| Refresh endpoint handler | `api/v1/auth.go` — `refreshToken` |
-| Route registration | `api/v1/routes.go` — `RegisterNotAuthenRoutes` |
-| CORS config (AllowHeaders, ExposeHeaders) | `api/router.go` |
-| Session entry persistence | `repository/user_refresh_session.go` — `AddRefreshSession`, `SaveRefreshSession` (called from `services/auth/auth_session_tokens.go` / `services/auth/auth_refresh_rotation.go`) |
-| Redis keys + TTL | `services/cache/auth_user.go` |
-| Session limit constant (`MaxActiveSessions = 5`) | `constants/user_session.go` |
-| JSONB session map (`gormjsonbauth.RefreshTokenSessionMap` defined type → `sessionColumnJSONB`) + session entry structs (`entities.RefreshSessionEntry`) + `DeletedAt` alias | `pkg/gormjsonb/auth` (`refresh_token_session_map.go`), `pkg/entities/refresh_session.go`, `models/deleted_at.go` |
-| JSONB carrier → domain session map (`ToRefreshTokenSessionEntity`) | `pkg/logic/mapping/auth_refresh_session_mapping.go` |
-| Token TTL constants | `constants/auth_token.go` — `AccessTokenTTL`, `RefreshTokenTTL`, `RememberMeRefreshTTL` (used by `services/*` and `api/v1/auth.go` cookie max-age) |
-| DB schema / sessions column | `migrations/000001_schema.up.sql` |
-| Registration email lifetime column | `migrations/000007_registration_email_limits.up.sql` — `users.registration_email_send_total`; `COMMENT` không chứa `;` trong chuỗi (migrate tách file theo mọi `;`) |
-
----
-
-## Constraints
-
-- Cached `/me` data (and embedded permissions) can be stale for up to **1 minute** relative to Postgres / RBAC grants.
-- A single account is limited to **5 concurrent sessions**; the oldest-expiring session is evicted when the limit is reached.
-- `remember_me` is always stored as `false` for sessions created via email confirmation.
-- Session rotation updates the **existing session entry in-place** — the session count does not increase on rotation.
-- All session writes that change the session count use a **DB transaction** to prevent concurrent logins from exceeding the limit.
-- Cookies are **non-HttpOnly**: protected against CSRF via `SameSite=Lax` and the use of custom headers (`Authorization`, `X-Refresh-Token`, `X-Session-Id`) which cannot be set by cross-site form submissions.
-
----
-
-## Testing
-
-- **All tests** for this domain (unit/module-level/integration) must be added under repository root **`tests/`** (see `tests/README.md`, root `README.md` **Testing**, `docs/patterns.md`).
+|---------|----------|
+| JWT sign/parse | `internal/shared/token/` |
+| AuthService use-cases | `internal/auth/application/auth_service.go` |
+| GORM user repository | `internal/auth/infra/gorm_user_repo.go` |
+| GORM session repository | `internal/auth/infra/gorm_session_repo.go` |
+| HTTP handlers | `internal/auth/delivery/handler.go` |
+| Route registration | `internal/auth/delivery/routes.go` |
+| Auth middleware (Bearer header) | `internal/shared/middleware/` |
+| Redis keys | `internal/auth/application/cache_keys.go` |
+| Email limits | `internal/auth/application/email_limits.go` / `internal/auth/domain/token_ttl.go` |
+| Brevo email sending | `internal/shared/brevo/` |
+| Email templates | `internal/shared/mailtmpl/` |
+| CORS / expose headers | `internal/server/router.go` |

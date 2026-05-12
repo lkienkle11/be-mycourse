@@ -1,65 +1,82 @@
-# Module: Taxonomy
+# Taxonomy Module
 
-Handles classification resources: **categories**, **course levels**, and **tags**. These are lightweight reference-data domains used by the Course module to classify and filter content.
-
----
-
-## Responsibility
-
-| Domain | Description |
-|--------|-------------|
-| Category | Hierarchical or flat subject groupings for courses |
-| Course Level | Difficulty/experience designations (e.g. Beginner, Intermediate, Advanced) |
-| Tag | Free-form keyword labels attached to courses for discovery and search |
+The taxonomy module (`internal/taxonomy/`) handles classification reference data for courses: **categories**, **course levels**, and **tags**.
 
 ---
 
 ## Directory Layout
 
 ```
-api/v1/taxonomy/
-├── category_handler.go        # HTTP handlers for category CRUD
-├── course_level_handler.go    # HTTP handlers for course level CRUD
-├── tag_handler.go             # HTTP handlers for tag CRUD
-├── handlers_common.go         # Shared generic list/create/update/delete responders
-└── routes.go                  # Route registration for /api/v1/taxonomy/* (wires handlers above)
-
-repository/taxonomy/
-├── gorm_shared.go             # Shared list query + generic GORM CRUD helpers
-└── repositories.go            # CategoryRepository, TagRepository, CourseLevelRepository
-
-services/taxonomy/
-├── category_service.go            # Business logic for categories (image_file_id FK + orphan cleanup via media_files)
-├── fields.go                      # Trimmed name/slug/status helpers for tag/course level + category PATCH fields
-└── tag_course_level_services.go   # Tag + course level list/create/update/delete services
-
-pkg/taxonomy/
-└── status.go                      # NormalizeTaxonomyStatus — maps request strings → constants.TaxonomyStatus
+internal/taxonomy/
+├── domain/
+│   └── (entity types)
+├── application/
+│   └── taxonomy_service.go      # TaxonomyService: CRUD for categories, tags, course levels
+├── infra/
+│   ├── gorm_category_repo.go
+│   ├── gorm_tag_repo.go
+│   ├── gorm_course_level_repo.go
+│   └── gorm_shared.go           # Shared list query helpers
+└── delivery/
+    ├── handler.go                # HTTP handlers for all three sub-domains
+    ├── routes.go                 # Route registration under /api/v1/taxonomy
+    ├── dto.go                    # Request/response DTOs
+    └── mapping.go                # Domain → DTO mapping
 ```
 
-`services/taxonomy/fields.go` delegates trim/normalize helpers to **`pkg/logic/mapping`** (`TrimmedTaxonomyFields`, `ApplyOptionalTaxonomyNameSlugStatus`) which in turn use **`pkg/taxonomy`**. **Taxonomy** HTTP handlers (`api/v1/taxonomy/*_handler.go`) delegate list/create/update payloads to **`mapping.CategoryListHTTPPayload`**, **`CategoryRowHTTPPayload`**, **`TagListHTTPPayload`**, **`TagRowHTTPPayload`**, **`CourseLevelListHTTPPayload`**, **`CourseLevelRowHTTPPayload`** so **`api/`** never imports **`models`** (depguard `restrict_api`). **`CreateCategory`** builds the insert row via **`mapping.CategoryModelForCreate`**. **`services/taxonomy/*.go`** return **`models.Category`** / **`models.Tag`** / **`models.CourseLevel`**.
+---
 
-**Category image contract:** create/update JSON uses **`image_file_id`** (UUID of a **`media_files`** row). Responses expose nested **`image`** (`dto.MediaFilePublic`). The server validates file kind/status/MIME via **`services/media.LoadValidatedProfileImageFile`**; failures return **`pkg/errors.ErrInvalidProfileMediaFile`** (**`constants.MsgInvalidProfileMediaFile`**). Replacing or deleting a category enqueues **`EnqueueOrphanCleanupForMediaFileID`** (**`internal/jobs/media`**) for the superseded or removed file id.
+## Responsibilities
+
+| Domain | Description |
+|--------|-------------|
+| **Category** | Hierarchical or flat subject groupings for courses. Optionally linked to a media file (`image_file_id` FK into `media_files`) |
+| **Course Level** | Difficulty designations (e.g. Beginner, Intermediate, Advanced) |
+| **Tag** | Free-form keyword labels for discovery and search |
 
 ---
 
 ## API Endpoints
 
-| Method | Path | Handler | Description |
-|--------|------|---------|-------------|
-| GET | `/api/v1/taxonomy/categories` | `ListCategories` | List all categories |
-| POST | `/api/v1/taxonomy/categories` | `CreateCategory` | Create a new category |
-| GET | `/api/v1/taxonomy/categories/:id` | `GetCategory` | Get category by ID |
-| PUT | `/api/v1/taxonomy/categories/:id` | `UpdateCategory` | Update category |
-| DELETE | `/api/v1/taxonomy/categories/:id` | `DeleteCategory` | Delete category |
-| GET | `/api/v1/taxonomy/course-levels` | `ListCourseLevels` | List all course levels |
-| POST | `/api/v1/taxonomy/course-levels` | `CreateCourseLevel` | Create a course level |
-| PUT | `/api/v1/taxonomy/course-levels/:id` | `UpdateCourseLevel` | Update course level |
-| DELETE | `/api/v1/taxonomy/course-levels/:id` | `DeleteCourseLevel` | Delete course level |
-| GET | `/api/v1/taxonomy/tags` | `ListTags` | List all tags |
-| POST | `/api/v1/taxonomy/tags` | `CreateTag` | Create a new tag |
-| PUT | `/api/v1/taxonomy/tags/:id` | `UpdateTag` | Update tag |
-| DELETE | `/api/v1/taxonomy/tags/:id` | `DeleteTag` | Delete tag |
+All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <token>`. Write operations require the appropriate permission.
+
+### Course Levels
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| GET | `/taxonomy/levels` | `course_level:read` | List all course levels |
+| POST | `/taxonomy/levels` | `course_level:create` | Create a new course level |
+| PATCH | `/taxonomy/levels/:id` | `course_level:update` | Update a course level |
+| DELETE | `/taxonomy/levels/:id` | `course_level:delete` | Delete a course level |
+
+### Categories
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| GET | `/taxonomy/categories` | `category:read` | List all categories (paginated) |
+| POST | `/taxonomy/categories` | `category:create` | Create a new category |
+| PATCH | `/taxonomy/categories/:id` | `category:update` | Update a category |
+| DELETE | `/taxonomy/categories/:id` | `category:delete` | Delete a category |
+
+### Tags
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| GET | `/taxonomy/tags` | `tag:read` | List all tags (paginated) |
+| POST | `/taxonomy/tags` | `tag:create` | Create a new tag |
+| PATCH | `/taxonomy/tags/:id` | `tag:update` | Update a tag |
+| DELETE | `/taxonomy/tags/:id` | `tag:delete` | Delete a tag |
+
+---
+
+## Category Image Contract
+
+Categories can have an associated image via `image_file_id` (UUID of a `media_files` row).
+
+- **Create/Update:** JSON body includes `image_file_id`.
+- **Validation:** The server validates the referenced file's kind, status, and MIME type via the `MediaFileValidator` interface (injected from `MediaService.LoadValidatedProfileImageFile`).
+- **Response:** Includes a nested `image` object with public file fields.
+- **Orphan cleanup:** When `image_file_id` is replaced or the category is deleted, the old file ID is enqueued for deferred cloud deletion via `OrphanEnqueuer.EnqueueOrphanCleanupForFileID`.
 
 ---
 
@@ -67,39 +84,36 @@ pkg/taxonomy/
 
 ```
 HTTP Request
-  └─ api/v1/taxonomy/*_handler.go (+ handlers_common.go)
-       └─ services/taxonomy/*  (category_service + tag_course_level_services + fields)
-            └─ repository/taxonomy (repositories.go + gorm_shared.go)
-                 └─ models / database (Postgres via GORM)
-                      └─ HTTP Response  (standard envelope: { code, message, data })
+  └─ internal/taxonomy/delivery/handler.go  (bind DTO, validate)
+       └─ internal/taxonomy/application/TaxonomyService  (business logic)
+            ├─ (image validation) → MediaService via MediaFileValidator interface
+            ├─ (orphan cleanup)  → OrphanEnqueuer via OrphanImageEnqueuer interface
+            └─ internal/taxonomy/infra/  (GORM repositories)
+                 └─ PostgreSQL
+                      └─ HTTP Response (standard envelope)
 ```
 
 ---
 
-## Dependencies
+## Cross-Domain Dependencies
 
-| Dependency | Purpose |
-|------------|---------|
-| `pkg/response` | Standard response envelope |
-| `pkg/errcode` | Shared error codes |
-| `middleware/auth_jwt` | JWT authentication (write operations require auth) |
-| `middleware/rbac` | Permission checks for admin-only operations |
+Taxonomy depends on two other domains, both injected as interfaces in `internal/server/wire.go`:
 
----
-
-## Permissions
-
-| Operation | Required Permission |
-|-----------|-------------------|
-| List (read) | Public or authenticated user |
-| Create / Update / Delete | Admin role or specific taxonomy permission |
+| Interface | Implemented by | Purpose |
+|-----------|---------------|---------|
+| `MediaFileValidator` | `MediaService.LoadValidatedProfileImageFile` | Validate `image_file_id` points to a usable image file |
+| `OrphanImageEnqueuer` | `OrphanEnqueuer.EnqueueOrphanCleanupForFileID` | Queue old image files for deferred cloud deletion |
 
 ---
 
-## Reusable Assets
+## Implementation Reference
 
-| Asset | Type | Location | Notes |
-|-------|------|----------|-------|
-| Category DTO | Data type | `dto/` | Request/response shape for categories |
-| CourseLevel DTO | Data type | `dto/` | Request/response shape for course levels |
-| Tag DTO | Data type | `dto/` | Request/response shape for tags |
+| Concern | Location |
+|---------|----------|
+| TaxonomyService | `internal/taxonomy/application/taxonomy_service.go` |
+| GORM repositories | `internal/taxonomy/infra/` |
+| HTTP handlers | `internal/taxonomy/delivery/handler.go` |
+| Route registration | `internal/taxonomy/delivery/routes.go` |
+| DTOs | `internal/taxonomy/delivery/dto.go` |
+| Cross-domain adapters | `internal/server/wire.go` (`taxMediaFileValidator`, `taxOrphanEnqueuer`) |
+| DB migrations | `migrations/000002_taxonomy_domain.*` |

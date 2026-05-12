@@ -1,59 +1,160 @@
 # Module Responsibilities
 
+## Architecture Pattern
 
-## Global Type Placement Rule (Mandatory)
+Every module lives under `internal/<domain>/` and follows the DDD layer structure:
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+```
+domain/       ← entities, interfaces, errors
+infra/        ← GORM repos, external SDK clients
+application/  ← use-case service
+delivery/     ← HTTP handlers, routes, DTOs
+```
 
-## Global Constants Placement Rule (Mandatory)
+See [`docs/architecture.md`](architecture.md) for the full dependency rule.
 
-- All constants from all features must be centralized under `constants/*`, including setting constants, type constants, enums, status constants, default values, thresholds/limits, and message constants.
-- Do not declare business constants directly inside `services/*`, `repository/*`, `api/*`, `pkg/*`, `models/*`, or other feature folders.
-- If a new constant is needed, create or extend an appropriate file in `constants/` and import it from there.
+---
 
 ## Implemented Modules
-- **Auth module** (`api/v1/auth.go`, `services/auth/` including `register_flow.go`, `pkg/token`):
-  - Register/login/confirm/refresh lifecycle; registration confirmation email limits (Sub 18) in `register_flow.go` + `services/cache/register_email_window.go`.
-- **User self module** (`api/v1/me.go`):
-  - Profile and permission introspection for current user.
-- **RBAC admin module** (`api/v1/internal/*`, `services/rbac/`):
-  - Internal CRUD for permissions/roles/user grants.
-- **System operations module** (`api/system/routes.go`, `internal/appdb`, `services/system_job_http.go` → `internal/jobs/system`, `internal/jobs/media`, `internal/jobs/rbac`, `internal/rbacsync`):
-  - Privileged login, sync-now, and scheduler management (`api/system` uses **`internal/appdb.Conn()`** so **`api/`** does not import **`models`**).
-- **Taxonomy module** (`api/v1/taxonomy/*`, `services/taxonomy/*`, `repository/taxonomy/*`, **`pkg/taxonomy/`** (`NormalizeTaxonomyStatus`), `models/taxonomy_*.go`, `dto/taxonomy_*.go`):
-  - CRUD and list/filter for `course_levels`, `categories`, `tags`.
-  - Uses shared list parsing helper (`pkg/query/filter_parser.go`) and shared request helpers (`pkg/requestutil/params.go`).
-  - Uses permission middleware with taxonomy-specific RBAC entries (`P14`-`P25`).
-- **Media upload module** (`api/v1/media/*`, `services/media/*`, `dto/media_file.go`, `pkg/entities/file.go`, `models/media_file.go`, `repository/media/file_repository.go`):
-  - Unified upload/file API for file + video branches with methods `GET/POST/PUT/DELETE/OPTIONS`, plus `GET /media/videos/:id/status` and public `POST /webhook/bunny`.
-  - Uses provider clients/adapters in `pkg/media/*` for Local/B2/Gcore/Bunny URL generation and cloud upload.
-  - Provider source-of-truth is server config (`setting.MediaSetting.AppMediaProvider`), not client request payload/query.
-  - Uses **`pkg/media`** for provider HTTP/SDK **and** domain policy (`media_resolver.go`, `media_metadata.go`, multipart bind, orphan helpers, …); **`services/media`** remains orchestration-only.
-  - Uses **`pkg/media.DefaultMediaProvider`** from `media_metadata.go`; service does not own provider default selection.
-  - Generic metadata parsing primitives (and related `ParseBoolLoose` / `ContentFingerprint`) are in `pkg/logic/utils/parsing.go` and reused by **`pkg/media`** / service.
-  - Uses mapper helpers in `pkg/logic/mapping` so handlers always return DTO (`dto.UploadFileResponse`) instead of raw entity.
-  - Uses **`pkg/media.DecodeLocalURLToken`** for local token decode (no non-CRUD decode utility in service layer).
-  - Metadata is inferred by backend and returned as typed metadata (`ImageMetadata`, `VideoMetadata`, `DocumentMetadata`) from `pkg/entities/file.go`.
-  - SDK clients are initialized at app startup via `pkg/media.Setup()` in `main.go` after `setting.Setup()`, using `NewCloudClientsFromSetting` (`pkg/media/clients_setting_attach.go`) and `setting.MediaSetting` for B2 / Gcore / Bunny Storage.
-  - Persists `media_files` (Sub 09 columns `video_id`, `thumbnail_url`, `embeded_html` + JSON metadata keys) and syncs create/update/delete + webhook (duration + Bunny parity fields). See `docs/database.md`, `migrations/README.md`.
-  - DB model<->entity mapping is handled in `pkg/logic/mapping/media_model_mapping.go` (not inside service layer).
-  - Uses permission middleware with media RBAC entries (`P26`-`P29`).
-  - Converts Bunny numeric video status to stable API strings via `pkg/media/bunny_video_status.go`; webhook literal `constants.FinishedWebhookBunnyStatus` in `constants/bunny_video.go`.
-  - Enforces **2 GiB** max per uploaded `file` part (`constants.MaxMediaUploadFileBytes` in **`constants/error_msg.go`**); handler + service guards; HTTP **413** + `errcode.FileTooLarge` (**2003**) on violation (see `docs/modules/media.md`, `docs/deploy.md` for proxy sizing).
 
-## Planned But Not Implemented (per docs/modules)
-- **Course module (phase 02+)**
-- **Lesson module (phase 05+)**
-- **Enrollment module (phase 11+)**
+### Auth (`internal/auth/`)
 
-These planned modules currently have documentation stubs and no route/service/model/migration implementations in source code.
+Handles user lifecycle and session management.
+
+**Capabilities:**
+- Register (pending user + confirmation email via Brevo)
+- Login / email confirmation / token refresh
+- `GET /me`, `PATCH /me`, `DELETE /me`
+- `GET /me/permissions`
+- Stateful JWT sessions backed by PostgreSQL JSONB
+- Redis cache for `/me` responses and login negative cache
+- Confirmation email rate limiting (Redis sliding window + Postgres lifetime cap)
+
+**Key files:**
+- `domain/` — `User` entity, `UserRepository` and `RefreshSessionRepository` interfaces, token TTL constants
+- `application/AuthService` — orchestrates register/login/confirm/refresh flows
+- `infra/GormUserRepository`, `infra/GormRefreshSessionRepository` — Postgres persistence
+- `delivery/Handler` — Gin handlers; `routes.go` — route registration
+
+See [`docs/modules/auth.md`](modules/auth.md) for full deep-dive.
+
+---
+
+### Media (`internal/media/`)
+
+Unified API for file and video uploads with cloud storage providers.
+
+**Capabilities:**
+- Multipart file upload (1–5 parts per request) to Backblaze B2 or Bunny Stream
+- Synchronous WebP encoding for all image uploads (bimg/libvips, CGO required)
+- Executable/script file denylist
+- Video status polling via Bunny Stream API
+- Bunny webhook processing (signature verification + metadata sync)
+- Orphan cleanup: deferred deletion of superseded cloud objects
+- Batch delete (up to 10 keys)
+- `GET /media/files/local/:token` — decode reversible signed URL tokens
+
+**Key files:**
+- `domain/` — `File` entity, `FileRepository`/`PendingCleanupRepository` interfaces, Bunny status codes, webhook types, metadata key constants
+- `application/MediaService` — upload/delete/list/batch orchestration
+- `infra/` — GORM repos, B2 and Bunny SDK clients, metadata inference, WebP encoding pipeline
+- `delivery/Handler` — Gin handlers; `routes.go`; `RegisterWebhookRoutes`
+- `jobs/` — `OrphanEnqueuer`, cleanup scheduler, `GlobalCounters`
+
+See [`docs/modules/media.md`](modules/media.md) for full deep-dive.
+
+---
+
+### RBAC (`internal/rbac/`)
+
+Role-based access control — internal admin API.
+
+**Capabilities:**
+- Permission CRUD (create, list, update, delete)
+- Role CRUD (create, list, get, update, delete)
+- Set role permissions (full replace)
+- Assign/remove roles to/from users
+- Assign/remove direct permissions to/from users
+- Query effective permissions for a user
+
+**Exposed under:** `/api/internal-v1/rbac/...` (requires internal API key)
+
+See [`docs/modules/rbac.md`](modules/rbac.md) for full deep-dive.
+
+---
+
+### Taxonomy (`internal/taxonomy/`)
+
+Reference data for classifying course content.
+
+**Capabilities:**
+- **Categories**: hierarchical or flat subject groupings with optional image (linked to `media_files`)
+- **Course Levels**: difficulty designations (Beginner, Intermediate, Advanced)
+- **Tags**: free-form keyword labels
+
+**Exposed under:** `/api/v1/taxonomy/...` (requires JWT + permission)
+
+See [`docs/modules/taxonomy.md`](modules/taxonomy.md) for full deep-dive.
+
+---
+
+### System (`internal/system/`)
+
+Privileged operations for system administrators.
+
+**Capabilities:**
+- System login (issues short-lived system JWT)
+- Permission sync (immediate or scheduled — reads `constants.AllPermissions`)
+- Role-permission sync (immediate or scheduled — reads `constants.RolePermissions`)
+- Scheduler control: create/stop permission sync job and role-permission sync job
+
+**Exposed under:** `/api/system/...` (requires system access token after login)
+
+---
+
+## Planned But Not Implemented
+
+- **Course module** (phase 02+)
+- **Lesson module** (phase 05+)
+- **Enrollment module** (phase 11+)
+
+These currently have no route/service/infra implementations.
+
+---
+
+## Shared Infrastructure (`internal/shared/`)
+
+Not a business module — provides cross-cutting concerns consumed by all domains:
+
+- `db/` — PostgreSQL connection, GORM setup, migration runner
+- `cache/` — Redis client
+- `setting/` — YAML + env config
+- `logger/` — Uber Zap
+- `middleware/` — auth JWT, RBAC permission check, rate limiting, request logger
+- `response/` — standard JSON envelope
+- `token/` — JWT sign/parse
+- `brevo/` — Brevo SMTP client
+- `mailtmpl/` — email templates
+- `validate/` — request validation
+- `utils/` — image encoding, fingerprinting, random
+- `errors/` — shared sentinel errors
+- `constants/` — cross-domain constants (5 files)
+
+---
 
 ## Ownership and Boundaries
-- Middleware + RBAC engine are shared core boundaries and high-risk to modify.
-- New domain CRUD should plug into existing route/service/model patterns without changing current RBAC engine behavior.
 
-## Testing (repository-wide)
+- Middleware and RBAC permission enforcement are high-risk shared infrastructure — changes require careful impact analysis.
+- Each domain's `application/` service is the single authority for that domain's business rules.
+- Cross-domain calls (e.g. Auth calling RBAC for permission codes) are mediated through **interfaces** injected in `internal/server/wire.go` — never direct imports between domain application layers.
+- New domain CRUD plugs into existing route/service/infra patterns without changing the RBAC engine.
 
-- **All tests** (unit/module-level/integration) and shared harnesses: repository root **`tests/`** — see `tests/README.md` and `docs/patterns.md`.
+---
+
+## Testing
+
+Tests are **co-located** with their packages. See [`docs/patterns.md`](patterns.md) for the full testing convention and list of existing test files.
+
+```bash
+go test ./...
+```

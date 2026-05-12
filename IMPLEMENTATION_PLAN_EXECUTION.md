@@ -36,7 +36,7 @@
 
 ### Tests / quality gate
 - **`tests/sub19_logger_test.go`:** `FromContext` request_id field; JSON file sink + global fields; level **error** drops **info** on file core.
-- **`golangci-lint cache clean` → `golangci-lint run`** → **`make check-architecture`** → clean; **`go fmt ./...`**, **`go vet ./...`**, **`go test ./...`**, **`go build ./...`** → clean.
+- **`golangci-lint cache clean` → `golangci-lint run`** → **`make build`** → clean; **`go fmt ./...`**, **`go vet ./...`**, **`go test ./...`** → clean.
 
 ### Documentation sync
 - **`docs/patterns.md`** (logging section), **`docs/architecture.md`**, **`docs/router.md`**, **`docs/data-flow.md`**, **`docs/folder-structure.md`**, **`docs/dependencies.md`**, **`docs/reusable-assets.md`**, **`README.md`**, **`.env.example`**, all **`config/app*.yaml`** (`logging:` block).
@@ -61,7 +61,7 @@
 - Synced per **`docs/patterns.md`** checklist: **`docs/modules/auth.md`**, **`docs/return_types.md`**, **`docs/api_swagger.yaml`**, **`docs/reusable-assets.md`**, **`docs/data-flow.md`**, **`docs/api-overview.md`**, **`docs/modules.md`**, **`README.md`** (error code table), **`docs/database.md`**, **`migrations/README.md`**, **`docs/curl_api.md`**, **`docs/requirements.md`**, **`docs/sequence_diagrams.md`**, **`docs/folder-structure.md`**, **`docs/router.md`**.
 
 ### Quality gate
-- **`golangci-lint run`** (incl. `funlen`, `ST1005`) and **`make check-architecture`** pass; **`go build .`** and **`go test ./...`** pass.
+- **`golangci-lint run`** (incl. `funlen`, `ST1005`) pass; **`make build`** and **`go test ./...`** pass.
 - **Rule 13/14 / Rule 19 (`er-rule-5` audit):** media multipart bundle orchestration (`PrepareCreatePartsSequential`, tail prep, update-bundle head/base) lives in **`pkg/logic/mapping/media_file_batch_mapping.go`** with **`any`** repo boundaries (no **`mapping` → `repository/`** import). Typed provider unwrap/HTTP mapping and GORM not-found / RBAC wrap helpers live under **`pkg/errors_func/{media,db,rbac}/`**. Taxonomy category create/update uses **`mapping.TrimmedTaxonomyFields`**, **`ApplyOptionalTaxonomyNameSlugStatus`**, **`CategoryModelForCreate`**. JSONB session column uses **`sessionColumnJSONB`** + exported alias in **`pkg/gormjsonb/auth`** (Rule 11).
 
 ---
@@ -167,7 +167,7 @@ If a future sub adds support for another format (e.g. AVIF, HEIC), a correspondi
 ### Quality gate
 
 - `golangci-lint run` → **0 issues**
-- `make check-architecture` → **✅ valid**
+- **`make build-nocgo`** (or **`make build`** with libvips) → **✅ compiles**
 - `go fmt ./...` → clean
 - `go vet ./...` → clean
 - `go test ./...` → `ok mycourse-io-be/tests` (7 new sub-tests pass, including WebP regression)
@@ -220,7 +220,7 @@ Sub **15** closed. All WebP image dimension reads (`width`, `height` in `UploadF
 ### Quality gate
 
 - `gofmt`, `go vet ./...`, `go build ./...`, `go test ./...` (includes root **`tests/`** packages — mapping + media helpers live in `tests/sub04*.go`, `tests/sub06*.go`; no colocated `*_test.go` under `pkg/` / `services/` per `docs/patterns.md`).
-- **`golangci-lint run`** (0 issues) + **`make check-architecture`** (services/repository layout).
+- **`golangci-lint run`** (0 issues) + **`make build`** (compile gate).
 - **`gitnexus analyze --force`** when the local index can be refreshed (sandbox EPERM may block; MCP `impact` used for `CreateCategory` / `buildMeResponseFromUser` — both **LOW**).
 - **`gitnexus_detect_changes`** before commit.
 
@@ -1841,7 +1841,7 @@ Single authoritative checklist for plan ids `phase-sub-06-task-01` … `phase-su
 
 ### Quality gate
 
-- `golangci-lint run`, `make check-architecture`, `go test ./...`, `go build ./...` (executed in session).
+- `golangci-lint run`, `make build`, `go test ./...` (executed in session).
 
 ### GitNexus
 

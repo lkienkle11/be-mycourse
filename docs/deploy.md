@@ -534,7 +534,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ## Appendix C — CI/CD with GitHub Actions
 
-The active workflow is **`.github/workflows/deploy-dev.yml`**. It triggers on every push to **`master`**, builds the Go binary in CI (no Go on the server required), then on the VPS **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. On each push to **`master`**, CI runs **`test`** (Go tests, vet, golangci-lint, **`make build`**), then **`build`** (stripped binary artifact), then **`deploy`** to the VPS. No Go toolchain is required on the server if you always deploy via CI. The **`deploy`** job **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
 
 ### C.1 — Required GitHub Secrets
 
@@ -555,101 +555,21 @@ File: `.github/workflows/deploy-dev.yml`
 
 **Trigger:** push to `master`.  
 **Concurrency:** `cancel-in-progress: true` — a second push while the first is deploying cancels the in-flight run.  
-**Job structure:** 2 sequential jobs — `build` → `deploy`.
+**Job structure:** **`test`** → **`build`** → **`deploy`** (`build` needs `test`; `deploy` needs `build`).
 
-```yaml
-name: Deploy Backend to VPS (2 Jobs) Test deploy in Master Branch
+- **`test`:** installs **libvips-dev** and **pkg-config** on the runner when missing, **`go mod download`**, **`go test ./...`**, **`CGO_ENABLED=1 go test ./...`**, **`go vet ./...`**, **`golangci-lint cache clean`** + **`golangci-lint run`**, then **`make build`** (CGO compile; see root **`Makefile`**).
+- **`build`:** **`CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o mycourse-io-be-dev .`**, uploads the **`backend-binary`** artifact (1-day retention).
+- **`deploy`:** downloads the artifact, **`scp`** the rollback helper, backs up the live binary to **`mycourse-io-be-dev.prev`**, **`rsync`** the new binary, runs **`scripts/pm2-reload-with-binary-rollback.sh`**.
 
-on:
-  push:
-    branches:
-      - master
-
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Go environment
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25.0"
-          cache: true   # caches Go module downloads
-
-      - name: Build Go Binary
-        run: |
-          go mod download
-          go build -trimpath -ldflags="-s -w" -o mycourse-io-be-dev .
-
-      - name: Upload Binary Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-binary
-          path: mycourse-io-be-dev
-          retention-days: 1   # purged after 1 day to save GitHub storage
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build   # waits for 'build' to succeed before starting
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Binary Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-binary
-
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Add Server to known_hosts
-        run: ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Ensure target directory exists
-        run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "mkdir -p ${{ secrets.DEPLOY_PATH_DEV }}/bin ${{ secrets.DEPLOY_PATH_DEV }}/scripts"
-
-      - name: Copy deploy rollback helper to server
-        run: |
-          scp -q scripts/pm2-reload-with-binary-rollback.sh \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh"
-
-      - name: Backup current dev binary on server (rollback target)
-        run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "cd ${{ secrets.DEPLOY_PATH_DEV }} && test -f bin/mycourse-io-be-dev && cp bin/mycourse-io-be-dev bin/mycourse-io-be-dev.prev || true"
-
-      - name: Deploy Binary to Server via Rsync
-        run: |
-          rsync -avz --chmod=755 ./mycourse-io-be-dev \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH_DEV }}/bin/mycourse-io-be-dev"
-
-      - name: Reload PM2 with health gate and binary rollback
-        run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "chmod +x '${{ secrets.DEPLOY_PATH_DEV }}/scripts/pm2-reload-with-binary-rollback.sh' && \
-             cd '${{ secrets.DEPLOY_PATH_DEV }}' && \
-             DEPLOY_PATH='${{ secrets.DEPLOY_PATH_DEV }}' \
-             PM2_APP_NAME=mycourse-api-dev \
-             bash scripts/pm2-reload-with-binary-rollback.sh"
-```
+The authoritative definition is **`.github/workflows/deploy-dev.yml`** in the repository (do not rely on a frozen YAML excerpt here).
 
 ### C.3 — What each step does
 
 | Step | Details |
 |------|---------|
-| **Checkout** | `build`: full clone for `go build`. `deploy`: clone so `scripts/pm2-reload-with-binary-rollback.sh` can be copied to the VPS. |
-| **Setup Go** | Installs Go 1.25.0 with module cache enabled |
+| **Checkout** | All jobs clone the repo (`deploy` needs `scripts/pm2-reload-with-binary-rollback.sh`). |
+| **Setup Go** | Go **1.25.0** with module cache enabled (`test` / `build`). |
+| **Test job** | Apt installs **libvips** build deps when needed; **`go test`**, **`go vet`**, **`golangci-lint run`**, **`make build`**. |
 | **Build** | `go build -trimpath -ldflags="-s -w"` — stripped, reproducible binary named `mycourse-io-be-dev` |
 | **Upload artifact** | Binary stored in GitHub's temporary artifact storage (1-day retention) |
 | **Download artifact** | `deploy` job fetches the binary |
@@ -705,7 +625,7 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | Cache | `pkg/cache_clients/redis.go`, `services/cache/` | Redis client; degrades gracefully if unavailable |
 | Error codes | `pkg/errcode/codes.go`, `pkg/errcode/messages.go` | Mirrors `src/types/api.ts` (ApiErrorCode) in the FE |
 | HTTP errors | `pkg/httperr/middleware.go` | Global Gin error handler |
-| CI/CD | `.github/workflows/deploy-dev.yml` | Active 2-job workflow (build → deploy on master) |
+| CI/CD | `.github/workflows/deploy-dev.yml` | Active workflow: **test** → **build** → **deploy** on **`master`** |
 | Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |
 | Docs | `docs/modules/auth.md`, `docs/architecture.md` | Module-level docs |

@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/media/domain"
-	"mycourse-io-be/internal/shared/utils"
+	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/utils"
 )
 
 func ParseMetadataJSON(raw string) (domain.RawMetadata, error) {
@@ -55,7 +55,10 @@ func typedMetadataBase(mimeType, filename string, sizeBytes int64) domain.FileMe
 }
 
 func buildVideoTypedMetadata(base domain.FileMetadata, raw domain.RawMetadata) domain.UploadFileMetadata {
-	duration := utils.FloatFromRaw(raw, "duration")
+	duration := utils.FloatFromRaw(raw, "duration_seconds")
+	if duration == 0 {
+		duration = utils.FloatFromRaw(raw, "duration")
+	}
 	if duration == 0 {
 		duration = utils.FloatFromRaw(raw, "length")
 	}
@@ -63,10 +66,18 @@ func buildVideoTypedMetadata(base domain.FileMetadata, raw domain.RawMetadata) d
 	if fps == 0 {
 		fps = utils.FloatFromRaw(raw, "framerate")
 	}
+	width := utils.IntFromRaw(raw, "width_bytes")
+	if width == 0 {
+		width = utils.IntFromRaw(raw, "width")
+	}
+	height := utils.IntFromRaw(raw, "height_bytes")
+	if height == 0 {
+		height = utils.IntFromRaw(raw, "height")
+	}
 	return domain.UploadFileMetadata{
 		SizeBytes:       base.Size,
-		WidthBytes:      utils.IntFromRaw(raw, "width"),
-		HeightBytes:     utils.IntFromRaw(raw, "height"),
+		WidthBytes:      width,
+		HeightBytes:     height,
 		MimeType:        base.MimeType,
 		Extension:       base.Extension,
 		DurationSeconds: duration,
@@ -85,7 +96,13 @@ func buildImageTypedMetadata(base domain.FileMetadata, raw domain.RawMetadata, p
 	// cannot parse it, fall back to the persisted width/height stored in the
 	// raw JSON metadata ("width"/"height" keys written by uploadMetadataToRaw).
 	if w == 0 {
+		w = utils.IntFromRaw(raw, "width_bytes")
+	}
+	if w == 0 {
 		w = utils.IntFromRaw(raw, "width")
+	}
+	if h == 0 {
+		h = utils.IntFromRaw(raw, "height_bytes")
 	}
 	if h == 0 {
 		h = utils.IntFromRaw(raw, "height")
@@ -115,6 +132,32 @@ func BuildTypedMetadata(
 		return buildVideoTypedMetadata(base, raw)
 	}
 	return buildImageTypedMetadata(base, raw, payload)
+}
+
+// ApplyTypedMetadataToRaw writes the public UploadFileMetadata shape into the
+// raw JSONB metadata map. Provider-specific fields (for example Bunny's
+// available_resolutions or thumbnail_blurhash) remain in the same map, but
+// these stable keys guarantee metadata_json can always rehydrate the API
+// `metadata` response exactly.
+func ApplyTypedMetadataToRaw(raw domain.RawMetadata, typed domain.UploadFileMetadata) {
+	if raw == nil {
+		return
+	}
+	raw["size_bytes"] = typed.SizeBytes
+	raw["width_bytes"] = typed.WidthBytes
+	raw["height_bytes"] = typed.HeightBytes
+	raw["mime_type"] = typed.MimeType
+	raw["extension"] = typed.Extension
+	raw["duration_seconds"] = typed.DurationSeconds
+	raw["bitrate"] = typed.Bitrate
+	raw["fps"] = typed.FPS
+	raw["video_codec"] = typed.VideoCodec
+	raw["audio_codec"] = typed.AudioCodec
+	raw["has_audio"] = typed.HasAudio
+	raw["is_hdr"] = typed.IsHDR
+	raw["page_count"] = typed.PageCount
+	raw["has_password"] = typed.HasPassword
+	raw["archive_entries"] = typed.ArchiveEntries
 }
 
 func DefaultMediaProvider(kind string) string {

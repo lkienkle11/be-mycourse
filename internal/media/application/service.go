@@ -570,17 +570,16 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 		log.Debug("bunny webhook: no local media row, skipping", zap.Error(err))
 		return nil
 	}
+
+	// Merge Bunny telemetry into the existing metadata map. We do NOT use
+	// raw[k] = video.Field directly because Bunny's response often omits
+	// fields (e.g. bitrate, audioCodec) and writing zero values would
+	// destroy data that earlier webhook calls or the upload path already
+	// populated. ApplyBunnyDetailToMetadata only writes non-zero fields.
 	raw := row.RawMetadataMap()
 	if raw == nil {
 		raw = domain.RawMetadata{}
 	}
-	raw["length"] = video.Length
-	raw["width"] = video.Width
-	raw["height"] = video.Height
-	raw["framerate"] = video.Framerate
-	raw["bitrate"] = video.Bitrate
-	raw["video_codec"] = video.VideoCodec
-	raw["audio_codec"] = video.AudioCodec
 	streamBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
 	libID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	mediainfra.ApplyBunnyDetailToMetadata(raw, video, libID, streamBase)
@@ -591,7 +590,12 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 	}
 	row.MetadataJSON = string(blob)
 	row.Status = constants.FileStatusReady
-	row.ThumbnailURL = mediainfra.EffectiveBunnyThumbnailURL(video)
+	if thumb := mediainfra.EffectiveBunnyThumbnailURL(video); thumb != "" {
+		row.ThumbnailURL = thumb
+	}
+	if dur := int64(video.Length); dur > 0 {
+		row.Duration = dur
+	}
 
 	if err := s.fileRepo.UpsertByObjectKey(ctx, row); err != nil {
 		log.Warn("bunny webhook: upsert failed", zap.Error(err))

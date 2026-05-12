@@ -192,22 +192,51 @@ type MediaUploadEntityInput struct {
 	PreserveID    string
 }
 
-// BunnyVideoDetail mirrors Bunny Stream get-video payload.
+// BunnyVideoDetail mirrors the Bunny Stream get-video payload.
+//
+// JSON tags below match Bunny's actual response fields (verified from live
+// API logs). Note: Bunny does NOT return `bitrate`, `audioCodec`, or
+// `thumbnailUrl` — `outputCodecs` and `thumbnailFileName` are the canonical
+// keys for codec and thumbnail respectively. Legacy field aliases are kept
+// for forward compatibility in case Bunny adds them later.
 type BunnyVideoDetail struct {
-	VideoLibraryID      int     `json:"videoLibraryId"`
-	BunnyNumericID      int64   `json:"id"`
-	GUID                string  `json:"guid"`
-	Length              float64 `json:"length"`
-	Status              int     `json:"status"`
-	Width               int     `json:"width"`
-	Height              int     `json:"height"`
-	Framerate           float64 `json:"framerate"`
-	Bitrate             int     `json:"bitrate"`
-	VideoCodec          string  `json:"videoCodec"`
-	AudioCodec          string  `json:"audioCodec"`
-	HasMP4Fallback      bool    `json:"hasMP4Fallback"`
-	ThumbnailURL        string  `json:"thumbnailUrl"`
-	DefaultThumbnailURL string  `json:"defaultThumbnailUrl"`
+	VideoLibraryID        int     `json:"videoLibraryId"`
+	BunnyNumericID        int64   `json:"id"`
+	GUID                  string  `json:"guid"`
+	Title                 string  `json:"title"`
+	Description           string  `json:"description"`
+	DateUploaded          string  `json:"dateUploaded"`
+	Views                 int64   `json:"views"`
+	IsPublic              bool    `json:"isPublic"`
+	Length                float64 `json:"length"`
+	Status                int     `json:"status"`
+	Framerate             float64 `json:"framerate"`
+	Rotation              int     `json:"rotation"`
+	Width                 int     `json:"width"`
+	Height                int     `json:"height"`
+	AvailableResolutions  string  `json:"availableResolutions"`
+	OutputCodecs          string  `json:"outputCodecs"`
+	ThumbnailCount        int     `json:"thumbnailCount"`
+	EncodeProgress        int     `json:"encodeProgress"`
+	StorageSize           int64   `json:"storageSize"`
+	HasMP4Fallback        bool    `json:"hasMP4Fallback"`
+	CollectionID          string  `json:"collectionId"`
+	ThumbnailFileName     string  `json:"thumbnailFileName"`
+	ThumbnailBlurhash     string  `json:"thumbnailBlurhash"`
+	AverageWatchTime      int64   `json:"averageWatchTime"`
+	TotalWatchTime        int64   `json:"totalWatchTime"`
+	Category              string  `json:"category"`
+	JitEncodingEnabled    bool    `json:"jitEncodingEnabled"`
+	HasOriginal           bool    `json:"hasOriginal"`
+	OriginalHash          string  `json:"originalHash"`
+	HasHighQualityPreview bool    `json:"hasHighQualityPreview"`
+
+	// Legacy / forward-compatible fields. Bunny may not populate these.
+	Bitrate             int    `json:"bitrate"`
+	VideoCodec          string `json:"videoCodec"`
+	AudioCodec          string `json:"audioCodec"`
+	ThumbnailURL        string `json:"thumbnailUrl"`
+	DefaultThumbnailURL string `json:"defaultThumbnailUrl"`
 }
 
 // OpenedUploadPart is an opened multipart file part plus its header metadata.

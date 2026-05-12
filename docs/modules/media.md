@@ -139,11 +139,96 @@ Non-image, non-video file uploads are checked against an extension + magic-byte 
 
 ### Video upload
 
-After Bunny PUT, `GetBunnyVideoByID` is called. If successful, `ApplyBunnyDetailToMetadata` merges:
-- `video_id`, `thumbnail_url`, `embeded_html`
-- Video telemetry: `width`, `height`, `length`, `framerate`, `bitrate`, `video_codec`, `audio_codec`
+After the Bunny PUT request succeeds, `GetBunnyVideoByID` is called.
+`ApplyBunnyDetailToMetadata` merges the Bunny detail payload into the
+in-memory `raw` metadata map and that map is then **serialised into the
+`media_files.metadata_json` JSONB column** via
+`serializeMergedMetadataJSON` (see `internal/media/infra/media_upload_entity.go`).
+On every read, `rowToFile` re-derives the typed `Metadata` sub-object from
+that same JSONB blob, so the API response (`metadata`) is always consistent
+regardless of whether the row was just written or loaded from the database.
+The raw blob itself stays server-side — only the typed view is exposed to
+clients.
+The flat scalar columns are also populated for fast lookups:
 
-Because Bunny may not have finished transcoding, `width`/`height` may be 0 immediately after upload. The Bunny webhook populates them when transcoding completes.
+| Source key in `metadata_json` | Flat column          | Notes                                  |
+|--------------------------------|----------------------|----------------------------------------|
+| `video_guid` / `bunny_video_id` | `bunny_video_id`     | Bunny GUID                             |
+| `bunny_library_id`             | `bunny_library_id`   | Bunny library ID                       |
+| `video_id`                     | `video_id`           | Numeric ID when available, else GUID   |
+| `thumbnail_url`                | `thumbnail_url`      | See "Thumbnail URL" below              |
+| `embeded_html`                 | `embeded_html`       | iframe embed snippet                   |
+| `length`                       | `duration`           | Seconds (int)                          |
+| `video_provider`               | `video_provider`     | `bunny_stream`                         |
+| `b2_bucket_name`               | `b2_bucket_name`     | Set on B2 uploads                      |
+
+All other Bunny fields are persisted **only** inside `metadata_json` so the
+schema does not need to grow per-field columns:
+
+- **Video telemetry:** `width`, `height`, `length`, `framerate`, `rotation`,
+  `bitrate`, `video_codec`, `output_codecs`, `audio_codec`
+- **Encoding state:** `encode_progress`, `available_resolutions`,
+  `storage_size`, `has_mp4_fallback`, `has_original`,
+  `has_high_quality_preview`, `jit_encoding_enabled`
+- **Thumbnail bits:** `thumbnail_filename`, `thumbnail_blurhash`,
+  `thumbnail_count`
+- **Descriptive:** `title`, `description`, `date_uploaded`, `views`,
+  `is_public`, `category`, `collection_id`, `original_hash`
+
+Because Bunny may not have finished transcoding when the upload returns,
+`width`/`height`/`length` may be `0` immediately after upload. The
+**Bunny webhook** repopulates them when transcoding completes.
+
+### Bunny response field mapping
+
+Bunny Stream's actual JSON response was verified from production logs.
+The following field names are the canonical ones (verified May 2026):
+
+| Our struct field          | Bunny JSON key          | Notes                                          |
+|---------------------------|-------------------------|------------------------------------------------|
+| `GUID`                    | `guid`                  |                                                |
+| `VideoLibraryID`          | `videoLibraryId`        |                                                |
+| `BunnyNumericID`          | `id`                    | Numeric ID (not always returned)               |
+| `Title`                   | `title`                 |                                                |
+| `Length`                  | `length`                | Seconds (float64)                              |
+| `Framerate`               | `framerate`             |                                                |
+| `Width` / `Height`        | `width` / `height`      |                                                |
+| `OutputCodecs`            | `outputCodecs`          | e.g. `"x264"` — used as `video_codec`          |
+| `AvailableResolutions`    | `availableResolutions`  | e.g. `"360p,480p,720p,1080p"`                  |
+| `ThumbnailFileName`       | `thumbnailFileName`     | e.g. `"thumbnail.jpg"` — used to build URL     |
+| `ThumbnailBlurhash`       | `thumbnailBlurhash`     |                                                |
+| `EncodeProgress`          | `encodeProgress`        |                                                |
+| `StorageSize`             | `storageSize`           | Bytes (int64)                                  |
+| `HasMP4Fallback`          | `hasMP4Fallback`        |                                                |
+| `HasOriginal`             | `hasOriginal`           |                                                |
+| `HasHighQualityPreview`   | `hasHighQualityPreview` |                                                |
+| `Bitrate` (legacy)        | `bitrate`               | Bunny rarely returns this — kept for forward   |
+|                           |                         | compatibility, never overwrites valid data     |
+| `VideoCodec` (legacy)     | `videoCodec`            | Same as above                                  |
+| `AudioCodec` (legacy)     | `audioCodec`            | Same as above                                  |
+| `ThumbnailURL` (legacy)   | `thumbnailUrl`          | Same as above                                  |
+
+### Thumbnail URL resolution
+
+Bunny does NOT return a full thumbnail URL. It returns only
+`thumbnailFileName` (e.g. `"thumbnail.jpg"`). The full URL is built from a
+configurable CDN pull-zone hostname:
+
+```
+https://{MEDIA_BUNNY_STREAM_CDN_HOSTNAME}/{videoGuid}/{thumbnailFileName}
+```
+
+`MEDIA_BUNNY_STREAM_CDN_HOSTNAME` (e.g. `vz-abcdef12-3456.b-cdn.net`)
+maps to `setting.MediaSetting.BunnyStreamCDNHostname`. When the hostname
+is empty the `thumbnail_url` column simply stays blank — the embed iframe
+URL (`embeded_html`) still works because it is built from
+`BunnyStreamBaseURL` + `BunnyStreamLibraryID` + `guid`.
+
+The resolution priority inside `EnrichBunnyVideoDetail` is:
+
+1. `thumbnailUrl` (if Bunny ever populates it directly)
+2. `defaultThumbnailUrl` (legacy alias)
+3. `{cdn_hostname}/{guid}/{thumbnailFileName}` (the canonical case today)
 
 ### Bunny webhook (`POST /webhook/bunny`)
 
@@ -155,7 +240,10 @@ Mounted on the **no-filter lane** (no JWT, no rate limit).
    - Signing secret: `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (fallback: `BunnyStreamAPIKey`)
 2. Parse and validate JSON payload (`VideoLibraryId`, `VideoGuid`, `Status` 0..10).
 3. Handle by status:
-   - `Finished (3)` and `Resolution finished (4)`: load row, fetch Bunny detail, merge metadata, update DB.
+   - `Finished (3)` and `Resolution finished (4)`: load row, fetch Bunny detail,
+     **merge metadata additively** (never overwrite valid prior data with zero
+     values), update DB. The `thumbnail_url` and `duration` columns are only
+     overwritten when the new value is non-empty / positive.
    - `Failed (5)` and `PresignedUploadFailed (8)`: mark row `FAILED` (idempotent).
    - Other statuses: accepted and intentionally ignored (idempotent callbacks).
 
@@ -169,17 +257,86 @@ Public fields returned in API responses:
 |-------|-------|
 | `url` | Public distribution URL |
 | `object_key` | Storage object key |
-| `metadata` | Typed `UploadFileMetadata` (nested) |
+| `metadata` | **Typed** sub-object (`UploadFileMetadata`). Normalised shape for image / video / document. See "Typed `metadata` shape" below. **This is the only metadata sub-object exposed to clients.** |
 | `bunny_video_id` | Bunny video GUID |
 | `bunny_library_id` | Bunny library ID |
 | `video_id` | Numeric Bunny ID or GUID |
-| `thumbnail_url` | From Bunny `thumbnailUrl` / `defaultThumbnailUrl` |
+| `thumbnail_url` | Built from `BunnyStreamCDNHostname` + `guid` + `thumbnailFileName` (current Bunny API); falls back to `thumbnailUrl` / `defaultThumbnailUrl` if Bunny ever populates them |
 | `embeded_html` | Escaped `<iframe ...>` embed HTML |
 | `duration` | Video duration in seconds |
 | `row_version` | Optimistic concurrency version (Sub 06) |
 | `content_fingerprint` | SHA-256 hex of file bytes (Sub 06) |
 
-**`origin_url` is NOT in the public API response** (Sub 12). The DB column and `File.OriginURL` (JSON `"-"`) are server-only for orphan resolution and delete routing.
+**`origin_url` and the full raw metadata blob are NOT in the public API response.**
+The DB column `metadata_json` is populated with rich provider data (Bunny
+telemetry, thumbnail blurhash, encode progress, available resolutions, …)
+for server-side use only — it backs the typed `metadata` field above and is
+queryable via SQL for analytics and orphan cleanup, but the untyped map is
+never serialised onto the response.
+
+### Typed `metadata` shape
+
+The typed sub-object is derived from the stored `metadata_json` blob on
+every read (see `rowToFile` in `internal/media/infra/repos.go`). Both
+write paths (CREATE / UPDATE) and read paths (LIST / GET) reuse the same
+builder (`BuildTypedMetadata`) so the shape is always consistent:
+
+| JSON key            | Type     | Populated for |
+|---------------------|----------|---------------|
+| `size_bytes`        | int64    | All files     |
+| `width_bytes`       | int      | Image / video |
+| `height_bytes`      | int      | Image / video |
+| `mime_type`         | string   | All files     |
+| `extension`         | string   | All files     |
+| `duration_seconds`  | float64  | Video         |
+| `bitrate`           | int      | Video         |
+| `fps`               | float64  | Video         |
+| `video_codec`       | string   | Video         |
+| `audio_codec`       | string   | Video         |
+| `has_audio`         | bool     | Video         |
+| `is_hdr`            | bool     | Video         |
+| `page_count`        | int      | Document      |
+| `has_password`      | bool     | Document      |
+| `archive_entries`   | int      | Archive       |
+
+### Server-side `metadata_json` (storage only)
+
+Even though the API only returns the typed `metadata` field above, the
+`media_files.metadata_json` JSONB column persists the full provider blob so
+operations like analytics, debugging, and re-derivation of typed fields
+remain possible. For Bunny videos this includes:
+
+```jsonc
+{
+  "video_guid": "7312c208-054f-413f-82b2-3666a271f4f4",
+  "bunny_video_id": "7312c208-054f-413f-82b2-3666a271f4f4",
+  "bunny_library_id": "650694",
+  "video_provider": "bunny_stream",
+  "video_id": "7312c208-054f-413f-82b2-3666a271f4f4",
+  "thumbnail_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/.../thumbnail.jpg",
+  "embeded_html": "<iframe ...></iframe>",
+  // Typed-mirrored keys (consumed by BuildTypedMetadata)
+  "length": 190,
+  "width": 1920,
+  "height": 1080,
+  "framerate": 23.976,
+  "video_codec": "x264",
+  // Bunny-only enrichment kept for server-side use
+  "output_codecs": "x264",
+  "available_resolutions": "360p,480p,720p,240p,1080p",
+  "encode_progress": 100,
+  "storage_size": 586177908,
+  "has_mp4_fallback": true,
+  "has_original": true,
+  "has_high_quality_preview": true,
+  "thumbnail_filename": "thumbnail.jpg",
+  "thumbnail_blurhash": "WA8gHS%1IpxYt6of0gRkxZR+WCf6WBNHWCofoeayt7xaoJjsWVfk",
+  "thumbnail_count": 95,
+  "title": "Avicii - The Nights - YouTube.mp4",
+  "date_uploaded": "2026-05-12T08:54:03.606",
+  "original_hash": "4132A4196E...8848D"
+}
+```
 
 ---
 

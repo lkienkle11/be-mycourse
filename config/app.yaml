@@ -52,6 +52,7 @@ media:
   bunny_stream_read_only_api_key: "${MEDIA_BUNNY_STREAM_READ_ONLY_API_KEY}"
   bunny_stream_library_id: "${MEDIA_BUNNY_LIBRARY_ID}"
   bunny_stream_base_url: "${MEDIA_BUNNY_STREAM_BASE_URL}"
+  bunny_stream_cdn_hostname: "${MEDIA_BUNNY_STREAM_CDN_HOSTNAME}"
   bunny_storage_endpoint: "${MEDIA_BUNNY_STORAGE_ENDPOINT}"
   bunny_storage_password: "${MEDIA_BUNNY_STORAGE_PASSWORD}"
   local_file_url_secret: "${LOCAL_FILE_URL_SECRET}"

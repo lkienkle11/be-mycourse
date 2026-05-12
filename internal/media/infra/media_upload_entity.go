@@ -1,6 +1,7 @@
 package infra
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,21 @@ import (
 	"mycourse-io-be/internal/media/domain"
 	"mycourse-io-be/internal/shared/utils"
 )
+
+// serializeMergedMetadataJSON marshals the merged raw metadata map into a
+// JSON string that will be stored in the media_files.metadata_json JSONB
+// column. Returns "{}" when there is nothing to persist or when marshalling
+// fails (defensive: never break persistence on a serialisation error).
+func serializeMergedMetadataJSON(merged domain.RawMetadata) string {
+	if len(merged) == 0 {
+		return "{}"
+	}
+	blob, err := json.Marshal(merged)
+	if err != nil {
+		return "{}"
+	}
+	return string(blob)
+}
 
 func mergeUploadInputMetadata(in domain.MediaUploadEntityInput) domain.RawMetadata {
 	uploadedMeta := NormalizeMetadata(in.Uploaded.Metadata)
@@ -73,6 +89,11 @@ func newFileEntityUploadCore(in domain.MediaUploadEntityInput, merged domain.Raw
 		Status:             constants.FileStatusReady,
 		B2BucketName:       b2BucketFromUploadInput(in, merged),
 		Metadata:           typed,
+		// Persist the merged provider metadata into the JSONB column.
+		// Without this assignment the database row would always store "{}"
+		// (see fileToRow in repos.go) even though Bunny/B2 return useful
+		// fields like length, framerate, resolution, thumbnail_filename, ...
+		MetadataJSON:       serializeMergedMetadataJSON(merged),
 		CreatedAt:          in.CreatedAt,
 		UpdatedAt:          in.UpdatedAt,
 		RowVersion:         1,

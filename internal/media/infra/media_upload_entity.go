@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/media/domain"
+	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -77,18 +77,18 @@ func preservedOrNewEntityID(in domain.MediaUploadEntityInput) string {
 
 func newFileEntityUploadCore(in domain.MediaUploadEntityInput, merged domain.RawMetadata, typed domain.UploadFileMetadata) *domain.File {
 	return &domain.File{
-		ID:                 preservedOrNewEntityID(in),
-		Kind:               in.Kind,
-		Provider:           in.Provider,
-		Filename:           in.Filename,
-		MimeType:           in.ContentType,
-		SizeBytes:          in.SizeBytes,
-		URL:                in.Uploaded.URL,
-		OriginURL:          in.Uploaded.OriginURL,
-		ObjectKey:          in.Uploaded.ObjectKey,
-		Status:             constants.FileStatusReady,
-		B2BucketName:       b2BucketFromUploadInput(in, merged),
-		Metadata:           typed,
+		ID:           preservedOrNewEntityID(in),
+		Kind:         in.Kind,
+		Provider:     in.Provider,
+		Filename:     in.Filename,
+		MimeType:     in.ContentType,
+		SizeBytes:    in.SizeBytes,
+		URL:          in.Uploaded.URL,
+		OriginURL:    in.Uploaded.OriginURL,
+		ObjectKey:    in.Uploaded.ObjectKey,
+		Status:       constants.FileStatusReady,
+		B2BucketName: b2BucketFromUploadInput(in, merged),
+		Metadata:     typed,
 		// Persist the merged provider metadata into the JSONB column.
 		// Without this assignment the database row would always store "{}"
 		// (see fileToRow in repos.go) even though Bunny/B2 return useful
@@ -130,6 +130,7 @@ func fileEntityFromUploadStreamFields(
 func BuildMediaFileEntityFromUpload(in domain.MediaUploadEntityInput) *domain.File {
 	merged := mergeUploadInputMetadata(in)
 	typed := BuildTypedMetadata(in.Kind, in.ContentType, in.Filename, in.SizeBytes, in.Payload, merged)
+	ApplyTypedMetadataToRaw(merged, typed)
 	bv, vid, thumb, embed, lib, vprov, dur := streamMetadataFromMerged(merged, typed)
 	return fileEntityFromUploadStreamFields(in, merged, typed, bv, vid, thumb, embed, lib, vprov, dur)
 }

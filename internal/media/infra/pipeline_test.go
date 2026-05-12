@@ -1,8 +1,10 @@
 package infra_test
 
 import (
+	"encoding/json"
 	"regexp"
 	"testing"
+	"time"
 
 	mediadelivery "mycourse-io-be/internal/media/delivery"
 	mediadomain "mycourse-io-be/internal/media/domain"
@@ -79,6 +81,55 @@ func TestResolveMediaUploadObjectKey_byProvider(t *testing.T) {
 	}
 	if g := mediainfra.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderB2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
 		t.Fatalf("B2 default key should start with 8 digits, got %q", g)
+	}
+}
+
+func TestBuildMediaFileEntityFromUpload_persistsTypedMetadataKeys(t *testing.T) {
+	entity := mediainfra.BuildMediaFileEntityFromUpload(mediadomain.MediaUploadEntityInput{
+		Kind:        constants.FileKindVideo,
+		Provider:    constants.FileProviderBunny,
+		Filename:    "video.mp4",
+		ContentType: "video/mp4",
+		SizeBytes:   123,
+		Uploaded: mediadomain.ProviderUploadResult{
+			URL:       "https://iframe.mediadelivery.net/play/650694/guid",
+			OriginURL: "https://iframe.mediadelivery.net/play/650694/guid",
+			ObjectKey: "guid",
+			Metadata: mediadomain.RawMetadata{
+				"bunny_video_id": "guid",
+				"length":         190.0,
+				"width":          1920,
+				"height":         1080,
+				"framerate":      23.976,
+				"video_codec":    "x264",
+			},
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+
+	if entity.Metadata.DurationSeconds != 190 {
+		t.Fatalf("expected typed duration_seconds 190, got %+v", entity.Metadata)
+	}
+	if entity.Duration != 190 {
+		t.Fatalf("expected flat duration 190, got %d", entity.Duration)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(entity.MetadataJSON), &raw); err != nil {
+		t.Fatalf("metadata_json should be valid JSON: %v", err)
+	}
+	if got := raw["duration_seconds"]; got != float64(190) {
+		t.Fatalf("expected metadata_json.duration_seconds=190, got %#v in %s", got, entity.MetadataJSON)
+	}
+	if got := raw["width_bytes"]; got != float64(1920) {
+		t.Fatalf("expected metadata_json.width_bytes=1920, got %#v in %s", got, entity.MetadataJSON)
+	}
+	if got := raw["height_bytes"]; got != float64(1080) {
+		t.Fatalf("expected metadata_json.height_bytes=1080, got %#v in %s", got, entity.MetadataJSON)
+	}
+	if got := raw["fps"]; got != 23.976 {
+		t.Fatalf("expected metadata_json.fps=23.976, got %#v in %s", got, entity.MetadataJSON)
 	}
 }
 

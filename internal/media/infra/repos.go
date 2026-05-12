@@ -177,10 +177,66 @@ func (r *GormFileRepository) GetByBunnyVideoID(ctx context.Context, videoGUID st
 
 func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.File) error {
 	row := fileToRow(f)
-	return r.db.WithContext(ctx).
-		Where("object_key = ?", row.ObjectKey).
-		Assign(row).
-		FirstOrCreate(row).Error
+	db := r.db.WithContext(ctx)
+
+	// Look up the existing active row by object_key. Soft-deleted rows are
+	// excluded so that a re-upload after deletion creates a fresh entity.
+	var existing mediaFileRow
+	err := db.Where("object_key = ? AND deleted_at IS NULL", row.ObjectKey).
+		First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// First insert (upload create path). Use the supplied row as-is so
+			// that DEFAULTs on the table (empty metadata_json -> '{}') and
+			// auto-managed timestamps still apply.
+			return db.Create(row).Error
+		}
+		return err
+	}
+
+	// UPDATE branch (webhook, re-upload, failure mark). We enumerate every
+	// editable column inside a map[string]any on purpose:
+	//
+	//   * GORM's `Assign(structValue) + FirstOrCreate` (the previous
+	//     implementation) compiles the UPDATE from the struct and SILENTLY
+	//     skips zero-value fields. That broke the Bunny webhook flow because
+	//     fields like `duration`, `thumbnail_url`, or `status` could not be
+	//     reliably written.
+	//   * A map-based Updates() honors every key, including zeros and
+	//     empty strings, which is what we want for an idempotent upsert.
+	cols := buildUpsertUpdateColumns(row)
+	cols["row_version"] = gorm.Expr("row_version + 1")
+	cols["updated_at"] = time.Now()
+	return db.Model(&mediaFileRow{}).
+		Where("id = ?", existing.ID).
+		Updates(cols).Error
+}
+
+// buildUpsertUpdateColumns produces the explicit column→value map used by
+// UpsertByObjectKey for the UPDATE branch. Extracted so unit tests can assert
+// every persisted field is present even before reaching the database — that
+// guarantee is what fixes the "duration stays at 0 after Bunny webhook" bug.
+func buildUpsertUpdateColumns(row *mediaFileRow) map[string]any {
+	return map[string]any{
+		"kind":                row.Kind,
+		"provider":            row.Provider,
+		"filename":            row.Filename,
+		"mime_type":           row.MimeType,
+		"size_bytes":          row.SizeBytes,
+		"url":                 row.URL,
+		"origin_url":          row.OriginURL,
+		"status":              row.Status,
+		"b2_bucket_name":      row.B2BucketName,
+		"bunny_video_id":      row.BunnyVideoID,
+		"bunny_library_id":    row.BunnyLibraryID,
+		"video_id":            row.VideoID,
+		"thumbnail_url":       row.ThumbnailURL,
+		"embeded_html":        row.EmbededHTML,
+		"duration":            row.Duration,
+		"video_provider":      row.VideoProvider,
+		"content_fingerprint": row.ContentFingerprint,
+		"metadata_json":       row.MetadataJSON,
+	}
 }
 
 func (r *GormFileRepository) SaveWithRowVersionCheck(ctx context.Context, f *domain.File, expectedVersion int64) error {
@@ -197,7 +253,7 @@ func (r *GormFileRepository) SaveWithRowVersionCheck(ctx context.Context, f *dom
 			"thumbnail_url": row.ThumbnailURL, "embeded_html": row.EmbededHTML,
 			"duration": row.Duration, "video_provider": row.VideoProvider,
 			"content_fingerprint": row.ContentFingerprint, "metadata_json": row.MetadataJSON,
-			"updated_at": time.Now(),
+			"updated_at":  time.Now(),
 			"row_version": gorm.Expr("row_version + 1"),
 		})
 	if result.Error != nil {
@@ -266,4 +322,3 @@ func (r *GormPendingCleanupRepository) MarkFailed(ctx context.Context, id int64,
 func (r *GormPendingCleanupRepository) DeleteByObjectKey(ctx context.Context, objectKey string) error {
 	return r.db.WithContext(ctx).Where("object_key = ?", objectKey).Delete(&pendingCleanupRow{}).Error
 }
-

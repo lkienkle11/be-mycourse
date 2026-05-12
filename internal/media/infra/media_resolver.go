@@ -79,14 +79,49 @@ func ResolveUploadProvider(kind string, kindInferred bool) string {
 	return ResolveMediaProvider(kind, "")
 }
 
-// EnrichBunnyVideoDetail normalizes thumbnail URL from alternate JSON fields returned by Bunny.
+// EnrichBunnyVideoDetail normalises the thumbnail URL on the detail struct.
+//
+// Bunny's get-video response does NOT include a fully qualified thumbnail URL.
+// It only returns `thumbnailFileName` (e.g. "thumbnail.jpg") and the caller is
+// expected to combine that with their CDN pull-zone hostname:
+//
+//	https://{cdn_hostname}/{guid}/{thumbnailFileName}
+//
+// We accept three sources, in priority order:
+//  1. `thumbnailUrl` (legacy / forward-compatible; rarely populated by Bunny).
+//  2. `defaultThumbnailUrl` (legacy alias).
+//  3. CDN hostname + `thumbnailFileName` (canonical for current Bunny API).
 func EnrichBunnyVideoDetail(d *domain.BunnyVideoDetail) {
 	if d == nil {
 		return
 	}
-	if strings.TrimSpace(d.ThumbnailURL) == "" {
-		d.ThumbnailURL = strings.TrimSpace(d.DefaultThumbnailURL)
+	if strings.TrimSpace(d.ThumbnailURL) != "" {
+		return
 	}
+	if alt := strings.TrimSpace(d.DefaultThumbnailURL); alt != "" {
+		d.ThumbnailURL = alt
+		return
+	}
+	d.ThumbnailURL = buildBunnyThumbnailFromCDN(d)
+}
+
+// buildBunnyThumbnailFromCDN composes the thumbnail URL from the configured
+// CDN pull-zone hostname and the video's thumbnail filename. Returns "" when
+// either piece is missing.
+func buildBunnyThumbnailFromCDN(d *domain.BunnyVideoDetail) string {
+	host := strings.TrimSpace(setting.MediaSetting.BunnyStreamCDNHostname)
+	file := strings.TrimSpace(d.ThumbnailFileName)
+	guid := strings.TrimSpace(d.GUID)
+	if host == "" || file == "" || guid == "" {
+		return ""
+	}
+	base := host
+	if !strings.HasPrefix(strings.ToLower(host), "http://") &&
+		!strings.HasPrefix(strings.ToLower(host), "https://") {
+		base = "https://" + host
+	}
+	base = strings.TrimRight(base, "/")
+	return fmt.Sprintf("%s/%s/%s", base, guid, file)
 }
 
 // EffectiveBunnyThumbnailURL returns the best-known thumbnail URL after enrichment.
@@ -94,6 +129,7 @@ func EffectiveBunnyThumbnailURL(d *domain.BunnyVideoDetail) string {
 	if d == nil {
 		return ""
 	}
+	EnrichBunnyVideoDetail(d)
 	return strings.TrimSpace(d.ThumbnailURL)
 }
 
@@ -138,33 +174,85 @@ func ResolveBunnyEmbedHTML(libraryID, videoGUID, streamPlayBase string) string {
 	)
 }
 
-// applyBunnyVideoTelemetry writes non-zero video dimension and codec fields from d into meta.
-// It mirrors the keys used by patchBunnyWebhookMetadataJSON so both the upload path and the
-// webhook path store identical key names.
+// applyBunnyVideoTelemetry writes Bunny detail fields into meta using snake_case keys.
+//
+// Only non-zero / non-empty values are written so the helper is safe to call
+// multiple times (e.g. once after upload, again from the webhook) without
+// destroying previously-populated keys.
+//
+// The codec column prefers `outputCodecs` (current Bunny API field name) and
+// falls back to the legacy `videoCodec` field for forward compatibility.
 func applyBunnyVideoTelemetry(meta domain.RawMetadata, d *domain.BunnyVideoDetail) {
+	videoCodec := strings.TrimSpace(d.OutputCodecs)
+	if videoCodec == "" {
+		videoCodec = strings.TrimSpace(d.VideoCodec)
+	}
 	telemetry := map[string]any{
-		"width":       d.Width,
-		"height":      d.Height,
-		"length":      d.Length,
-		"framerate":   d.Framerate,
-		"bitrate":     d.Bitrate,
-		"video_codec": strings.TrimSpace(d.VideoCodec),
+		// Core video telemetry
+		"width":      d.Width,
+		"height":     d.Height,
+		"length":     d.Length,
+		"framerate":  d.Framerate,
+		"bitrate":    d.Bitrate,
+		"rotation":   d.Rotation,
+		"video_codec": videoCodec,
 		"audio_codec": strings.TrimSpace(d.AudioCodec),
+		"output_codecs": strings.TrimSpace(d.OutputCodecs),
+
+		// Encoding / availability
+		"available_resolutions":    strings.TrimSpace(d.AvailableResolutions),
+		"encode_progress":          d.EncodeProgress,
+		"storage_size":             d.StorageSize,
+		"has_mp4_fallback":         d.HasMP4Fallback,
+		"has_original":             d.HasOriginal,
+		"has_high_quality_preview": d.HasHighQualityPreview,
+		"jit_encoding_enabled":     d.JitEncodingEnabled,
+
+		// Thumbnail bits (the resolved thumbnail_url is written separately
+		// via ApplyBunnyDetailToMetadata so it is consistent with the
+		// File.ThumbnailURL column).
+		"thumbnail_filename":  strings.TrimSpace(d.ThumbnailFileName),
+		"thumbnail_blurhash": strings.TrimSpace(d.ThumbnailBlurhash),
+		"thumbnail_count":    d.ThumbnailCount,
+
+		// Descriptive metadata
+		"title":         strings.TrimSpace(d.Title),
+		"description":   strings.TrimSpace(d.Description),
+		"date_uploaded": strings.TrimSpace(d.DateUploaded),
+		"views":         d.Views,
+		"is_public":     d.IsPublic,
+		"category":      strings.TrimSpace(d.Category),
+		"collection_id": strings.TrimSpace(d.CollectionID),
+		"original_hash": strings.TrimSpace(d.OriginalHash),
 	}
 	for k, v := range telemetry {
-		switch val := v.(type) {
-		case int:
-			if val > 0 {
-				meta[k] = val
-			}
-		case float64:
-			if val > 0 {
-				meta[k] = val
-			}
-		case string:
-			if val != "" {
-				meta[k] = val
-			}
+		writeNonZeroMetadata(meta, k, v)
+	}
+}
+
+// writeNonZeroMetadata writes v into meta[k] only when v carries useful data
+// (positive numbers, non-empty strings, or `true` booleans).
+func writeNonZeroMetadata(meta domain.RawMetadata, k string, v any) {
+	switch val := v.(type) {
+	case int:
+		if val > 0 {
+			meta[k] = val
+		}
+	case int64:
+		if val > 0 {
+			meta[k] = val
+		}
+	case float64:
+		if val > 0 {
+			meta[k] = val
+		}
+	case string:
+		if val != "" {
+			meta[k] = val
+		}
+	case bool:
+		if val {
+			meta[k] = val
 		}
 	}
 }

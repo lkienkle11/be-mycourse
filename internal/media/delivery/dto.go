@@ -65,6 +65,12 @@ type MediaCleanupMetricsResponse struct {
 }
 
 // UploadFileResponse is the public API response for a file entity.
+//
+// `metadata` is the only metadata sub-object exposed to clients. It is a
+// typed view rebuilt on every read from the underlying `metadata_json`
+// JSONB column (see `rowToFile` in `internal/media/infra/repos.go`), so
+// callers see a stable shape regardless of which provider wrote the row.
+// The raw provider blob is kept server-side only and is not returned.
 type UploadFileResponse struct {
 	ID                 string             `json:"id,omitempty"`
 	Kind               string             `json:"kind,omitempty"`

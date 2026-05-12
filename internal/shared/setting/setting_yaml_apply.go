@@ -76,6 +76,7 @@ func expandYAMLMediaSection(c *yamlConfig, expand func(string) string) {
 	c.Media.BunnyStreamReadOnlyAPIKey = expand(c.Media.BunnyStreamReadOnlyAPIKey)
 	c.Media.BunnyStreamLibraryID = expand(c.Media.BunnyStreamLibraryID)
 	c.Media.BunnyStreamBaseURL = expand(c.Media.BunnyStreamBaseURL)
+	c.Media.BunnyStreamCDNHostname = expand(c.Media.BunnyStreamCDNHostname)
 	c.Media.BunnyStorageEndpoint = expand(c.Media.BunnyStorageEndpoint)
 	c.Media.BunnyStoragePassword = expand(c.Media.BunnyStoragePassword)
 	c.Media.LocalFileURLSecret = expand(c.Media.LocalFileURLSecret)
@@ -239,6 +240,7 @@ func applyYAMLMediaGlobals(c *yamlConfig) {
 	MediaSetting.BunnyStreamReadOnlyAPIKey = c.Media.BunnyStreamReadOnlyAPIKey
 	MediaSetting.BunnyStreamLibraryID = c.Media.BunnyStreamLibraryID
 	MediaSetting.BunnyStreamBaseURL = c.Media.BunnyStreamBaseURL
+	MediaSetting.BunnyStreamCDNHostname = c.Media.BunnyStreamCDNHostname
 	MediaSetting.BunnyStorageEndpoint = c.Media.BunnyStorageEndpoint
 	MediaSetting.BunnyStoragePassword = c.Media.BunnyStoragePassword
 	MediaSetting.LocalFileURLSecret = c.Media.LocalFileURLSecret

@@ -62,7 +62,7 @@ func (pendingCleanupRow) TableName() string { return constants.TableMediaPending
 // --- mappers -----------------------------------------------------------------
 
 func rowToFile(r *mediaFileRow) *domain.File {
-	return &domain.File{
+	f := &domain.File{
 		ID: r.ID, ObjectKey: r.ObjectKey, Kind: r.Kind, Provider: r.Provider,
 		Filename: r.Filename, MimeType: r.MimeType, SizeBytes: r.SizeBytes,
 		URL: r.URL, OriginURL: r.OriginURL, Status: r.Status,
@@ -72,6 +72,19 @@ func rowToFile(r *mediaFileRow) *domain.File {
 		ContentFingerprint: r.ContentFingerprint, MetadataJSON: string(r.MetadataJSON),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
+	// Re-derive the typed Metadata struct from the stored JSONB blob so that
+	// reads (List / GetByID / GetByObjectKey / GetByBunnyVideoID) return the
+	// same shape as the write path. Without this rebuild, the API response
+	// always shows zero values for width/height/duration/codec/... even when
+	// `metadata_json` holds rich Bunny telemetry.
+	raw := f.RawMetadataMap()
+	if raw == nil {
+		raw = domain.RawMetadata{}
+	}
+	// Payload is nil on read-back; buildImageTypedMetadata is resilient and
+	// falls back to width/height stored inside the raw map.
+	f.Metadata = BuildTypedMetadata(r.Kind, r.MimeType, r.Filename, r.SizeBytes, nil, raw)
+	return f
 }
 
 func fileToRow(f *domain.File) *mediaFileRow {

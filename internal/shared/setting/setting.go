@@ -86,6 +86,7 @@ type Media struct {
 	BunnyStreamReadOnlyAPIKey string
 	BunnyStreamLibraryID      string
 	BunnyStreamBaseURL        string
+	BunnyStreamCDNHostname    string
 	BunnyStorageEndpoint      string
 	BunnyStoragePassword      string
 	LocalFileURLSecret        string
@@ -184,6 +185,7 @@ type yamlMedia struct {
 	BunnyStreamReadOnlyAPIKey string `yaml:"bunny_stream_read_only_api_key"`
 	BunnyStreamLibraryID      string `yaml:"bunny_stream_library_id"`
 	BunnyStreamBaseURL        string `yaml:"bunny_stream_base_url"`
+	BunnyStreamCDNHostname    string `yaml:"bunny_stream_cdn_hostname"`
 	BunnyStorageEndpoint      string `yaml:"bunny_storage_endpoint"`
 	BunnyStoragePassword      string `yaml:"bunny_storage_password"`
 	LocalFileURLSecret        string `yaml:"local_file_url_secret"`

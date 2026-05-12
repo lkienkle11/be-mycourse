@@ -37,7 +37,7 @@ func mustSupabaseRedisAndMedia() {
 		zap.L().Warn("supabase HTTP client is not initialized", zap.Error(err))
 	}
 	cache.SetupRedis()
-	if _, err := mediainfra.NewCloudClientsFromSetting(); err != nil {
+	if err := mediainfra.Setup(); err != nil {
 		zap.L().Fatal("setup media sdk clients failed", zap.Error(err))
 	}
 }

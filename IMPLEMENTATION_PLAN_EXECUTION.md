@@ -313,7 +313,7 @@ Two upload policies:
 ### Build / CI changes
 
 - `Makefile`: `build` target uses `CGO_ENABLED=1`; new `build-nocgo` target for pure-Go builds.
-- `.github/workflows/deploy-dev.yml`: **test** / **build** use **`vegardit/fast-apt-mirror.sh@v1`** + **`awalsh128/cache-apt-pkgs-action`** for **libvips-dev**, **libhdf5-dev**, **pkg-config**; **test** runs **`go test`** (plain + **`CGO_ENABLED=1`**), **`go vet`**, **`golangci-lint`**; **build** runs **`CGO_ENABLED=1 go build`** for **`mycourse-io-be-dev`**.
+- `.github/workflows/deploy-dev.yml`: **test** / **build** run **`vegardit/fast-apt-mirror.sh`** then **`apt-get install`** **libvips-dev**, **libhdf5-dev**, **pkg-config** (no **`cache-apt-pkgs-action`** — single **apt** path, fast mirror applies to **`sudo apt-get`** as well); **test** runs **`go test`** (plain + **`CGO_ENABLED=1`**), **`go vet`**, **`golangci-lint`**; **build** runs **`CGO_ENABLED=1 go build`** for **`mycourse-io-be-dev`**.
 - `go.mod`: added `github.com/h2non/bimg v1.1.9`.
 
 ### Quality gate

@@ -25,12 +25,14 @@ jobs:
       - name: Configure fast APT mirror
         uses: vegardit/fast-apt-mirror.sh@v1
 
-      - name: Cache APT packages (libvips, HDF5, pkg-config)
-        uses: awalsh128/cache-apt-pkgs-action@v1.6.0
-        with:
-          # libhdf5-dev: hdf5.pc for matio (libvips optional dep) — required on ubuntu-latest for CGO bimg build
-          packages: libvips-dev libhdf5-dev pkg-config
-          version: libvips-hdf5-pkg-config-v1
+      # All apt-get in this job uses the mirror above (sudo does not change sources.list).
+      - name: Install CGO system packages (libvips, HDF5, pkg-config)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            libvips-dev libhdf5-dev pkg-config
+          pkg-config --print-errors --exists hdf5
+          pkg-config --print-errors --exists vips
 
       - name: Download dependencies
         run: |
@@ -73,11 +75,13 @@ jobs:
       - name: Configure fast APT mirror
         uses: vegardit/fast-apt-mirror.sh@v1
 
-      - name: Cache APT packages (libvips, HDF5, pkg-config)
-        uses: awalsh128/cache-apt-pkgs-action@v1.6.0
-        with:
-          packages: libvips-dev libhdf5-dev pkg-config
-          version: libvips-hdf5-pkg-config-v1
+      - name: Install CGO system packages (libvips, HDF5, pkg-config)
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            libvips-dev libhdf5-dev pkg-config
+          pkg-config --print-errors --exists hdf5
+          pkg-config --print-errors --exists vips
 
       - name: Build Go Binary
         run: |

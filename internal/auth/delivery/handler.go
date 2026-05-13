@@ -47,6 +47,16 @@ func NewHandler(auth AuthUseCase, perm PermissionUseCase) *Handler {
 	return &Handler{auth: auth, perm: perm}
 }
 
+// CSRFToken — GET /api/v1/auth/csrf
+func (h *Handler) CSRFToken(c *gin.Context) {
+	tok, err := c.Cookie(middleware.CookieCSRFToken)
+	if err != nil || tok == "" {
+		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, "failed to load csrf token", nil)
+		return
+	}
+	response.OK(c, "csrf_token_issued", CSRFTokenResponse{CSRFToken: tok})
+}
+
 // Register — POST /api/v1/auth/register
 func (h *Handler) Register(c *gin.Context) {
 	var req RegisterRequest

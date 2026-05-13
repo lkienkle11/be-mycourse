@@ -19,6 +19,7 @@ func RegisterRoutes(
 ) {
 	if notAuthen != nil {
 		authGroup := notAuthen.Group("/auth")
+		authGroup.GET("/csrf", h.CSRFToken)
 		authGroup.POST("/register", h.Register)
 		authGroup.POST("/login", h.Login)
 		authGroup.POST("/confirm", h.ConfirmEmail)

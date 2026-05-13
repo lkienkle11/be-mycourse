@@ -20,6 +20,11 @@ type ConfirmEmailRequest struct {
 	Token string `json:"token" binding:"required"`
 }
 
+// CSRFTokenResponse is the JSON data for GET /api/v1/auth/csrf.
+type CSRFTokenResponse struct {
+	CSRFToken string `json:"csrf_token"`
+}
+
 // LoginSessionTokensResponse is the JSON data for login, confirm, and refresh success.
 type LoginSessionTokensResponse struct {
 	AccessToken  string `json:"access_token"`

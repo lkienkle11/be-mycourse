@@ -5,17 +5,17 @@ import (
 	"context"
 	"strings"
 
+	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/system/domain"
 	"mycourse-io-be/internal/system/infra" //nolint:depguard // application calls infra.CredentialHMACHex and infra.MintSystemAccessToken crypto helpers; TODO: inject via domain port
-	apperrors "mycourse-io-be/internal/shared/errors"
 )
 
 // SystemService provides all SYSTEM use-cases.
 type SystemService struct {
-	appCfgRepo  domain.AppConfigRepository
+	appCfgRepo   domain.AppConfigRepository
 	privUserRepo domain.PrivilegedUserRepository
-	permSyncer  domain.PermissionSyncer
-	roleSyncer  domain.RolePermissionSyncer
+	permSyncer   domain.PermissionSyncer
+	roleSyncer   domain.RolePermissionSyncer
 }
 
 // NewSystemService constructs a SystemService.
@@ -26,10 +26,10 @@ func NewSystemService(
 	roleSyncer domain.RolePermissionSyncer,
 ) *SystemService {
 	return &SystemService{
-		appCfgRepo:  appCfgRepo,
+		appCfgRepo:   appCfgRepo,
 		privUserRepo: privUserRepo,
-		permSyncer:  permSyncer,
-		roleSyncer:  roleSyncer,
+		permSyncer:   permSyncer,
+		roleSyncer:   roleSyncer,
 	}
 }
 

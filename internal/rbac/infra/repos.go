@@ -18,10 +18,10 @@ import (
 
 // Pre-built SQL strings (filled once from table names).
 var (
-	sqlPermissionCodesForUser              string
-	sqlDeleteRolePermsByPermissionID       string
-	sqlDeleteRolePermsByRoleID             string
-	sqlDeleteUserPermsByPermissionID       string
+	sqlPermissionCodesForUser        string
+	sqlDeleteRolePermsByPermissionID string
+	sqlDeleteRolePermsByRoleID       string
+	sqlDeleteUserPermsByPermissionID string
 )
 
 func init() {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"mycourse-io-be/internal/media/domain" //nolint:depguard // jobs use domain repository interfaces as parameters; no business logic
+	"mycourse-io-be/internal/media/domain"           //nolint:depguard // jobs use domain repository interfaces as parameters; no business logic
 	mediainfra "mycourse-io-be/internal/media/infra" //nolint:depguard // jobs call infra.RequireInitialized and cloud client APIs; TODO: inject via application service
 )
 

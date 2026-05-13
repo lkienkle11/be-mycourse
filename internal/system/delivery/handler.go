@@ -7,10 +7,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/internal/system/application"
-	"mycourse-io-be/internal/system/jobs" //nolint:depguard // system delivery controls background job lifecycle (start/stop schedulers); control-plane responsibility
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/response"
+	"mycourse-io-be/internal/system/application"
+	"mycourse-io-be/internal/system/jobs" //nolint:depguard // system delivery controls background job lifecycle (start/stop schedulers); control-plane responsibility
 )
 
 // --- DTOs --------------------------------------------------------------------

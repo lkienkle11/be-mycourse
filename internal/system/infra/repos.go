@@ -10,8 +10,8 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/constants"
-	"mycourse-io-be/internal/system/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/system/domain"
 )
 
 // --- GORM row types ----------------------------------------------------------

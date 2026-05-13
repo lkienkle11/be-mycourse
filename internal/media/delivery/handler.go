@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/internal/media/application"
-	"mycourse-io-be/internal/media/domain" //nolint:depguard // delivery uses domain.OpenedUploadPart type; no business logic
+	"mycourse-io-be/internal/media/domain"           //nolint:depguard // delivery uses domain.OpenedUploadPart type; no business logic
 	mediainfra "mycourse-io-be/internal/media/infra" //nolint:depguard // delivery uses infra.RequireInitialized for readiness check; TODO: move to service port
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"

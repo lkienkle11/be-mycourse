@@ -7,8 +7,8 @@ import (
 
 	mediaapp "mycourse-io-be/internal/media/application"
 	mediainfra "mycourse-io-be/internal/media/infra"
-	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/constants"
+	apperrors "mycourse-io-be/internal/shared/errors"
 )
 
 func TestValidateMultipartFileHeaders_zeroParts(t *testing.T) {

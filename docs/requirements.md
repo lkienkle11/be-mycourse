@@ -549,7 +549,7 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 #### NFR-3.7 CI/CD
 
 - Pushing to the `master` branch **MUST** trigger `.github/workflows/deploy-dev.yml`:
-  - Install `libvips-dev libhdf5-dev pkg-config` on the runner (`libhdf5-dev` supplies `hdf5.pc` for **matio**, required for **CGO_ENABLED=1** / bimg with current Ubuntu libvips stacks).
+  - Install `libvips-dev libhdf5-dev pkg-config` on the runner after **`vegardit/fast-apt-mirror.sh`** (so downloads use the fast mirror). **`libhdf5-dev`** supplies **`hdf5.pc`** for **matio** (**CGO_ENABLED=1** / bimg).
   - Build the `mycourse-io-be-dev` binary with `CGO_ENABLED=1`.
   - On the deploy host, back up **only** the current dev binary to `bin/mycourse-io-be-dev.prev`, then `rsync` the new binary onto `bin/mycourse-io-be-dev` (ecosystem is **not** backed up in CI; the script owns `ecosystem.config.cjs.prev`).
   - Run `scripts/pm2-reload-with-binary-rollback.sh`: snapshot `ecosystem.config.cjs`, pull **only** that file from `origin/master`, reload PM2, health-check `GET /api/v1/health`, treat PM2 autorestart exhaustion as failure; on success, full `git pull`; on failure, restore previous binary **and** ecosystem from `.prev`, reload, and health-check again.

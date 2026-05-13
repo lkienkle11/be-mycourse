@@ -11,17 +11,17 @@ import (
 
 // userRow is the GORM model for the users table.
 type userRow struct {
-	ID                         uint                 `gorm:"primaryKey;autoIncrement"`
-	UserCode                   string               `gorm:"type:uuid;uniqueIndex;not null"`
-	Email                      string               `gorm:"size:255;uniqueIndex;not null"`
-	HashPassword               string               `gorm:"size:255;not null"`
-	DisplayName                string               `gorm:"size:255;not null;default:''"`
-	AvatarFileID               *string              `gorm:"column:avatar_file_id;type:uuid"`
-	IsDisable                  bool                 `gorm:"not null;default:false"`
-	EmailConfirmed             bool                 `gorm:"not null;default:false"`
-	ConfirmationToken          *string              `gorm:"size:128"`
+	ID                         uint    `gorm:"primaryKey;autoIncrement"`
+	UserCode                   string  `gorm:"type:uuid;uniqueIndex;not null"`
+	Email                      string  `gorm:"size:255;uniqueIndex;not null"`
+	HashPassword               string  `gorm:"size:255;not null"`
+	DisplayName                string  `gorm:"size:255;not null;default:''"`
+	AvatarFileID               *string `gorm:"column:avatar_file_id;type:uuid"`
+	IsDisable                  bool    `gorm:"not null;default:false"`
+	EmailConfirmed             bool    `gorm:"not null;default:false"`
+	ConfirmationToken          *string `gorm:"size:128"`
 	ConfirmationSentAt         *time.Time
-	RegistrationEmailSendTotal int                  `gorm:"column:registration_email_send_total;not null;default:0"`
+	RegistrationEmailSendTotal int                    `gorm:"column:registration_email_send_total;not null;default:0"`
 	RefreshTokenSession        RefreshTokenSessionMap `gorm:"type:jsonb;not null;default:'{}'"`
 	CreatedAt                  time.Time
 	UpdatedAt                  time.Time

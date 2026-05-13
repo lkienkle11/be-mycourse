@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/shared/constants"
-	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/utils"
 )
 
 // ParseImageURLForOrphanCleanup inspects a stored image URL and returns the

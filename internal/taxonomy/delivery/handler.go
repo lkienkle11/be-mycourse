@@ -7,12 +7,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/internal/taxonomy/application"
-	"mycourse-io-be/internal/taxonomy/domain" //nolint:depguard // delivery uses domain input types (UpdateTagInput, UpdateCourseLevelInput); pure mapping, no business logic
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
+	"mycourse-io-be/internal/taxonomy/application"
+	"mycourse-io-be/internal/taxonomy/domain" //nolint:depguard // delivery uses domain input types (UpdateTagInput, UpdateCourseLevelInput); pure mapping, no business logic
 )
 
 // Handler holds all taxonomy HTTP handlers.

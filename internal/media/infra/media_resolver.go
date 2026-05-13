@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/media/domain"
+	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/setting"
 )
 
@@ -189,14 +189,14 @@ func applyBunnyVideoTelemetry(meta domain.RawMetadata, d *domain.BunnyVideoDetai
 	}
 	telemetry := map[string]any{
 		// Core video telemetry
-		"width":      d.Width,
-		"height":     d.Height,
-		"length":     d.Length,
-		"framerate":  d.Framerate,
-		"bitrate":    d.Bitrate,
-		"rotation":   d.Rotation,
-		"video_codec": videoCodec,
-		"audio_codec": strings.TrimSpace(d.AudioCodec),
+		"width":         d.Width,
+		"height":        d.Height,
+		"length":        d.Length,
+		"framerate":     d.Framerate,
+		"bitrate":       d.Bitrate,
+		"rotation":      d.Rotation,
+		"video_codec":   videoCodec,
+		"audio_codec":   strings.TrimSpace(d.AudioCodec),
 		"output_codecs": strings.TrimSpace(d.OutputCodecs),
 
 		// Encoding / availability
@@ -211,7 +211,7 @@ func applyBunnyVideoTelemetry(meta domain.RawMetadata, d *domain.BunnyVideoDetai
 		// Thumbnail bits (the resolved thumbnail_url is written separately
 		// via ApplyBunnyDetailToMetadata so it is consistent with the
 		// File.ThumbnailURL column).
-		"thumbnail_filename":  strings.TrimSpace(d.ThumbnailFileName),
+		"thumbnail_filename": strings.TrimSpace(d.ThumbnailFileName),
 		"thumbnail_blurhash": strings.TrimSpace(d.ThumbnailBlurhash),
 		"thumbnail_count":    d.ThumbnailCount,
 

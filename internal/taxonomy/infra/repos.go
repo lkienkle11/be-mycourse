@@ -17,12 +17,12 @@ import (
 // --- GORM row types ----------------------------------------------------------
 
 type categoryRow struct {
-	ID          uint       `gorm:"primaryKey;autoIncrement"`
-	Name        string     `gorm:"size:255;not null"`
-	Slug        string     `gorm:"size:255;not null;uniqueIndex"`
-	ImageFileID *string    `gorm:"column:image_file_id;type:uuid"`
-	Status      string     `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy   *uint      `gorm:"column:created_by"`
+	ID          uint    `gorm:"primaryKey;autoIncrement"`
+	Name        string  `gorm:"size:255;not null"`
+	Slug        string  `gorm:"size:255;not null;uniqueIndex"`
+	ImageFileID *string `gorm:"column:image_file_id;type:uuid"`
+	Status      string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	CreatedBy   *uint   `gorm:"column:created_by"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -30,11 +30,11 @@ type categoryRow struct {
 func (categoryRow) TableName() string { return constants.TableTaxonomyCategories }
 
 type tagRow struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement"`
-	Name      string    `gorm:"size:255;not null"`
-	Slug      string    `gorm:"size:255;not null;uniqueIndex"`
-	Status    string    `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *uint     `gorm:"column:created_by"`
+	ID        uint   `gorm:"primaryKey;autoIncrement"`
+	Name      string `gorm:"size:255;not null"`
+	Slug      string `gorm:"size:255;not null;uniqueIndex"`
+	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	CreatedBy *uint  `gorm:"column:created_by"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -42,11 +42,11 @@ type tagRow struct {
 func (tagRow) TableName() string { return constants.TableTaxonomyTags }
 
 type courseLevelRow struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement"`
-	Name      string    `gorm:"size:255;not null"`
-	Slug      string    `gorm:"size:255;not null;uniqueIndex"`
-	Status    string    `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *uint     `gorm:"column:created_by"`
+	ID        uint   `gorm:"primaryKey;autoIncrement"`
+	Name      string `gorm:"size:255;not null"`
+	Slug      string `gorm:"size:255;not null;uniqueIndex"`
+	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	CreatedBy *uint  `gorm:"column:created_by"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

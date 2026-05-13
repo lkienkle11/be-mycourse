@@ -18,9 +18,9 @@ import (
 
 	gomigrate "github.com/golang-migrate/migrate/v4"
 
-	appmigrations "mycourse-io-be/migrations"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/setting"
+	appmigrations "mycourse-io-be/migrations"
 )
 
 // primary is the application-wide GORM connection; set once on startup.

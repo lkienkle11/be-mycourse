@@ -66,11 +66,38 @@ X-Token-Expired: true
 
 ---
 
+## CSRF Protection (Double-Submit Cookie)
+
+Current status: CSRF middleware wiring is temporarily disabled in router for rollout safety. Logic and endpoint are kept for quick re-enable.
+
+The auth and API layer uses **double-submit CSRF protection** for unsafe methods.
+
+- Cookie name: `csrf_token`
+- Header name: `X-CSRF-Token`
+- When enabled, enforced on unsafe methods: `POST`, `PUT`, `PATCH`, `DELETE`
+- Safe methods (`GET`, `HEAD`, `OPTIONS`) do not require CSRF header validation.
+
+Client flow:
+1. Call `GET /api/v1/auth/csrf` to bootstrap CSRF and receive/set `csrf_token` (currently optional).
+2. For every unsafe request, send `X-CSRF-Token` with the same value as `csrf_token`.
+3. When CSRF middleware is re-enabled, backend rejects mismatch/missing token with a CSRF validation error.
+
+---
+
 ## Endpoints
+
+### `GET /api/v1/auth/csrf`
+
+Bootstrap endpoint for CSRF. Issues (or refreshes) the CSRF cookie and returns token data for FE bootstrapping.
+
+**Success:** `200 OK`
+
+---
 
 ### `POST /api/v1/auth/register`
 
 Creates a **pending** user (or re-sends confirmation to an existing unconfirmed user) and sends a Brevo confirmation email.
+The email confirmation action must point to the FE client URL from `APP_CLIENT_BASE_URL`; FE extracts the token and submits it to backend.
 
 **Request:**
 ```json
@@ -123,9 +150,14 @@ Validates credentials and issues a full token set.
 
 ---
 
-### `GET /api/v1/auth/confirm?token=<token>`
+### `POST /api/v1/auth/confirm`
 
-Confirms email, assigns the `learner` role, and immediately issues a token set. Resets `registration_email_send_total` to 0 and clears Redis window + email→user cache.
+Confirms email from a token sent by FE in request body, assigns the `learner` role, and immediately issues a token set. Resets `registration_email_send_total` to 0 and clears Redis window + email→user cache.
+
+**Request:**
+```json
+{ "token": "<uuid-confirmation-token>" }
+```
 
 **Success:** `200 OK` + auth cookies + same body shape as login
 

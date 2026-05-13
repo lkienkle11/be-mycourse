@@ -10,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/internal/auth/domain" //nolint:depguard // delivery uses domain error sentinels for errors.Is checks; no business logic here
+	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/middleware"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/setting"
-	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/validate"
 )
 
@@ -45,6 +45,16 @@ type Handler struct {
 // NewHandler constructs the auth HTTP handler.
 func NewHandler(auth AuthUseCase, perm PermissionUseCase) *Handler {
 	return &Handler{auth: auth, perm: perm}
+}
+
+// CSRFToken — GET /api/v1/auth/csrf
+func (h *Handler) CSRFToken(c *gin.Context) {
+	tok, err := c.Cookie(middleware.CookieCSRFToken)
+	if err != nil || tok == "" {
+		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, "failed to load csrf token", nil)
+		return
+	}
+	response.OK(c, "csrf_token_issued", CSRFTokenResponse{CSRFToken: tok})
 }
 
 // Register — POST /api/v1/auth/register
@@ -111,14 +121,14 @@ func (h *Handler) Login(c *gin.Context) {
 	response.OK(c, "login_success", toTokensResponse(result))
 }
 
-// ConfirmEmail — GET /api/v1/auth/confirm?token=<token>
+// ConfirmEmail — POST /api/v1/auth/confirm
 func (h *Handler) ConfirmEmail(c *gin.Context) {
-	tok := c.Query("token")
-	if tok == "" {
-		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "missing token parameter", nil)
+	var req ConfirmEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	result, err := h.auth.ConfirmEmail(c.Request.Context(), tok)
+	result, err := h.auth.ConfirmEmail(c.Request.Context(), req.Token)
 	if err != nil {
 		switch {
 		case errors.Is(err, domain.ErrInvalidConfirmToken):

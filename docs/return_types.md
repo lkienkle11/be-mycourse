@@ -536,14 +536,14 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 ---
 
-#### `GET /api/v1/auth/confirm`
+#### `POST /api/v1/auth/confirm`
 
-**Query params:** `token=<uuid>`
+**Request body:** `{ "token": "<uuid>" }`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
 | 200 | 0 | `{ access_token, refresh_token, session_id }` |
-| 400 | 3001 | `null` — missing token param |
+| 400 | 3001 | `null` — missing token field |
 | 400 | 4006 | `null` — invalid/expired token |
 | 500 | 9001 | `null` |
 

@@ -35,6 +35,8 @@ func expandYAMLServerDBApp(c *yamlConfig, expand func(string) string) {
 	c.Database.SSLMode = expand(c.Database.SSLMode)
 	c.App.JWTSecret = expand(c.App.JWTSecret)
 	c.App.ApiKey = expand(c.App.ApiKey)
+	c.App.AppBaseURL = expand(c.App.AppBaseURL)
+	c.App.AppClientBaseURL = expand(c.App.AppClientBaseURL)
 }
 
 func expandYAMLIntegrations(c *yamlConfig, expand func(string) string) {
@@ -45,7 +47,6 @@ func expandYAMLIntegrations(c *yamlConfig, expand func(string) string) {
 	c.Supabase.AnonKey = expand(c.Supabase.AnonKey)
 	c.Supabase.ServiceRoleKey = expand(c.Supabase.ServiceRoleKey)
 	c.Supabase.DBURL = expand(c.Supabase.DBURL)
-	c.App.AppBaseURL = expand(c.App.AppBaseURL)
 	c.App.Cors.AllowedOrigins = expand(c.App.Cors.AllowedOrigins)
 	c.Brevo.APIKey = expand(c.Brevo.APIKey)
 	c.Brevo.SenderEmail = expand(c.Brevo.SenderEmail)
@@ -189,6 +190,7 @@ func applyYAMLAppBrevoGlobals(c *yamlConfig) {
 	}
 	AppSetting.ApiKey = c.App.ApiKey
 	AppSetting.AppBaseURL = strings.TrimRight(strings.TrimSpace(c.App.AppBaseURL), "/")
+	AppSetting.AppClientBaseURL = strings.TrimRight(strings.TrimSpace(c.App.AppClientBaseURL), "/")
 	rawOrigins := strings.TrimSpace(c.App.Cors.AllowedOrigins)
 	if rawOrigins != "" {
 		parts := strings.Split(rawOrigins, ",")

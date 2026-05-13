@@ -25,11 +25,13 @@ func ginDefaultCORS() cors.Config {
 		AllowHeaders: []string{
 			"Origin", "Content-Type", "Authorization",
 			"X-API-Key", "X-Refresh-Token", "X-Session-Id",
+			middleware.HeaderCSRFToken,
 		},
 		ExposeHeaders: []string{
 			"X-Token-Expired",
 			constants.HeaderRegisterRetryAfter,
 			constants.HeaderRegisterRetryAfterExtended,
+			middleware.HeaderCSRFToken,
 		},
 		AllowCredentials: true,
 	}
@@ -65,15 +67,21 @@ func mountAPITree(apiRoot *gin.RouterGroup, svc *Services, h *Handlers) {
 	// --- /api/v1 base (before-interceptor applied) ---
 	v1 := apiRoot.Group("/v1")
 	v1.Use(middleware.BeforeInterceptor())
+	// Temporarily disabled for rollout safety; keep logic in codebase for quick re-enable.
+	// v1.Use(middleware.EnsureCSRFCookie())
 
 	// Unauthenticated v1 routes
 	notAuthen := v1.Group("")
+	// Temporarily disabled for rollout safety; keep logic in codebase for quick re-enable.
+	// notAuthen.Use(middleware.RateLimitLocal(60, 1), middleware.RequireCSRF())
 	notAuthen.Use(middleware.RateLimitLocal(60, 1))
 	notAuthen.GET("/health", func(c *gin.Context) { response.Health(c) })
 	authdelivery.RegisterRoutes(nil, notAuthen, h.Auth, svc.RBAC)
 
 	// Authenticated v1 routes
 	authen := v1.Group("")
+	// Temporarily disabled for rollout safety; keep logic in codebase for quick re-enable.
+	// authen.Use(middleware.RateLimitLocal(120, 1), middleware.AuthJWT(), middleware.RequireCSRF())
 	authen.Use(middleware.RateLimitLocal(120, 1), middleware.AuthJWT())
 	authdelivery.RegisterRoutes(authen, nil, h.Auth, svc.RBAC)
 	taxdelivery.RegisterRoutes(authen, h.Taxonomy, svc.RBAC)

@@ -19,6 +19,7 @@ type App struct {
 	JWTSecret          string
 	ApiKey             string
 	AppBaseURL         string
+	AppClientBaseURL   string
 	CorsAllowedOrigins []string
 }
 
@@ -145,10 +146,11 @@ type yamlCors struct {
 }
 
 type yamlApp struct {
-	JWTSecret  string   `yaml:"jwt_secret"`
-	ApiKey     string   `yaml:"api_key"`
-	AppBaseURL string   `yaml:"app_base_url"`
-	Cors       yamlCors `yaml:"cors"`
+	JWTSecret        string   `yaml:"jwt_secret"`
+	ApiKey           string   `yaml:"api_key"`
+	AppBaseURL       string   `yaml:"app_base_url"`
+	AppClientBaseURL string   `yaml:"app_client_base_url"`
+	Cors             yamlCors `yaml:"cors"`
 }
 
 type yamlBrevo struct {

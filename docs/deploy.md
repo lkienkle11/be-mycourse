@@ -230,7 +230,7 @@ Set at least:
 - `STAGE=prod` (must match `config/app-prod.yaml` if you use it).
 - `SERVER_PORT=8080`, `SERVER_RUN_MODE=release`.
 - `DATABASE_URL` or full `DB_*` set—aligned with **cloud** or **local** Postgres (see Step 8).
-- `SUPABASE_*`, `JWT_SECRET`, `APP_BASE_URL=https://api.yourdomain.net` (must match the public API URL).
+- `SUPABASE_*`, `JWT_SECRET`, `APP_BASE_URL=https://api.yourdomain.net` (must match the public API URL), `APP_CLIENT_BASE_URL=https://yourdomain.net` (used in registration email confirmation URL for FE).
 - `CORS_ALLOWED_ORIGINS` — comma-separated **browser origins** for the frontend, e.g. `https://yourdomain.net,https://www.yourdomain.net` (no trailing slashes).
 - `REDIS_ADDR` — **managed Redis** URL/host:port from your cloud provider, or `127.0.0.1:6379` only if you installed Redis on this host (Step 8.3). Omit or leave empty only if you accept cache falling back to DB-only behaviour.
 - RBAC sync from constants is driven by **`/api/system`** (authenticated system JWT), not startup env flags. Populate **`system_app_config`** and **`system_privileged_users`** in Postgres as documented in `docs/architecture.md`.
@@ -485,7 +485,7 @@ Optional: open `https://yourdomain.net` (or `https://www.yourdomain.net`) in a b
 - [ ] DNS for `yourdomain.net`, `www`, and `api` resolves to this host; Certbot succeeded for all names you use.
 - [ ] `curl https://api.yourdomain.net/api/v1/health` returns HTTP 200.
 - [ ] Frontend is reachable on `https://yourdomain.net` and/or `https://www.yourdomain.net` (as configured).
-- [ ] `APP_BASE_URL` and outbound email (Brevo) use the correct public HTTPS URL.
+- [ ] `APP_BASE_URL` (API) and `APP_CLIENT_BASE_URL` (FE confirm URL in registration email) are correct HTTPS URLs.
 - [ ] `CORS_ALLOWED_ORIGINS` matches the production web origin(s).
 - [ ] Postgres (managed or local) accepts connections from this host; `psql` or the app can connect.
 - [ ] Redis endpoint in `.env` is correct **or** you deliberately rely on no Redis (managed optional).

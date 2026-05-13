@@ -6,6 +6,8 @@ info:
   description: |
     REST API for **be-mycourse** (Gin). Responses use envelope `{ "code", "message", "data" }` with `code: 0` for success.
     Health check uses `{ "code", "message", "status" }`.
+    CSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).
+    Temporary rollout note: router-level CSRF enforcement is currently disabled.
   version: 1.0.0
   contact:
     name: MyCourse Backend
@@ -45,6 +47,12 @@ components:
       description: Internal service API key.
 
   parameters:
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      schema: { type: string }
+      description: Must match `csrf_token` cookie for unsafe methods when CSRF middleware is enabled.
     Page:
       name: page
       in: query
@@ -303,11 +311,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/EnvelopeHealth"
 
+  /api/v1/auth/csrf:
+    get:
+      tags: [Auth]
+      summary: Bootstrap CSRF token
+      security: []
+      responses:
+        "200":
+          description: CSRF cookie (`csrf_token`) is set/refreshed for FE bootstrap
+
   /api/v1/auth/register:
     post:
       tags: [Auth]
       summary: Register user
       security: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
         required: true
         content:
@@ -330,6 +349,8 @@ paths:
       tags: [Auth]
       summary: Login
       security: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
         required: true
         content:
@@ -341,15 +362,23 @@ paths:
           description: Tokens in body + Set-Cookie (access_token, refresh_token, session_id)
 
   /api/v1/auth/confirm:
-    get:
+    post:
       tags: [Auth]
-      summary: Confirm email (query token)
+      summary: Confirm email (FE-submitted token)
       security: []
       parameters:
-        - name: token
-          in: query
-          required: true
-          schema: { type: string }
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: UUID confirmation token
       responses:
         "200":
           description: Logged in; tokens returned
@@ -360,6 +389,7 @@ paths:
       summary: Refresh access + refresh tokens
       security: []
       parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
         - name: X-Refresh-Token
           in: header
           required: true

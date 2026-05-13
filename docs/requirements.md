@@ -76,7 +76,7 @@
 
 #### FR-1.2 Email Confirmation
 
-- The system **MUST** expose a `GET /api/v1/auth/confirm?token=<uuid>` endpoint that looks up the user by `confirmation_token`.
+- The system **MUST** expose a `POST /api/v1/auth/confirm` endpoint that accepts a token in request body and looks up the user by `confirmation_token`.
 - On match, the system **MUST** atomically:
   1. Set `email_confirmed = true` on the user.
   2. Clear `confirmation_token` to `NULL`.
@@ -85,6 +85,18 @@
 - After confirmation the system **MUST** issue a full token pair (access + refresh + session) and return it in the JSON body and as cookies (`remember_me` is always `false`).
 - After confirmation the system **MUST** delete the Redis registration confirmation window key for that user and clear the login email→user cache for that normalized email.
 - An invalid or already-consumed token **MUST** return `400` with app code `4006 InvalidConfirmToken`.
+
+---
+
+#### FR-1.2.1 CSRF Protection
+
+- The system **MUST** implement CSRF protection using the double-submit cookie pattern.
+- The CSRF cookie name **MUST** be `csrf_token`.
+- The request header name **MUST** be `X-CSRF-Token`.
+- The system **MUST** expose `GET /api/v1/auth/csrf` for FE bootstrap to obtain/set CSRF token state before unsafe calls.
+- For unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`), the system **MUST** validate that header `X-CSRF-Token` matches cookie `csrf_token`.
+- Missing or mismatched CSRF token on unsafe methods **MUST** be rejected with an error response message in English.
+- Temporary rollout note: middleware enforcement may be disabled at router level while preserving the full CSRF logic and endpoint for later re-enable.
 
 ---
 

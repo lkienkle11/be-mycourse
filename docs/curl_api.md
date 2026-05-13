@@ -128,6 +128,29 @@ Applicable to all `GET` list endpoints:
 
 ## 2. Authentication (`/api/v1/auth`)
 
+### 2.0 CSRF Bootstrap (required before unsafe methods)
+
+**`GET /api/v1/auth/csrf`**
+
+Bootstraps CSRF state using double-submit cookie (`csrf_token`) and FE header (`X-CSRF-Token`).
+Current status: CSRF filter is temporarily disabled at router level, so this step is optional for now.
+
+```bash
+curl -X GET {{BASE_URL}}/api/v1/auth/csrf -c cookies.txt
+```
+
+Use the cookie value for unsafe requests:
+
+```bash
+CSRF_TOKEN=$(grep csrf_token cookies.txt | awk '{print $7}')
+```
+
+For every unsafe method (`POST`, `PUT`, `PATCH`, `DELETE`), include:
+
+```text
+X-CSRF-Token: <csrf_token cookie value>
+```
+
 ### 2.1 Register
 
 **`POST /api/v1/auth/register`**
@@ -145,6 +168,8 @@ Creates a new user account and sends a confirmation email. No token is returned 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/auth/register \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF_TOKEN" \
+  -b cookies.txt \
   -d '{
     "email":        "alice@example.com",
     "password":     "Str0ng!Pass",
@@ -198,6 +223,8 @@ Returns tokens in the JSON body **and** as cookies (`access_token`, `refresh_tok
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/auth/login \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF_TOKEN" \
+  -b cookies.txt \
   -c cookies.txt \
   -d '{
     "email":       "alice@example.com",
@@ -242,18 +269,22 @@ session_id=<128hex>; Path=/; Max-Age=2592000; SameSite=Lax
 
 ### 2.3 Confirm Email
 
-**`GET /api/v1/auth/confirm?token=<uuid>`**
+**`POST /api/v1/auth/confirm`**
 
 Confirms the user's email address, assigns the `learner` role, and returns a token pair (user is immediately logged in).
 
-**Query parameters:**
+**Request body:**
 
-| Param | Type | Required | Description |
+| Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `token` | string | ✅ | UUID confirmation token from the email link |
+| `token` | string | ✅ | UUID confirmation token received from registration email |
 
 ```bash
-curl -X GET "{{BASE_URL}}/api/v1/auth/confirm?token=550e8400-e29b-41d4-a716-446655440000" \
+curl -X POST "{{BASE_URL}}/api/v1/auth/confirm" \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF_TOKEN" \
+  -b cookies.txt \
+  -d '{"token":"550e8400-e29b-41d4-a716-446655440000"}' \
   -c cookies.txt
 ```
 
@@ -277,8 +308,8 @@ curl -X GET "{{BASE_URL}}/api/v1/auth/confirm?token=550e8400-e29b-41d4-a716-4466
 // 400 — invalid or already-used token
 { "code": 4006, "message": "Invalid or expired confirmation token", "data": null }
 
-// 400 — missing token param
-{ "code": 3001, "message": "missing token parameter", "data": null }
+// 400 — missing token field
+{ "code": 3001, "message": "<validation error>", "data": null }
 ```
 
 ---
@@ -299,6 +330,8 @@ No request body. Tokens are supplied via custom headers.
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/auth/refresh \
+  -H "X-CSRF-Token: $CSRF_TOKEN" \
+  -b cookies.txt \
   -H "X-Refresh-Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   -H "X-Session-Id: a1b2c3d4...128hexchars..."
 ```
@@ -306,6 +339,8 @@ curl -X POST {{BASE_URL}}/api/v1/auth/refresh \
 **Using cookies from file:**
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/auth/refresh \
+  -H "X-CSRF-Token: $CSRF_TOKEN" \
+  -b cookies.txt \
   -H "X-Refresh-Token: $(grep refresh_token cookies.txt | awk '{print $7}')" \
   -H "X-Session-Id: $(grep session_id cookies.txt | awk '{print $7}')"
 ```

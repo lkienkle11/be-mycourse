@@ -148,11 +148,11 @@ func (s *AuthService) registerNewPending(ctx context.Context, norm, email, passw
 	tok := uuid.New().String()
 	now := time.Now()
 	user := &domain.User{
-		UserCode:          uc.String(),
-		Email:             email,
-		HashPassword:      hash,
-		DisplayName:       displayName,
-		ConfirmationToken: &tok,
+		UserCode:           uc.String(),
+		Email:              email,
+		HashPassword:       hash,
+		DisplayName:        displayName,
+		ConfirmationToken:  &tok,
 		ConfirmationSentAt: &now,
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -206,7 +206,11 @@ func (s *AuthService) sendRegistrationEmail(ctx context.Context, norm, email, di
 		s.releaseEmailSendReservation(ctx, user.ID, reservationID)
 		return domain.ErrConfirmationEmailSendFailed
 	}
-	confirmURL := setting.AppSetting.AppBaseURL + "/api/v1/auth/confirm?token=" + *user.ConfirmationToken
+	baseURL := setting.AppSetting.AppClientBaseURL
+	if baseURL == "" {
+		baseURL = setting.AppSetting.AppBaseURL
+	}
+	confirmURL := baseURL + "/api/v1/auth/confirm?token=" + *user.ConfirmationToken
 	if err := brevo.SendConfirmationEmail(email, displayName, confirmURL); err != nil {
 		s.releaseEmailSendReservation(ctx, user.ID, reservationID)
 		return domain.ErrConfirmationEmailSendFailed

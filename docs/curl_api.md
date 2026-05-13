@@ -242,18 +242,20 @@ session_id=<128hex>; Path=/; Max-Age=2592000; SameSite=Lax
 
 ### 2.3 Confirm Email
 
-**`GET /api/v1/auth/confirm?token=<uuid>`**
+**`POST /api/v1/auth/confirm`**
 
 Confirms the user's email address, assigns the `learner` role, and returns a token pair (user is immediately logged in).
 
-**Query parameters:**
+**Request body:**
 
-| Param | Type | Required | Description |
+| Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `token` | string | ✅ | UUID confirmation token from the email link |
+| `token` | string | ✅ | UUID confirmation token received from registration email |
 
 ```bash
-curl -X GET "{{BASE_URL}}/api/v1/auth/confirm?token=550e8400-e29b-41d4-a716-446655440000" \
+curl -X POST "{{BASE_URL}}/api/v1/auth/confirm" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"550e8400-e29b-41d4-a716-446655440000"}' \
   -c cookies.txt
 ```
 
@@ -277,8 +279,8 @@ curl -X GET "{{BASE_URL}}/api/v1/auth/confirm?token=550e8400-e29b-41d4-a716-4466
 // 400 — invalid or already-used token
 { "code": 4006, "message": "Invalid or expired confirmation token", "data": null }
 
-// 400 — missing token param
-{ "code": 3001, "message": "missing token parameter", "data": null }
+// 400 — missing token field
+{ "code": 3001, "message": "<validation error>", "data": null }
 ```
 
 ---

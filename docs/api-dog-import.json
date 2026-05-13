@@ -157,14 +157,17 @@
           ]
         },
         {
-          "name": "Confirm email (query token)",
+          "name": "Confirm email",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
-
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/auth/confirm?token={{CONFIRM_TOKEN}}",
+              "raw": "{{BASE_URL}}/api/v1/auth/confirm",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -173,14 +176,16 @@
                 "v1",
                 "auth",
                 "confirm"
-              ],
-              "query": [
-                {
-                  "key": "token",
-                  "value": "{{CONFIRM_TOKEN}}",
-                  "disabled": false
-                }
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{CONFIRM_TOKEN}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [

@@ -76,7 +76,7 @@
 
 #### FR-1.2 Email Confirmation
 
-- The system **MUST** expose a `GET /api/v1/auth/confirm?token=<uuid>` endpoint that looks up the user by `confirmation_token`.
+- The system **MUST** expose a `POST /api/v1/auth/confirm` endpoint that accepts a token in request body and looks up the user by `confirmation_token`.
 - On match, the system **MUST** atomically:
   1. Set `email_confirmed = true` on the user.
   2. Clear `confirmation_token` to `NULL`.

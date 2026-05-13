@@ -71,6 +71,7 @@ X-Token-Expired: true
 ### `POST /api/v1/auth/register`
 
 Creates a **pending** user (or re-sends confirmation to an existing unconfirmed user) and sends a Brevo confirmation email.
+The email confirmation action must point to the FE client URL from `APP_CLIENT_BASE_URL`; FE extracts the token and submits it to backend.
 
 **Request:**
 ```json
@@ -123,9 +124,14 @@ Validates credentials and issues a full token set.
 
 ---
 
-### `GET /api/v1/auth/confirm?token=<token>`
+### `POST /api/v1/auth/confirm`
 
-Confirms email, assigns the `learner` role, and immediately issues a token set. Resets `registration_email_send_total` to 0 and clears Redis window + email→user cache.
+Confirms email from a token sent by FE in request body, assigns the `learner` role, and immediately issues a token set. Resets `registration_email_send_total` to 0 and clears Redis window + email→user cache.
+
+**Request:**
+```json
+{ "token": "<uuid-confirmation-token>" }
+```
 
 **Success:** `200 OK` + auth cookies + same body shape as login
 

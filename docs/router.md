@@ -65,7 +65,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req/s, burst 1)
 | GET | `/api/v1/health` | Health check |
 | POST | `/api/v1/auth/register` | Register (pending user + confirmation email) |
 | POST | `/api/v1/auth/login` | Login — issues access/refresh tokens |
-| GET | `/api/v1/auth/confirm` | Confirm email (issues tokens on success) |
+| POST | `/api/v1/auth/confirm` | Confirm email from FE-submitted token (issues tokens on success) |
 | POST | `/api/v1/auth/refresh` | Rotate token pair via `X-Refresh-Token` / `X-Session-Id` headers |
 
 ---

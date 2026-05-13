@@ -167,19 +167,19 @@ sequenceDiagram
 
 ## 3. Email Confirmation
 
-**Description:** `GET /api/v1/auth/confirm?token=<uuid>` — validates token, confirms email, assigns learner role, issues token pair.
+**Description:** `POST /api/v1/auth/confirm` with `{token}` body — validates token, confirms email, assigns learner role, issues token pair.
 
 ```mermaid
 sequenceDiagram
-    participant C as Client (browser link)
+    participant C as Client (frontend app)
     participant H as Handler (auth.go confirmEmail)
     participant SVC as auth.ConfirmEmail
     participant DB as PostgreSQL
 
-    C->>H: GET /api/v1/auth/confirm?token=<uuid>
-    H->>H: extract token from query
+    C->>H: POST /api/v1/auth/confirm {token}
+    H->>H: extract token from JSON body
     alt token empty
-        H-->>C: 400 {code:3001, message:"missing token parameter"}
+        H-->>C: 400 {code:3001}
     end
 
     H->>SVC: ConfirmEmail(token)

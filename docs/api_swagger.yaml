@@ -341,15 +341,21 @@ paths:
           description: Tokens in body + Set-Cookie (access_token, refresh_token, session_id)
 
   /api/v1/auth/confirm:
-    get:
+    post:
       tags: [Auth]
-      summary: Confirm email (query token)
+      summary: Confirm email (FE-submitted token)
       security: []
-      parameters:
-        - name: token
-          in: query
-          required: true
-          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: UUID confirmation token
       responses:
         "200":
           description: Logged in; tokens returned

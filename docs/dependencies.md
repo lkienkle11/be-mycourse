@@ -90,7 +90,7 @@ Cross-domain dependencies (e.g. Auth calling RBAC) use **interface adapters** de
 ## Build Requirements
 
 - **Go 1.25+**
-- **CGO_ENABLED=1** and `libvips-dev pkg-config` — required for WebP image encoding (`bimg`). Use `make build` for CGO builds.
+- **CGO_ENABLED=1** and **`libvips-dev`**, **`libhdf5-dev`**, **`pkg-config`** — required for WebP image encoding (`bimg`) on Ubuntu 24.04+ runners (**`hdf5.pc`** is needed by **matio**, an optional libvips dependency). Use `make build` for CGO builds.
 - `CGO_ENABLED=0` — supported for CI review builds; WebP encoding returns HTTP 503 (stub returns `ErrImageEncodeBusy`).
 
 ```bash

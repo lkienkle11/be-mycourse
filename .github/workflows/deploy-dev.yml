@@ -25,11 +25,12 @@ jobs:
       - name: Configure fast APT mirror
         uses: vegardit/fast-apt-mirror.sh@v1
 
-      - name: Cache APT packages (libvips-dev, pkg-config)
+      - name: Cache APT packages (libvips, HDF5, pkg-config)
         uses: awalsh128/cache-apt-pkgs-action@v1.6.0
         with:
-          packages: libvips-dev pkg-config
-          version: libvips-dev-pkg-config-v1
+          # libhdf5-dev: hdf5.pc for matio (libvips optional dep) — required on ubuntu-latest for CGO bimg build
+          packages: libvips-dev libhdf5-dev pkg-config
+          version: libvips-hdf5-pkg-config-v1
 
       - name: Download dependencies
         run: |
@@ -72,11 +73,11 @@ jobs:
       - name: Configure fast APT mirror
         uses: vegardit/fast-apt-mirror.sh@v1
 
-      - name: Cache APT packages (libvips-dev, pkg-config)
+      - name: Cache APT packages (libvips, HDF5, pkg-config)
         uses: awalsh128/cache-apt-pkgs-action@v1.6.0
         with:
-          packages: libvips-dev pkg-config
-          version: libvips-dev-pkg-config-v1
+          packages: libvips-dev libhdf5-dev pkg-config
+          version: libvips-hdf5-pkg-config-v1
 
       - name: Build Go Binary
         run: |

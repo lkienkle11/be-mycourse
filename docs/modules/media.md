@@ -118,7 +118,7 @@ All routes below are under `/api/v1`. Authenticated routes require `Authorizatio
 
 All image uploads are **synchronously converted to WebP** before upload to the storage provider.
 
-- Implementation: `bimg`/libvips (CGO). Requires `CGO_ENABLED=1` and `libvips-dev pkg-config` at build time.
+- Implementation: `bimg`/libvips (CGO). Requires `CGO_ENABLED=1` and **`libvips-dev`**, **`libhdf5-dev`**, **`pkg-config`** at build time on stacks where libvips links **matio** (Ubuntu **.pc** resolution).
 - Concurrency: bounded by a semaphore in `internal/shared/utils/` (`AcquireEncodeGate` / `ReleaseEncodeGate`); cap = `MaxConcurrentImageEncode` (4).
 - `CGO_ENABLED=0` builds: stub returns `ErrImageEncodeBusy` → HTTP 503 / code 9017.
 - After encoding: `payload`, `filename` (`.webp`), `mime` (`image/webp`), and `sizeBytes` are updated before provider upload.

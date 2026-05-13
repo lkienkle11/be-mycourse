@@ -150,7 +150,7 @@ golangci-lint run
 
 ### Makefile compile targets (`Makefile`)
 
-- **`make build`** — production compile with **`CGO_ENABLED=1`** (requires **`libvips-dev`** and **`pkg-config`** on the machine).
+- **`make build`** — production compile with **`CGO_ENABLED=1`** (requires **`libvips-dev`**, **`libhdf5-dev`**, and **`pkg-config`** on Ubuntu when libvips pulls **matio**/HDF5; see CI workflow).
 - **`make build-nocgo`** — pure Go compile when CGO/libvips are unavailable; at runtime, WebP encode may return **`9017`** (`ImageEncodeBusy`); other features are unaffected.
 
 ---

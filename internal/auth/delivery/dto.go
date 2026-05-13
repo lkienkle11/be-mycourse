@@ -15,6 +15,11 @@ type LoginRequest struct {
 	RememberMe bool   `json:"remember_me"`
 }
 
+// ConfirmEmailRequest is the body for POST /api/v1/auth/confirm.
+type ConfirmEmailRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
 // LoginSessionTokensResponse is the JSON data for login, confirm, and refresh success.
 type LoginSessionTokensResponse struct {
 	AccessToken  string `json:"access_token"`
@@ -29,16 +34,16 @@ type UpdateMeRequest struct {
 
 // MeResponse is the response body for GET /api/v1/me.
 type MeResponse struct {
-	UserID         uint    `json:"user_id"`
-	UserCode       string  `json:"user_code"`
-	Email          string  `json:"email"`
-	DisplayName    string  `json:"display_name"`
-	AvatarURL      *string `json:"avatar_url,omitempty"`
-	AvatarObjectKey *string `json:"avatar_object_key,omitempty"`
-	EmailConfirmed bool    `json:"email_confirmed"`
-	IsDisabled     bool    `json:"is_disabled"`
-	CreatedAt      int64   `json:"created_at"`
-	Permissions    []string `json:"permissions"`
+	UserID          uint     `json:"user_id"`
+	UserCode        string   `json:"user_code"`
+	Email           string   `json:"email"`
+	DisplayName     string   `json:"display_name"`
+	AvatarURL       *string  `json:"avatar_url,omitempty"`
+	AvatarObjectKey *string  `json:"avatar_object_key,omitempty"`
+	EmailConfirmed  bool     `json:"email_confirmed"`
+	IsDisabled      bool     `json:"is_disabled"`
+	CreatedAt       int64    `json:"created_at"`
+	Permissions     []string `json:"permissions"`
 }
 
 // MyPermissionsResponse is the data payload for GET /api/v1/me/permissions.

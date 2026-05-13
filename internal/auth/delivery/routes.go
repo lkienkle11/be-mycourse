@@ -21,7 +21,7 @@ func RegisterRoutes(
 		authGroup := notAuthen.Group("/auth")
 		authGroup.POST("/register", h.Register)
 		authGroup.POST("/login", h.Login)
-		authGroup.GET("/confirm", h.ConfirmEmail)
+		authGroup.POST("/confirm", h.ConfirmEmail)
 		authGroup.POST("/refresh", h.RefreshToken)
 	}
 

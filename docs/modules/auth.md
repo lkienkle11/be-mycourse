@@ -66,7 +66,33 @@ X-Token-Expired: true
 
 ---
 
+## CSRF Protection (Double-Submit Cookie)
+
+Current status: CSRF middleware wiring is temporarily disabled in router for rollout safety. Logic and endpoint are kept for quick re-enable.
+
+The auth and API layer uses **double-submit CSRF protection** for unsafe methods.
+
+- Cookie name: `csrf_token`
+- Header name: `X-CSRF-Token`
+- When enabled, enforced on unsafe methods: `POST`, `PUT`, `PATCH`, `DELETE`
+- Safe methods (`GET`, `HEAD`, `OPTIONS`) do not require CSRF header validation.
+
+Client flow:
+1. Call `GET /api/v1/auth/csrf` to bootstrap CSRF and receive/set `csrf_token` (currently optional).
+2. For every unsafe request, send `X-CSRF-Token` with the same value as `csrf_token`.
+3. When CSRF middleware is re-enabled, backend rejects mismatch/missing token with a CSRF validation error.
+
+---
+
 ## Endpoints
+
+### `GET /api/v1/auth/csrf`
+
+Bootstrap endpoint for CSRF. Issues (or refreshes) the CSRF cookie and returns token data for FE bootstrapping.
+
+**Success:** `200 OK`
+
+---
 
 ### `POST /api/v1/auth/register`
 

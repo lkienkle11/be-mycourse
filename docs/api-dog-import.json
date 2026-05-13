@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "262e9f7f6d677ffea11093",
+    "_postman_id": "1502c8a4d66b601e02fedc",
     "name": "MyCourse Backend API",
-    "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\n\n\n**Auto-save tokens (Tests tab):**\n- After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).\n- After **System login** → `SYSTEM_TOKEN`.\nCreate/select an **Environment** in Apidog with the same variable names for best UX.\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb`",
+    "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n\n**Auto-save tokens (Tests tab):**\n- After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).\n- After **System login** → `SYSTEM_TOKEN`.\nCreate/select an **Environment** in Apidog with the same variable names for best UX.\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -65,10 +65,36 @@
       "name": "Auth",
       "item": [
         {
+          "name": "Bootstrap CSRF token",
+          "request": {
+            "method": "GET",
+            "header": [
+
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/auth/csrf",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "csrf"
+              ]
+            }
+          }
+        },
+        {
           "name": "Register user",
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{X_CSRF_TOKEN}}",
+                "type": "text"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json",
@@ -103,6 +129,11 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{X_CSRF_TOKEN}}",
+                "type": "text"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json",
@@ -157,13 +188,19 @@
           ]
         },
         {
-          "name": "Confirm email",
+          "name": "Confirm email (FE-submitted token)",
           "request": {
             "method": "POST",
             "header": [
               {
+                "key": "X-CSRF-Token",
+                "value": "{{X_CSRF_TOKEN}}",
+                "type": "text"
+              },
+              {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
             "url": {
@@ -180,7 +217,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"{{CONFIRM_TOKEN}}\"\n}",
+              "raw": "{\n  \"token\": \"string\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -218,6 +255,11 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{X_CSRF_TOKEN}}",
+                "type": "text"
+              },
               {
                 "key": "X-Refresh-Token",
                 "value": "{{REFRESH_TOKEN}}",

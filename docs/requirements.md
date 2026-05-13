@@ -88,6 +88,18 @@
 
 ---
 
+#### FR-1.2.1 CSRF Protection
+
+- The system **MUST** implement CSRF protection using the double-submit cookie pattern.
+- The CSRF cookie name **MUST** be `csrf_token`.
+- The request header name **MUST** be `X-CSRF-Token`.
+- The system **MUST** expose `GET /api/v1/auth/csrf` for FE bootstrap to obtain/set CSRF token state before unsafe calls.
+- For unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`), the system **MUST** validate that header `X-CSRF-Token` matches cookie `csrf_token`.
+- Missing or mismatched CSRF token on unsafe methods **MUST** be rejected with an error response message in English.
+- Temporary rollout note: middleware enforcement may be disabled at router level while preserving the full CSRF logic and endpoint for later re-enable.
+
+---
+
 #### FR-1.3 User Login
 
 - The system **MUST** validate email + password against the stored bcrypt hash.

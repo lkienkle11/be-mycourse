@@ -19,6 +19,7 @@ Applied to all routes in this order:
 3. `httperr.Recovery()` — panic recovery + stack log
 4. `cors.New(ginDefaultCORS())` — CORS with `AllowCredentials: true`
 5. `gzip.Gzip(gzip.DefaultCompression)` — response compression
+6. CSRF middleware logic exists in codebase, but enforcement is temporarily disabled at router level
 
 ---
 
@@ -63,6 +64,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req/s, burst 1)
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/auth/csrf` | Bootstrap CSRF token endpoint (currently optional while CSRF filter is disabled) |
 | POST | `/api/v1/auth/register` | Register (pending user + confirmation email) |
 | POST | `/api/v1/auth/login` | Login — issues access/refresh tokens |
 | POST | `/api/v1/auth/confirm` | Confirm email from FE-submitted token (issues tokens on success) |
@@ -168,8 +170,8 @@ Middleware: RateLimitLocal(60 req/s, burst 1), BeforeInterceptor, RequireInterna
 |-------|---------------|
 | `/api/system` | System JWT (`RequireSystemAccessToken`) |
 | `/api/v1` no-filter | None |
-| `/api/v1` unauthenticated | None (rate limited) |
-| `/api/v1` authenticated | `AuthJWT` (Bearer token) + `RequirePermission` per endpoint |
+| `/api/v1` unauthenticated | None (rate limited); CSRF validation is temporarily disabled |
+| `/api/v1` authenticated | `AuthJWT` (Bearer token) + `RequirePermission` per endpoint; CSRF validation is temporarily disabled |
 | `/api/internal-v1` | `RequireInternalAPIKey` (`X-API-Key` header) |
 
 ---

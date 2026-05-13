@@ -33,6 +33,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 
 ### `/api/v1` (non-auth subgroup)
 - `GET /health`
+- `GET /auth/csrf` — CSRF bootstrap endpoint (currently optional while CSRF filter is temporarily disabled).
 - `POST /auth/register` — pending signup or resend for **unconfirmed** same email; lifetime **15** successful confirmation emails (`users.registration_email_send_total`), Redis **5 / 4h** window per user, headers **`Retry-After`** + **`X-Mycourse-Register-Retry-After`** on **`429`/`4010`**; **`410`/`4009`** when cap exceeded (row deleted); **`502`/`4011`** when Brevo fails after limits. Confirmation URL in email targets FE client URL from `APP_CLIENT_BASE_URL`.
 - `POST /auth/login`
 - `POST /auth/confirm` — FE submits confirmation token in request body; backend confirms email, issues tokens.
@@ -91,6 +92,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 
 ## Middleware/Auth Matrix
 - Global: request/recovery/CORS/gzip.
+- CSRF: implementation is present in codebase, but middleware enforcement is temporarily disabled at router level for rollout safety.
 - `/api/v1` auth subgroup: local rate limit + JWT auth.
 - `/api/internal-v1`: local rate limit + internal API key middleware.
 - `/api/system`: interceptor + system-IP rate limit + system access token (except `/login`).

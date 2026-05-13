@@ -23,7 +23,7 @@ jobs:
           cache: true # Cache Go modules automatically
 
       - name: Configure fast APT mirror
-        uses: vegardit/fast-apt-mirror-action@v1
+        uses: vegardit/fast-apt-mirror.sh@v1
 
       - name: Cache APT packages (libvips-dev, pkg-config)
         uses: awalsh128/cache-apt-pkgs-action@v1.6.0
@@ -70,7 +70,7 @@ jobs:
           cache: true # Cache Go modules automatically
 
       - name: Configure fast APT mirror
-        uses: vegardit/fast-apt-mirror-action@v1
+        uses: vegardit/fast-apt-mirror.sh@v1
 
       - name: Cache APT packages (libvips-dev, pkg-config)
         uses: awalsh128/cache-apt-pkgs-action@v1.6.0

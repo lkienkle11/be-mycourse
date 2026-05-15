@@ -166,6 +166,8 @@ The AI Agent **MUST NOT write any code** until it has a **complete understanding
 * Routing system (if applicable) — read `docs/router.md`
 * Libraries and frameworks used — read `docs/dependencies.md`
 * Shared utilities and core logic — read `docs/reusable-assets.md`
+* Delivery channels and external transports — read `docs/delivery.md` and delivery-type docs in `docs/delivery/` (if applicable)
+* Delivery channels and external transports — read `docs/delivery.md` and delivery-type docs in `docs/delivery/` (if applicable)
 
 Partial understanding is **strictly forbidden**.
 
@@ -340,6 +342,11 @@ The AI Agent MUST also:
   * New reusable utilities are created
   * New shared data types are introduced
   * Existing reusable logic is modified or refactored
+
+* Update delivery documentation whenever any public delivery surface changes:
+
+  * `docs/delivery.md`
+  * Related files in `docs/delivery/` for affected non-API transport types
 
 ---
 

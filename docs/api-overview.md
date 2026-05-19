@@ -38,6 +38,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - `POST /auth/login`
 - `POST /auth/confirm` — FE submits confirmation token in request body; backend confirms email, issues tokens.
 - `POST /auth/refresh`
+- `POST /auth/logout` — revoke refresh session; clears auth cookies
 
 ### `/api/v1` (auth subgroup)
 - `GET /me`

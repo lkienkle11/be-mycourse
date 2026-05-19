@@ -24,7 +24,9 @@ internal/auth/
 │   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, etc.)
 │   └── token_ttl.go             # AccessTokenTTL, RefreshTokenTTL, RememberMeRefreshTTL
 ├── application/
-│   ├── auth_service.go          # AuthService: Register, Login, ConfirmEmail, RefreshSession, GetMe, UpdateMe, DeleteMe
+│   ├── service.go               # AuthService: Register, Login, ConfirmEmail, GetMe, UpdateMe, DeleteMe
+│   ├── service_session.go       # RefreshSession, Logout, issueTokenPair, rotateSession
+│   ├── service_cache.go         # Redis cache helpers for /me and login
 │   ├── cache_keys.go            # Redis key patterns
 │   └── email_limits.go          # Confirmation email limits
 ├── infra/
@@ -33,7 +35,7 @@ internal/auth/
 │   ├── crypto.go                # Password hashing (bcrypt)
 │   └── session_limits.go        # MaxActiveSessions constant
 └── delivery/
-    ├── handler.go               # HTTP handlers: Register, Login, ConfirmEmail, RefreshToken, GetMe, PatchMe, DeleteMe, GetMyPermissions
+    ├── handler.go               # HTTP handlers: Register, Login, ConfirmEmail, RefreshToken, Logout, GetMe, PatchMe, DeleteMe, GetMyPermissions
     ├── routes.go                # Route registration
     ├── dto.go                   # Request/response DTOs
     └── mapping.go               # Domain → DTO mapping
@@ -185,6 +187,23 @@ X-Session-Id:    <128-char-hex>
 ```
 
 **Errors:** `4007` InvalidSession · `4008` RefreshTokenExpired · `4005` UserDisabled · `3001` BadRequest (missing headers)
+
+---
+
+### `POST /api/v1/auth/logout`
+
+Revokes the current refresh session server-side and clears auth cookies. Same headers as refresh:
+
+```
+X-Refresh-Token: <refresh_jwt>
+X-Session-Id:    <128-char-hex>
+```
+
+**Success:** `200 OK` — `message: "logout_success"`, `data: null`. Response includes `Set-Cookie` with `MaxAge: -1` for `access_token`, `refresh_token`, `session_id`.
+
+**Idempotent:** If the session key is already absent from `refresh_token_session`, the handler still returns `200` and clears cookies.
+
+**Errors:** `4007` InvalidSession (UUID mismatch) · `3001` BadRequest (missing headers). Cookies are cleared on `401` as well so the client always ends in a clean state.
 
 ---
 

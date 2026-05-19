@@ -4,6 +4,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -117,7 +118,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string, remembe
 // --- Register ---
 
 // Register creates or updates a pending user and sends a confirmation email.
-func (s *AuthService) Register(ctx context.Context, email, password, displayName string) error {
+func (s *AuthService) Register(ctx context.Context, email, password, displayName, locale string) error {
 	if !isStrongPassword(password) {
 		return domain.ErrWeakPassword
 	}
@@ -128,15 +129,15 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 		if existing.EmailConfirmed {
 			return domain.ErrEmailAlreadyExists
 		}
-		return s.registerResendPending(ctx, norm, email, password, displayName, existing)
+		return s.registerResendPending(ctx, norm, email, password, displayName, locale, existing)
 	}
 	if !isNotFound(err) {
 		return err
 	}
-	return s.registerNewPending(ctx, norm, email, password, displayName)
+	return s.registerNewPending(ctx, norm, email, password, displayName, locale)
 }
 
-func (s *AuthService) registerNewPending(ctx context.Context, norm, email, password, displayName string) error {
+func (s *AuthService) registerNewPending(ctx context.Context, norm, email, password, displayName, locale string) error {
 	hash, err := hashPassword(password)
 	if err != nil {
 		return err
@@ -158,10 +159,10 @@ func (s *AuthService) registerNewPending(ctx context.Context, norm, email, passw
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return err
 	}
-	return s.sendRegistrationEmail(ctx, norm, email, displayName, user)
+	return s.sendRegistrationEmail(ctx, norm, email, displayName, locale, user)
 }
 
-func (s *AuthService) registerResendPending(ctx context.Context, norm, email, password, displayName string, existing *domain.User) error {
+func (s *AuthService) registerResendPending(ctx context.Context, norm, email, password, displayName, locale string, existing *domain.User) error {
 	hash, err := hashPassword(password)
 	if err != nil {
 		return err
@@ -175,10 +176,10 @@ func (s *AuthService) registerResendPending(ctx context.Context, norm, email, pa
 	if err := s.userRepo.Save(ctx, existing); err != nil {
 		return err
 	}
-	return s.sendRegistrationEmail(ctx, norm, email, displayName, existing)
+	return s.sendRegistrationEmail(ctx, norm, email, displayName, locale, existing)
 }
 
-func (s *AuthService) sendRegistrationEmail(ctx context.Context, norm, email, displayName string, user *domain.User) error {
+func (s *AuthService) sendRegistrationEmail(ctx context.Context, norm, email, displayName, locale string, user *domain.User) error {
 	// Lifetime cap
 	if user.RegistrationEmailSendTotal >= MaxRegisterConfirmationEmailsLifetime {
 		if err := s.userRepo.SoftDelete(ctx, user.ID); err != nil {
@@ -206,11 +207,11 @@ func (s *AuthService) sendRegistrationEmail(ctx context.Context, norm, email, di
 		s.releaseEmailSendReservation(ctx, user.ID, reservationID)
 		return domain.ErrConfirmationEmailSendFailed
 	}
-	baseURL := setting.AppSetting.AppClientBaseURL
+	baseURL := strings.TrimRight(setting.AppSetting.AppClientBaseURL, "/")
 	if baseURL == "" {
-		baseURL = setting.AppSetting.AppBaseURL
+		baseURL = strings.TrimRight(setting.AppSetting.AppBaseURL, "/")
 	}
-	confirmURL := baseURL + "/api/v1/auth/confirm?token=" + *user.ConfirmationToken
+	confirmURL := fmt.Sprintf("%s/%s/confirm-email?token=%s", baseURL, locale, *user.ConfirmationToken)
 	if err := brevo.SendConfirmationEmail(email, displayName, confirmURL); err != nil {
 		s.releaseEmailSendReservation(ctx, user.ID, reservationID)
 		return domain.ErrConfirmationEmailSendFailed

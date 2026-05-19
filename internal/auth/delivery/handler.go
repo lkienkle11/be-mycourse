@@ -21,7 +21,7 @@ import (
 // AuthUseCase is implemented by application.AuthService.
 type AuthUseCase interface {
 	Login(ctx context.Context, email, password string, rememberMe bool) (domain.TokenPairResult, error)
-	Register(ctx context.Context, email, password, displayName string) error
+	Register(ctx context.Context, email, password, displayName, locale string) error
 	ConfirmEmail(ctx context.Context, confirmToken string) (domain.TokenPairResult, error)
 	RefreshSession(ctx context.Context, sessionStr, refreshTokenStr string) (domain.TokenPairResult, error)
 	GetMe(ctx context.Context, userID uint) (*domain.MeProfile, error)
@@ -64,7 +64,8 @@ func (h *Handler) Register(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	if err := h.auth.Register(c.Request.Context(), req.Email, req.Password, req.DisplayName); err != nil {
+	locale := normalizeRegisterLocale(req.Locale)
+	if err := h.auth.Register(c.Request.Context(), req.Email, req.Password, req.DisplayName, locale); err != nil {
 		h.writeRegisterError(c, err)
 		return
 	}

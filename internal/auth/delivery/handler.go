@@ -24,6 +24,7 @@ type AuthUseCase interface {
 	Register(ctx context.Context, email, password, displayName, locale string) error
 	ConfirmEmail(ctx context.Context, confirmToken string) (domain.TokenPairResult, error)
 	RefreshSession(ctx context.Context, sessionStr, refreshTokenStr string) (domain.TokenPairResult, error)
+	Logout(ctx context.Context, sessionStr, refreshTokenStr string) error
 	GetMe(ctx context.Context, userID uint) (*domain.MeProfile, error)
 	UpdateMe(ctx context.Context, userID uint, avatarFileID *string) (*domain.MeProfile, error)
 	SoftDeleteUser(ctx context.Context, userID uint) error
@@ -168,6 +169,29 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	response.OK(c, "token_refreshed", toTokensResponse(result))
 }
 
+// Logout — POST /api/v1/auth/logout
+func (h *Handler) Logout(c *gin.Context) {
+	refreshTokenStr := c.GetHeader("X-Refresh-Token")
+	sessionStr := c.GetHeader("X-Session-Id")
+	if refreshTokenStr == "" || sessionStr == "" {
+		h.clearAuthCookies(c)
+		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "missing X-Refresh-Token or X-Session-Id header", nil)
+		return
+	}
+	err := h.auth.Logout(c.Request.Context(), sessionStr, refreshTokenStr)
+	h.clearAuthCookies(c)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrInvalidSession):
+			response.Fail(c, http.StatusUnauthorized, apperrors.InvalidSession, apperrors.DefaultMessage(apperrors.InvalidSession), nil)
+		default:
+			response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
+		}
+		return
+	}
+	response.OK(c, "logout_success", nil)
+}
+
 // GetMe — GET /api/v1/me
 func (h *Handler) GetMe(c *gin.Context) {
 	uid := currentUserID(c)
@@ -277,4 +301,14 @@ func (h *Handler) setAuthCookies(c *gin.Context, accessToken, refreshToken, sess
 	c.SetCookie("refresh_token", refreshToken, refreshMaxAge, "/", "", secure, false)
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("session_id", sessionID, refreshMaxAge, "/", "", secure, false)
+}
+
+func (h *Handler) clearAuthCookies(c *gin.Context) {
+	secure := setting.ServerSetting.RunMode == "release"
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("access_token", "", -1, "/", "", secure, false)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("refresh_token", "", -1, "/", "", secure, false)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("session_id", "", -1, "/", "", secure, false)
 }

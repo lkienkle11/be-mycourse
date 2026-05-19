@@ -156,6 +156,21 @@ func (r *GormRefreshSessionRepository) AddSession(ctx context.Context, userID ui
 	})
 }
 
+func (r *GormRefreshSessionRepository) RemoveSession(ctx context.Context, userID uint, sessionStr string) error {
+	sessions, err := r.LoadSessions(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if len(sessions) == 0 {
+		return nil
+	}
+	if _, ok := sessions[sessionStr]; !ok {
+		return nil
+	}
+	delete(sessions, sessionStr)
+	return r.SaveSessions(ctx, userID, sessions)
+}
+
 func (r *GormRefreshSessionRepository) SaveSession(ctx context.Context, userID uint, sessionStr string, entry domain.RefreshSessionEntry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {

@@ -164,6 +164,7 @@ Creates a new user account and sends a confirmation email. No token is returned 
 | `email` | string | ✅ | Valid email format |
 | `password` | string | ✅ | Min 8 chars, 1 uppercase, 1 lowercase, 1 special char |
 | `display_name` | string | ✅ | 1–255 characters |
+| `locale` | string | — | `en` or `vi` (default `vi`); used in confirmation email link |
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/auth/register \
@@ -173,9 +174,12 @@ curl -X POST {{BASE_URL}}/api/v1/auth/register \
   -d '{
     "email":        "alice@example.com",
     "password":     "Str0ng!Pass",
-    "display_name": "Alice"
+    "display_name": "Alice",
+    "locale":       "vi"
   }'
 ```
+
+Confirmation email link format: `{APP_CLIENT_BASE_URL}/{locale}/confirm-email?token={uuid}`.
 
 **Success (201):**
 ```json

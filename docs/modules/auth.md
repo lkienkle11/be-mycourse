@@ -101,8 +101,10 @@ The email confirmation action must point to the FE client URL from `APP_CLIENT_B
 
 **Request:**
 ```json
-{ "email": "user@example.com", "password": "Str0ng!pw", "display_name": "Alice" }
+{ "email": "user@example.com", "password": "Str0ng!pw", "display_name": "Alice", "locale": "vi" }
 ```
+
+Optional `locale`: `"en"` or `"vi"` (default `"vi"` if omitted or invalid). Used to build the confirmation link: `{APP_CLIENT_BASE_URL}/{locale}/confirm-email?token={uuid}`.
 
 **Password rules:** minimum 8 characters, at least one uppercase, one lowercase, one special character.
 

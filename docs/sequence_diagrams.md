@@ -338,6 +338,47 @@ sequenceDiagram
 
 ---
 
+## 5b. Logout (Session Revoke)
+
+**Description:** `POST /api/v1/auth/logout` — removes the session from `users.refresh_token_session` and clears auth cookies.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant H as Handler (auth.go Logout)
+    participant SVC as auth.Logout
+    participant DB as PostgreSQL
+
+    C->>H: POST /api/v1/auth/logout<br/>X-Refresh-Token + X-Session-Id
+
+    H->>H: GetHeader("X-Refresh-Token"), GetHeader("X-Session-Id")
+    alt either header empty
+        H->>H: clearAuthCookies()
+        H-->>C: 400 {code:3001}
+    end
+
+    H->>SVC: Logout(sessionStr, refreshTokenStr)
+    SVC->>SVC: token.ParseRefreshIgnoreExpiry
+    SVC->>DB: LoadSessions(userID)
+    alt session key missing
+        SVC-->>H: nil (idempotent)
+    else uuid mismatch
+        SVC-->>H: ErrInvalidSession
+    else valid
+        SVC->>DB: RemoveSession(userID, sessionStr)
+        SVC->>SVC: delCachedMe(userID)
+    end
+
+    H->>H: clearAuthCookies()
+    alt ErrInvalidSession
+        H-->>C: 401 {code:4007} + cleared cookies
+    else ok
+        H-->>C: 200 {message:"logout_success"} + cleared cookies
+    end
+```
+
+---
+
 ## 6. Get My Profile (`GET /me`)
 
 **Description:** Returns authenticated user profile + permissions from Redis cache or Postgres.

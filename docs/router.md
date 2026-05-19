@@ -69,6 +69,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req/s, burst 1)
 | POST | `/api/v1/auth/login` | Login — issues access/refresh tokens |
 | POST | `/api/v1/auth/confirm` | Confirm email from FE-submitted token (issues tokens on success) |
 | POST | `/api/v1/auth/refresh` | Rotate token pair via `X-Refresh-Token` / `X-Session-Id` headers |
+| POST | `/api/v1/auth/logout` | Revoke session + clear auth cookies (`X-Refresh-Token` / `X-Session-Id`) |
 
 ---
 

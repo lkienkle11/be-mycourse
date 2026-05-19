@@ -62,6 +62,19 @@ POST /api/v1/auth/refresh
             └─ Return new tokens
 ```
 
+### Auth Logout
+
+```
+POST /api/v1/auth/logout
+  └─ internal/auth/delivery/handler.go (Logout)
+       └─ AuthService.Logout
+            ├─ Parse X-Refresh-Token + X-Session-Id headers
+            ├─ Load session entry from users.refresh_token_session JSONB
+            ├─ Remove session key (idempotent if already absent)
+            ├─ delCachedMe(userID)
+            └─ clearAuthCookies on response (always, including 401)
+```
+
 ### GET /me
 
 ```

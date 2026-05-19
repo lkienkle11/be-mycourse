@@ -95,8 +95,8 @@ Every response is JSON in one of two shapes:
 | Header | Used for |
 |--------|----------|
 | `Authorization: Bearer <access_token>` | All JWT-protected endpoints under `/api/v1` |
-| `X-Refresh-Token: <refresh_jwt>` | `POST /api/v1/auth/refresh` only |
-| `X-Session-Id: <128-hex>` | `POST /api/v1/auth/refresh` only |
+| `X-Refresh-Token: <refresh_jwt>` | `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout` |
+| `X-Session-Id: <128-hex>` | `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout` |
 | `X-API-Key: <key>` | All `/api/internal-v1` endpoints |
 | `Authorization: Bearer <system_token>` | All `/api/system` endpoints (except `/login`) |
 
@@ -375,6 +375,42 @@ curl -X POST {{BASE_URL}}/api/v1/auth/refresh \
 // 401 — refresh expired
 { "code": 4008, "message": "Session has expired — re-login required", "data": null }
 ```
+
+---
+
+### 2.5 Logout
+
+**`POST /api/v1/auth/logout`**
+
+Revokes the current refresh session in `users.refresh_token_session` and clears auth cookies. Same headers as refresh. No request body.
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/auth/logout \
+  -H "X-CSRF-Token: $CSRF_TOKEN" \
+  -b cookies.txt \
+  -H "X-Refresh-Token: $(grep refresh_token cookies.txt | awk '{print $7}')" \
+  -H "X-Session-Id: $(grep session_id cookies.txt | awk '{print $7}')"
+```
+
+**Success (200):**
+```json
+{ "code": 0, "message": "logout_success", "data": null }
+```
+
+Response `Set-Cookie` clears `access_token`, `refresh_token`, and `session_id` (`MaxAge: -1`).
+
+**Idempotent:** Session already removed → still `200` + cookie clear.
+
+**Error examples:**
+```json
+// 400 — missing headers (cookies still cleared)
+{ "code": 3001, "message": "missing X-Refresh-Token or X-Session-Id header", "data": null }
+
+// 401 — UUID mismatch (cookies still cleared)
+{ "code": 4007, "message": "Session string unknown, missing, or UUID mismatch", "data": null }
+```
+
+After logout, `POST /api/v1/auth/refresh` with the same tokens must return **401**.
 
 ---
 
@@ -1214,8 +1250,6 @@ curl -X DELETE {{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions/P8 
 | 🔜 Planned | `POST /api/v1/courses` | Course creation — not yet implemented |
 | 🔜 Planned | `GET /api/v1/courses/:id/lessons` | Lesson listing — not yet implemented |
 | 🔜 Planned | `POST /api/v1/enrollments` | Enrollment — not yet implemented |
-| ❌ N/A | Logout endpoint | No server-side logout; client deletes cookies and discards tokens |
-
 > No endpoints are currently marked as **deprecated**. When an endpoint is deprecated it will be listed here with the deprecation date, reason, and replacement.
 
 ---

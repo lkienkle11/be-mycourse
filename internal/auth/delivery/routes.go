@@ -24,6 +24,7 @@ func RegisterRoutes(
 		authGroup.POST("/login", h.Login)
 		authGroup.POST("/confirm", h.ConfirmEmail)
 		authGroup.POST("/refresh", h.RefreshToken)
+		authGroup.POST("/logout", h.Logout)
 	}
 
 	if authen != nil {

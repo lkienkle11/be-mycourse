@@ -21,6 +21,8 @@ type RefreshSessionRepository interface {
 	LoadSessions(ctx context.Context, userID uint) (RefreshTokenSessionMap, error)
 	// SaveSessions overwrites the session map atomically.
 	SaveSessions(ctx context.Context, userID uint, sessions RefreshTokenSessionMap) error
+	// RemoveSession deletes one session key from the user's refresh_token_session JSONB.
+	RemoveSession(ctx context.Context, userID uint, sessionStr string) error
 	// IncrementEmailSendCount increments the registration_email_send_total counter and returns the new value.
 	IncrementEmailSendCount(ctx context.Context, userID uint) (int, error)
 }

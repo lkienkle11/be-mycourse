@@ -1387,11 +1387,9 @@ Provider is chosen by server config (`setting.MediaSetting.AppMediaProvider`), n
 
 ## 12. Taxonomy (`/api/v1/taxonomy/*`)
 
-> **Auth:** Bearer JWT. Permissions: course levels `course_level:*` (P14–P17), categories `category:*` (P18–P21), tags `tag:*` (P22–P25).
+> **Auth:** Bearer JWT. Permissions: levels `course_level:*` (P14–P17), topics `topic:*` (P18–P21), outcomes `course_outcome:*` (P30–P33), skills `course_skill:*` (P34–P37), tags `tag:*` (P22–P25).
 
-All list endpoints support the same pagination / sort / search query params as [Global Conventions](#1-global-conventions).  
-**Course levels & tags:** `search_by` ∈ `name`, `slug`; `sort_by` ∈ `id`, `name`, `slug`, `status`, `created_at` (default `id`). Optional filter `status` = `ACTIVE` or `INACTIVE`.  
-**Categories:** same sort/search; `status` filter identical.
+All list endpoints support pagination query params as [Global Conventions](#1-global-conventions), plus taxonomy-specific: `sort_by`, `sort_desc` (boolean), `search` (ILIKE on `name`; outcomes search `short_description`), optional `status` = `ACTIVE` | `INACTIVE`.
 
 ### 12.1 Course levels
 
@@ -1427,26 +1425,62 @@ curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1 \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-### 12.2 Categories
+### 12.2 Course topics (formerly categories)
 
 | Method | Path |
 |--------|------|
-| GET | `/api/v1/taxonomy/categories` |
-| POST | `/api/v1/taxonomy/categories` |
-| PATCH | `/api/v1/taxonomy/categories/:id` |
-| DELETE | `/api/v1/taxonomy/categories/:id` |
+| GET | `/api/v1/taxonomy/topics` |
+| POST | `/api/v1/taxonomy/topics` |
+| PATCH | `/api/v1/taxonomy/topics/:id` |
+| DELETE | `/api/v1/taxonomy/topics/:id` |
 
-**Create body:** `{ "name", "slug", "image_file_id", "status"? }` — **`image_file_id`** is the UUID primary key of a **`media_files`** row (upload via **`POST /api/v1/media/files`** first).  
-**Update body:** partial fields; optional **`image_file_id`** to replace the cover image (old file id is queued for deferred cloud cleanup).
+**Create body:** `{ "name", "slug", "image_file_id"?, "child_topics"?, "status"? }` — optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** is a tree of `{ "id", "name", "slug", "children" }` nodes (UUID ids, max depth 5, max 100 nodes).  
+**Update body:** partial fields including optional **`child_topics`** array.
 
 ```bash
-curl -X POST {{BASE_URL}}/api/v1/taxonomy/categories \
+curl -X POST {{BASE_URL}}/api/v1/taxonomy/topics \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Math","slug":"math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","status":"ACTIVE"}'
+  -d '{"name":"Math","slug":"math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","child_topics":[],"status":"ACTIVE"}'
 ```
 
-### 12.3 Tags
+### 12.3 Course outcomes
+
+| Method | Path |
+|--------|------|
+| GET | `/api/v1/taxonomy/outcomes` |
+| POST | `/api/v1/taxonomy/outcomes` |
+| PATCH | `/api/v1/taxonomy/outcomes/:id` |
+| DELETE | `/api/v1/taxonomy/outcomes/:id` |
+
+**Create body:** `{ "short_description", "description"?, "image_file_id"?, "status"? }` — `description` is a string array (max 8 items, each ≤120 chars).
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/taxonomy/outcomes \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"short_description":"Solve linear equations","description":["Use substitution","Check solutions"],"status":"ACTIVE"}'
+```
+
+### 12.4 Course skills
+
+| Method | Path |
+|--------|------|
+| GET | `/api/v1/taxonomy/skills` |
+| POST | `/api/v1/taxonomy/skills` |
+| PATCH | `/api/v1/taxonomy/skills/:id` |
+| DELETE | `/api/v1/taxonomy/skills/:id` |
+
+**Create body:** `{ "name", "slug", "children"?, "status"? }` — `children` uses the same tree node shape as `child_topics`.
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Problem solving","slug":"problem-solving","children":[],"status":"ACTIVE"}'
+```
+
+### 12.5 Tags
 
 | Method | Path |
 |--------|------|
@@ -1458,7 +1492,7 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/categories \
 **Create body:** `{ "name", "slug", "status"? }`.
 
 ```bash
-curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search_by=name&search_data=react" \
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search=react&status=ACTIVE" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

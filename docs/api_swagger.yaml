@@ -66,6 +66,20 @@ components:
       name: sort_order
       in: query
       schema: { type: string, enum: [asc, desc], default: asc }
+    TaxonomySortDesc:
+      name: sort_desc
+      in: query
+      schema: { type: boolean, default: false }
+      description: When true, sort descending.
+    TaxonomySearch:
+      name: search
+      in: query
+      schema: { type: string }
+      description: ILIKE filter on name (outcomes match short_description).
+    TaxonomyStatus:
+      name: status
+      in: query
+      schema: { type: string, enum: [ACTIVE, INACTIVE], example: ACTIVE }
     SearchBy:
       name: search_by
       in: query
@@ -91,6 +105,10 @@ components:
     RegisterRequest:
       type: object
       required: [email, password, display_name]
+      example:
+        email: user@example.com
+        password: password123
+        display_name: Jane Doe
       properties:
         email: { type: string, format: email }
         password: { type: string, minLength: 8 }
@@ -98,6 +116,10 @@ components:
     LoginRequest:
       type: object
       required: [email, password]
+      example:
+        email: user@example.com
+        password: password123
+        remember_me: false
       properties:
         email: { type: string, format: email }
         password: { type: string }
@@ -184,6 +206,10 @@ components:
     CreateCourseLevelRequest:
       type: object
       required: [name, slug]
+      example:
+        name: Beginner
+        slug: beginner
+        status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
         slug: { type: string, maxLength: 255 }
@@ -214,24 +240,127 @@ components:
       type: object
       properties:
         avatar_file_id: { type: string, format: uuid, description: "Set to empty string to clear" }
-    CreateCategoryRequest:
+    TreeNode:
       type: object
-      required: [name, slug, image_file_id]
+      required: [id, name, slug]
+      example:
+        id: "660e8400-e29b-41d4-a716-446655440001"
+        name: Algebra
+        slug: algebra
+        children: []
+      properties:
+        id: { type: string, format: uuid, description: Client-generated UUID per node }
+        name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255 }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
+    CreateCourseTopicRequest:
+      type: object
+      required: [name, slug]
+      example:
+        name: Mathematics
+        slug: mathematics
+        image_file_id: "550e8400-e29b-41d4-a716-446655440000"
+        child_topics:
+          - id: "660e8400-e29b-41d4-a716-446655440001"
+            name: Algebra
+            slug: algebra
+            children: []
+        status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
         slug: { type: string, maxLength: 255 }
         image_file_id: { type: string, format: uuid }
+        child_topics:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-    UpdateCategoryRequest:
+    UpdateCourseTopicRequest:
       type: object
+      example:
+        name: Mathematics (updated)
+        child_topics: []
       properties:
         name: { type: string }
         slug: { type: string }
         image_file_id: { type: string, format: uuid }
+        child_topics:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    CreateCourseOutcomeRequest:
+      type: object
+      required: [short_description]
+      example:
+        short_description: Understand linear equations
+        description:
+          - Solve one-variable equations
+          - Graph on a number line
+        image_file_id: "550e8400-e29b-41d4-a716-446655440000"
+        status: ACTIVE
+      properties:
+        short_description: { type: string, maxLength: 100 }
+        description:
+          type: array
+          maxItems: 8
+          items: { type: string, maxLength: 120 }
+        image_file_id: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    UpdateCourseOutcomeRequest:
+      type: object
+      example:
+        short_description: Understand linear equations (updated)
+      properties:
+        short_description: { type: string, maxLength: 100 }
+        description:
+          type: array
+          maxItems: 8
+          items: { type: string, maxLength: 120 }
+        image_file_id: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    CreateCourseSkillRequest:
+      type: object
+      required: [name, slug]
+      example:
+        name: Problem solving
+        slug: problem-solving
+        children:
+          - id: "660e8400-e29b-41d4-a716-446655440001"
+            name: Critical thinking
+            slug: critical-thinking
+            children: []
+        status: ACTIVE
+      properties:
+        name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255 }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    UpdateCourseSkillRequest:
+      type: object
+      example:
+        slug: problem-solving-advanced
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     CreateTagRequest:
       type: object
       required: [name, slug]
+      example:
+        name: React
+        slug: react
+        status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
         slug: { type: string, maxLength: 255 }
@@ -454,12 +583,9 @@ paths:
           schema:
             type: string
             enum: [id, name, slug, status, created_at]
-        - $ref: "#/components/parameters/SortOrder"
-        - $ref: "#/components/parameters/SearchBy"
-        - $ref: "#/components/parameters/SearchData"
-        - name: status
-          in: query
-          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
           description: Paginated list
@@ -506,10 +632,10 @@ paths:
         "200":
           description: OK
 
-  /api/v1/taxonomy/categories:
+  /api/v1/taxonomy/topics:
     get:
       tags: [Taxonomy]
-      summary: List categories (paginated)
+      summary: List course topics (paginated)
       security:
         - bearerJwt: []
       parameters:
@@ -520,18 +646,15 @@ paths:
           schema:
             type: string
             enum: [id, name, slug, status, created_at]
-        - $ref: "#/components/parameters/SortOrder"
-        - $ref: "#/components/parameters/SearchBy"
-        - $ref: "#/components/parameters/SearchData"
-        - name: status
-          in: query
-          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
           description: Paginated list
     post:
       tags: [Taxonomy]
-      summary: Create category
+      summary: Create course topic
       security:
         - bearerJwt: []
       requestBody:
@@ -539,12 +662,12 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateCategoryRequest"
+              $ref: "#/components/schemas/CreateCourseTopicRequest"
       responses:
         "201":
           description: Created
 
-  /api/v1/taxonomy/categories/{id}:
+  /api/v1/taxonomy/topics/{id}:
     parameters:
       - name: id
         in: path
@@ -552,14 +675,14 @@ paths:
         schema: { type: integer }
     patch:
       tags: [Taxonomy]
-      summary: Update category
+      summary: Update course topic
       security:
         - bearerJwt: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateCategoryRequest"
+              $ref: "#/components/schemas/UpdateCourseTopicRequest"
       responses:
         "200":
           description: OK
@@ -567,7 +690,137 @@ paths:
           description: Not found
     delete:
       tags: [Taxonomy]
-      summary: Delete category
+      summary: Delete course topic
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/taxonomy/outcomes:
+    get:
+      tags: [Taxonomy]
+      summary: List course outcomes (paginated)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [id, status, created_at]
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
+      responses:
+        "200":
+          description: Paginated list
+    post:
+      tags: [Taxonomy]
+      summary: Create course outcome
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourseOutcomeRequest"
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/taxonomy/outcomes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      tags: [Taxonomy]
+      summary: Update course outcome
+      security:
+        - bearerJwt: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCourseOutcomeRequest"
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+    delete:
+      tags: [Taxonomy]
+      summary: Delete course outcome
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/taxonomy/skills:
+    get:
+      tags: [Taxonomy]
+      summary: List course skills (paginated)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [id, name, slug, status, created_at]
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
+      responses:
+        "200":
+          description: Paginated list
+    post:
+      tags: [Taxonomy]
+      summary: Create course skill
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourseSkillRequest"
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/taxonomy/skills/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      tags: [Taxonomy]
+      summary: Update course skill
+      security:
+        - bearerJwt: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCourseSkillRequest"
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+    delete:
+      tags: [Taxonomy]
+      summary: Delete course skill
       security:
         - bearerJwt: []
       responses:
@@ -588,12 +841,9 @@ paths:
           schema:
             type: string
             enum: [id, name, slug, status, created_at]
-        - $ref: "#/components/parameters/SortOrder"
-        - $ref: "#/components/parameters/SearchBy"
-        - $ref: "#/components/parameters/SearchData"
-        - name: status
-          in: query
-          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
           description: Paginated list

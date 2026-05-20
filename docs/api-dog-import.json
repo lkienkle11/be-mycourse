@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "1502c8a4d66b601e02fedc",
+    "_postman_id": "df6f641846155c3a4e3870",
     "name": "MyCourse Backend API",
-    "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n\n**Auto-save tokens (Tests tab):**\n- After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).\n- After **System login** → `SYSTEM_TOKEN`.\nCreate/select an **Environment** in Apidog with the same variable names for best UX.\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb`",
+    "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n\n**Auto-save tokens (Tests tab):**\n- After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).\n- After **System login** → `SYSTEM_TOKEN`.\nCreate/select an **Environment** in Apidog with the same variable names for best UX.\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb` (reads examples from `docs/api_swagger.yaml` only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -92,7 +92,7 @@
             "header": [
               {
                 "key": "X-CSRF-Token",
-                "value": "{{X_CSRF_TOKEN}}",
+                "value": "",
                 "type": "text"
               },
               {
@@ -115,7 +115,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"string\",\n  \"password\": \"string\",\n  \"display_name\": \"string\"\n}",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"display_name\": \"Jane Doe\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -131,7 +131,7 @@
             "header": [
               {
                 "key": "X-CSRF-Token",
-                "value": "{{X_CSRF_TOKEN}}",
+                "value": "",
                 "type": "text"
               },
               {
@@ -154,7 +154,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"string\",\n  \"password\": \"string\"\n}",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"remember_me\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -194,7 +194,7 @@
             "header": [
               {
                 "key": "X-CSRF-Token",
-                "value": "{{X_CSRF_TOKEN}}",
+                "value": "",
                 "type": "text"
               },
               {
@@ -217,38 +217,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"string\"\n}",
+              "raw": "{\n  \"token\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "try {\n",
-                  "  var json = pm.response.json();\n",
-                  "  if (!json || json.code !== 0) { return; }\n",
-                  "  var d = json.data;\n",
-                  "  if (!d) { return; }\n",
-                  "  function setBoth(key, val) {\n",
-                  "    if (!val) { return; }\n",
-                  "    try { pm.environment.set(key, val); } catch (e1) {}\n",
-                  "    try { pm.collectionVariables.set(key, val); } catch (e2) {}\n",
-                  "  }\n",
-                  "  setBoth(\"ACCESS_TOKEN\", d.access_token);\n",
-                  "  setBoth(\"REFRESH_TOKEN\", d.refresh_token);\n",
-                  "  setBoth(\"SESSION_ID\", d.session_id);\n",
-                  "} catch (e) {}\n"
-                ]
-              }
-            }
-          ]
+          }
         },
         {
           "name": "Refresh access + refresh tokens",
@@ -257,7 +233,7 @@
             "header": [
               {
                 "key": "X-CSRF-Token",
-                "value": "{{X_CSRF_TOKEN}}",
+                "value": "",
                 "type": "text"
               },
               {
@@ -418,7 +394,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&sort_desc=false&status=ACTIVE",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -445,24 +421,19 @@
                   "disabled": true
                 },
                 {
-                  "key": "sort_order",
-                  "value": "",
-                  "disabled": true
+                  "key": "sort_desc",
+                  "value": "false",
+                  "disabled": false
                 },
                 {
-                  "key": "search_by",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "search_data",
+                  "key": "search",
                   "value": "",
                   "disabled": true
                 },
                 {
                   "key": "status",
-                  "value": "",
-                  "disabled": true
+                  "value": "ACTIVE",
+                  "disabled": false
                 }
               ]
             }
@@ -498,7 +469,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"string\",\n  \"slug\": \"string\"\n}",
+              "raw": "{\n  \"name\": \"Beginner\",\n  \"slug\": \"beginner\",\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -574,7 +545,7 @@
           }
         },
         {
-          "name": "List categories (paginated)",
+          "name": "List course topics (paginated)",
           "request": {
             "method": "GET",
             "header": [
@@ -585,7 +556,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/categories?page=1&per_page=20",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics?page=1&per_page=20&sort_desc=false&status=ACTIVE",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -593,7 +564,7 @@
                 "api",
                 "v1",
                 "taxonomy",
-                "categories"
+                "topics"
               ],
               "query": [
                 {
@@ -612,31 +583,26 @@
                   "disabled": true
                 },
                 {
-                  "key": "sort_order",
-                  "value": "",
-                  "disabled": true
+                  "key": "sort_desc",
+                  "value": "false",
+                  "disabled": false
                 },
                 {
-                  "key": "search_by",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "search_data",
+                  "key": "search",
                   "value": "",
                   "disabled": true
                 },
                 {
                   "key": "status",
-                  "value": "",
-                  "disabled": true
+                  "value": "ACTIVE",
+                  "disabled": false
                 }
               ]
             }
           }
         },
         {
-          "name": "Create category",
+          "name": "Create course topic",
           "request": {
             "method": "POST",
             "header": [
@@ -652,7 +618,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/categories",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -660,12 +626,12 @@
                 "api",
                 "v1",
                 "taxonomy",
-                "categories"
+                "topics"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"string\",\n  \"slug\": \"string\",\n  \"image_file_id\": \"string\"\n}",
+              "raw": "{\n  \"name\": \"Mathematics\",\n  \"slug\": \"mathematics\",\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"child_topics\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Algebra\",\n      \"slug\": \"algebra\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -675,7 +641,7 @@
           }
         },
         {
-          "name": "Update category",
+          "name": "Update course topic",
           "request": {
             "method": "PATCH",
             "header": [
@@ -691,7 +657,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/categories/{{id}}",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics/{{id}}",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -699,13 +665,13 @@
                 "api",
                 "v1",
                 "taxonomy",
-                "categories",
+                "topics",
                 "{{id}}"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n}",
+              "raw": "{\n  \"name\": \"Mathematics (updated)\",\n  \"child_topics\": [\n\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -715,7 +681,7 @@
           }
         },
         {
-          "name": "Delete category",
+          "name": "Delete course topic",
           "request": {
             "method": "DELETE",
             "header": [
@@ -726,7 +692,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/categories/{{id}}",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics/{{id}}",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -734,7 +700,331 @@
                 "api",
                 "v1",
                 "taxonomy",
-                "categories",
+                "topics",
+                "{{id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List course outcomes (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes?page=1&per_page=20&sort_desc=false&status=ACTIVE",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "outcomes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "disabled": false
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_desc",
+                  "value": "false",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create course outcome",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "outcomes"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"short_description\": \"Understand linear equations\",\n  \"description\": [\n    \"Solve one-variable equations\",\n    \"Graph on a number line\"\n  ],\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update course outcome",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes/{{id}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "outcomes",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"short_description\": \"Understand linear equations (updated)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete course outcome",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes/{{id}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "outcomes",
+                "{{id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List course skills (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills?page=1&per_page=20&sort_desc=false&status=ACTIVE",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "skills"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "disabled": false
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_desc",
+                  "value": "false",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create course skill",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "skills"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Problem solving\",\n  \"slug\": \"problem-solving\",\n  \"children\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Critical thinking\",\n      \"slug\": \"critical-thinking\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update course skill",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills/{{id}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "skills",
+                "{{id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"problem-solving-advanced\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete course skill",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills/{{id}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "skills",
                 "{{id}}"
               ]
             }
@@ -752,7 +1042,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/tags?page=1&per_page=20",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/tags?page=1&per_page=20&sort_desc=false&status=ACTIVE",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -779,24 +1069,19 @@
                   "disabled": true
                 },
                 {
-                  "key": "sort_order",
-                  "value": "",
-                  "disabled": true
+                  "key": "sort_desc",
+                  "value": "false",
+                  "disabled": false
                 },
                 {
-                  "key": "search_by",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "search_data",
+                  "key": "search",
                   "value": "",
                   "disabled": true
                 },
                 {
                   "key": "status",
-                  "value": "",
-                  "disabled": true
+                  "value": "ACTIVE",
+                  "disabled": false
                 }
               ]
             }
@@ -832,7 +1117,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"string\",\n  \"slug\": \"string\"\n}",
+              "raw": "{\n  \"name\": \"React\",\n  \"slug\": \"react\",\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -924,7 +1209,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/media/files?page=1&per_page=20",
+              "raw": "{{BASE_URL}}/api/v1/media/files?page=1&per_page=20&sort_order=asc",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -952,8 +1237,8 @@
                 },
                 {
                   "key": "sort_order",
-                  "value": "",
-                  "disabled": true
+                  "value": "asc",
+                  "disabled": false
                 },
                 {
                   "key": "search_by",
@@ -1008,22 +1293,14 @@
                 {
                   "key": "file",
                   "type": "file",
-                  "src": ""
-                },
-                {
-                  "key": "kind",
-                  "type": "text",
-                  "value": "FILE"
+                  "src": "",
+                  "disabled": false
                 },
                 {
                   "key": "object_key",
                   "type": "text",
-                  "value": ""
-                },
-                {
-                  "key": "metadata",
-                  "type": "text",
-                  "value": ""
+                  "value": "",
+                  "disabled": true
                 }
               ]
             }
@@ -1125,22 +1402,26 @@
                 {
                   "key": "file",
                   "type": "file",
-                  "src": ""
+                  "src": "",
+                  "disabled": false
                 },
                 {
-                  "key": "kind",
+                  "key": "reuse_media_id",
                   "type": "text",
-                  "value": "FILE"
+                  "value": "",
+                  "disabled": true
                 },
                 {
-                  "key": "object_key",
+                  "key": "expected_row_version",
                   "type": "text",
-                  "value": ""
+                  "value": "",
+                  "disabled": true
                 },
                 {
-                  "key": "metadata",
+                  "key": "skip_upload_if_unchanged",
                   "type": "text",
-                  "value": ""
+                  "value": "",
+                  "disabled": true
                 }
               ]
             }
@@ -1268,7 +1549,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"VideoLibraryId\": 1,\n  \"VideoGuid\": \"string\",\n  \"Status\": 1\n}",
+              "raw": "{\n  \"VideoLibraryId\": 0,\n  \"VideoGuid\": \"\",\n  \"Status\": 0\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1306,7 +1587,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"string\",\n  \"password\": \"string\"\n}",
+              "raw": "{\n  \"username\": \"\",\n  \"password\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1495,7 +1776,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/internal-v1/rbac/permissions?page=1&per_page=20",
+              "raw": "{{BASE_URL}}/api/internal-v1/rbac/permissions?page=1&per_page=20&sort_order=asc",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1523,8 +1804,8 @@
                 },
                 {
                   "key": "sort_order",
-                  "value": "",
-                  "disabled": true
+                  "value": "asc",
+                  "disabled": false
                 },
                 {
                   "key": "search_by",
@@ -1570,7 +1851,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"permission_id\": \"string\",\n  \"permission_name\": \"string\"\n}",
+              "raw": "{\n  \"permission_id\": \"\",\n  \"permission_name\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1657,7 +1938,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/internal-v1/rbac/roles",
+              "raw": "{{BASE_URL}}/api/internal-v1/rbac/roles?with_permissions=0",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1670,8 +1951,8 @@
               "query": [
                 {
                   "key": "with_permissions",
-                  "value": "",
-                  "disabled": true
+                  "value": "0",
+                  "disabled": false
                 }
               ]
             }
@@ -1707,7 +1988,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"string\"\n}",
+              "raw": "{\n  \"name\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1915,7 +2196,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role_id\": 1\n}",
+              "raw": "{\n  \"role_id\": 0\n}",
               "options": {
                 "raw": {
                   "language": "json"

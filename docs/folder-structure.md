@@ -124,7 +124,7 @@ be-mycourse/
 | Path | Purpose |
 |------|---------|
 | `domain/` | Taxonomy entity types |
-| `application/` | `TaxonomyService`: categories, tags, course levels |
+| `application/` | `TaxonomyService`: topics, outcomes, skills, tags, course levels |
 | `infra/` | GORM repos with shared list query helpers |
 | `delivery/` | `Handler`, `routes.go` — taxonomy CRUD under `/api/v1/taxonomy` |
 

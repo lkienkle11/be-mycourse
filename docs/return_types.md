@@ -707,6 +707,68 @@ For multipart create/update, client-sent `kind` and `metadata` text fields are p
 
 ---
 
+### Taxonomy API `/api/v1/taxonomy`
+
+Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `result` + `page_info`. JSON field names match `delivery/dto.go`.
+
+#### Course topic (`/topics`, permission `topic:*`)
+
+**Create / update body:** `name`, `slug`, optional `image_file_id`, `child_topics` (tree nodes), optional `status`.
+
+**Row shape (`data` on create/update, items in list):**
+
+```json
+{
+  "id": 1,
+  "name": "Mathematics",
+  "slug": "mathematics",
+  "image_file_id": "550e8400-e29b-41d4-a716-446655440000",
+  "image_url": "",
+  "child_topics": [
+    { "id": "660e8400-e29b-41d4-a716-446655440001", "name": "Algebra", "slug": "algebra", "children": [] }
+  ],
+  "status": "ACTIVE",
+  "created_by": 1,
+  "created_at": "2026-05-20T10:00:00Z",
+  "updated_at": "2026-05-20T10:00:00Z"
+}
+```
+
+#### Course outcome (`/outcomes`, permission `course_outcome:*`)
+
+```json
+{
+  "id": 1,
+  "short_description": "Solve linear equations",
+  "description": ["Use substitution", "Check solutions"],
+  "image_file_id": "",
+  "image_url": "",
+  "status": "ACTIVE",
+  "created_by": 1,
+  "created_at": "2026-05-20T10:00:00Z",
+  "updated_at": "2026-05-20T10:00:00Z"
+}
+```
+
+#### Course skill (`/skills`, permission `course_skill:*`)
+
+```json
+{
+  "id": 1,
+  "name": "Problem solving",
+  "slug": "problem-solving",
+  "children": [],
+  "status": "ACTIVE",
+  "created_by": 1,
+  "created_at": "2026-05-20T10:00:00Z",
+  "updated_at": "2026-05-20T10:00:00Z"
+}
+```
+
+**List query params:** `page`, `per_page`, `sort_by`, `sort_desc`, `search`, `status` (`ACTIVE` | `INACTIVE`).
+
+---
+
 ### System API `/api/system`
 
 **Rate limit:** 10 requests / 3 seconds per IP.  

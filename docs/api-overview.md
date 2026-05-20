@@ -20,7 +20,7 @@
 
 ## Implemented Endpoint Inventory
 
-For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — categories, tags, course levels, **`pkg/taxonomy`** (`NormalizeTaxonomyStatus`); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, **`pkg/media`** (resolver, metadata, multipart). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`pkg/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, **`pkg/media`** (resolver, metadata, multipart). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
 
 ### `/api/system`
 - `POST /login`
@@ -49,10 +49,9 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `POST /taxonomy/levels`
   - `PATCH /taxonomy/levels/:id`
   - `DELETE /taxonomy/levels/:id`
-  - `GET /taxonomy/categories`
-  - `POST /taxonomy/categories`
-  - `PATCH /taxonomy/categories/:id`
-  - `DELETE /taxonomy/categories/:id`
+  - `GET /taxonomy/topics` … `DELETE /taxonomy/topics/:id` (`topic:*`)
+  - `GET /taxonomy/outcomes` … `DELETE /taxonomy/outcomes/:id` (`course_outcome:*`)
+  - `GET /taxonomy/skills` … `DELETE /taxonomy/skills/:id` (`course_skill:*`)
   - `GET /taxonomy/tags`
   - `POST /taxonomy/tags`
   - `PATCH /taxonomy/tags/:id`

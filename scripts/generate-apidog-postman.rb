@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Builds docs/api-dog-import.json — Postman Collection v2.1 (Apidog imports this).
-# Tests (post-response) save ACCESS_TOKEN, REFRESH_TOKEN, SESSION_ID after
-# login / confirm / refresh; SYSTEM_TOKEN after system login.
+# Builds docs/api-dog-import.json from docs/api_swagger.yaml (Postman Collection v2.1).
+# All request/query examples MUST live in the OpenAPI spec — this script does not
+# embed domain-specific sample payloads.
 #
 #   ruby scripts/generate-apidog-postman.rb
 
@@ -44,6 +44,12 @@ SYSTEM_TOKEN_SCRIPT = <<~'JS'.strip.lines.map(&:chomp)
   } catch (e) {}
 JS
 
+# Postman collection variable placeholders (not API payload examples).
+HEADER_COLLECTION_VARS = {
+  "X-Refresh-Token" => "{{REFRESH_TOKEN}}",
+  "X-Session-Id" => "{{SESSION_ID}}"
+}.freeze
+
 def test_event(lines)
   {
     "listen" => "test",
@@ -67,39 +73,60 @@ def resolve_param(spec, p)
   p["$ref"] ? resolve_ref(spec, p["$ref"]) : p
 end
 
-def dummy_json_value(sc, spec)
-  return nil unless sc.is_a?(Hash)
-  sc = resolve_ref(spec, sc["$ref"]) if sc["$ref"]
-  return "string" unless sc.is_a?(Hash)
+def resolve_schema(spec, schema)
+  return schema unless schema.is_a?(Hash)
 
-  case sc["type"]
+  schema = resolve_ref(spec, schema["$ref"]) if schema["$ref"]
+  schema
+end
+
+def example_value(spec, schema)
+  schema = resolve_schema(spec, schema)
+  return nil unless schema.is_a?(Hash)
+
+  return schema["example"] if schema.key?("example")
+
+  case schema["type"]
   when "string"
-    (sc["enum"] && sc["enum"].first) || "string"
+    schema["enum"]&.first || ""
   when "integer", "number"
-    1
+    schema.fetch("default", 0)
   when "boolean"
-    false
+    schema.fetch("default", false)
   when "array"
     []
   when "object"
-    {}
+    object_from_schema(spec, schema, required_only: true)
   else
-    "string"
+    ""
   end
 end
 
-def json_example_from_schema(spec, schema)
-  schema = resolve_ref(spec, schema["$ref"]) if schema.is_a?(Hash) && schema["$ref"]
-  return "{}" unless schema.is_a?(Hash) && schema["properties"].is_a?(Hash)
+def object_from_schema(spec, schema, required_only: false)
+  schema = resolve_schema(spec, schema)
+  return schema["example"] if schema.is_a?(Hash) && schema.key?("example")
+  return {} unless schema.is_a?(Hash) && schema["properties"].is_a?(Hash)
 
-  obj = {}
   required = schema["required"] || []
-  schema["properties"].each do |key, sc|
-    next unless required.include?(key)
+  obj = {}
+  schema["properties"].each do |key, prop|
+    prop = resolve_schema(spec, prop)
+    if required_only && !required.include?(key) && !(prop.is_a?(Hash) && prop.key?("example"))
+      next
+    end
 
-    obj[key] = dummy_json_value(sc, spec)
+    obj[key] = example_value(spec, prop)
   end
-  JSON.pretty_generate(obj)
+  obj
+end
+
+def json_example_from_schema(spec, schema)
+  schema = resolve_schema(spec, schema)
+  return "{}" unless schema.is_a?(Hash)
+
+  return JSON.pretty_generate(schema["example"]) if schema.key?("example")
+
+  JSON.pretty_generate(object_from_schema(spec, schema, required_only: true))
 end
 
 def merge_parameters(spec, path_item, op)
@@ -144,27 +171,58 @@ end
 def header_params_to_headers(params)
   params.select { |p| p["in"] == "header" }.map do |p|
     name = p["name"]
-    val = case name
-          when "X-Refresh-Token" then "{{REFRESH_TOKEN}}"
-          when "X-Session-Id" then "{{SESSION_ID}}"
-          else "{{#{name.gsub(/[^a-zA-Z0-9]/, '_').upcase}}}"
-          end
+    val = HEADER_COLLECTION_VARS[name] || query_or_schema_example(p).to_s
     { "key" => name, "value" => val, "type" => "text" }
   end
 end
 
+def query_or_schema_example(param)
+  return param["example"] if param.key?("example")
+
+  schema = param["schema"] || {}
+  return schema["example"] if schema.key?("example")
+  return schema["default"] if schema.key?("default")
+
+  ""
+end
+
 def query_params_to_urlencoded(params)
   params.select { |p| p["in"] == "query" }.map do |p|
-    name = p["name"]
-    ex = p.dig("schema", "example")
-    val = ex || case name
-                when "token" then "{{CONFIRM_TOKEN}}"
-                when "page" then "1"
-                when "per_page" then "20"
-                else ""
-                end
-    { "key" => name, "value" => val.to_s, "disabled" => val.to_s.empty? }
+    val = query_or_schema_example(p).to_s
+    { "key" => p["name"], "value" => val, "disabled" => val.empty? }
   end
+end
+
+def build_multipart_body(spec, schema)
+  schema = resolve_schema(spec, schema)
+  return nil unless schema.is_a?(Hash)
+
+  if schema.key?("example") && schema["example"].is_a?(Hash)
+    return {
+      "mode" => "formdata",
+      "formdata" => schema["example"].map do |key, val|
+        if val.is_a?(Hash) && val["type"] == "file"
+          { "key" => key, "type" => "file", "src" => val["src"].to_s }
+        else
+          { "key" => key, "type" => "text", "value" => val.to_s }
+        end
+      end
+    }
+  end
+
+  required = schema["required"] || []
+  formdata = []
+  (schema["properties"] || {}).each do |key, prop|
+    prop = resolve_schema(spec, prop)
+    is_required = required.include?(key)
+    if prop["format"] == "binary"
+      formdata << { "key" => key, "type" => "file", "src" => "", "disabled" => !is_required }
+    else
+      val = example_value(spec, prop).to_s
+      formdata << { "key" => key, "type" => "text", "value" => val, "disabled" => !is_required && val.empty? }
+    end
+  end
+  { "mode" => "formdata", "formdata" => formdata }
 end
 
 def build_body(spec, op)
@@ -173,19 +231,21 @@ def build_body(spec, op)
 
   content = rb["content"] || {}
   if content["multipart/form-data"]
-    return {
-      "mode" => "formdata",
-      "formdata" => [
-        { "key" => "file", "type" => "file", "src" => "" },
-        { "key" => "kind", "type" => "text", "value" => "FILE" },
-        { "key" => "object_key", "type" => "text", "value" => "" },
-        { "key" => "metadata", "type" => "text", "value" => "" }
-      ]
-    }
+    schema = content["multipart/form-data"]["schema"] || {}
+    body = build_multipart_body(spec, schema)
+    return body if body
   end
 
   json_ct = content["application/json"]
   return nil unless json_ct
+
+  if json_ct.key?("example")
+    return {
+      "mode" => "raw",
+      "raw" => JSON.pretty_generate(json_ct["example"]),
+      "options" => { "raw" => { "language" => "json" } }
+    }
+  end
 
   schema = json_ct["schema"] || {}
   {
@@ -272,7 +332,7 @@ def main
         - After **System login** → `SYSTEM_TOKEN`.
         Create/select an **Environment** in Apidog with the same variable names for best UX.
 
-        Regenerate this file: `ruby scripts/generate-apidog-postman.rb`
+        Regenerate this file: `ruby scripts/generate-apidog-postman.rb` (reads examples from `docs/api_swagger.yaml` only).
       MD
       "schema" => "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },

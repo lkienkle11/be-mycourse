@@ -21,10 +21,18 @@ var RolePermissions = struct {
 	Sysadmin_CourseLevelCreate    string `role:"sysadmin" perm_id:"P15"`
 	Sysadmin_CourseLevelUpdate    string `role:"sysadmin" perm_id:"P16"`
 	Sysadmin_CourseLevelDelete    string `role:"sysadmin" perm_id:"P17"`
-	Sysadmin_CategoryRead         string `role:"sysadmin" perm_id:"P18"`
-	Sysadmin_CategoryCreate       string `role:"sysadmin" perm_id:"P19"`
-	Sysadmin_CategoryUpdate       string `role:"sysadmin" perm_id:"P20"`
-	Sysadmin_CategoryDelete       string `role:"sysadmin" perm_id:"P21"`
+	Sysadmin_TopicRead            string `role:"sysadmin" perm_id:"P18"`
+	Sysadmin_TopicCreate          string `role:"sysadmin" perm_id:"P19"`
+	Sysadmin_TopicUpdate          string `role:"sysadmin" perm_id:"P20"`
+	Sysadmin_TopicDelete          string `role:"sysadmin" perm_id:"P21"`
+	Sysadmin_CourseOutcomeRead    string `role:"sysadmin" perm_id:"P30"`
+	Sysadmin_CourseOutcomeCreate  string `role:"sysadmin" perm_id:"P31"`
+	Sysadmin_CourseOutcomeUpdate  string `role:"sysadmin" perm_id:"P32"`
+	Sysadmin_CourseOutcomeDelete  string `role:"sysadmin" perm_id:"P33"`
+	Sysadmin_CourseSkillRead      string `role:"sysadmin" perm_id:"P34"`
+	Sysadmin_CourseSkillCreate    string `role:"sysadmin" perm_id:"P35"`
+	Sysadmin_CourseSkillUpdate    string `role:"sysadmin" perm_id:"P36"`
+	Sysadmin_CourseSkillDelete    string `role:"sysadmin" perm_id:"P37"`
 	Sysadmin_TagRead              string `role:"sysadmin" perm_id:"P22"`
 	Sysadmin_TagCreate            string `role:"sysadmin" perm_id:"P23"`
 	Sysadmin_TagUpdate            string `role:"sysadmin" perm_id:"P24"`
@@ -34,34 +42,42 @@ var RolePermissions = struct {
 	Sysadmin_MediaFileUpdate      string `role:"sysadmin" perm_id:"P28"`
 	Sysadmin_MediaFileDelete      string `role:"sysadmin" perm_id:"P29"`
 	// admin — profile + course + user (no course_instructor)
-	Admin_ProfileRead       string `role:"admin" perm_id:"P1"`
-	Admin_ProfileUpdate     string `role:"admin" perm_id:"P2"`
-	Admin_ProfileDelete     string `role:"admin" perm_id:"P3"`
-	Admin_ProfileCreate     string `role:"admin" perm_id:"P4"`
-	Admin_CourseRead        string `role:"admin" perm_id:"P5"`
-	Admin_CourseUpdate      string `role:"admin" perm_id:"P6"`
-	Admin_CourseDelete      string `role:"admin" perm_id:"P7"`
-	Admin_CourseCreate      string `role:"admin" perm_id:"P8"`
-	Admin_UserRead          string `role:"admin" perm_id:"P10"`
-	Admin_UserUpdate        string `role:"admin" perm_id:"P11"`
-	Admin_UserDelete        string `role:"admin" perm_id:"P12"`
-	Admin_UserCreate        string `role:"admin" perm_id:"P13"`
-	Admin_CourseLevelRead   string `role:"admin" perm_id:"P14"`
-	Admin_CourseLevelCreate string `role:"admin" perm_id:"P15"`
-	Admin_CourseLevelUpdate string `role:"admin" perm_id:"P16"`
-	Admin_CourseLevelDelete string `role:"admin" perm_id:"P17"`
-	Admin_CategoryRead      string `role:"admin" perm_id:"P18"`
-	Admin_CategoryCreate    string `role:"admin" perm_id:"P19"`
-	Admin_CategoryUpdate    string `role:"admin" perm_id:"P20"`
-	Admin_CategoryDelete    string `role:"admin" perm_id:"P21"`
-	Admin_TagRead           string `role:"admin" perm_id:"P22"`
-	Admin_TagCreate         string `role:"admin" perm_id:"P23"`
-	Admin_TagUpdate         string `role:"admin" perm_id:"P24"`
-	Admin_TagDelete         string `role:"admin" perm_id:"P25"`
-	Admin_MediaFileRead     string `role:"admin" perm_id:"P26"`
-	Admin_MediaFileCreate   string `role:"admin" perm_id:"P27"`
-	Admin_MediaFileUpdate   string `role:"admin" perm_id:"P28"`
-	Admin_MediaFileDelete   string `role:"admin" perm_id:"P29"`
+	Admin_ProfileRead         string `role:"admin" perm_id:"P1"`
+	Admin_ProfileUpdate       string `role:"admin" perm_id:"P2"`
+	Admin_ProfileDelete       string `role:"admin" perm_id:"P3"`
+	Admin_ProfileCreate       string `role:"admin" perm_id:"P4"`
+	Admin_CourseRead          string `role:"admin" perm_id:"P5"`
+	Admin_CourseUpdate        string `role:"admin" perm_id:"P6"`
+	Admin_CourseDelete        string `role:"admin" perm_id:"P7"`
+	Admin_CourseCreate        string `role:"admin" perm_id:"P8"`
+	Admin_UserRead            string `role:"admin" perm_id:"P10"`
+	Admin_UserUpdate          string `role:"admin" perm_id:"P11"`
+	Admin_UserDelete          string `role:"admin" perm_id:"P12"`
+	Admin_UserCreate          string `role:"admin" perm_id:"P13"`
+	Admin_CourseLevelRead     string `role:"admin" perm_id:"P14"`
+	Admin_CourseLevelCreate   string `role:"admin" perm_id:"P15"`
+	Admin_CourseLevelUpdate   string `role:"admin" perm_id:"P16"`
+	Admin_CourseLevelDelete   string `role:"admin" perm_id:"P17"`
+	Admin_TopicRead           string `role:"admin" perm_id:"P18"`
+	Admin_TopicCreate         string `role:"admin" perm_id:"P19"`
+	Admin_TopicUpdate         string `role:"admin" perm_id:"P20"`
+	Admin_TopicDelete         string `role:"admin" perm_id:"P21"`
+	Admin_CourseOutcomeRead   string `role:"admin" perm_id:"P30"`
+	Admin_CourseOutcomeCreate string `role:"admin" perm_id:"P31"`
+	Admin_CourseOutcomeUpdate string `role:"admin" perm_id:"P32"`
+	Admin_CourseOutcomeDelete string `role:"admin" perm_id:"P33"`
+	Admin_CourseSkillRead     string `role:"admin" perm_id:"P34"`
+	Admin_CourseSkillCreate   string `role:"admin" perm_id:"P35"`
+	Admin_CourseSkillUpdate   string `role:"admin" perm_id:"P36"`
+	Admin_CourseSkillDelete   string `role:"admin" perm_id:"P37"`
+	Admin_TagRead             string `role:"admin" perm_id:"P22"`
+	Admin_TagCreate           string `role:"admin" perm_id:"P23"`
+	Admin_TagUpdate           string `role:"admin" perm_id:"P24"`
+	Admin_TagDelete           string `role:"admin" perm_id:"P25"`
+	Admin_MediaFileRead       string `role:"admin" perm_id:"P26"`
+	Admin_MediaFileCreate     string `role:"admin" perm_id:"P27"`
+	Admin_MediaFileUpdate     string `role:"admin" perm_id:"P28"`
+	Admin_MediaFileDelete     string `role:"admin" perm_id:"P29"`
 	// instructor
 	Instructor_ProfileRead          string `role:"instructor" perm_id:"P1"`
 	Instructor_CourseRead           string `role:"instructor" perm_id:"P5"`
@@ -70,18 +86,22 @@ var RolePermissions = struct {
 	Instructor_CourseInstructorRead string `role:"instructor" perm_id:"P9"`
 	Instructor_UserRead             string `role:"instructor" perm_id:"P10"`
 	Instructor_CourseLevelRead      string `role:"instructor" perm_id:"P14"`
-	Instructor_CategoryRead         string `role:"instructor" perm_id:"P18"`
+	Instructor_TopicRead            string `role:"instructor" perm_id:"P18"`
+	Instructor_CourseOutcomeRead    string `role:"instructor" perm_id:"P30"`
+	Instructor_CourseSkillRead      string `role:"instructor" perm_id:"P34"`
 	Instructor_TagRead              string `role:"instructor" perm_id:"P22"`
 	Instructor_MediaFileRead        string `role:"instructor" perm_id:"P26"`
 	Instructor_MediaFileCreate      string `role:"instructor" perm_id:"P27"`
 	Instructor_MediaFileUpdate      string `role:"instructor" perm_id:"P28"`
 	Instructor_MediaFileDelete      string `role:"instructor" perm_id:"P29"`
 	// learner
-	Learner_ProfileRead     string `role:"learner" perm_id:"P1"`
-	Learner_CourseRead      string `role:"learner" perm_id:"P5"`
-	Learner_UserRead        string `role:"learner" perm_id:"P10"`
-	Learner_CourseLevelRead string `role:"learner" perm_id:"P14"`
-	Learner_CategoryRead    string `role:"learner" perm_id:"P18"`
-	Learner_TagRead         string `role:"learner" perm_id:"P22"`
-	Learner_MediaFileRead   string `role:"learner" perm_id:"P26"`
+	Learner_ProfileRead       string `role:"learner" perm_id:"P1"`
+	Learner_CourseRead        string `role:"learner" perm_id:"P5"`
+	Learner_UserRead          string `role:"learner" perm_id:"P10"`
+	Learner_CourseLevelRead   string `role:"learner" perm_id:"P14"`
+	Learner_TopicRead         string `role:"learner" perm_id:"P18"`
+	Learner_CourseOutcomeRead string `role:"learner" perm_id:"P30"`
+	Learner_CourseSkillRead   string `role:"learner" perm_id:"P34"`
+	Learner_TagRead           string `role:"learner" perm_id:"P22"`
+	Learner_MediaFileRead     string `role:"learner" perm_id:"P26"`
 }{}

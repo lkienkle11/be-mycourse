@@ -3,9 +3,11 @@ package application
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"mycourse-io-be/internal/taxonomy/domain"
+	taxpkg "mycourse-io-be/pkg/taxonomy"
 )
 
 // MediaFileValidator validates and loads a profile-image file by ID.
@@ -21,7 +23,9 @@ type OrphanImageEnqueuer interface {
 
 // TaxonomyService provides all taxonomy use-cases.
 type TaxonomyService struct {
-	categoryRepo    domain.CategoryRepository
+	topicRepo       domain.CourseTopicRepository
+	outcomeRepo     domain.CourseOutcomeRepository
+	skillRepo       domain.CourseSkillRepository
 	tagRepo         domain.TagRepository
 	courseLevelRepo domain.CourseLevelRepository
 	mediaValidator  MediaFileValidator
@@ -30,14 +34,18 @@ type TaxonomyService struct {
 
 // NewTaxonomyService constructs a TaxonomyService.
 func NewTaxonomyService(
-	categoryRepo domain.CategoryRepository,
+	topicRepo domain.CourseTopicRepository,
+	outcomeRepo domain.CourseOutcomeRepository,
+	skillRepo domain.CourseSkillRepository,
 	tagRepo domain.TagRepository,
 	courseLevelRepo domain.CourseLevelRepository,
 	mediaValidator MediaFileValidator,
 	orphanEnqueuer OrphanImageEnqueuer,
 ) *TaxonomyService {
 	return &TaxonomyService{
-		categoryRepo:    categoryRepo,
+		topicRepo:       topicRepo,
+		outcomeRepo:     outcomeRepo,
+		skillRepo:       skillRepo,
 		tagRepo:         tagRepo,
 		courseLevelRepo: courseLevelRepo,
 		mediaValidator:  mediaValidator,
@@ -45,13 +53,16 @@ func NewTaxonomyService(
 	}
 }
 
-// --- Category ----------------------------------------------------------------
+// --- CourseTopic -------------------------------------------------------------
 
-func (s *TaxonomyService) ListCategories(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.Category, int64, error) {
-	return s.categoryRepo.List(ctx, filter)
+func (s *TaxonomyService) ListTopics(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseTopic, int64, error) {
+	return s.topicRepo.List(ctx, filter)
 }
 
-func (s *TaxonomyService) CreateCategory(ctx context.Context, in domain.CreateCategoryInput) (*domain.Category, error) {
+func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCourseTopicInput) (*domain.CourseTopic, error) {
+	if err := validateChildTopics(in.ChildTopics); err != nil {
+		return nil, err
+	}
 	fileID := strings.TrimSpace(in.ImageFileID)
 	if fileID != "" && s.mediaValidator != nil {
 		if _, err := s.mediaValidator.LoadValidatedProfileImageFile(ctx, fileID); err != nil {
@@ -59,47 +70,52 @@ func (s *TaxonomyService) CreateCategory(ctx context.Context, in domain.CreateCa
 		}
 	}
 	n, sl, st := trimmedTaxonomyFields(in.Name, in.Slug, in.Status)
-	c := &domain.Category{
-		Name: n, Slug: sl, Status: st,
+	t := &domain.CourseTopic{
+		Name: n, Slug: sl, Status: st, ChildTopics: in.ChildTopics,
 		CreatedBy: uintPtrIfPos(in.ActorID),
 	}
 	if fileID != "" {
-		c.ImageFileID = &fileID
+		t.ImageFileID = &fileID
 	}
-	if err := s.categoryRepo.Create(ctx, c); err != nil {
+	if err := s.topicRepo.Create(ctx, t); err != nil {
 		return nil, err
 	}
-	return s.categoryRepo.GetByID(ctx, c.ID)
+	return s.topicRepo.GetByID(ctx, t.ID)
 }
 
-func (s *TaxonomyService) UpdateCategory(ctx context.Context, id uint, in domain.UpdateCategoryInput) (*domain.Category, error) {
-	row, err := s.categoryRepo.GetByID(ctx, id)
+func (s *TaxonomyService) UpdateTopic(ctx context.Context, id uint, in domain.UpdateCourseTopicInput) (*domain.CourseTopic, error) {
+	row, err := s.topicRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Slug, in.Status)
-
+	if in.ChildTopics != nil {
+		if err := validateChildTopics(*in.ChildTopics); err != nil {
+			return nil, err
+		}
+		row.ChildTopics = *in.ChildTopics
+	}
 	prevFileID := imageFileIDStr(row.ImageFileID)
-	if err := s.mutateCategoryImageFileID(ctx, row, in.ImageFileID); err != nil {
+	if err := s.mutateImageFileID(ctx, &row.ImageFileID, in.ImageFileID); err != nil {
 		return nil, err
 	}
-	if err := s.categoryRepo.Save(ctx, row); err != nil {
+	if err := s.topicRepo.Save(ctx, row); err != nil {
 		return nil, err
 	}
 	nextFileID := imageFileIDStr(row.ImageFileID)
 	if in.ImageFileID != nil && prevFileID != "" && prevFileID != nextFileID && s.orphanEnqueuer != nil {
 		s.orphanEnqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
 	}
-	return s.categoryRepo.GetByID(ctx, id)
+	return s.topicRepo.GetByID(ctx, id)
 }
 
-func (s *TaxonomyService) DeleteCategory(ctx context.Context, id uint) error {
-	row, err := s.categoryRepo.GetByID(ctx, id)
+func (s *TaxonomyService) DeleteTopic(ctx context.Context, id uint) error {
+	row, err := s.topicRepo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 	prevFileID := imageFileIDStr(row.ImageFileID)
-	if err := s.categoryRepo.Delete(ctx, id); err != nil {
+	if err := s.topicRepo.Delete(ctx, id); err != nil {
 		return err
 	}
 	if prevFileID != "" && s.orphanEnqueuer != nil {
@@ -108,8 +124,135 @@ func (s *TaxonomyService) DeleteCategory(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (s *TaxonomyService) GetCategory(ctx context.Context, id uint) (*domain.Category, error) {
-	return s.categoryRepo.GetByID(ctx, id)
+func (s *TaxonomyService) GetTopic(ctx context.Context, id uint) (*domain.CourseTopic, error) {
+	return s.topicRepo.GetByID(ctx, id)
+}
+
+// --- CourseOutcome -----------------------------------------------------------
+
+func (s *TaxonomyService) ListCourseOutcomes(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseOutcome, int64, error) {
+	return s.outcomeRepo.List(ctx, filter)
+}
+
+func (s *TaxonomyService) CreateCourseOutcome(ctx context.Context, in domain.CreateCourseOutcomeInput) (*domain.CourseOutcome, error) {
+	if err := validateOutcomePayload(in.ShortDescription, in.Description); err != nil {
+		return nil, err
+	}
+	fileID := strings.TrimSpace(in.ImageFileID)
+	if fileID != "" && s.mediaValidator != nil {
+		if _, err := s.mediaValidator.LoadValidatedProfileImageFile(ctx, fileID); err != nil {
+			return nil, err
+		}
+	}
+	st := strings.ToUpper(strings.TrimSpace(in.Status))
+	if st == "" {
+		st = "ACTIVE"
+	}
+	o := &domain.CourseOutcome{
+		ShortDescription: strings.TrimSpace(in.ShortDescription),
+		Description:      in.Description,
+		Status:           st,
+		CreatedBy:        uintPtrIfPos(in.ActorID),
+	}
+	if fileID != "" {
+		o.ImageFileID = &fileID
+	}
+	if err := s.outcomeRepo.Create(ctx, o); err != nil {
+		return nil, err
+	}
+	return s.outcomeRepo.GetByID(ctx, o.ID)
+}
+
+func (s *TaxonomyService) UpdateCourseOutcome(ctx context.Context, id uint, in domain.UpdateCourseOutcomeInput) (*domain.CourseOutcome, error) {
+	row, err := s.outcomeRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if in.ShortDescription != nil {
+		row.ShortDescription = strings.TrimSpace(*in.ShortDescription)
+	}
+	if in.Description != nil {
+		row.Description = *in.Description
+	}
+	if in.Status != nil {
+		v := strings.ToUpper(strings.TrimSpace(*in.Status))
+		if v != "" {
+			row.Status = v
+		}
+	}
+	if err := validateOutcomePayload(row.ShortDescription, row.Description); err != nil {
+		return nil, err
+	}
+	prevFileID := imageFileIDStr(row.ImageFileID)
+	if err := s.mutateImageFileID(ctx, &row.ImageFileID, in.ImageFileID); err != nil {
+		return nil, err
+	}
+	if err := s.outcomeRepo.Save(ctx, row); err != nil {
+		return nil, err
+	}
+	nextFileID := imageFileIDStr(row.ImageFileID)
+	if in.ImageFileID != nil && prevFileID != "" && prevFileID != nextFileID && s.orphanEnqueuer != nil {
+		s.orphanEnqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
+	}
+	return s.outcomeRepo.GetByID(ctx, id)
+}
+
+func (s *TaxonomyService) DeleteCourseOutcome(ctx context.Context, id uint) error {
+	row, err := s.outcomeRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	prevFileID := imageFileIDStr(row.ImageFileID)
+	if err := s.outcomeRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	if prevFileID != "" && s.orphanEnqueuer != nil {
+		s.orphanEnqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
+	}
+	return nil
+}
+
+// --- CourseSkill -------------------------------------------------------------
+
+func (s *TaxonomyService) ListCourseSkills(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseSkill, int64, error) {
+	return s.skillRepo.List(ctx, filter)
+}
+
+func (s *TaxonomyService) CreateCourseSkill(ctx context.Context, in domain.CreateCourseSkillInput) (*domain.CourseSkill, error) {
+	if err := validateChildren(in.Children); err != nil {
+		return nil, err
+	}
+	n, sl, st := trimmedTaxonomyFields(in.Name, in.Slug, in.Status)
+	sk := &domain.CourseSkill{
+		Name: n, Slug: sl, Status: st, Children: in.Children,
+		CreatedBy: uintPtrIfPos(in.ActorID),
+	}
+	if err := s.skillRepo.Create(ctx, sk); err != nil {
+		return nil, err
+	}
+	return s.skillRepo.GetByID(ctx, sk.ID)
+}
+
+func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id uint, in domain.UpdateCourseSkillInput) (*domain.CourseSkill, error) {
+	row, err := s.skillRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Slug, in.Status)
+	if in.Children != nil {
+		if err := validateChildren(*in.Children); err != nil {
+			return nil, err
+		}
+		row.Children = *in.Children
+	}
+	if err := s.skillRepo.Save(ctx, row); err != nil {
+		return nil, err
+	}
+	return s.skillRepo.GetByID(ctx, id)
+}
+
+func (s *TaxonomyService) DeleteCourseSkill(ctx context.Context, id uint) error {
+	return s.skillRepo.Delete(ctx, id)
 }
 
 // --- Tag ---------------------------------------------------------------------
@@ -176,13 +319,44 @@ func (s *TaxonomyService) DeleteCourseLevel(ctx context.Context, id uint) error 
 
 // --- internal helpers --------------------------------------------------------
 
-func (s *TaxonomyService) mutateCategoryImageFileID(ctx context.Context, row *domain.Category, imageFileID *string) error {
+// ErrTaxonomyValidation is returned when tree or description payload fails validation.
+var ErrTaxonomyValidation = errors.New("taxonomy validation failed")
+
+func validateChildTopics(nodes []taxpkg.TreeNode) error {
+	if nodes == nil {
+		return nil
+	}
+	if err := taxpkg.ValidateTree(nodes, taxpkg.ValidateTreeOpts{}); err != nil {
+		return errors.Join(ErrTaxonomyValidation, err)
+	}
+	return nil
+}
+
+func validateChildren(nodes []taxpkg.TreeNode) error {
+	return validateChildTopics(nodes)
+}
+
+func validateOutcomePayload(short string, desc []string) error {
+	short = strings.TrimSpace(short)
+	if short == "" || len(short) > 100 {
+		return errors.Join(ErrTaxonomyValidation, errors.New("short_description must be 1-100 characters"))
+	}
+	if desc == nil {
+		desc = []string{}
+	}
+	if err := taxpkg.ValidateDescriptionParagraphs(desc, taxpkg.DefaultMaxDescriptionItems, taxpkg.DefaultMaxDescriptionLen); err != nil {
+		return errors.Join(ErrTaxonomyValidation, err)
+	}
+	return nil
+}
+
+func (s *TaxonomyService) mutateImageFileID(ctx context.Context, dst **string, imageFileID *string) error {
 	if imageFileID == nil {
 		return nil
 	}
 	next := strings.TrimSpace(*imageFileID)
 	if next == "" {
-		row.ImageFileID = nil
+		*dst = nil
 		return nil
 	}
 	if s.mediaValidator != nil {
@@ -190,7 +364,7 @@ func (s *TaxonomyService) mutateCategoryImageFileID(ctx context.Context, row *do
 			return err
 		}
 	}
-	row.ImageFileID = &next
+	*dst = &next
 	return nil
 }
 

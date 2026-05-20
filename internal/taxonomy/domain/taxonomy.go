@@ -1,23 +1,55 @@
 // Package domain contains the TAXONOMY bounded-context core entities and repository interfaces.
 package domain
 
-import "time"
+import (
+	"time"
 
-// Category is the aggregate root for a taxonomy category.
-type Category struct {
+	taxpkg "mycourse-io-be/pkg/taxonomy"
+)
+
+// CourseTopic is the aggregate root for a taxonomy course topic (formerly category).
+type CourseTopic struct {
 	ID          uint
 	Name        string
 	Slug        string
 	ImageFileID *string
+	ChildTopics []taxpkg.TreeNode
 	Status      string
 	CreatedBy   *uint
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 
-	// ImageFile is eagerly loaded from the media bounded context when present.
 	ImageFileURL  string
 	ImageFileKind string
 	ImageFileMime string
+}
+
+// CourseOutcome is the aggregate root for a course learning outcome.
+type CourseOutcome struct {
+	ID               uint
+	ShortDescription string
+	Description      []string
+	ImageFileID      *string
+	Status           string
+	CreatedBy        *uint
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+
+	ImageFileURL  string
+	ImageFileKind string
+	ImageFileMime string
+}
+
+// CourseSkill is the aggregate root for a course skill tree root row.
+type CourseSkill struct {
+	ID        uint
+	Name      string
+	Slug      string
+	Children  []taxpkg.TreeNode
+	Status    string
+	CreatedBy *uint
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Tag is the aggregate root for a taxonomy tag.
@@ -52,21 +84,57 @@ type TaxonomyFilter struct {
 	SortDesc bool
 }
 
-// CreateCategoryInput carries data for creating a new category.
-type CreateCategoryInput struct {
+// CreateCourseTopicInput carries data for creating a new course topic.
+type CreateCourseTopicInput struct {
 	ActorID     uint
 	Name        string
 	Slug        string
 	Status      string
 	ImageFileID string
+	ChildTopics []taxpkg.TreeNode
 }
 
-// UpdateCategoryInput carries partial-update data for a category.
-type UpdateCategoryInput struct {
+// UpdateCourseTopicInput carries partial-update data for a course topic.
+type UpdateCourseTopicInput struct {
 	Name        *string
 	Slug        *string
 	Status      *string
 	ImageFileID *string
+	ChildTopics *[]taxpkg.TreeNode
+}
+
+// CreateCourseOutcomeInput carries data for creating a course outcome.
+type CreateCourseOutcomeInput struct {
+	ActorID          uint
+	ShortDescription string
+	Description      []string
+	Status           string
+	ImageFileID      string
+}
+
+// UpdateCourseOutcomeInput carries partial-update data for a course outcome.
+type UpdateCourseOutcomeInput struct {
+	ShortDescription *string
+	Description      *[]string
+	Status           *string
+	ImageFileID      *string
+}
+
+// CreateCourseSkillInput carries data for creating a course skill.
+type CreateCourseSkillInput struct {
+	ActorID  uint
+	Name     string
+	Slug     string
+	Status   string
+	Children []taxpkg.TreeNode
+}
+
+// UpdateCourseSkillInput carries partial-update data for a course skill.
+type UpdateCourseSkillInput struct {
+	Name     *string
+	Slug     *string
+	Status   *string
+	Children *[]taxpkg.TreeNode
 }
 
 // CreateTagInput carries data for creating a new tag.

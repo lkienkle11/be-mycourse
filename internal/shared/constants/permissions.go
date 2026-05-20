@@ -25,11 +25,21 @@ var AllPermissions = struct {
 	CourseLevelCreate string `perm_id:"P15"`
 	CourseLevelUpdate string `perm_id:"P16"`
 	CourseLevelDelete string `perm_id:"P17"`
-	// Category
-	CategoryRead   string `perm_id:"P18"`
-	CategoryCreate string `perm_id:"P19"`
-	CategoryUpdate string `perm_id:"P20"`
-	CategoryDelete string `perm_id:"P21"`
+	// Topic (course_topics, formerly category)
+	TopicRead   string `perm_id:"P18"`
+	TopicCreate string `perm_id:"P19"`
+	TopicUpdate string `perm_id:"P20"`
+	TopicDelete string `perm_id:"P21"`
+	// Course Outcome
+	CourseOutcomeRead   string `perm_id:"P30"`
+	CourseOutcomeCreate string `perm_id:"P31"`
+	CourseOutcomeUpdate string `perm_id:"P32"`
+	CourseOutcomeDelete string `perm_id:"P33"`
+	// Course Skill
+	CourseSkillRead   string `perm_id:"P34"`
+	CourseSkillCreate string `perm_id:"P35"`
+	CourseSkillUpdate string `perm_id:"P36"`
+	CourseSkillDelete string `perm_id:"P37"`
 	// Tag
 	TagRead   string `perm_id:"P22"`
 	TagCreate string `perm_id:"P23"`
@@ -58,10 +68,18 @@ var AllPermissions = struct {
 	CourseLevelCreate:    "course_level:create",
 	CourseLevelUpdate:    "course_level:update",
 	CourseLevelDelete:    "course_level:delete",
-	CategoryRead:         "category:read",
-	CategoryCreate:       "category:create",
-	CategoryUpdate:       "category:update",
-	CategoryDelete:       "category:delete",
+	TopicRead:            "topic:read",
+	TopicCreate:          "topic:create",
+	TopicUpdate:          "topic:update",
+	TopicDelete:          "topic:delete",
+	CourseOutcomeRead:    "course_outcome:read",
+	CourseOutcomeCreate:  "course_outcome:create",
+	CourseOutcomeUpdate:  "course_outcome:update",
+	CourseOutcomeDelete:  "course_outcome:delete",
+	CourseSkillRead:      "course_skill:read",
+	CourseSkillCreate:    "course_skill:create",
+	CourseSkillUpdate:    "course_skill:update",
+	CourseSkillDelete:    "course_skill:delete",
 	TagRead:              "tag:read",
 	TagCreate:            "tag:create",
 	TagUpdate:            "tag:update",

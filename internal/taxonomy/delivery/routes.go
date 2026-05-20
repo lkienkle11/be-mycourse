@@ -19,11 +19,23 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 	levels.PATCH("/:id", rp(constants.AllPermissions.CourseLevelUpdate), h.updateCourseLevel)
 	levels.DELETE("/:id", rp(constants.AllPermissions.CourseLevelDelete), h.deleteCourseLevel)
 
-	categories := taxonomy.Group("/categories")
-	categories.GET("", rp(constants.AllPermissions.CategoryRead), h.listCategories)
-	categories.POST("", rp(constants.AllPermissions.CategoryCreate), h.createCategory)
-	categories.PATCH("/:id", rp(constants.AllPermissions.CategoryUpdate), h.updateCategory)
-	categories.DELETE("/:id", rp(constants.AllPermissions.CategoryDelete), h.deleteCategory)
+	topics := taxonomy.Group("/topics")
+	topics.GET("", rp(constants.AllPermissions.TopicRead), h.listTopics)
+	topics.POST("", rp(constants.AllPermissions.TopicCreate), h.createTopic)
+	topics.PATCH("/:id", rp(constants.AllPermissions.TopicUpdate), h.updateTopic)
+	topics.DELETE("/:id", rp(constants.AllPermissions.TopicDelete), h.deleteTopic)
+
+	outcomes := taxonomy.Group("/outcomes")
+	outcomes.GET("", rp(constants.AllPermissions.CourseOutcomeRead), h.listCourseOutcomes)
+	outcomes.POST("", rp(constants.AllPermissions.CourseOutcomeCreate), h.createCourseOutcome)
+	outcomes.PATCH("/:id", rp(constants.AllPermissions.CourseOutcomeUpdate), h.updateCourseOutcome)
+	outcomes.DELETE("/:id", rp(constants.AllPermissions.CourseOutcomeDelete), h.deleteCourseOutcome)
+
+	skills := taxonomy.Group("/skills")
+	skills.GET("", rp(constants.AllPermissions.CourseSkillRead), h.listCourseSkills)
+	skills.POST("", rp(constants.AllPermissions.CourseSkillCreate), h.createCourseSkill)
+	skills.PATCH("/:id", rp(constants.AllPermissions.CourseSkillUpdate), h.updateCourseSkill)
+	skills.DELETE("/:id", rp(constants.AllPermissions.CourseSkillDelete), h.deleteCourseSkill)
 
 	tags := taxonomy.Group("/tags")
 	tags.GET("", rp(constants.AllPermissions.TagRead), h.listTags)

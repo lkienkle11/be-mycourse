@@ -23,9 +23,11 @@ const (
 // --- Taxonomy ---
 
 const (
-	TableTaxonomyTags         = "tags"
-	TableTaxonomyCategories   = "categories"
-	TableTaxonomyCourseLevels = "course_levels"
+	TableTaxonomyTags           = "tags"
+	TableTaxonomyCourseTopics   = "course_topics"
+	TableTaxonomyCourseOutcomes = "course_outcomes"
+	TableTaxonomyCourseSkills   = "course_skills"
+	TableTaxonomyCourseLevels   = "course_levels"
 )
 
 // --- System (singleton / operators) ---

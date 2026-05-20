@@ -1,6 +1,8 @@
 // Package delivery contains the TAXONOMY bounded-context HTTP delivery layer.
 package delivery
 
+import taxpkg "mycourse-io-be/pkg/taxonomy"
+
 // TaxonomyBaseFilter is the shared pagination/search query params for taxonomy list endpoints.
 type TaxonomyBaseFilter struct {
 	Page     int     `form:"page"`
@@ -28,20 +30,54 @@ func (f TaxonomyBaseFilter) getPerPage() int {
 	return f.PerPage
 }
 
-// CreateCategoryRequest is the JSON body for creating a category.
-type CreateCategoryRequest struct {
-	Name        string `json:"name" validate:"required,min=1,max=255"`
-	Slug        string `json:"slug" validate:"required,min=1,max=255"`
-	ImageFileID string `json:"image_file_id" validate:"required,uuid"`
-	Status      string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+// CreateCourseTopicRequest is the JSON body for creating a course topic.
+type CreateCourseTopicRequest struct {
+	Name        string            `json:"name" validate:"required,min=1,max=255"`
+	Slug        string            `json:"slug" validate:"required,min=1,max=255"`
+	ImageFileID string            `json:"image_file_id" validate:"omitempty,uuid"`
+	ChildTopics []taxpkg.TreeNode `json:"child_topics"`
+	Status      string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 }
 
-// UpdateCategoryRequest is the JSON body for updating a category.
-type UpdateCategoryRequest struct {
-	Name        *string `json:"name" validate:"omitempty,min=1,max=255"`
-	Slug        *string `json:"slug" validate:"omitempty,min=1,max=255"`
-	ImageFileID *string `json:"image_file_id" validate:"omitempty,uuid"`
-	Status      *string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+// UpdateCourseTopicRequest is the JSON body for updating a course topic.
+type UpdateCourseTopicRequest struct {
+	Name        *string            `json:"name" validate:"omitempty,min=1,max=255"`
+	Slug        *string            `json:"slug" validate:"omitempty,min=1,max=255"`
+	ImageFileID *string            `json:"image_file_id" validate:"omitempty,uuid"`
+	ChildTopics *[]taxpkg.TreeNode `json:"child_topics"`
+	Status      *string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+}
+
+// CreateCourseOutcomeRequest is the JSON body for creating a course outcome.
+type CreateCourseOutcomeRequest struct {
+	ShortDescription string   `json:"short_description" validate:"required,min=1,max=100"`
+	Description      []string `json:"description"`
+	ImageFileID      string   `json:"image_file_id" validate:"omitempty,uuid"`
+	Status           string   `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+}
+
+// UpdateCourseOutcomeRequest is the JSON body for updating a course outcome.
+type UpdateCourseOutcomeRequest struct {
+	ShortDescription *string   `json:"short_description" validate:"omitempty,min=1,max=100"`
+	Description      *[]string `json:"description"`
+	ImageFileID      *string   `json:"image_file_id" validate:"omitempty,uuid"`
+	Status           *string   `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+}
+
+// CreateCourseSkillRequest is the JSON body for creating a course skill.
+type CreateCourseSkillRequest struct {
+	Name     string            `json:"name" validate:"required,min=1,max=255"`
+	Slug     string            `json:"slug" validate:"required,min=1,max=255"`
+	Children []taxpkg.TreeNode `json:"children"`
+	Status   string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+}
+
+// UpdateCourseSkillRequest is the JSON body for updating a course skill.
+type UpdateCourseSkillRequest struct {
+	Name     *string            `json:"name" validate:"omitempty,min=1,max=255"`
+	Slug     *string            `json:"slug" validate:"omitempty,min=1,max=255"`
+	Children *[]taxpkg.TreeNode `json:"children"`
+	Status   *string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 }
 
 // CreateTagRequest is the JSON body for creating a tag.
@@ -72,17 +108,43 @@ type UpdateCourseLevelRequest struct {
 	Status *string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 }
 
-// CategoryResponse is the JSON response for a category.
-type CategoryResponse struct {
-	ID          uint   `json:"id"`
-	Name        string `json:"name"`
-	Slug        string `json:"slug"`
-	ImageFileID string `json:"image_file_id,omitempty"`
-	ImageURL    string `json:"image_url,omitempty"`
-	Status      string `json:"status"`
-	CreatedBy   *uint  `json:"created_by,omitempty"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+// CourseTopicResponse is the JSON response for a course topic.
+type CourseTopicResponse struct {
+	ID          uint              `json:"id"`
+	Name        string            `json:"name"`
+	Slug        string            `json:"slug"`
+	ImageFileID string            `json:"image_file_id,omitempty"`
+	ImageURL    string            `json:"image_url,omitempty"`
+	ChildTopics []taxpkg.TreeNode `json:"child_topics"`
+	Status      string            `json:"status"`
+	CreatedBy   *uint             `json:"created_by,omitempty"`
+	CreatedAt   string            `json:"created_at"`
+	UpdatedAt   string            `json:"updated_at"`
+}
+
+// CourseOutcomeResponse is the JSON response for a course outcome.
+type CourseOutcomeResponse struct {
+	ID               uint     `json:"id"`
+	ShortDescription string   `json:"short_description"`
+	Description      []string `json:"description"`
+	ImageFileID      string   `json:"image_file_id,omitempty"`
+	ImageURL         string   `json:"image_url,omitempty"`
+	Status           string   `json:"status"`
+	CreatedBy        *uint    `json:"created_by,omitempty"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
+}
+
+// CourseSkillResponse is the JSON response for a course skill.
+type CourseSkillResponse struct {
+	ID        uint              `json:"id"`
+	Name      string            `json:"name"`
+	Slug      string            `json:"slug"`
+	Children  []taxpkg.TreeNode `json:"children"`
+	Status    string            `json:"status"`
+	CreatedBy *uint             `json:"created_by,omitempty"`
+	CreatedAt string            `json:"created_at"`
+	UpdatedAt string            `json:"updated_at"`
 }
 
 // TagResponse is the JSON response for a tag.

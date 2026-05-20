@@ -108,12 +108,13 @@ POST /api/system/permission-sync-now  (system JWT required)
 ### Taxonomy CRUD
 
 ```
-POST /api/v1/taxonomy/categories  (JWT + category:create required)
+POST /api/v1/taxonomy/topics  (JWT + topic:create required)
   └─ internal/taxonomy/delivery/handler.go
-       └─ TaxonomyService.CreateCategory
+       └─ TaxonomyService.CreateTopic
+            ├─ pkg/taxonomy.ValidateTree(child_topics)
             ├─ Validate image_file_id via MediaFileValidator interface
-            ├─ Create category row via GormCategoryRepository
-            └─ Return CategoryResponse DTO
+            ├─ Create row via GormCourseTopicRepository
+            └─ Return CourseTopicResponse DTO
 ```
 
 ### Media Upload

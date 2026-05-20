@@ -96,10 +96,18 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req/s, burst 1), AuthJWT
 | POST | `/api/v1/taxonomy/levels` | `course_level:create` | Create course level |
 | PATCH | `/api/v1/taxonomy/levels/:id` | `course_level:update` | Update course level |
 | DELETE | `/api/v1/taxonomy/levels/:id` | `course_level:delete` | Delete course level |
-| GET | `/api/v1/taxonomy/categories` | `category:read` | List categories |
-| POST | `/api/v1/taxonomy/categories` | `category:create` | Create category |
-| PATCH | `/api/v1/taxonomy/categories/:id` | `category:update` | Update category |
-| DELETE | `/api/v1/taxonomy/categories/:id` | `category:delete` | Delete category |
+| GET | `/api/v1/taxonomy/topics` | `topic:read` | List course topics |
+| POST | `/api/v1/taxonomy/topics` | `topic:create` | Create course topic |
+| PATCH | `/api/v1/taxonomy/topics/:id` | `topic:update` | Update course topic |
+| DELETE | `/api/v1/taxonomy/topics/:id` | `topic:delete` | Delete course topic |
+| GET | `/api/v1/taxonomy/outcomes` | `course_outcome:read` | List course outcomes |
+| POST | `/api/v1/taxonomy/outcomes` | `course_outcome:create` | Create course outcome |
+| PATCH | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:update` | Update course outcome |
+| DELETE | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:delete` | Delete course outcome |
+| GET | `/api/v1/taxonomy/skills` | `course_skill:read` | List course skills |
+| POST | `/api/v1/taxonomy/skills` | `course_skill:create` | Create course skill |
+| PATCH | `/api/v1/taxonomy/skills/:id` | `course_skill:update` | Update course skill |
+| DELETE | `/api/v1/taxonomy/skills/:id` | `course_skill:delete` | Delete course skill |
 | GET | `/api/v1/taxonomy/tags` | `tag:read` | List tags |
 | POST | `/api/v1/taxonomy/tags` | `tag:create` | Create tag |
 | PATCH | `/api/v1/taxonomy/tags/:id` | `tag:update` | Update tag |

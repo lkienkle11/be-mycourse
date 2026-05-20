@@ -1,6 +1,6 @@
 # Taxonomy Module
 
-The taxonomy module (`internal/taxonomy/`) handles classification reference data for courses: **categories**, **course levels**, and **tags**.
+The taxonomy module (`internal/taxonomy/`) handles classification reference data for courses: **course topics** (formerly categories), **course outcomes**, **course skills**, **course levels**, and **tags**.
 
 ---
 
@@ -9,19 +9,22 @@ The taxonomy module (`internal/taxonomy/`) handles classification reference data
 ```
 internal/taxonomy/
 ├── domain/
-│   └── (entity types)
+│   ├── taxonomy.go          # Entities and input types
+│   └── repository.go        # Repository interfaces
 ├── application/
-│   └── taxonomy_service.go      # TaxonomyService: CRUD for categories, tags, course levels
+│   └── service.go           # TaxonomyService use-cases
 ├── infra/
-│   ├── gorm_category_repo.go
-│   ├── gorm_tag_repo.go
-│   ├── gorm_course_level_repo.go
-│   └── gorm_shared.go           # Shared list query helpers
+│   ├── repos.go             # GORM repositories (topics, outcomes, skills, tags, levels)
+│   └── jsonb_types.go       # JSONB scanners for tree nodes and description arrays
 └── delivery/
-    ├── handler.go                # HTTP handlers for all three sub-domains
-    ├── routes.go                 # Route registration under /api/v1/taxonomy
-    ├── dto.go                    # Request/response DTOs
-    └── mapping.go                # Domain → DTO mapping
+    ├── handler.go
+    ├── routes.go
+    └── dto.go
+
+pkg/taxonomy/
+├── tree_node.go             # TreeNode JSON shape
+├── tree_validate.go         # Depth, node count, UUID id, duplicate slug checks
+└── description_validate.go  # Outcome description paragraph limits
 ```
 
 ---
@@ -30,90 +33,76 @@ internal/taxonomy/
 
 | Domain | Description |
 |--------|-------------|
-| **Category** | Hierarchical or flat subject groupings for courses. Optionally linked to a media file (`image_file_id` FK into `media_files`) |
-| **Course Level** | Difficulty designations (e.g. Beginner, Intermediate, Advanced) |
+| **CourseTopic** | Subject groupings for courses (`course_topics` table). Optional `image_file_id` FK and nested `child_topics` JSONB tree |
+| **CourseOutcome** | Learning outcomes with `short_description`, `description` (string array JSONB), optional image |
+| **CourseSkill** | Skill taxonomy root row with nested `children` JSONB tree (same node shape as `child_topics`) |
+| **CourseLevel** | Difficulty designations (e.g. Beginner, Intermediate, Advanced) |
 | **Tag** | Free-form keyword labels for discovery and search |
 
 ---
 
 ## API Endpoints
 
-All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <token>`. Write operations require the appropriate permission.
+All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <token>`.
 
-### Course Levels
-
-| Method | Path | Permission | Description |
-|--------|------|-----------|-------------|
-| GET | `/taxonomy/levels` | `course_level:read` | List all course levels |
-| POST | `/taxonomy/levels` | `course_level:create` | Create a new course level |
-| PATCH | `/taxonomy/levels/:id` | `course_level:update` | Update a course level |
-| DELETE | `/taxonomy/levels/:id` | `course_level:delete` | Delete a course level |
-
-### Categories
+### Course Topics (replaces `/categories`)
 
 | Method | Path | Permission | Description |
 |--------|------|-----------|-------------|
-| GET | `/taxonomy/categories` | `category:read` | List all categories (paginated) |
-| POST | `/taxonomy/categories` | `category:create` | Create a new category |
-| PATCH | `/taxonomy/categories/:id` | `category:update` | Update a category |
-| DELETE | `/taxonomy/categories/:id` | `category:delete` | Delete a category |
+| GET | `/taxonomy/topics` | `topic:read` | List topics (paginated) |
+| POST | `/taxonomy/topics` | `topic:create` | Create topic |
+| PATCH | `/taxonomy/topics/:id` | `topic:update` | Update topic |
+| DELETE | `/taxonomy/topics/:id` | `topic:delete` | Delete topic |
 
-### Tags
+**Body fields:** `name`, `slug`, `status`, optional `image_file_id`, `child_topics` (tree array).
 
-| Method | Path | Permission | Description |
-|--------|------|-----------|-------------|
-| GET | `/taxonomy/tags` | `tag:read` | List all tags (paginated) |
-| POST | `/taxonomy/tags` | `tag:create` | Create a new tag |
-| PATCH | `/taxonomy/tags/:id` | `tag:update` | Update a tag |
-| DELETE | `/taxonomy/tags/:id` | `tag:delete` | Delete a tag |
+**Tree node shape:** `{ "id": "<uuid>", "name": "...", "slug": "...", "children": [...] }` — max depth **5**, max **100** nodes per tree.
+
+### Course Outcomes
+
+| Method | Path | Permission |
+|--------|------|-----------|
+| GET/POST/PATCH/DELETE | `/taxonomy/outcomes` | `course_outcome:*` (P30–P33) |
+
+**Body:** `short_description` (≤100 chars), `description` (string array, ≤8 items × ≤120 chars each), optional `image_file_id`, `status`.
+
+### Course Skills
+
+| Method | Path | Permission |
+|--------|------|-----------|
+| GET/POST/PATCH/DELETE | `/taxonomy/skills` | `course_skill:*` (P34–P37) |
+
+**Body:** `name`, `slug`, `children` (tree), `status`.
+
+### Course Levels / Tags
+
+Unchanged: `/taxonomy/levels`, `/taxonomy/tags` with `course_level:*` and `tag:*`.
 
 ---
 
-## Category Image Contract
+## Image contract (topics and outcomes)
 
-Categories can have an associated image via `image_file_id` (UUID of a `media_files` row).
-
-- **Create/Update:** JSON body includes `image_file_id`.
-- **Validation:** The server validates the referenced file's kind, status, and MIME type via the `MediaFileValidator` interface (injected from `MediaService.LoadValidatedProfileImageFile`).
-- **Response:** Includes a nested `image` object with public file fields.
-- **Orphan cleanup:** When `image_file_id` is replaced or the category is deleted, the old file ID is enqueued for deferred cloud deletion via `OrphanEnqueuer.EnqueueOrphanCleanupForFileID`.
-
----
-
-## Data Flow
-
-```
-HTTP Request
-  └─ internal/taxonomy/delivery/handler.go  (bind DTO, validate)
-       └─ internal/taxonomy/application/TaxonomyService  (business logic)
-            ├─ (image validation) → MediaService via MediaFileValidator interface
-            ├─ (orphan cleanup)  → OrphanEnqueuer via OrphanImageEnqueuer interface
-            └─ internal/taxonomy/infra/  (GORM repositories)
-                 └─ PostgreSQL
-                      └─ HTTP Response (standard envelope)
-```
+- **Create/Update:** optional `image_file_id` (UUID of a `media_files` row).
+- **Validation:** `MediaFileValidator` → `MediaService.LoadValidatedProfileImageFile`.
+- **Orphan cleanup:** replaced or deleted `image_file_id` → `OrphanImageEnqueuer.EnqueueOrphanCleanupForFileID`.
 
 ---
 
 ## Cross-Domain Dependencies
 
-Taxonomy depends on two other domains, both injected as interfaces in `internal/server/wire.go`:
-
 | Interface | Implemented by | Purpose |
 |-----------|---------------|---------|
-| `MediaFileValidator` | `MediaService.LoadValidatedProfileImageFile` | Validate `image_file_id` points to a usable image file |
-| `OrphanImageEnqueuer` | `OrphanEnqueuer.EnqueueOrphanCleanupForFileID` | Queue old image files for deferred cloud deletion |
+| `MediaFileValidator` | `MediaService.LoadValidatedProfileImageFile` | Validate image file FK |
+| `OrphanImageEnqueuer` | `OrphanEnqueuer.EnqueueOrphanCleanupForFileID` | Deferred cloud cleanup |
+
+Wiring: `internal/server/wire.go` (`taxMediaFileValidator`, `taxOrphanEnqueuer`).
 
 ---
 
-## Implementation Reference
+## DB migrations
 
-| Concern | Location |
-|---------|----------|
-| TaxonomyService | `internal/taxonomy/application/taxonomy_service.go` |
-| GORM repositories | `internal/taxonomy/infra/` |
-| HTTP handlers | `internal/taxonomy/delivery/handler.go` |
-| Route registration | `internal/taxonomy/delivery/routes.go` |
-| DTOs | `internal/taxonomy/delivery/dto.go` |
-| Cross-domain adapters | `internal/server/wire.go` (`taxMediaFileValidator`, `taxOrphanEnqueuer`) |
-| DB migrations | `migrations/000002_taxonomy_domain.*` |
+| Version | Change |
+|---------|--------|
+| `000002` | Original `categories`, tags, levels |
+| `000006` | `categories.image_file_id` FK |
+| `000009` | Rename `categories` → `course_topics`, add `child_topics`, tables `course_outcomes` / `course_skills`, permissions P18–P37 |

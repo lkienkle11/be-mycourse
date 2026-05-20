@@ -1,5 +1,5 @@
-# Apidog: import docs/api-dog-import.json (Postman Collection v2.1 — auto-saves tokens after Login / Confirm / Refresh; run generator below).
-# Regenerate: ruby scripts/generate-apidog-postman.rb (from repo root)
+# Apidog: import docs/api-dog-import.json (Postman v2.1) OR import this OpenAPI file (x-postman-event post-processors on auth routes).
+# Regenerate Postman/Apidog collection: ruby scripts/generate-apidog-postman.rb (from repo root)
 openapi: 3.0.3
 info:
   title: MyCourse Backend API
@@ -8,6 +8,8 @@ info:
     Health check uses `{ "code", "message", "status" }`.
     CSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).
     Temporary rollout note: router-level CSRF enforcement is currently disabled.
+
+    **Apidog / Postman — auto-save tokens:** After **Login**, **Confirm email**, or **Refresh**, post-processors in `x-postman-event` set `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (from JSON `data` or cookies). Select an **Environment** with those variables before other requests. **Bearer** auth uses `{{ACCESS_TOKEN}}`. **System login** sets `SYSTEM_TOKEN`.
   version: 1.0.0
   contact:
     name: MyCourse Backend
@@ -17,6 +19,72 @@ servers:
     description: Local
   - url: https://api.mycourse.io
     description: Production (example)
+
+# Shared Apidog/Postman scripts and collection defaults (also read by scripts/generate-apidog-postman.rb).
+x-mycourse:
+  environment:
+    BASE_URL: http://localhost:8080
+    ACCESS_TOKEN: ""
+    REFRESH_TOKEN: ""
+    SESSION_ID: ""
+    SYSTEM_TOKEN: ""
+    INTERNAL_KEY: ""
+    CONFIRM_TOKEN: ""
+  collectionAuth:
+    type: bearer
+    token: "{{ACCESS_TOKEN}}"
+  scriptLines:
+    saveUserTokens: &saveUserTokensExec
+      - "try {"
+      - "  var json = pm.response.json();"
+      - "  if (!json || Number(json.code) !== 0) { return; }"
+      - "  var d = json.data || {};"
+      - "  function pick(bodyKey, cookieKey) {"
+      - "    if (d[bodyKey]) { return String(d[bodyKey]); }"
+      - "    try {"
+      - "      var c = pm.cookies.get(cookieKey);"
+      - "      if (c) { return String(c); }"
+      - "    } catch (e) {}"
+      - "    return \"\";"
+      - "  }"
+      - "  function setAuthVar(key, val) {"
+      - "    if (!val) { return; }"
+      - "    try { pm.variables.set(key, val); } catch (e0) {}"
+      - "    try { pm.environment.set(key, val); } catch (e1) {}"
+      - "    try { pm.collectionVariables.set(key, val); } catch (e2) {}"
+      - "    try { pm.moduleVariables.set(key, val); } catch (e3) {}"
+      - "  }"
+      - "  setAuthVar(\"ACCESS_TOKEN\", pick(\"access_token\", \"access_token\"));"
+      - "  setAuthVar(\"REFRESH_TOKEN\", pick(\"refresh_token\", \"refresh_token\"));"
+      - "  setAuthVar(\"SESSION_ID\", pick(\"session_id\", \"session_id\"));"
+      - "} catch (e) {"
+      - "  console.warn(\"save_auth_tokens failed:\", e && e.message ? e.message : e);"
+      - "}"
+    saveSystemToken: &saveSystemTokenExec
+      - "try {"
+      - "  var json = pm.response.json();"
+      - "  if (!json || Number(json.code) !== 0) { return; }"
+      - "  var d = json.data || {};"
+      - "  var token = d.access_token ? String(d.access_token) : \"\";"
+      - "  if (!token) { return; }"
+      - "  try { pm.variables.set(\"SYSTEM_TOKEN\", token); } catch (e0) {}"
+      - "  try { pm.environment.set(\"SYSTEM_TOKEN\", token); } catch (e1) {}"
+      - "  try { pm.collectionVariables.set(\"SYSTEM_TOKEN\", token); } catch (e2) {}"
+      - "  try { pm.moduleVariables.set(\"SYSTEM_TOKEN\", token); } catch (e3) {}"
+      - "} catch (e) {"
+      - "  console.warn(\"save_system_token failed:\", e && e.message ? e.message : e);"
+      - "}"
+  postmanEvents:
+    saveUserTokens: &postmanSaveUserTokens
+      - listen: test
+        script:
+          type: text/javascript
+          exec: *saveUserTokensExec
+    saveSystemToken: &postmanSaveSystemToken
+      - listen: test
+        script:
+          type: text/javascript
+          exec: *saveSystemTokenExec
 
 tags:
   - name: Health
@@ -66,6 +134,20 @@ components:
       name: sort_order
       in: query
       schema: { type: string, enum: [asc, desc], default: asc }
+    TaxonomySortDesc:
+      name: sort_desc
+      in: query
+      schema: { type: boolean, default: false }
+      description: When true, sort descending.
+    TaxonomySearch:
+      name: search
+      in: query
+      schema: { type: string }
+      description: ILIKE filter on name (outcomes match short_description).
+    TaxonomyStatus:
+      name: status
+      in: query
+      schema: { type: string, enum: [ACTIVE, INACTIVE], example: ACTIVE }
     SearchBy:
       name: search_by
       in: query
@@ -91,6 +173,10 @@ components:
     RegisterRequest:
       type: object
       required: [email, password, display_name]
+      example:
+        email: user@example.com
+        password: password123
+        display_name: Jane Doe
       properties:
         email: { type: string, format: email }
         password: { type: string, minLength: 8 }
@@ -98,16 +184,31 @@ components:
     LoginRequest:
       type: object
       required: [email, password]
+      example:
+        email: user@example.com
+        password: password123
+        remember_me: false
       properties:
         email: { type: string, format: email }
         password: { type: string }
         remember_me: { type: boolean, default: false }
     TokenPair:
       type: object
+      example:
+        access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example
+        refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+        session_id: a1b2c3d4e5f6789012345678abcdef9012345678abcdef9012345678abcdef90
       properties:
         access_token: { type: string }
         refresh_token: { type: string }
         session_id: { type: string, description: 128-char hex session id }
+    LoginSessionTokensResponse:
+      allOf:
+        - $ref: "#/components/schemas/EnvelopeOK"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TokenPair"
     MyPermissionsResponse:
       type: object
       properties:
@@ -184,6 +285,10 @@ components:
     CreateCourseLevelRequest:
       type: object
       required: [name, slug]
+      example:
+        name: Beginner
+        slug: beginner
+        status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
         slug: { type: string, maxLength: 255 }
@@ -214,24 +319,127 @@ components:
       type: object
       properties:
         avatar_file_id: { type: string, format: uuid, description: "Set to empty string to clear" }
-    CreateCategoryRequest:
+    TreeNode:
       type: object
-      required: [name, slug, image_file_id]
+      required: [id, name, slug]
+      example:
+        id: "660e8400-e29b-41d4-a716-446655440001"
+        name: Algebra
+        slug: algebra
+        children: []
+      properties:
+        id: { type: string, format: uuid, description: Client-generated UUID per node }
+        name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255 }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
+    CreateCourseTopicRequest:
+      type: object
+      required: [name, slug]
+      example:
+        name: Mathematics
+        slug: mathematics
+        image_file_id: "550e8400-e29b-41d4-a716-446655440000"
+        child_topics:
+          - id: "660e8400-e29b-41d4-a716-446655440001"
+            name: Algebra
+            slug: algebra
+            children: []
+        status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
         slug: { type: string, maxLength: 255 }
         image_file_id: { type: string, format: uuid }
+        child_topics:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-    UpdateCategoryRequest:
+    UpdateCourseTopicRequest:
       type: object
+      example:
+        name: Mathematics (updated)
+        child_topics: []
       properties:
         name: { type: string }
         slug: { type: string }
         image_file_id: { type: string, format: uuid }
+        child_topics:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    CreateCourseOutcomeRequest:
+      type: object
+      required: [short_description]
+      example:
+        short_description: Understand linear equations
+        description:
+          - Solve one-variable equations
+          - Graph on a number line
+        image_file_id: "550e8400-e29b-41d4-a716-446655440000"
+        status: ACTIVE
+      properties:
+        short_description: { type: string, maxLength: 100 }
+        description:
+          type: array
+          maxItems: 8
+          items: { type: string, maxLength: 120 }
+        image_file_id: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    UpdateCourseOutcomeRequest:
+      type: object
+      example:
+        short_description: Understand linear equations (updated)
+      properties:
+        short_description: { type: string, maxLength: 100 }
+        description:
+          type: array
+          maxItems: 8
+          items: { type: string, maxLength: 120 }
+        image_file_id: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    CreateCourseSkillRequest:
+      type: object
+      required: [name, slug]
+      example:
+        name: Problem solving
+        slug: problem-solving
+        children:
+          - id: "660e8400-e29b-41d4-a716-446655440001"
+            name: Critical thinking
+            slug: critical-thinking
+            children: []
+        status: ACTIVE
+      properties:
+        name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255 }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    UpdateCourseSkillRequest:
+      type: object
+      example:
+        slug: problem-solving-advanced
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     CreateTagRequest:
       type: object
       required: [name, slug]
+      example:
+        name: React
+        slug: react
+        status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
         slug: { type: string, maxLength: 255 }
@@ -349,6 +557,8 @@ paths:
       tags: [Auth]
       summary: Login
       security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
@@ -360,12 +570,18 @@ paths:
       responses:
         "200":
           description: Tokens in body + Set-Cookie (access_token, refresh_token, session_id)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
 
   /api/v1/auth/confirm:
     post:
       tags: [Auth]
       summary: Confirm email (FE-submitted token)
       security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
@@ -375,6 +591,8 @@ paths:
             schema:
               type: object
               required: [token]
+              example:
+                token: "{{CONFIRM_TOKEN}}"
               properties:
                 token:
                   type: string
@@ -382,25 +600,37 @@ paths:
       responses:
         "200":
           description: Logged in; tokens returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
 
   /api/v1/auth/refresh:
     post:
       tags: [Auth]
       summary: Refresh access + refresh tokens
       security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
         - name: X-Refresh-Token
           in: header
           required: true
           schema: { type: string }
+          example: "{{REFRESH_TOKEN}}"
         - name: X-Session-Id
           in: header
           required: true
           schema: { type: string }
+          example: "{{SESSION_ID}}"
       responses:
         "200":
           description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
 
   /api/v1/me:
     get:
@@ -454,12 +684,9 @@ paths:
           schema:
             type: string
             enum: [id, name, slug, status, created_at]
-        - $ref: "#/components/parameters/SortOrder"
-        - $ref: "#/components/parameters/SearchBy"
-        - $ref: "#/components/parameters/SearchData"
-        - name: status
-          in: query
-          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
           description: Paginated list
@@ -506,10 +733,10 @@ paths:
         "200":
           description: OK
 
-  /api/v1/taxonomy/categories:
+  /api/v1/taxonomy/topics:
     get:
       tags: [Taxonomy]
-      summary: List categories (paginated)
+      summary: List course topics (paginated)
       security:
         - bearerJwt: []
       parameters:
@@ -520,18 +747,15 @@ paths:
           schema:
             type: string
             enum: [id, name, slug, status, created_at]
-        - $ref: "#/components/parameters/SortOrder"
-        - $ref: "#/components/parameters/SearchBy"
-        - $ref: "#/components/parameters/SearchData"
-        - name: status
-          in: query
-          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
           description: Paginated list
     post:
       tags: [Taxonomy]
-      summary: Create category
+      summary: Create course topic
       security:
         - bearerJwt: []
       requestBody:
@@ -539,12 +763,12 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateCategoryRequest"
+              $ref: "#/components/schemas/CreateCourseTopicRequest"
       responses:
         "201":
           description: Created
 
-  /api/v1/taxonomy/categories/{id}:
+  /api/v1/taxonomy/topics/{id}:
     parameters:
       - name: id
         in: path
@@ -552,14 +776,14 @@ paths:
         schema: { type: integer }
     patch:
       tags: [Taxonomy]
-      summary: Update category
+      summary: Update course topic
       security:
         - bearerJwt: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateCategoryRequest"
+              $ref: "#/components/schemas/UpdateCourseTopicRequest"
       responses:
         "200":
           description: OK
@@ -567,7 +791,137 @@ paths:
           description: Not found
     delete:
       tags: [Taxonomy]
-      summary: Delete category
+      summary: Delete course topic
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/taxonomy/outcomes:
+    get:
+      tags: [Taxonomy]
+      summary: List course outcomes (paginated)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [id, status, created_at]
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
+      responses:
+        "200":
+          description: Paginated list
+    post:
+      tags: [Taxonomy]
+      summary: Create course outcome
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourseOutcomeRequest"
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/taxonomy/outcomes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      tags: [Taxonomy]
+      summary: Update course outcome
+      security:
+        - bearerJwt: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCourseOutcomeRequest"
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+    delete:
+      tags: [Taxonomy]
+      summary: Delete course outcome
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/taxonomy/skills:
+    get:
+      tags: [Taxonomy]
+      summary: List course skills (paginated)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [id, name, slug, status, created_at]
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
+      responses:
+        "200":
+          description: Paginated list
+    post:
+      tags: [Taxonomy]
+      summary: Create course skill
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourseSkillRequest"
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/taxonomy/skills/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      tags: [Taxonomy]
+      summary: Update course skill
+      security:
+        - bearerJwt: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCourseSkillRequest"
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+    delete:
+      tags: [Taxonomy]
+      summary: Delete course skill
       security:
         - bearerJwt: []
       responses:
@@ -588,12 +942,9 @@ paths:
           schema:
             type: string
             enum: [id, name, slug, status, created_at]
-        - $ref: "#/components/parameters/SortOrder"
-        - $ref: "#/components/parameters/SearchBy"
-        - $ref: "#/components/parameters/SearchData"
-        - name: status
-          in: query
-          schema: { type: string, enum: [ACTIVE, INACTIVE] }
+        - $ref: "#/components/parameters/TaxonomySortDesc"
+        - $ref: "#/components/parameters/TaxonomySearch"
+        - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
           description: Paginated list
@@ -821,6 +1172,8 @@ paths:
       tags: [System]
       summary: System operator login
       security: []
+      x-mycourse-post-response: saveSystemToken
+      x-postman-event: *postmanSaveSystemToken
       requestBody:
         required: true
         content:

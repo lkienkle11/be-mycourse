@@ -375,7 +375,7 @@ videos this includes:
 
 When a file is **replaced** or a parent row is **deleted**, the superseded cloud object is queued for deferred deletion:
 
-- **FK-based (Sub 14):** taxonomy `categories.image_file_id` or `users.avatar_file_id` replacement → `OrphanEnqueuer.EnqueueOrphanCleanupForFileID`
+- **FK-based (Sub 14):** taxonomy `course_topics.image_file_id`, `course_outcomes.image_file_id`, or `users.avatar_file_id` replacement → `OrphanEnqueuer.EnqueueOrphanCleanupForFileID`
 - **URL-based (Sub 07):** `EnqueueOrphanImageCleanupByURL` — resolves URL pattern to cloud object key
 
 The background cleanup worker in `jobs/cleanup_scheduler.go` processes `media_pending_cloud_cleanup` rows asynchronously. Local provider rows are skipped.

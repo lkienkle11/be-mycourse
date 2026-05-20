@@ -21,7 +21,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 | [`docs/modules/auth.md`](docs/modules/auth.md) | Auth module deep-dive (JWT sessions, Redis cache, endpoints) |
 | [`docs/modules/media.md`](docs/modules/media.md) | Media module deep-dive (B2/Bunny, upload pipeline, webhooks) |
 | [`docs/modules/rbac.md`](docs/modules/rbac.md) | RBAC module deep-dive (roles, permissions, sync) |
-| [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy module deep-dive (categories, tags, course levels) |
+| [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy module (topics, outcomes, skills, tags, levels) |
 
 ---
 

@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/internal/media/application"
-	"mycourse-io-be/internal/media/domain"           //nolint:depguard // delivery maps domain.File → DTO; pure data transformation, no business logic
-	mediainfra "mycourse-io-be/internal/media/infra" //nolint:depguard // delivery uses infra.ParseMetadataFromRaw utility; TODO: expose via application port
+	"mycourse-io-be/internal/media/domain"
+	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/utils"
 )

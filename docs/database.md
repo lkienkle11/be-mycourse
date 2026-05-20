@@ -25,7 +25,9 @@ All PostgreSQL relation names are defined once in **`internal/shared/constants/d
 | `TableMediaFiles` | `media_files` |
 | `TableMediaPendingCloudCleanup` | `media_pending_cloud_cleanup` |
 | `TableTaxonomyCourseLevels` | `course_levels` |
-| `TableTaxonomyCategories` | `categories` |
+| `TableTaxonomyCourseTopics` | `course_topics` |
+| `TableTaxonomyCourseOutcomes` | `course_outcomes` |
+| `TableTaxonomyCourseSkills` | `course_skills` |
 | `TableTaxonomyTags` | `tags` |
 | `TableSystemAppConfig` | `system_app_config` |
 | `TableSystemPrivilegedUsers` | `system_privileged_users` |
@@ -42,13 +44,15 @@ GORM row models live under each bounded context’s `infra` package (for example
   - [`role_permissions`](#role_permissions)
   - [`user_roles`](#user_roles)
   - [`user_permissions`](#user_permissions)
-  - [Permission catalog (P1–P29)](#permission-catalog-p1p29)
+  - [Permission catalog (P1–P37)](#permission-catalog-p1p37)
   - [Default role ↔ permission matrix](#default-role--permission-matrix)
 - [Application users](#application-users)
   - [`users`](#users)
 - [Taxonomy](#taxonomy)
   - [`course_levels`](#course_levels)
-  - [`categories`](#categories)
+  - [`course_topics`](#course_topics)
+  - [`course_outcomes`](#course_outcomes)
+  - [`course_skills`](#course_skills)
   - [`tags`](#tags)
 - [Media](#media)
   - [`media_files`](#media_files)
@@ -72,15 +76,18 @@ erDiagram
     users ||--o{ user_permissions : direct_grant
     permissions ||--o{ user_permissions : granted
     users ||--o| media_files : avatar_file_id
-    categories ||--o| media_files : image_file_id
+    course_topics ||--o| media_files : image_file_id
+    course_outcomes ||--o| media_files : image_file_id
     users ||--o{ course_levels : created_by
-    users ||--o{ categories : created_by
+    users ||--o{ course_topics : created_by
+    users ||--o{ course_outcomes : created_by
+    users ||--o{ course_skills : created_by
     users ||--o{ tags : created_by
 ```
 
 - **RBAC junction tables** use `users.id` (`BIGINT`), not `user_code`.
 - **JWT / middleware** use `permissions.permission_name` strings (`resource:action`).
-- **`media_files`** is referenced by `users.avatar_file_id` and `categories.image_file_id` (`ON DELETE SET NULL`).
+- **`media_files`** is referenced by `users.avatar_file_id`, `course_topics.image_file_id`, and `course_outcomes.image_file_id` (`ON DELETE SET NULL`).
 
 ---
 
@@ -95,7 +102,7 @@ Created in migration `000002_taxonomy_domain`:
 | `ACTIVE` | Visible / usable in admin APIs |
 | `INACTIVE` | Hidden or disabled |
 
-Used by `course_levels.status`, `categories.status`, `tags.status`. Default: `ACTIVE`.
+Used by `course_levels.status`, `course_topics.status`, `course_outcomes.status`, `course_skills.status`, `tags.status`. Default: `ACTIVE`.
 
 ---
 
@@ -176,7 +183,7 @@ Direct permission grants (unioned with role permissions at login).
 
 ---
 
-### Permission catalog (P1–P29)
+### Permission catalog (P1–P37)
 
 Canonical definitions: **`internal/shared/constants/permissions.go`** (`constants.AllPermissions`).  
 Reflection helper for sync: **`internal/system/application/catalog.go`** → `AllPermissionEntries()`.
@@ -200,10 +207,10 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 | P15 | `course_level:create` | Taxonomy |
 | P16 | `course_level:update` | Taxonomy |
 | P17 | `course_level:delete` | Taxonomy |
-| P18 | `category:read` | Taxonomy |
-| P19 | `category:create` | Taxonomy |
-| P20 | `category:update` | Taxonomy |
-| P21 | `category:delete` | Taxonomy |
+| P18 | `topic:read` | Taxonomy (course topics) |
+| P19 | `topic:create` | Taxonomy |
+| P20 | `topic:update` | Taxonomy |
+| P21 | `topic:delete` | Taxonomy |
 | P22 | `tag:read` | Taxonomy |
 | P23 | `tag:create` | Taxonomy |
 | P24 | `tag:update` | Taxonomy |
@@ -212,10 +219,20 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 | P27 | `media_file:create` | Media |
 | P28 | `media_file:update` | Media |
 | P29 | `media_file:delete` | Media |
+| P30 | `course_outcome:read` | Taxonomy |
+| P31 | `course_outcome:create` | Taxonomy |
+| P32 | `course_outcome:update` | Taxonomy |
+| P33 | `course_outcome:delete` | Taxonomy |
+| P34 | `course_skill:read` | Taxonomy |
+| P35 | `course_skill:create` | Taxonomy |
+| P36 | `course_skill:update` | Taxonomy |
+| P37 | `course_skill:delete` | Taxonomy |
 
 - **P1–P13** are seeded in `000001_schema.up.sql`.
 - **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
 - **P26–P29** exist only in code until `go run ./cmd/syncpermissions` (or first deploy sync) inserts them.
+- **P18–P21** names are updated to `topic:*` in `000009_taxonomy_topics_outcomes_skills`.
+- **P30–P37** are inserted in `000009` and granted to sysadmin/admin (full CRUD) and instructor/learner (read only).
 
 ---
 
@@ -226,10 +243,10 @@ Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
 
 | Role | Permission IDs (summary) |
 |------|--------------------------|
-| **sysadmin** | P1–P29 (full catalog) |
-| **admin** | P1–P8, P10–P29 (all except **P9** `course_instructor:read`) |
-| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29 |
-| **learner** | P1, P5, P10, P14, P18, P22, P26 |
+| **sysadmin** | P1–P37 (full catalog) |
+| **admin** | P1–P8, P10–P37 (all except **P9** `course_instructor:read`) |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34 |
+| **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34 |
 
 `000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
 
@@ -294,7 +311,7 @@ Domain types: `internal/auth/domain/user.go` (`RefreshSessionEntry`, `RefreshTok
 
 Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_user_media_refs`**.
 
-**GORM models:** `internal/taxonomy/infra/repos.go` (`categoryRow`, `tagRow`, `courseLevelRow`).
+**GORM models:** `internal/taxonomy/infra/repos.go` (`courseTopicRow`, `courseOutcomeRow`, `courseSkillRow`, `tagRow`, `courseLevelRow`).
 
 ### `course_levels`
 
@@ -312,22 +329,59 @@ Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_u
 
 ---
 
-### `categories`
+### `course_topics`
+
+Renamed from `categories` in migration `000009` (IDs preserved).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `BIGSERIAL` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | |
 | `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
-| `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Category image; clients send UUID from `POST /api/v1/media/files` |
+| `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Topic image |
+| `child_topics` | `JSONB` | NOT NULL DEFAULT `'[]'` | Nested tree: `{ id, name, slug, children[] }` |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
 
-**Indexes:** `idx_categories_created_by`, `idx_categories_image_file_id`.
+**Indexes:** `idx_course_topics_created_by`, `idx_course_topics_image_file_id`.
 
-**Removed columns:** `image_url` (dropped in `000006` after backfill from `media_files.url` / `origin_url`).
+**Removed columns:** `image_url` (dropped in `000006`).
+
+---
+
+### `course_outcomes`
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | |
+| `short_description` | `VARCHAR(100)` | NOT NULL | |
+| `description` | `JSONB` | NOT NULL DEFAULT `'[]'` | Array of strings (max 8 × 120 chars enforced in app) |
+| `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | |
+| `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+
+**Indexes:** `idx_course_outcomes_created_by`, `idx_course_outcomes_image_file_id`.
+
+---
+
+### `course_skills`
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | |
+| `name` | `VARCHAR(255)` | NOT NULL | |
+| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
+| `children` | `JSONB` | NOT NULL DEFAULT `'[]'` | Skill tree (same node shape as `child_topics`) |
+| `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+
+**Index:** `idx_course_skills_created_by`.
 
 ---
 
@@ -501,6 +555,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000006 | `taxonomy_user_media_refs` | `categories.image_file_id`, `users.avatar_file_id` (FK → `media_files`); backfill from legacy URLs; drop `image_url`, `avatar_url` |
 | 000007 | `registration_email_limits` | `users.registration_email_send_total` + column `COMMENT` (no `;` inside comment text — migrate splits on `;`) |
 | 000008 | `media_metadata_json_storage` | Ensure `metadata_json` NOT NULL default `{}`, backfill typed metadata keys, GIN index `idx_media_files_metadata_json_gin` |
+| 000009 | `taxonomy_topics_outcomes_skills` | Rename `categories` → `course_topics` + `child_topics` JSONB, tables `course_outcomes` / `course_skills`, P18–P21 → `topic:*`, seed P30–P37 |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -516,7 +571,9 @@ DROP TABLE IF EXISTS public.media_pending_cloud_cleanup;
 DROP TABLE IF EXISTS public.user_permissions;
 DROP TABLE IF EXISTS public.user_roles;
 DROP TABLE IF EXISTS public.role_permissions;
-DROP TABLE IF EXISTS public.categories;
+DROP TABLE IF EXISTS public.course_skills;
+DROP TABLE IF EXISTS public.course_outcomes;
+DROP TABLE IF EXISTS public.course_topics;
 DROP TABLE IF EXISTS public.tags;
 DROP TABLE IF EXISTS public.course_levels;
 DROP TABLE IF EXISTS public.users;

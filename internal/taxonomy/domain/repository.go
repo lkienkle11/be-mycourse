@@ -2,12 +2,30 @@ package domain
 
 import "context"
 
-// CategoryRepository defines persistence for the Category aggregate.
-type CategoryRepository interface {
-	List(ctx context.Context, filter TaxonomyFilter) ([]Category, int64, error)
-	GetByID(ctx context.Context, id uint) (*Category, error)
-	Create(ctx context.Context, c *Category) error
-	Save(ctx context.Context, c *Category) error
+// CourseTopicRepository defines persistence for the CourseTopic aggregate.
+type CourseTopicRepository interface {
+	List(ctx context.Context, filter TaxonomyFilter) ([]CourseTopic, int64, error)
+	GetByID(ctx context.Context, id uint) (*CourseTopic, error)
+	Create(ctx context.Context, t *CourseTopic) error
+	Save(ctx context.Context, t *CourseTopic) error
+	Delete(ctx context.Context, id uint) error
+}
+
+// CourseOutcomeRepository defines persistence for the CourseOutcome aggregate.
+type CourseOutcomeRepository interface {
+	List(ctx context.Context, filter TaxonomyFilter) ([]CourseOutcome, int64, error)
+	GetByID(ctx context.Context, id uint) (*CourseOutcome, error)
+	Create(ctx context.Context, o *CourseOutcome) error
+	Save(ctx context.Context, o *CourseOutcome) error
+	Delete(ctx context.Context, id uint) error
+}
+
+// CourseSkillRepository defines persistence for the CourseSkill aggregate.
+type CourseSkillRepository interface {
+	List(ctx context.Context, filter TaxonomyFilter) ([]CourseSkill, int64, error)
+	GetByID(ctx context.Context, id uint) (*CourseSkill, error)
+	Create(ctx context.Context, s *CourseSkill) error
+	Save(ctx context.Context, s *CourseSkill) error
 	Delete(ctx context.Context, id uint) error
 }
 

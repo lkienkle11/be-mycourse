@@ -9,8 +9,8 @@ import (
 	"go.uber.org/zap"
 
 	"mycourse-io-be/internal/media/application"
-	mediadomain "mycourse-io-be/internal/media/domain" //nolint:depguard // delivery reads domain webhook/signature constants; no business logic
-	mediainfra "mycourse-io-be/internal/media/infra"   //nolint:depguard // delivery calls infra.BunnyWebhookSigningSecret config helper; TODO: expose via service interface
+	mediadomain "mycourse-io-be/internal/media/domain"
+	mediainfra "mycourse-io-be/internal/media/infra"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/logger"
 	"mycourse-io-be/internal/shared/response"

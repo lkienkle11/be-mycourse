@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Builds docs/api-dog-import.json — Postman Collection v2.1 (Apidog imports this).
-# Tests (post-response) save ACCESS_TOKEN, REFRESH_TOKEN, SESSION_ID after
-# login / confirm / refresh; SYSTEM_TOKEN after system login.
+# Builds docs/api-dog-import.json from docs/api_swagger.yaml (Postman Collection v2.1).
+# All request/query examples MUST live in the OpenAPI spec — this script does not
+# embed domain-specific sample payloads.
 #
 #   ruby scripts/generate-apidog-postman.rb
 
@@ -15,34 +15,11 @@ ROOT = File.expand_path("..", __dir__)
 SPEC_PATH = File.join(ROOT, "docs", "api_swagger.yaml")
 OUT_PATH = File.join(ROOT, "docs", "api-dog-import.json")
 
-USER_TOKEN_SCRIPT = <<~'JS'.strip.lines.map(&:chomp)
-  try {
-    var json = pm.response.json();
-    if (!json || json.code !== 0) { return; }
-    var d = json.data;
-    if (!d) { return; }
-    function setBoth(key, val) {
-      if (!val) { return; }
-      try { pm.environment.set(key, val); } catch (e1) {}
-      try { pm.collectionVariables.set(key, val); } catch (e2) {}
-    }
-    setBoth("ACCESS_TOKEN", d.access_token);
-    setBoth("REFRESH_TOKEN", d.refresh_token);
-    setBoth("SESSION_ID", d.session_id);
-  } catch (e) {}
-JS
-
-SYSTEM_TOKEN_SCRIPT = <<~'JS'.strip.lines.map(&:chomp)
-  try {
-    var json = pm.response.json();
-    if (!json || json.code !== 0) { return; }
-    var d = json.data;
-    if (d && d.access_token) {
-      try { pm.environment.set("SYSTEM_TOKEN", d.access_token); } catch (e1) {}
-      try { pm.collectionVariables.set("SYSTEM_TOKEN", d.access_token); } catch (e2) {}
-    }
-  } catch (e) {}
-JS
+# Postman collection variable placeholders (not API payload examples).
+HEADER_COLLECTION_VARS = {
+  "X-Refresh-Token" => "{{REFRESH_TOKEN}}",
+  "X-Session-Id" => "{{SESSION_ID}}"
+}.freeze
 
 def test_event(lines)
   {
@@ -51,6 +28,63 @@ def test_event(lines)
       "type" => "text/javascript",
       "exec" => lines.map { |l| "#{l}\n" }
     }
+  }
+end
+
+def mycourse_config(spec)
+  spec["x-mycourse"] || {}
+end
+
+def script_lines_from_exec(exec)
+  case exec
+  when Array
+    exec.map { |l| l.to_s.chomp }
+  when String
+    exec.lines.map(&:chomp)
+  else
+    []
+  end
+end
+
+def script_lines_for_key(spec, script_key)
+  lines = mycourse_config(spec).dig("scriptLines", script_key)
+  return script_lines_from_exec(lines) if lines
+
+  nil
+end
+
+def post_response_events(spec, op)
+  if op["x-postman-event"].is_a?(Array)
+    op["x-postman-event"].map do |ev|
+      next unless ev.is_a?(Hash) && ev["listen"] == "test"
+
+      lines = script_lines_from_exec(ev.dig("script", "exec"))
+      next if lines.empty?
+
+      test_event(lines)
+    end.compact
+  elsif (key = op["x-mycourse-post-response"])
+    lines = script_lines_for_key(spec, key)
+    lines ? [test_event(lines)] : []
+  else
+    []
+  end
+end
+
+def collection_variables(spec)
+  env = mycourse_config(spec)["environment"] || {}
+  env.map { |key, value| { "key" => key.to_s, "value" => value.to_s } }
+end
+
+def collection_auth(spec)
+  auth = mycourse_config(spec)["collectionAuth"] || {}
+  return nil unless auth["type"] == "bearer"
+
+  {
+    "type" => "bearer",
+    "bearer" => [
+      { "key" => "token", "value" => auth["token"].to_s, "type" => "string" }
+    ]
   }
 end
 
@@ -67,39 +101,60 @@ def resolve_param(spec, p)
   p["$ref"] ? resolve_ref(spec, p["$ref"]) : p
 end
 
-def dummy_json_value(sc, spec)
-  return nil unless sc.is_a?(Hash)
-  sc = resolve_ref(spec, sc["$ref"]) if sc["$ref"]
-  return "string" unless sc.is_a?(Hash)
+def resolve_schema(spec, schema)
+  return schema unless schema.is_a?(Hash)
 
-  case sc["type"]
+  schema = resolve_ref(spec, schema["$ref"]) if schema["$ref"]
+  schema
+end
+
+def example_value(spec, schema)
+  schema = resolve_schema(spec, schema)
+  return nil unless schema.is_a?(Hash)
+
+  return schema["example"] if schema.key?("example")
+
+  case schema["type"]
   when "string"
-    (sc["enum"] && sc["enum"].first) || "string"
+    schema["enum"]&.first || ""
   when "integer", "number"
-    1
+    schema.fetch("default", 0)
   when "boolean"
-    false
+    schema.fetch("default", false)
   when "array"
     []
   when "object"
-    {}
+    object_from_schema(spec, schema, required_only: true)
   else
-    "string"
+    ""
   end
 end
 
-def json_example_from_schema(spec, schema)
-  schema = resolve_ref(spec, schema["$ref"]) if schema.is_a?(Hash) && schema["$ref"]
-  return "{}" unless schema.is_a?(Hash) && schema["properties"].is_a?(Hash)
+def object_from_schema(spec, schema, required_only: false)
+  schema = resolve_schema(spec, schema)
+  return schema["example"] if schema.is_a?(Hash) && schema.key?("example")
+  return {} unless schema.is_a?(Hash) && schema["properties"].is_a?(Hash)
 
-  obj = {}
   required = schema["required"] || []
-  schema["properties"].each do |key, sc|
-    next unless required.include?(key)
+  obj = {}
+  schema["properties"].each do |key, prop|
+    prop = resolve_schema(spec, prop)
+    if required_only && !required.include?(key) && !(prop.is_a?(Hash) && prop.key?("example"))
+      next
+    end
 
-    obj[key] = dummy_json_value(sc, spec)
+    obj[key] = example_value(spec, prop)
   end
-  JSON.pretty_generate(obj)
+  obj
+end
+
+def json_example_from_schema(spec, schema)
+  schema = resolve_schema(spec, schema)
+  return "{}" unless schema.is_a?(Hash)
+
+  return JSON.pretty_generate(schema["example"]) if schema.key?("example")
+
+  JSON.pretty_generate(object_from_schema(spec, schema, required_only: true))
 end
 
 def merge_parameters(spec, path_item, op)
@@ -144,27 +199,58 @@ end
 def header_params_to_headers(params)
   params.select { |p| p["in"] == "header" }.map do |p|
     name = p["name"]
-    val = case name
-          when "X-Refresh-Token" then "{{REFRESH_TOKEN}}"
-          when "X-Session-Id" then "{{SESSION_ID}}"
-          else "{{#{name.gsub(/[^a-zA-Z0-9]/, '_').upcase}}}"
-          end
+    val = HEADER_COLLECTION_VARS[name] || query_or_schema_example(p).to_s
     { "key" => name, "value" => val, "type" => "text" }
   end
 end
 
+def query_or_schema_example(param)
+  return param["example"] if param.key?("example")
+
+  schema = param["schema"] || {}
+  return schema["example"] if schema.key?("example")
+  return schema["default"] if schema.key?("default")
+
+  ""
+end
+
 def query_params_to_urlencoded(params)
   params.select { |p| p["in"] == "query" }.map do |p|
-    name = p["name"]
-    ex = p.dig("schema", "example")
-    val = ex || case name
-                when "token" then "{{CONFIRM_TOKEN}}"
-                when "page" then "1"
-                when "per_page" then "20"
-                else ""
-                end
-    { "key" => name, "value" => val.to_s, "disabled" => val.to_s.empty? }
+    val = query_or_schema_example(p).to_s
+    { "key" => p["name"], "value" => val, "disabled" => val.empty? }
   end
+end
+
+def build_multipart_body(spec, schema)
+  schema = resolve_schema(spec, schema)
+  return nil unless schema.is_a?(Hash)
+
+  if schema.key?("example") && schema["example"].is_a?(Hash)
+    return {
+      "mode" => "formdata",
+      "formdata" => schema["example"].map do |key, val|
+        if val.is_a?(Hash) && val["type"] == "file"
+          { "key" => key, "type" => "file", "src" => val["src"].to_s }
+        else
+          { "key" => key, "type" => "text", "value" => val.to_s }
+        end
+      end
+    }
+  end
+
+  required = schema["required"] || []
+  formdata = []
+  (schema["properties"] || {}).each do |key, prop|
+    prop = resolve_schema(spec, prop)
+    is_required = required.include?(key)
+    if prop["format"] == "binary"
+      formdata << { "key" => key, "type" => "file", "src" => "", "disabled" => !is_required }
+    else
+      val = example_value(spec, prop).to_s
+      formdata << { "key" => key, "type" => "text", "value" => val, "disabled" => !is_required && val.empty? }
+    end
+  end
+  { "mode" => "formdata", "formdata" => formdata }
 end
 
 def build_body(spec, op)
@@ -173,19 +259,21 @@ def build_body(spec, op)
 
   content = rb["content"] || {}
   if content["multipart/form-data"]
-    return {
-      "mode" => "formdata",
-      "formdata" => [
-        { "key" => "file", "type" => "file", "src" => "" },
-        { "key" => "kind", "type" => "text", "value" => "FILE" },
-        { "key" => "object_key", "type" => "text", "value" => "" },
-        { "key" => "metadata", "type" => "text", "value" => "" }
-      ]
-    }
+    schema = content["multipart/form-data"]["schema"] || {}
+    body = build_multipart_body(spec, schema)
+    return body if body
   end
 
   json_ct = content["application/json"]
   return nil unless json_ct
+
+  if json_ct.key?("example")
+    return {
+      "mode" => "raw",
+      "raw" => JSON.pretty_generate(json_ct["example"]),
+      "options" => { "raw" => { "language" => "json" } }
+    }
+  end
 
   schema = json_ct["schema"] || {}
   {
@@ -193,17 +281,6 @@ def build_body(spec, op)
     "raw" => json_example_from_schema(spec, schema),
     "options" => { "raw" => { "language" => "json" } }
   }
-end
-
-def token_events(method, path)
-  case [method.upcase, path]
-  when %w[POST /api/v1/auth/login], %w[GET /api/v1/auth/confirm], %w[POST /api/v1/auth/refresh]
-    [test_event(USER_TOKEN_SCRIPT)]
-  when %w[POST /api/system/login]
-    [test_event(SYSTEM_TOKEN_SCRIPT)]
-  else
-    []
-  end
 end
 
 def build_request(spec, path, method, path_item, op)
@@ -226,7 +303,7 @@ def build_request(spec, path, method, path_item, op)
   req["body"] = body if body
 
   item = { "name" => name, "request" => req }
-  ev = token_events(method, path)
+  ev = post_response_events(spec, op)
   item["event"] = ev unless ev.empty?
   item
 end
@@ -267,26 +344,15 @@ def main
       "description" => <<~MD.strip,
         #{spec.dig("info", "description")}
 
-        **Auto-save tokens (Tests tab):**
-        - After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).
-        - After **System login** → `SYSTEM_TOKEN`.
-        Create/select an **Environment** in Apidog with the same variable names for best UX.
-
-        Regenerate this file: `ruby scripts/generate-apidog-postman.rb`
+        Regenerate this file: `ruby scripts/generate-apidog-postman.rb` (token scripts + examples from `docs/api_swagger.yaml` only).
       MD
       "schema" => "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
-    "variable" => [
-      { "key" => "BASE_URL", "value" => "http://localhost:8080" },
-      { "key" => "ACCESS_TOKEN", "value" => "" },
-      { "key" => "REFRESH_TOKEN", "value" => "" },
-      { "key" => "SESSION_ID", "value" => "" },
-      { "key" => "SYSTEM_TOKEN", "value" => "" },
-      { "key" => "INTERNAL_KEY", "value" => "" },
-      { "key" => "CONFIRM_TOKEN", "value" => "" }
-    ],
+    "variable" => collection_variables(spec),
     "item" => folders
   }
+  auth = collection_auth(spec)
+  collection["auth"] = auth if auth
 
   File.write(OUT_PATH, JSON.pretty_generate(collection))
   warn "Wrote #{OUT_PATH} (#{File.size(OUT_PATH)} bytes)"

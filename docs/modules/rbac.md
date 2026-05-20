@@ -94,7 +94,9 @@ Examples:
 | `media_file:read` | List/get media files |
 | `media_file:create` | Upload media files |
 | `media_file:delete` | Delete media files |
-| `category:create` | Create a taxonomy category |
+| `topic:create` | Create a course topic |
+| `course_outcome:read` | List course outcomes |
+| `course_skill:update` | Update a course skill tree |
 | `tag:update` | Update a taxonomy tag |
 
 ---

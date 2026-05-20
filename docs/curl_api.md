@@ -1570,7 +1570,7 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 
 ## 15. Postman / API Dog
 
-> **Import vào Apidog:** dùng [`docs/api-dog-import.json`](./api-dog-import.json) — định dạng **Postman Collection v2.1** (menu **Import → Postman**). Sau khi gọi **Login** / **Confirm email** / **Refresh**, tab **Tests** tự ghi `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` vào Environment và biến collection (chọn một Environment trước khi chạy). Sinh lại file: `ruby scripts/generate-apidog-postman.rb`. OpenAPI gốc: [`docs/api_swagger.yaml`](./api_swagger.yaml).
+> **Import vào Apidog:** (1) [`docs/api-dog-import.json`](./api-dog-import.json) — **Import → Postman**; hoặc (2) [`docs/api_swagger.yaml`](./api_swagger.yaml) — **Import → OpenAPI** (script lưu token nằm trong `x-postman-event` trên Login / Confirm / Refresh / System login). Sau khi gọi **Login** / **Confirm** / **Refresh**, post-processor tự ghi `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (chọn **Environment** trước). Sinh lại collection Postman: `ruby scripts/generate-apidog-postman.rb` (đọc script từ swagger, không hardcode trong Ruby).
 
 ### Environment Variables
 

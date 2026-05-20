@@ -1,5 +1,5 @@
-# Apidog: import docs/api-dog-import.json (Postman Collection v2.1 — auto-saves tokens after Login / Confirm / Refresh; run generator below).
-# Regenerate: ruby scripts/generate-apidog-postman.rb (from repo root)
+# Apidog: import docs/api-dog-import.json (Postman v2.1) OR import this OpenAPI file (x-postman-event post-processors on auth routes).
+# Regenerate Postman/Apidog collection: ruby scripts/generate-apidog-postman.rb (from repo root)
 openapi: 3.0.3
 info:
   title: MyCourse Backend API
@@ -8,6 +8,8 @@ info:
     Health check uses `{ "code", "message", "status" }`.
     CSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).
     Temporary rollout note: router-level CSRF enforcement is currently disabled.
+
+    **Apidog / Postman — auto-save tokens:** After **Login**, **Confirm email**, or **Refresh**, post-processors in `x-postman-event` set `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (from JSON `data` or cookies). Select an **Environment** with those variables before other requests. **Bearer** auth uses `{{ACCESS_TOKEN}}`. **System login** sets `SYSTEM_TOKEN`.
   version: 1.0.0
   contact:
     name: MyCourse Backend
@@ -17,6 +19,72 @@ servers:
     description: Local
   - url: https://api.mycourse.io
     description: Production (example)
+
+# Shared Apidog/Postman scripts and collection defaults (also read by scripts/generate-apidog-postman.rb).
+x-mycourse:
+  environment:
+    BASE_URL: http://localhost:8080
+    ACCESS_TOKEN: ""
+    REFRESH_TOKEN: ""
+    SESSION_ID: ""
+    SYSTEM_TOKEN: ""
+    INTERNAL_KEY: ""
+    CONFIRM_TOKEN: ""
+  collectionAuth:
+    type: bearer
+    token: "{{ACCESS_TOKEN}}"
+  scriptLines:
+    saveUserTokens: &saveUserTokensExec
+      - "try {"
+      - "  var json = pm.response.json();"
+      - "  if (!json || Number(json.code) !== 0) { return; }"
+      - "  var d = json.data || {};"
+      - "  function pick(bodyKey, cookieKey) {"
+      - "    if (d[bodyKey]) { return String(d[bodyKey]); }"
+      - "    try {"
+      - "      var c = pm.cookies.get(cookieKey);"
+      - "      if (c) { return String(c); }"
+      - "    } catch (e) {}"
+      - "    return \"\";"
+      - "  }"
+      - "  function setAuthVar(key, val) {"
+      - "    if (!val) { return; }"
+      - "    try { pm.variables.set(key, val); } catch (e0) {}"
+      - "    try { pm.environment.set(key, val); } catch (e1) {}"
+      - "    try { pm.collectionVariables.set(key, val); } catch (e2) {}"
+      - "    try { pm.moduleVariables.set(key, val); } catch (e3) {}"
+      - "  }"
+      - "  setAuthVar(\"ACCESS_TOKEN\", pick(\"access_token\", \"access_token\"));"
+      - "  setAuthVar(\"REFRESH_TOKEN\", pick(\"refresh_token\", \"refresh_token\"));"
+      - "  setAuthVar(\"SESSION_ID\", pick(\"session_id\", \"session_id\"));"
+      - "} catch (e) {"
+      - "  console.warn(\"save_auth_tokens failed:\", e && e.message ? e.message : e);"
+      - "}"
+    saveSystemToken: &saveSystemTokenExec
+      - "try {"
+      - "  var json = pm.response.json();"
+      - "  if (!json || Number(json.code) !== 0) { return; }"
+      - "  var d = json.data || {};"
+      - "  var token = d.access_token ? String(d.access_token) : \"\";"
+      - "  if (!token) { return; }"
+      - "  try { pm.variables.set(\"SYSTEM_TOKEN\", token); } catch (e0) {}"
+      - "  try { pm.environment.set(\"SYSTEM_TOKEN\", token); } catch (e1) {}"
+      - "  try { pm.collectionVariables.set(\"SYSTEM_TOKEN\", token); } catch (e2) {}"
+      - "  try { pm.moduleVariables.set(\"SYSTEM_TOKEN\", token); } catch (e3) {}"
+      - "} catch (e) {"
+      - "  console.warn(\"save_system_token failed:\", e && e.message ? e.message : e);"
+      - "}"
+  postmanEvents:
+    saveUserTokens: &postmanSaveUserTokens
+      - listen: test
+        script:
+          type: text/javascript
+          exec: *saveUserTokensExec
+    saveSystemToken: &postmanSaveSystemToken
+      - listen: test
+        script:
+          type: text/javascript
+          exec: *saveSystemTokenExec
 
 tags:
   - name: Health
@@ -126,10 +194,21 @@ components:
         remember_me: { type: boolean, default: false }
     TokenPair:
       type: object
+      example:
+        access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example
+        refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+        session_id: a1b2c3d4e5f6789012345678abcdef9012345678abcdef9012345678abcdef90
       properties:
         access_token: { type: string }
         refresh_token: { type: string }
         session_id: { type: string, description: 128-char hex session id }
+    LoginSessionTokensResponse:
+      allOf:
+        - $ref: "#/components/schemas/EnvelopeOK"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TokenPair"
     MyPermissionsResponse:
       type: object
       properties:
@@ -478,6 +557,8 @@ paths:
       tags: [Auth]
       summary: Login
       security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
@@ -489,12 +570,18 @@ paths:
       responses:
         "200":
           description: Tokens in body + Set-Cookie (access_token, refresh_token, session_id)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
 
   /api/v1/auth/confirm:
     post:
       tags: [Auth]
       summary: Confirm email (FE-submitted token)
       security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
@@ -504,6 +591,8 @@ paths:
             schema:
               type: object
               required: [token]
+              example:
+                token: "{{CONFIRM_TOKEN}}"
               properties:
                 token:
                   type: string
@@ -511,25 +600,37 @@ paths:
       responses:
         "200":
           description: Logged in; tokens returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
 
   /api/v1/auth/refresh:
     post:
       tags: [Auth]
       summary: Refresh access + refresh tokens
       security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
         - name: X-Refresh-Token
           in: header
           required: true
           schema: { type: string }
+          example: "{{REFRESH_TOKEN}}"
         - name: X-Session-Id
           in: header
           required: true
           schema: { type: string }
+          example: "{{SESSION_ID}}"
       responses:
         "200":
           description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
 
   /api/v1/me:
     get:
@@ -1071,6 +1172,8 @@ paths:
       tags: [System]
       summary: System operator login
       security: []
+      x-mycourse-post-response: saveSystemToken
+      x-postman-event: *postmanSaveSystemToken
       requestBody:
         required: true
         content:

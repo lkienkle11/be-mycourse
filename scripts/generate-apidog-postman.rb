@@ -15,35 +15,6 @@ ROOT = File.expand_path("..", __dir__)
 SPEC_PATH = File.join(ROOT, "docs", "api_swagger.yaml")
 OUT_PATH = File.join(ROOT, "docs", "api-dog-import.json")
 
-USER_TOKEN_SCRIPT = <<~'JS'.strip.lines.map(&:chomp)
-  try {
-    var json = pm.response.json();
-    if (!json || json.code !== 0) { return; }
-    var d = json.data;
-    if (!d) { return; }
-    function setBoth(key, val) {
-      if (!val) { return; }
-      try { pm.environment.set(key, val); } catch (e1) {}
-      try { pm.collectionVariables.set(key, val); } catch (e2) {}
-    }
-    setBoth("ACCESS_TOKEN", d.access_token);
-    setBoth("REFRESH_TOKEN", d.refresh_token);
-    setBoth("SESSION_ID", d.session_id);
-  } catch (e) {}
-JS
-
-SYSTEM_TOKEN_SCRIPT = <<~'JS'.strip.lines.map(&:chomp)
-  try {
-    var json = pm.response.json();
-    if (!json || json.code !== 0) { return; }
-    var d = json.data;
-    if (d && d.access_token) {
-      try { pm.environment.set("SYSTEM_TOKEN", d.access_token); } catch (e1) {}
-      try { pm.collectionVariables.set("SYSTEM_TOKEN", d.access_token); } catch (e2) {}
-    }
-  } catch (e) {}
-JS
-
 # Postman collection variable placeholders (not API payload examples).
 HEADER_COLLECTION_VARS = {
   "X-Refresh-Token" => "{{REFRESH_TOKEN}}",
@@ -57,6 +28,63 @@ def test_event(lines)
       "type" => "text/javascript",
       "exec" => lines.map { |l| "#{l}\n" }
     }
+  }
+end
+
+def mycourse_config(spec)
+  spec["x-mycourse"] || {}
+end
+
+def script_lines_from_exec(exec)
+  case exec
+  when Array
+    exec.map { |l| l.to_s.chomp }
+  when String
+    exec.lines.map(&:chomp)
+  else
+    []
+  end
+end
+
+def script_lines_for_key(spec, script_key)
+  lines = mycourse_config(spec).dig("scriptLines", script_key)
+  return script_lines_from_exec(lines) if lines
+
+  nil
+end
+
+def post_response_events(spec, op)
+  if op["x-postman-event"].is_a?(Array)
+    op["x-postman-event"].map do |ev|
+      next unless ev.is_a?(Hash) && ev["listen"] == "test"
+
+      lines = script_lines_from_exec(ev.dig("script", "exec"))
+      next if lines.empty?
+
+      test_event(lines)
+    end.compact
+  elsif (key = op["x-mycourse-post-response"])
+    lines = script_lines_for_key(spec, key)
+    lines ? [test_event(lines)] : []
+  else
+    []
+  end
+end
+
+def collection_variables(spec)
+  env = mycourse_config(spec)["environment"] || {}
+  env.map { |key, value| { "key" => key.to_s, "value" => value.to_s } }
+end
+
+def collection_auth(spec)
+  auth = mycourse_config(spec)["collectionAuth"] || {}
+  return nil unless auth["type"] == "bearer"
+
+  {
+    "type" => "bearer",
+    "bearer" => [
+      { "key" => "token", "value" => auth["token"].to_s, "type" => "string" }
+    ]
   }
 end
 
@@ -255,17 +283,6 @@ def build_body(spec, op)
   }
 end
 
-def token_events(method, path)
-  case [method.upcase, path]
-  when %w[POST /api/v1/auth/login], %w[GET /api/v1/auth/confirm], %w[POST /api/v1/auth/refresh]
-    [test_event(USER_TOKEN_SCRIPT)]
-  when %w[POST /api/system/login]
-    [test_event(SYSTEM_TOKEN_SCRIPT)]
-  else
-    []
-  end
-end
-
 def build_request(spec, path, method, path_item, op)
   params = merge_parameters(spec, path_item, op)
   headers = security_headers(op) + header_params_to_headers(params)
@@ -286,7 +303,7 @@ def build_request(spec, path, method, path_item, op)
   req["body"] = body if body
 
   item = { "name" => name, "request" => req }
-  ev = token_events(method, path)
+  ev = post_response_events(spec, op)
   item["event"] = ev unless ev.empty?
   item
 end
@@ -327,26 +344,15 @@ def main
       "description" => <<~MD.strip,
         #{spec.dig("info", "description")}
 
-        **Auto-save tokens (Tests tab):**
-        - After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).
-        - After **System login** → `SYSTEM_TOKEN`.
-        Create/select an **Environment** in Apidog with the same variable names for best UX.
-
-        Regenerate this file: `ruby scripts/generate-apidog-postman.rb` (reads examples from `docs/api_swagger.yaml` only).
+        Regenerate this file: `ruby scripts/generate-apidog-postman.rb` (token scripts + examples from `docs/api_swagger.yaml` only).
       MD
       "schema" => "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
-    "variable" => [
-      { "key" => "BASE_URL", "value" => "http://localhost:8080" },
-      { "key" => "ACCESS_TOKEN", "value" => "" },
-      { "key" => "REFRESH_TOKEN", "value" => "" },
-      { "key" => "SESSION_ID", "value" => "" },
-      { "key" => "SYSTEM_TOKEN", "value" => "" },
-      { "key" => "INTERNAL_KEY", "value" => "" },
-      { "key" => "CONFIRM_TOKEN", "value" => "" }
-    ],
+    "variable" => collection_variables(spec),
     "item" => folders
   }
+  auth = collection_auth(spec)
+  collection["auth"] = auth if auth
 
   File.write(OUT_PATH, JSON.pretty_generate(collection))
   warn "Wrote #{OUT_PATH} (#{File.size(OUT_PATH)} bytes)"

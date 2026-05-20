@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "df6f641846155c3a4e3870",
+    "_postman_id": "e5df925dca5abf659e850a",
     "name": "MyCourse Backend API",
-    "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n\n**Auto-save tokens (Tests tab):**\n- After **Login**, **Confirm email**, or **Refresh** → `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` are written to the **current Environment** and **Collection variables** (if `pm.environment.set` fails, collection vars still work).\n- After **System login** → `SYSTEM_TOKEN`.\nCreate/select an **Environment** in Apidog with the same variable names for best UX.\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb` (reads examples from `docs/api_swagger.yaml` only).",
+    "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n**Apidog / Postman — auto-save tokens:** After **Login**, **Confirm email**, or **Refresh**, post-processors in `x-postman-event` set `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (from JSON `data` or cookies). Select an **Environment** with those variables before other requests. **Bearer** auth uses `{{ACCESS_TOKEN}}`. **System login** sets `SYSTEM_TOKEN`.\n\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb` (token scripts + examples from `docs/api_swagger.yaml` only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -170,18 +170,29 @@
                 "exec": [
                   "try {\n",
                   "  var json = pm.response.json();\n",
-                  "  if (!json || json.code !== 0) { return; }\n",
-                  "  var d = json.data;\n",
-                  "  if (!d) { return; }\n",
-                  "  function setBoth(key, val) {\n",
+                  "  if (!json || Number(json.code) !== 0) { return; }\n",
+                  "  var d = json.data || {};\n",
+                  "  function pick(bodyKey, cookieKey) {\n",
+                  "    if (d[bodyKey]) { return String(d[bodyKey]); }\n",
+                  "    try {\n",
+                  "      var c = pm.cookies.get(cookieKey);\n",
+                  "      if (c) { return String(c); }\n",
+                  "    } catch (e) {}\n",
+                  "    return \"\";\n",
+                  "  }\n",
+                  "  function setAuthVar(key, val) {\n",
                   "    if (!val) { return; }\n",
+                  "    try { pm.variables.set(key, val); } catch (e0) {}\n",
                   "    try { pm.environment.set(key, val); } catch (e1) {}\n",
                   "    try { pm.collectionVariables.set(key, val); } catch (e2) {}\n",
+                  "    try { pm.moduleVariables.set(key, val); } catch (e3) {}\n",
                   "  }\n",
-                  "  setBoth(\"ACCESS_TOKEN\", d.access_token);\n",
-                  "  setBoth(\"REFRESH_TOKEN\", d.refresh_token);\n",
-                  "  setBoth(\"SESSION_ID\", d.session_id);\n",
-                  "} catch (e) {}\n"
+                  "  setAuthVar(\"ACCESS_TOKEN\", pick(\"access_token\", \"access_token\"));\n",
+                  "  setAuthVar(\"REFRESH_TOKEN\", pick(\"refresh_token\", \"refresh_token\"));\n",
+                  "  setAuthVar(\"SESSION_ID\", pick(\"session_id\", \"session_id\"));\n",
+                  "} catch (e) {\n",
+                  "  console.warn(\"save_auth_tokens failed:\", e && e.message ? e.message : e);\n",
+                  "}\n"
                 ]
               }
             }
@@ -217,14 +228,49 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"\"\n}",
+              "raw": "{\n  \"token\": \"{{CONFIRM_TOKEN}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try {\n",
+                  "  var json = pm.response.json();\n",
+                  "  if (!json || Number(json.code) !== 0) { return; }\n",
+                  "  var d = json.data || {};\n",
+                  "  function pick(bodyKey, cookieKey) {\n",
+                  "    if (d[bodyKey]) { return String(d[bodyKey]); }\n",
+                  "    try {\n",
+                  "      var c = pm.cookies.get(cookieKey);\n",
+                  "      if (c) { return String(c); }\n",
+                  "    } catch (e) {}\n",
+                  "    return \"\";\n",
+                  "  }\n",
+                  "  function setAuthVar(key, val) {\n",
+                  "    if (!val) { return; }\n",
+                  "    try { pm.variables.set(key, val); } catch (e0) {}\n",
+                  "    try { pm.environment.set(key, val); } catch (e1) {}\n",
+                  "    try { pm.collectionVariables.set(key, val); } catch (e2) {}\n",
+                  "    try { pm.moduleVariables.set(key, val); } catch (e3) {}\n",
+                  "  }\n",
+                  "  setAuthVar(\"ACCESS_TOKEN\", pick(\"access_token\", \"access_token\"));\n",
+                  "  setAuthVar(\"REFRESH_TOKEN\", pick(\"refresh_token\", \"refresh_token\"));\n",
+                  "  setAuthVar(\"SESSION_ID\", pick(\"session_id\", \"session_id\"));\n",
+                  "} catch (e) {\n",
+                  "  console.warn(\"save_auth_tokens failed:\", e && e.message ? e.message : e);\n",
+                  "}\n"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Refresh access + refresh tokens",
@@ -268,18 +314,29 @@
                 "exec": [
                   "try {\n",
                   "  var json = pm.response.json();\n",
-                  "  if (!json || json.code !== 0) { return; }\n",
-                  "  var d = json.data;\n",
-                  "  if (!d) { return; }\n",
-                  "  function setBoth(key, val) {\n",
+                  "  if (!json || Number(json.code) !== 0) { return; }\n",
+                  "  var d = json.data || {};\n",
+                  "  function pick(bodyKey, cookieKey) {\n",
+                  "    if (d[bodyKey]) { return String(d[bodyKey]); }\n",
+                  "    try {\n",
+                  "      var c = pm.cookies.get(cookieKey);\n",
+                  "      if (c) { return String(c); }\n",
+                  "    } catch (e) {}\n",
+                  "    return \"\";\n",
+                  "  }\n",
+                  "  function setAuthVar(key, val) {\n",
                   "    if (!val) { return; }\n",
+                  "    try { pm.variables.set(key, val); } catch (e0) {}\n",
                   "    try { pm.environment.set(key, val); } catch (e1) {}\n",
                   "    try { pm.collectionVariables.set(key, val); } catch (e2) {}\n",
+                  "    try { pm.moduleVariables.set(key, val); } catch (e3) {}\n",
                   "  }\n",
-                  "  setBoth(\"ACCESS_TOKEN\", d.access_token);\n",
-                  "  setBoth(\"REFRESH_TOKEN\", d.refresh_token);\n",
-                  "  setBoth(\"SESSION_ID\", d.session_id);\n",
-                  "} catch (e) {}\n"
+                  "  setAuthVar(\"ACCESS_TOKEN\", pick(\"access_token\", \"access_token\"));\n",
+                  "  setAuthVar(\"REFRESH_TOKEN\", pick(\"refresh_token\", \"refresh_token\"));\n",
+                  "  setAuthVar(\"SESSION_ID\", pick(\"session_id\", \"session_id\"));\n",
+                  "} catch (e) {\n",
+                  "  console.warn(\"save_auth_tokens failed:\", e && e.message ? e.message : e);\n",
+                  "}\n"
                 ]
               }
             }
@@ -1603,13 +1660,17 @@
                 "exec": [
                   "try {\n",
                   "  var json = pm.response.json();\n",
-                  "  if (!json || json.code !== 0) { return; }\n",
-                  "  var d = json.data;\n",
-                  "  if (d && d.access_token) {\n",
-                  "    try { pm.environment.set(\"SYSTEM_TOKEN\", d.access_token); } catch (e1) {}\n",
-                  "    try { pm.collectionVariables.set(\"SYSTEM_TOKEN\", d.access_token); } catch (e2) {}\n",
-                  "  }\n",
-                  "} catch (e) {}\n"
+                  "  if (!json || Number(json.code) !== 0) { return; }\n",
+                  "  var d = json.data || {};\n",
+                  "  var token = d.access_token ? String(d.access_token) : \"\";\n",
+                  "  if (!token) { return; }\n",
+                  "  try { pm.variables.set(\"SYSTEM_TOKEN\", token); } catch (e0) {}\n",
+                  "  try { pm.environment.set(\"SYSTEM_TOKEN\", token); } catch (e1) {}\n",
+                  "  try { pm.collectionVariables.set(\"SYSTEM_TOKEN\", token); } catch (e2) {}\n",
+                  "  try { pm.moduleVariables.set(\"SYSTEM_TOKEN\", token); } catch (e3) {}\n",
+                  "} catch (e) {\n",
+                  "  console.warn(\"save_system_token failed:\", e && e.message ? e.message : e);\n",
+                  "}\n"
                 ]
               }
             }
@@ -2358,5 +2419,15 @@
         }
       ]
     }
-  ]
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{ACCESS_TOKEN}}",
+        "type": "string"
+      }
+    ]
+  }
 }

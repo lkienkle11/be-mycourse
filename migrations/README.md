@@ -17,7 +17,7 @@ Các file `*_up.sql` được **nhúng (embed)** vào binary (`migrations/embed.
 
 **Xóa toàn bộ bảng bằng SQL (đúng thứ tự FK):** xem `docs/database.md` — mục **Drop All Tables**; khi thêm bảng mới cập nhật danh sách `DROP TABLE` tương ứng.
 
-**Quy ước:** `permission_id` dạng `P{number}`; `permission_name` dạng `resource:action` (JWT / `RequirePermission`). Khi thêm quyền mới: cập nhật `constants/permissions.go`, migration nếu cần seed, rồi `go run ./cmd/syncpermissions` trên môi trường đã có dữ liệu. Ma trận role: `constants/roles_permission.go` + `go run ./cmd/syncrolepermissions`.
+**Quy ước:** `permission_id` dạng `P{number}`; `permission_name` dạng `resource:action` (JWT / `RequirePermission`). Catalog đầy đủ **P1–P29** nằm trong `internal/shared/constants/permissions.go`. Khi thêm quyền mới: cập nhật file đó, (tuỳ chọn) migration seed, rồi `go run ./cmd/syncpermissions` trên môi trường đã có dữ liệu. Ma trận role: `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Chi tiết bảng/cột: **`docs/database.md`**.
 
 **COMMENT / chuỗi SQL và `golang-migrate`:** runner tách file theo **mọi** dấu `;` (không hiểu cú pháp SQL). Vì vậy **không** được có `;` bên trong chuỗi (`'…'`), trong **`$$…$$`**, v.v. — chỉ dùng `;` làm kết thúc từng câu lệnh. Trong `COMMENT ON … IS '…'`, viết mô tả bằng dấu chấm/phẩy thay cho `;` — ví dụ `000007_registration_email_limits.up.sql`.
 

@@ -1,264 +1,533 @@
 # Database Schema
 
+PostgreSQL schema for **be-mycourse**, managed with **golang-migrate** (`migrations/*.sql`, embedded via `migrations/embed.go`).
 
-## Global Type Placement Rule (Mandatory)
+Run pending migrations:
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+```bash
+MIGRATE=1 go run .
+```
 
-All tables are managed via **golang-migrate** with embedded SQL files in `migrations/`.  
-Run `MIGRATE=1 go run .` to apply pending migrations (see `migrations/README.md`).
+See `migrations/README.md` for migration conventions (semicolon splitting, `COMMENT` rules, rollback).
 
-**Code ↔ table names:** Relation names used in Go (GORM `TableName()`, parameterized raw SQL) are defined in **`constants/dbschema_name.go`** and exposed via **`dbschema`** namespaces — do not hardcode table strings in `models` or `dbschema` packages.
+## Code ↔ table names
+
+All PostgreSQL relation names are defined once in **`internal/shared/constants/dbschema_name.go`**. GORM `TableName()` methods and raw SQL must use those constants — do not hardcode table strings in handlers or repositories.
+
+| Constant | Table |
+|----------|-------|
+| `TableAppUsers` | `users` |
+| `TableRBACPermissions` | `permissions` |
+| `TableRBACRoles` | `roles` |
+| `TableRBACRolePermissions` | `role_permissions` |
+| `TableRBACUserRoles` | `user_roles` |
+| `TableRBACUserPermissions` | `user_permissions` |
+| `TableMediaFiles` | `media_files` |
+| `TableMediaPendingCloudCleanup` | `media_pending_cloud_cleanup` |
+| `TableTaxonomyCourseLevels` | `course_levels` |
+| `TableTaxonomyCategories` | `categories` |
+| `TableTaxonomyTags` | `tags` |
+| `TableSystemAppConfig` | `system_app_config` |
+| `TableSystemPrivilegedUsers` | `system_privileged_users` |
+
+GORM row models live under each bounded context’s `infra` package (for example `internal/auth/infra/user_model.go`, `internal/media/infra/repos.go`).
 
 ## Table of Contents
 
-- [Table `users`](#users)
-- [Table `permissions`](#permissions)
-- [Table `roles`](#roles)
-- [Table `role_permissions`](#role_permissions)
-- [Table `user_roles`](#user_roles)
-- [Table `user_permissions`](#user_permissions)
-- [Table `media_files`](#media_files)
-- [System Tables](#system-tables)
-- [Effective Permissions](#effective-permissions)
-- [Migration History](#migration-history)
-- [Drop All Tables (manual reset)](#drop-all-tables-manual-reset)
+- [Entity relationship overview](#entity-relationship-overview)
+- [PostgreSQL types](#postgresql-types)
+- [RBAC tables](#rbac-tables)
+  - [`permissions`](#permissions)
+  - [`roles`](#roles)
+  - [`role_permissions`](#role_permissions)
+  - [`user_roles`](#user_roles)
+  - [`user_permissions`](#user_permissions)
+  - [Permission catalog (P1–P29)](#permission-catalog-p1p29)
+  - [Default role ↔ permission matrix](#default-role--permission-matrix)
+- [Application users](#application-users)
+  - [`users`](#users)
+- [Taxonomy](#taxonomy)
+  - [`course_levels`](#course_levels)
+  - [`categories`](#categories)
+  - [`tags`](#tags)
+- [Media](#media)
+  - [`media_files`](#media_files)
+  - [`media_pending_cloud_cleanup`](#media_pending_cloud_cleanup)
+- [System tables](#system-tables)
+- [Effective permissions](#effective-permissions)
+- [RBAC sync commands](#rbac-sync-commands)
+- [Migration history](#migration-history)
+- [Drop all tables (manual reset)](#drop-all-tables-manual-reset)
 
 ---
 
-## `users`
+## Entity relationship overview
 
-Stores application accounts.  Passwords are bcrypt-hashed.  
-`user_code` (UUIDv7) is the external-facing identifier used in RBAC tables; `id` (BIGSERIAL) is used for internal joins.
+```mermaid
+erDiagram
+    users ||--o{ user_roles : has
+    roles ||--o{ user_roles : assigned
+    roles ||--o{ role_permissions : grants
+    permissions ||--o{ role_permissions : included
+    users ||--o{ user_permissions : direct_grant
+    permissions ||--o{ user_permissions : granted
+    users ||--o| media_files : avatar_file_id
+    categories ||--o| media_files : image_file_id
+    users ||--o{ course_levels : created_by
+    users ||--o{ categories : created_by
+    users ||--o{ tags : created_by
+```
+
+- **RBAC junction tables** use `users.id` (`BIGINT`), not `user_code`.
+- **JWT / middleware** use `permissions.permission_name` strings (`resource:action`).
+- **`media_files`** is referenced by `users.avatar_file_id` and `categories.image_file_id` (`ON DELETE SET NULL`).
+
+---
+
+## PostgreSQL types
+
+### `taxonomy_status` (enum)
+
+Created in migration `000002_taxonomy_domain`:
+
+| Value | Meaning |
+|-------|---------|
+| `ACTIVE` | Visible / usable in admin APIs |
+| `INACTIVE` | Hidden or disabled |
+
+Used by `course_levels.status`, `categories.status`, `tags.status`. Default: `ACTIVE`.
+
+---
+
+## RBAC tables
+
+### `permissions`
+
+Flat permission catalog. Primary key is the stable catalog id (`permission_id`, e.g. `P1`), not a surrogate bigint.
 
 | Column | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | `BIGSERIAL` | PK | Internal numeric primary key |
-| `user_code` | `UUID` | UNIQUE NOT NULL | External identifier (UUIDv7), used in RBAC |
-| `email` | `VARCHAR(255)` | UNIQUE NOT NULL | Login email |
-| `hash_password` | `VARCHAR(255)` | NOT NULL | bcrypt hash |
-| `display_name` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | Display name |
-| `avatar_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Profile image (`media_files` row); API returns nested `avatar` object |
-| `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Account disabled flag |
-| `email_confirmed` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Email verification status |
-| `confirmation_token` | `VARCHAR(128)` | nullable | One-time email confirmation token |
-| `confirmation_sent_at` | `TIMESTAMPTZ` | nullable | When the confirmation email was last sent |
-| `registration_email_send_total` | `INTEGER` | NOT NULL DEFAULT `0` | Successful confirmation emails while pending; not in public JSON; reset on confirm |
-| `refresh_token_session` | `JSONB` | NOT NULL DEFAULT `'{}'` | Active device sessions map (see below) |
+|--------|------|-------------|-------------|
+| `permission_id` | `VARCHAR(10)` | PK | Stable id (`P{number}`); matches `perm_id` tags on `constants.AllPermissions` |
+| `permission_name` | `VARCHAR(50)` | UNIQUE NOT NULL | Runtime string in JWT `permissions` claim and `middleware.RequirePermission` (`resource:action`) |
+| `description` | `VARCHAR(512)` | NOT NULL DEFAULT `''` | |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `deleted_at` | `TIMESTAMPTZ` | nullable, indexed | Soft-delete timestamp (GORM) |
 
-### `refresh_token_session` structure
+**GORM model:** `internal/rbac/infra/repos.go` (`permissionRow`), `internal/system/infra/repos.go` (`permissionSyncRow` for sync).
 
-A JSONB map where each key is a **128-char hex session string** and each value is a session entry:
+---
+
+### `roles`
+
+Named roles. Default names: `sysadmin`, `admin`, `instructor`, `learner` (seeded in `000001_schema`).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | |
+| `name` | `VARCHAR(64)` | UNIQUE NOT NULL | |
+| `description` | `VARCHAR(512)` | NOT NULL DEFAULT `''` | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+
+**GORM model:** `internal/rbac/infra/repos.go` (`roleRow`).
+
+---
+
+### `role_permissions`
+
+Many-to-many: roles ↔ permissions.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `role_id` | `BIGINT` | FK → `roles(id)` ON DELETE CASCADE |
+| `permission_id` | `VARCHAR(10)` | FK → `permissions(permission_id)` ON DELETE CASCADE, ON UPDATE CASCADE |
+
+**Primary key:** `(role_id, permission_id)`.
+
+---
+
+### `user_roles`
+
+Many-to-many: users ↔ roles.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `user_id` | `BIGINT` | FK → `users(id)` ON DELETE CASCADE |
+| `role_id` | `BIGINT` | FK → `roles(id)` ON DELETE CASCADE |
+
+**Primary key:** `(user_id, role_id)`.  
+**Index:** `idx_user_roles_user` on `user_id`.
+
+After email confirmation, the auth flow assigns the **`learner`** role (requires `000001` seed).
+
+---
+
+### `user_permissions`
+
+Direct permission grants (unioned with role permissions at login).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `user_id` | `BIGINT` | FK → `users(id)` ON DELETE CASCADE |
+| `permission_id` | `VARCHAR(10)` | FK → `permissions(permission_id)` ON DELETE CASCADE, ON UPDATE CASCADE |
+
+**Primary key:** `(user_id, permission_id)`.  
+**Index:** `idx_user_permissions_user` on `user_id`.
+
+---
+
+### Permission catalog (P1–P29)
+
+Canonical definitions: **`internal/shared/constants/permissions.go`** (`constants.AllPermissions`).  
+Reflection helper for sync: **`internal/system/application/catalog.go`** → `AllPermissionEntries()`.
+
+| ID | `permission_name` | Domain |
+|----|-----------------|--------|
+| P1 | `profile:read` | Profile |
+| P2 | `profile:update` | Profile |
+| P3 | `profile:delete` | Profile |
+| P4 | `profile:create` | Profile |
+| P5 | `course:read` | Course |
+| P6 | `course:update` | Course |
+| P7 | `course:delete` | Course |
+| P8 | `course:create` | Course |
+| P9 | `course_instructor:read` | Course instructor |
+| P10 | `user:read` | User admin |
+| P11 | `user:update` | User admin |
+| P12 | `user:delete` | User admin |
+| P13 | `user:create` | User admin |
+| P14 | `course_level:read` | Taxonomy |
+| P15 | `course_level:create` | Taxonomy |
+| P16 | `course_level:update` | Taxonomy |
+| P17 | `course_level:delete` | Taxonomy |
+| P18 | `category:read` | Taxonomy |
+| P19 | `category:create` | Taxonomy |
+| P20 | `category:update` | Taxonomy |
+| P21 | `category:delete` | Taxonomy |
+| P22 | `tag:read` | Taxonomy |
+| P23 | `tag:create` | Taxonomy |
+| P24 | `tag:update` | Taxonomy |
+| P25 | `tag:delete` | Taxonomy |
+| P26 | `media_file:read` | Media |
+| P27 | `media_file:create` | Media |
+| P28 | `media_file:update` | Media |
+| P29 | `media_file:delete` | Media |
+
+- **P1–P13** are seeded in `000001_schema.up.sql`.
+- **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
+- **P26–P29** exist only in code until `go run ./cmd/syncpermissions` (or first deploy sync) inserts them.
+
+---
+
+### Default role ↔ permission matrix
+
+Source of truth for role grants: **`internal/system/application/roles_permission.go`** (`RolePermissions` struct tags).  
+Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
+
+| Role | Permission IDs (summary) |
+|------|--------------------------|
+| **sysadmin** | P1–P29 (full catalog) |
+| **admin** | P1–P8, P10–P29 (all except **P9** `course_instructor:read`) |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29 |
+| **learner** | P1, P5, P10, P14, P18, P22, P26 |
+
+`000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
+
+---
+
+## Application users
+
+### `users`
+
+Application accounts. Passwords are bcrypt-hashed.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | Internal joins (RBAC, taxonomy `created_by`) |
+| `user_code` | `UUID` | UNIQUE NOT NULL | External id in JWT; app generates **UUIDv7** on register (`uuid.NewV7()`); DB default `gen_random_uuid()` is fallback only |
+| `email` | `VARCHAR(255)` | UNIQUE NOT NULL | Login email |
+| `hash_password` | `VARCHAR(255)` | NOT NULL | bcrypt hash |
+| `display_name` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | |
+| `avatar_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Profile image; API exposes nested `avatar` object, not a raw URL column |
+| `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Account disabled |
+| `email_confirmed` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Email verified |
+| `confirmation_token` | `VARCHAR(128)` | nullable | One-time confirmation token |
+| `confirmation_sent_at` | `TIMESTAMPTZ` | nullable | Last confirmation email send time |
+| `registration_email_send_total` | `INTEGER` | NOT NULL DEFAULT `0` | Successful confirmation emails while pending; **not** in public JSON; reset to `0` on confirm; cap **15** in app logic |
+| `refresh_token_session` | `JSONB` | NOT NULL DEFAULT `'{}'` | Device sessions map (see below) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `deleted_at` | `TIMESTAMPTZ` | nullable | Soft delete (GORM) |
+
+**Indexes:** `idx_users_email`, `idx_users_user_code`, `idx_users_deleted_at` (partial, `deleted_at IS NULL`), `idx_users_confirm_token` (partial, token not null), `idx_users_avatar_file_id` (migration `000006`).
+
+**Removed columns (do not document / expect in DB):** `avatar_url` (dropped in `000006`).
+
+**GORM model:** `internal/auth/infra/user_model.go` (`userRow`).
+
+#### `refresh_token_session` JSONB shape
+
+Each key is a **128-character hex session string**; each value:
 
 ```json
 {
   "<session_string_128_hex>": {
-    "refresh_token_uuid":    "uuid-v4",
-    "remember_me":           false,
+    "refresh_token_uuid": "uuid-v4",
+    "remember_me": false,
     "refresh_token_expired": "2026-05-03T12:00:00Z"
   }
 }
 ```
 
-- Maximum **5 entries** per user. On overflow the entry with the earliest `refresh_token_expired` is evicted.
-- Writes that change the entry count run inside a **transaction** (`repository.AddRefreshSession`).
-- In-place rotation (same key, new UUID + expiry) uses a lockless `jsonb_set` update (`repository.SaveRefreshSession`).
+| Rule | Implementation |
+|------|----------------|
+| Max **5** concurrent sessions per user | `internal/auth/infra/session_limits.go` → `MaxActiveSessions` |
+| Overflow eviction | Delete entry with earliest `refresh_token_expired` inside a transaction |
+| Add session (may increase count) | `GormRefreshSessionRepository.AddSession` — transactional read/modify/write |
+| Rotate same session in place | `GormRefreshSessionRepository.SaveSession` — `jsonb_set` update |
 
-The `refresh_token_session` column schema is defined in migration `000001_schema` (see `migrations/README.md`).
-
----
-
-## `permissions`
-
-RBAC permission definitions (flat — no hierarchy). The primary key is the **catalog id** (`permission_id`, e.g. `P1`), not a surrogate bigint.
-
-| Column | Type | Description |
-|---|---|---|
-| `permission_id` | `VARCHAR(10)` PK | Stable id (`P{number}`), aligned with struct tag `perm_id` on `constants.AllPermissions` |
-| `permission_name` | `VARCHAR(50)` UNIQUE NOT NULL | Runtime string in the JWT `permissions` claim and `middleware.RequirePermission` (`resource:action`, e.g. `course:read`) |
-| `description` | `VARCHAR(512)` NOT NULL DEFAULT `''` | |
-| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
-
-**Sync:** `cmd/syncpermissions` upserts `permission_name` (and inserts missing rows) for every entry from `rbaccatalog.AllPermissionEntries()` **by `permission_id`**. Extra rows present only in the database are **left unchanged**.
+Domain types: `internal/auth/domain/user.go` (`RefreshSessionEntry`, `RefreshTokenSessionMap`).
 
 ---
 
-## `roles`
+## Taxonomy
 
-Named role definitions. Application constants live in `constants/roles.go` (`sysadmin`, `admin`, `instructor`, `learner`).
+Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_user_media_refs`**.
+
+**GORM models:** `internal/taxonomy/infra/repos.go` (`categoryRow`, `tagRow`, `courseLevelRow`).
+
+### `course_levels`
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | |
+| `name` | `VARCHAR(255)` | NOT NULL | |
+| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | URL-safe identifier |
+| `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+
+**Index:** `idx_course_levels_created_by`.
+
+---
+
+### `categories`
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | |
+| `name` | `VARCHAR(255)` | NOT NULL | |
+| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
+| `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Category image; clients send UUID from `POST /api/v1/media/files` |
+| `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+
+**Indexes:** `idx_categories_created_by`, `idx_categories_image_file_id`.
+
+**Removed columns:** `image_url` (dropped in `000006` after backfill from `media_files.url` / `origin_url`).
+
+---
+
+### `tags`
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | |
+| `name` | `VARCHAR(255)` | NOT NULL | |
+| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
+| `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+
+**Index:** `idx_tags_created_by`.
+
+---
+
+## Media
+
+API contract: **`docs/modules/media.md`**.
+
+### `media_files`
+
+Product media (B2 files, Bunny Stream videos, local signed URLs, etc.).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `UUID` | PK | Logical media row id (client-facing) |
+| `object_key` | `VARCHAR(512)` | UNIQUE NOT NULL | B2 object key or Bunny video GUID |
+| `kind` | `VARCHAR(16)` | NOT NULL | `FILE` or `VIDEO` (server-derived; see media module) |
+| `provider` | `VARCHAR(16)` | NOT NULL | e.g. `B2`, `Bunny`, `Local` |
+| `filename` | `VARCHAR(512)` | NOT NULL | Original filename |
+| `mime_type` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | |
+| `size_bytes` | `BIGINT` | NOT NULL DEFAULT `0` | |
+| `url` | `TEXT` | NOT NULL | Public / CDN distribution URL |
+| `origin_url` | `TEXT` | NOT NULL | Provider canonical URL; **server-only** for orphan cleanup — **not** exposed on public upload/list JSON |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT `READY` | e.g. `READY`, `PENDING`, `FAILED`, `DELETED` |
+| `b2_bucket_name` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | B2 bucket when applicable |
+| `bunny_video_id` | `VARCHAR(255)` | nullable | Bunny GUID |
+| `bunny_library_id` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | Bunny library id |
+| `video_id` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | Bunny numeric id or guid string (API `video_id`) |
+| `thumbnail_url` | `TEXT` | NOT NULL DEFAULT `''` | CDN thumbnail |
+| `embeded_html` | `TEXT` | NOT NULL DEFAULT `''` | Escaped iframe HTML (JSON key spelling `embeded_html`) |
+| `duration` | `BIGINT` | NOT NULL DEFAULT `0` | Flat duration field (seconds) for listings |
+| `video_provider` | `VARCHAR(64)` | NOT NULL DEFAULT `''` | |
+| `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic concurrency / orphan safety (`000004`) |
+| `content_fingerprint` | `VARCHAR(128)` | NOT NULL DEFAULT `''` | Content hash for bundle updates (`000004`) |
+| `metadata_json` | `JSONB` | NOT NULL DEFAULT `'{}'` | Server-side provider + typed metadata store; **not** returned raw in API — mapped to typed `metadata` in responses |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `deleted_at` | `TIMESTAMPTZ` | nullable | Soft delete |
+
+**Indexes:** `idx_media_files_kind`, `idx_media_files_provider`, `idx_media_files_bunny_video_id`, `idx_media_files_created_at`, `idx_media_files_metadata_json_gin` (GIN on `metadata_json`, migration `000008`).
+
+**GORM model:** `internal/media/infra/repos.go` (`mediaFileRow`).  
+**Domain entity:** `internal/media/domain/media.go` (`File`, `MediaFile`).
+
+#### `metadata_json` (server-side)
+
+- Default `{}` on insert.
+- Holds provider-native keys plus normalized typed keys used by `BuildTypedMetadata` / API DTOs, for example: `duration_seconds`, `width_bytes`, `height_bytes`, `fps`, `mime_type`, `extension`, `bitrate`, `video_codec`, `audio_codec`, `has_audio`, `is_hdr`, `page_count`, `has_password`, `archive_entries`, and Bunny parity keys (`video_id`, `thumbnail_url`, `embeded_html`) — see `internal/media/domain/meta_keys.go` and `internal/media/infra/media_metadata.go`.
+- Migration `000008` backfills typed keys from legacy aliases (`width`, `height`, `duration`, `length`, `framerate`, …).
+
+#### Upsert persistence (`UpsertByObjectKey`)
+
+Single write path for upload create and Bunny webhook update (`internal/media/infra/repos.go`):
+
+1. `SELECT` active row by `object_key` (`deleted_at IS NULL`).
+2. **Not found** → `INSERT` (`Create`) so table defaults apply.
+3. **Found** → `Updates(map[string]any{...})` with **every** editable column enumerated (including zero values). Map-based updates are required because struct-based GORM updates skip zero values and previously broke webhook duration/metadata writes.
+
+---
+
+### `media_pending_cloud_cleanup`
+
+Deferred cloud object deletion queue (`000004_media_orphan_safety`). No FK to `media_files` — rows are enqueued when DB references are cleared or files are deleted.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `BIGSERIAL` | PK | |
+| `provider` | `VARCHAR(16)` | NOT NULL | Target cloud (`B2`, `Bunny`, …) |
+| `object_key` | `VARCHAR(512)` | NOT NULL DEFAULT `''` | B2 key when applicable |
+| `bunny_video_id` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | Bunny GUID when applicable |
+| `status` | `VARCHAR(32)` | NOT NULL DEFAULT `pending` | Worker status |
+| `attempt_count` | `INT` | NOT NULL DEFAULT `0` | Retry counter |
+| `last_error` | `TEXT` | NOT NULL DEFAULT `''` | Last failure message |
+| `next_run_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | Scheduled processing time |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+
+**Indexes:** `idx_media_pending_cloud_cleanup_due` (partial, `status = 'pending'`), `idx_media_pending_cloud_cleanup_status`.
+
+**GORM model:** `internal/media/infra/repos.go` (`pendingCleanupRow`).
+
+---
+
+## System tables
+
+Isolated from application RBAC/users — no FKs to `users` or `permissions`.
+
+### `system_app_config`
+
+Singleton configuration row (`id` must be `1`).
 
 | Column | Type | Description |
-|---|---|---|
+|--------|------|-------------|
+| `id` | `INTEGER` PK, `CHECK (id = 1)` | Always `1` |
+| `app_cli_system_password` | `TEXT` NOT NULL DEFAULT `''` | CLI registration password (plaintext) |
+| `app_system_env` | `TEXT` NOT NULL DEFAULT `''` | HMAC key for system credential derivation |
+| `app_token_env` | `TEXT` NOT NULL DEFAULT `''` | JWT secret for system access tokens |
+| `updated_at` | `TIMESTAMPTZ` NOT NULL DEFAULT `NOW()` | |
+
+Seeded with one empty row in `000001_schema`.
+
+**GORM model:** `internal/system/infra/repos.go` (`appConfigRow`).
+
+---
+
+### `system_privileged_users`
+
+Privileged system operators. Username/password are stored as HMAC-hex derived with `app_system_env` — raw secrets are never persisted.
+
+| Column | Type | Description |
+|--------|------|-------------|
 | `id` | `BIGSERIAL` PK | |
-| `name` | `VARCHAR(64)` UNIQUE NOT NULL | |
-| `description` | `TEXT` | |
-| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
+| `username_secret` | `TEXT` NOT NULL UNIQUE | HMAC-hex(username, `app_system_env`) |
+| `password_secret` | `TEXT` NOT NULL | HMAC-hex(password, `app_system_env`) |
+| `created_at` | `TIMESTAMPTZ` NOT NULL DEFAULT `NOW()` | |
 
-**Default permission sets** (seeded in `000001_schema.up.sql`, rebuilt from `constants/roles_permission.go` by `cmd/syncrolepermissions`):
-- `sysadmin`: `P1`–`P13` (full catalog)
-- `admin`: profile + course + user CRUD, **không** `P9` (`course_instructor:read`)
-- `instructor`: `P1`, `P5`–`P7`, `P9`, `P10`
-- `learner`: `P1`, `P5`, `P10`
+**Index:** `uix_system_privileged_users_username_secret`.
+
+**GORM model:** `internal/system/infra/repos.go` (`privilegedUserRow`).
 
 ---
 
-## `role_permissions`
+## Effective permissions
 
-Many-to-many: roles ↔ permissions. `permission_id` here is the **string PK** on `permissions`, not a bigint.
+At login / token refresh, effective permissions = **union** of:
 
-| Column | Type |
-|---|---|
-| `role_id` | `BIGINT` FK → `roles(id)` ON DELETE CASCADE |
-| `permission_id` | `VARCHAR(10)` FK → `permissions(permission_id)` ON DELETE CASCADE, ON UPDATE CASCADE |
+1. All `permission_name` values from permissions linked through the user’s roles (`user_roles` → `role_permissions` → `permissions`), and  
+2. Direct grants in `user_permissions`.
 
----
+The access token `permissions` claim contains **`permission_name`** strings (e.g. `course:read`). `middleware.RequirePermission` checks the same strings from `constants.AllPermissions`.
 
-## `user_roles`
-
-Many-to-many: users ↔ roles.
-
-| Column | Type |
-|---|---|
-| `user_id` | `BIGINT` FK → `users(id)` |
-| `role_id` | `BIGINT` FK → `roles(id)` |
+Disabled users (`is_disable = true`) must not receive new tokens (enforced in auth service).
 
 ---
 
-## `user_permissions`
+## RBAC sync commands
 
-Direct permission grants (supplement role-based permissions).
+| Command | Purpose |
+|---------|---------|
+| `go run ./cmd/syncpermissions` | Upsert `permissions` rows from `application.AllPermissionEntries()` by `permission_id`. Updates `permission_name` for known ids; inserts missing rows (**P26–P29**, future catalog entries). Rows only in DB are **left unchanged**. |
+| `go run ./cmd/syncrolepermissions` | Rebuild `role_permissions` from `application.AllRolePermissionPairs()` (reflects `RolePermissions` tags). |
 
-| Column | Type |
-|---|---|
-| `user_id` | `BIGINT` FK → `users(id)` |
-| `permission_id` | `VARCHAR(10)` FK → `permissions(permission_id)` ON DELETE CASCADE, ON UPDATE CASCADE |
-
----
-
-## `media_files`
-
-Product media uploads (files and Bunny Stream videos). Created in migration **`000003_media_metadata`**; extended by **`000004_media_orphan_safety`**, **`000005_media_bunny_response_fields`**, and **`000008_media_metadata_json_storage`**. GORM model: `internal/media/infra/repos.go`; entity: `internal/media/domain/media.go`. Full API contract: **`docs/modules/media.md`**.
-
-| Column | Type (summary) | Notes |
-|--------|----------------|-------|
-| `id` | UUID PK | Logical media row id |
-| `object_key` | VARCHAR(512) UNIQUE | B2 key or Bunny GUID |
-| `kind`, `provider`, `filename`, `mime_type`, `size_bytes` | | |
-| `url`, `origin_url`, `status` | TEXT / VARCHAR | `url` = distribution/public URL pattern; **`origin_url`** = provider canonical/origin (server-only: orphan/delete/persistence — **not** exposed on `dto.UploadFileResponse` / public JSON — Sub 12); `status` |
-| `b2_bucket_name` | VARCHAR | B2 bucket when applicable |
-| `bunny_video_id`, `bunny_library_id` | VARCHAR | Bunny identifiers |
-| **`video_id`** | VARCHAR | Sub 09 — Bunny numeric id string or guid |
-| **`thumbnail_url`** | TEXT | Sub 09 — CDN/API thumbnail |
-| **`embeded_html`** | TEXT | Sub 09 — escaped iframe HTML (JSON key spelling `embeded_html`) |
-| `duration`, `video_provider` | BIGINT / VARCHAR | |
-| `row_version`, `content_fingerprint` | BIGINT / VARCHAR | Sub 06 |
-| `metadata_json` | JSONB | Server-side provider metadata store. Defaults to `{}`. Bunny upload/webhook writes provider-native telemetry plus the typed `UploadFileMetadata` keys (`duration_seconds`, `width_bytes`, `height_bytes`, `fps`, ...). Read paths derive the public typed `metadata` response from this blob. Not returned directly in API responses. GIN-indexed by `idx_media_files_metadata_json_gin` from migration `000008`. Writes use explicit `Updates(map[string]any{...})` so the column is always rewritten on webhook callbacks (see persistence note below). |
-| `created_at`, `updated_at`, `deleted_at` | TIMESTAMPTZ | Soft delete |
-
-### Upsert persistence semantics
-
-`UpsertByObjectKey` (`internal/media/infra/repos.go`) is the single write
-path shared by uploads (create) and Bunny webhooks / failure marks
-(update). It is intentionally implemented as:
-
-1. `SELECT ... WHERE object_key = ? AND deleted_at IS NULL` — find the
-   active row.
-2. **Not found** → `INSERT` via `db.Create(row)` (lets table defaults like
-   `metadata_json DEFAULT '{}'::jsonb` apply).
-3. **Found** → `UPDATE` via `db.Model(&mediaFileRow{}).Where("id = ?",
-   existing.ID).Updates(map[string]any{ ... })` enumerating every editable
-   column (`status`, `duration`, `thumbnail_url`, `metadata_json`,
-   `row_version + 1`, ...) by name.
-
-The map-based update is **required**: an earlier
-`Assign(struct)+FirstOrCreate(struct)` implementation made GORM compile
-the UPDATE from the struct and silently skip zero-value fields, which
-caused the Bunny webhook to leave `media_files.duration = 0` and
-`metadata_json` unchanged even though the in-memory entity had the right
-values. The map-based path always rewrites every column, so a re-played
-webhook is idempotent and the typed `duration_seconds` / flat `duration`
-view always agree with what Bunny reported.
-
----
-
-## Effective Permissions
-
-A user's effective permissions = **union** of permissions from all assigned roles **plus** direct `user_permissions` grants.  
-They are resolved at login time, embedded in the access token's `permissions` array as **`permission_name`** strings (colon form, e.g. `course:read`), and checked by `middleware.RequirePermission` against the same values from `constants.AllPermissions`.
+Run both after changing `constants/permissions.go` or `roles_permission.go` on environments that already have data.
 
 ---
 
 ## Migration history
 
 | Version | File | Description |
-|---|---|---|
-| 000001 | `schema` | Create `permissions` (`permission_id` PK + `permission_name`), `roles`, `role_permissions`, `users` (with `refresh_token_session`), `user_roles`, `user_permissions`, and seed 13 permissions + 4 default roles + `role_permissions` matrix |
-| 000002 | `taxonomy_domain` | Taxonomy tables (`course_levels`, `categories`, `tags`, …) — see migration SQL |
-| 000003 | `media_metadata` | **`media_files`** table + indexes |
-| 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; **`media_pending_cloud_cleanup`** |
-| 000005 | `media_bunny_response_fields` | **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** |
-| 000006 | `taxonomy_user_media_refs` | **`categories.image_file_id`**, **`users.avatar_file_id`** (FK → `media_files`); drops legacy **`categories.image_url`**, **`users.avatar_url`** after URL→row backfill |
-| 000007 | `registration_email_limits` | **`users.registration_email_send_total`** — counts successful confirmation emails while pending, reset on email confirm. **`COMMENT`** text contains **no** `;` inside quotes (migrate splits the whole file on every `;`). |
-| 000008 | `media_metadata_json_storage` | Ensures **`media_files.metadata_json`** exists as JSONB metadata storage with default `{}`, backfills typed keys such as **`duration_seconds`**, **`width_bytes`**, **`height_bytes`**, **`fps`**, and adds GIN index **`idx_media_files_metadata_json_gin`**. The JSON blob remains server-side only; API exposes the typed `metadata` view. |
+|---------|------|-------------|
+| 000001 | `schema` | `permissions`, `roles`, `role_permissions`, `users` (+ `refresh_token_session`, legacy `avatar_url`), `user_roles`, `user_permissions`; seed P1–P13, four roles, role matrix for P1–P13; `system_app_config`, `system_privileged_users` |
+| 000002 | `taxonomy_domain` | Enum `taxonomy_status`; tables `course_levels`, `categories`, `tags`; seed P14–P25 |
+| 000003 | `media_metadata` | Table `media_files` + indexes |
+| 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; table `media_pending_cloud_cleanup` |
+| 000005 | `media_bunny_response_fields` | `media_files.video_id`, `thumbnail_url`, `embeded_html` |
+| 000006 | `taxonomy_user_media_refs` | `categories.image_file_id`, `users.avatar_file_id` (FK → `media_files`); backfill from legacy URLs; drop `image_url`, `avatar_url` |
+| 000007 | `registration_email_limits` | `users.registration_email_send_total` + column `COMMENT` (no `;` inside comment text — migrate splits on `;`) |
+| 000008 | `media_metadata_json_storage` | Ensure `metadata_json` NOT NULL default `{}`, backfill typed metadata keys, GIN index `idx_media_files_metadata_json_gin` |
 
-**Taxonomy `categories` (post-000006):** includes **`image_file_id`** `UUID` nullable FK → **`media_files(id)`** (replaces removed **`image_url`**).
-
-For details and notes on resetting the DB when changing the migration sequence, see `migrations/README.md`.
+`schema_migrations.version` (golang-migrate) stores the applied version integer.
 
 ---
 
-## System Tables
+## Drop all tables (manual reset)
 
-Isolated tables with no foreign keys to the application RBAC / users tables.
-
-### `system_app_config`
-
-Singleton configuration row (always `id = 1`). Secrets are managed out-of-band (SQL or tooling).
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | `INTEGER` PK CHECK (id = 1) | Always 1 — singleton constraint |
-| `app_cli_system_password` | `TEXT` NOT NULL DEFAULT `''` | CLI registration password (plaintext) |
-| `app_system_env` | `TEXT` NOT NULL DEFAULT `''` | HMAC key for system credential derivation |
-| `app_token_env` | `TEXT` NOT NULL DEFAULT `''` | JWT secret for system access tokens |
-| `updated_at` | `TIMESTAMPTZ` | Last update timestamp |
-
-### `system_privileged_users`
-
-Privileged system operators. Credentials are HMAC-derived using `app_system_env` at write and login time — raw values are never stored.
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | `BIGSERIAL` PK | |
-| `username_secret` | `TEXT` NOT NULL UNIQUE | HMAC-hex of username with `app_system_env` |
-| `password_secret` | `TEXT` NOT NULL | HMAC-hex of password with `app_system_env` |
-| `created_at` | `TIMESTAMPTZ` | |
-
----
-
-## Drop All Tables (manual reset)
-
-To **drop all tables** created by the current migration (e.g. to reset a dev environment), run the following commands **in order** on Postgres. Order follows foreign key dependency: child tables (junction / migrate metadata) first, parent tables last.
+Use only on **dev** databases. Drop children before parents (FK order). `schema_migrations` has no FK dependents — drop it first or last; listed first here for clarity.
 
 ```sql
-DROP TABLE public.schema_migrations;
-DROP TABLE public.system_privileged_users;
-DROP TABLE public.system_app_config;
-DROP TABLE public.role_permissions;
-DROP TABLE public.user_permissions;
-DROP TABLE public.user_roles;
-DROP TABLE public.roles;
-DROP TABLE public.permissions;
-DROP TABLE public.users;
+DROP TABLE IF EXISTS public.schema_migrations;
+DROP TABLE IF EXISTS public.media_pending_cloud_cleanup;
+DROP TABLE IF EXISTS public.user_permissions;
+DROP TABLE IF EXISTS public.user_roles;
+DROP TABLE IF EXISTS public.role_permissions;
+DROP TABLE IF EXISTS public.categories;
+DROP TABLE IF EXISTS public.tags;
+DROP TABLE IF EXISTS public.course_levels;
+DROP TABLE IF EXISTS public.users;
+DROP TABLE IF EXISTS public.media_files;
+DROP TABLE IF EXISTS public.roles;
+DROP TABLE IF EXISTS public.permissions;
+DROP TABLE IF EXISTS public.system_privileged_users;
+DROP TABLE IF EXISTS public.system_app_config;
+DROP TYPE IF EXISTS public.taxonomy_status;
 ```
 
-**Maintenance note:** When adding a **new table** in a migration, update this list: insert `DROP TABLE public.<table_name>;` at the appropriate position (usually **before** any table it references via FK). Keep `schema_migrations` at the **top** of the list as it has no FK dependents.
+When adding a **new table** in a migration, insert `DROP TABLE IF EXISTS public.<name>;` in this list before any table it references.
 
-**Product tables (000002+):** A dev reset that applied taxonomy/media migrations must also `DROP` those tables (e.g. **`media_pending_cloud_cleanup`**, **`media_files`**, taxonomy tables) in an order that respects FKs — see each `migrations/*.up.sql`. The snippet above covers **000001** core RBAC/users only.
-
-**Automated tests:** DB-backed integration suites belong under repository root **`tests/`** (see `tests/README.md` and root `README.md` **Testing**).
+**Automated tests:** DB integration tests live under repository root **`tests/`** (see `tests/README.md`).

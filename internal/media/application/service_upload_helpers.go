@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"mycourse-io-be/internal/media/domain"
-	mediainfra "mycourse-io-be/internal/media/infra" //nolint:depguard // stateless upload helpers call infra cloud clients and utilities
+	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/setting"

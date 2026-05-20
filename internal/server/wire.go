@@ -131,11 +131,13 @@ func Wire(db *gorm.DB, rdb *redis.Client) (*Services, *Handlers, error) {
 	_, _ = mediainfra.NewCloudClientsFromSetting()
 
 	// --- Taxonomy ----------------------------------------------------------------
-	catRepo := taxinfra.NewGormCategoryRepository(db)
+	topicRepo := taxinfra.NewGormCourseTopicRepository(db)
+	outcomeRepo := taxinfra.NewGormCourseOutcomeRepository(db)
+	skillRepo := taxinfra.NewGormCourseSkillRepository(db)
 	tagRepo := taxinfra.NewGormTagRepository(db)
 	levelRepo := taxinfra.NewGormCourseLevelRepository(db)
 	taxSvc := taxapp.NewTaxonomyService(
-		catRepo, tagRepo, levelRepo,
+		topicRepo, outcomeRepo, skillRepo, tagRepo, levelRepo,
 		&taxMediaFileValidator{svc: mediaSvc},
 		&taxOrphanEnqueuer{fileRepo: fileRepo, cleanupRepo: cleanupRepo},
 	)

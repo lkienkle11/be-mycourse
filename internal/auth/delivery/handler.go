@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/internal/auth/domain" //nolint:depguard // delivery uses domain error sentinels for errors.Is checks; no business logic here
+	"mycourse-io-be/internal/auth/domain"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/middleware"

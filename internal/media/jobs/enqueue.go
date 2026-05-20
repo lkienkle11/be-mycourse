@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"mycourse-io-be/internal/media/domain" //nolint:depguard // jobs use domain repository interfaces and entity types as parameter types
+	"mycourse-io-be/internal/media/domain"
 	"mycourse-io-be/internal/shared/constants"
 )
 

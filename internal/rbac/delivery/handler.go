@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/internal/rbac/application"
-	"mycourse-io-be/internal/rbac/domain" //nolint:depguard // delivery uses domain input types (UpdatePermissionInput, UpdateRoleInput) for mapping; no business logic
+	"mycourse-io-be/internal/rbac/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/utils"

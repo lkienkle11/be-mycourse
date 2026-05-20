@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/media/domain"
-	mediainfra "mycourse-io-be/internal/media/infra" //nolint:depguard // application orchestrates infra utilities (BuildPublicURL, BuildTypedMetadata, cloud clients); TODO: inject as domain ports
+	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/logger"

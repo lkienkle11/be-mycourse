@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/internal/media/domain" //nolint:depguard // delivery unwraps domain.ProviderError for response mapping; no business logic
+	"mycourse-io-be/internal/media/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/response"
 )

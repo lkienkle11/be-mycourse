@@ -1,6 +1,6 @@
 package delivery
 
-import "mycourse-io-be/internal/rbac/domain" //nolint:depguard // delivery maps domain.Permission/Role entities to DTOs; pure data transformation
+import "mycourse-io-be/internal/rbac/domain"
 
 func toPermissionResponse(p domain.Permission) PermissionResponse {
 	return PermissionResponse{

@@ -7,7 +7,7 @@ import (
 
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/system/domain"
-	"mycourse-io-be/internal/system/infra" //nolint:depguard // application calls infra.CredentialHMACHex and infra.MintSystemAccessToken crypto helpers; TODO: inject via domain port
+	"mycourse-io-be/internal/system/infra"
 )
 
 // SystemService provides all SYSTEM use-cases.

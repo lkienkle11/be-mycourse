@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"mycourse-io-be/internal/media/domain" //nolint:depguard // jobs use domain.PendingCleanupRepository interface as parameter type
+	"mycourse-io-be/internal/media/domain"
 )
 
 var (

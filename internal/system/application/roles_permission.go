@@ -3,7 +3,7 @@ package application
 // rolesPermissionT declares which permission_id each role gets. Tags drive cmd/syncrolepermissions
 // (role name + perm_id); field values are unused.
 var RolePermissions = struct {
-	// sysadmin — full catalog P1–P29
+	// sysadmin — full catalog P1–P40
 	Sysadmin_ProfileRead          string `role:"sysadmin" perm_id:"P1"`
 	Sysadmin_ProfileUpdate        string `role:"sysadmin" perm_id:"P2"`
 	Sysadmin_ProfileDelete        string `role:"sysadmin" perm_id:"P3"`
@@ -41,6 +41,9 @@ var RolePermissions = struct {
 	Sysadmin_MediaFileCreate      string `role:"sysadmin" perm_id:"P27"`
 	Sysadmin_MediaFileUpdate      string `role:"sysadmin" perm_id:"P28"`
 	Sysadmin_MediaFileDelete      string `role:"sysadmin" perm_id:"P29"`
+	Sysadmin_SysadminModify       string `role:"sysadmin" perm_id:"P38"`
+	Sysadmin_AdminModify          string `role:"sysadmin" perm_id:"P39"`
+	Sysadmin_InstructorModify     string `role:"sysadmin" perm_id:"P40"`
 	// admin — profile + course + user (no course_instructor)
 	Admin_ProfileRead         string `role:"admin" perm_id:"P1"`
 	Admin_ProfileUpdate       string `role:"admin" perm_id:"P2"`
@@ -78,6 +81,8 @@ var RolePermissions = struct {
 	Admin_MediaFileCreate     string `role:"admin" perm_id:"P27"`
 	Admin_MediaFileUpdate     string `role:"admin" perm_id:"P28"`
 	Admin_MediaFileDelete     string `role:"admin" perm_id:"P29"`
+	Admin_AdminModify         string `role:"admin" perm_id:"P39"`
+	Admin_InstructorModify    string `role:"admin" perm_id:"P40"`
 	// instructor
 	Instructor_ProfileRead          string `role:"instructor" perm_id:"P1"`
 	Instructor_CourseRead           string `role:"instructor" perm_id:"P5"`
@@ -94,6 +99,7 @@ var RolePermissions = struct {
 	Instructor_MediaFileCreate      string `role:"instructor" perm_id:"P27"`
 	Instructor_MediaFileUpdate      string `role:"instructor" perm_id:"P28"`
 	Instructor_MediaFileDelete      string `role:"instructor" perm_id:"P29"`
+	Instructor_InstructorModify     string `role:"instructor" perm_id:"P40"`
 	// learner
 	Learner_ProfileRead       string `role:"learner" perm_id:"P1"`
 	Learner_CourseRead        string `role:"learner" perm_id:"P5"`

@@ -50,6 +50,10 @@ var AllPermissions = struct {
 	MediaFileCreate string `perm_id:"P27"`
 	MediaFileUpdate string `perm_id:"P28"`
 	MediaFileDelete string `perm_id:"P29"`
+	// Role modify (scoped admin actions)
+	SysadminModify   string `perm_id:"P38"`
+	AdminModify      string `perm_id:"P39"`
+	InstructorModify string `perm_id:"P40"`
 }{
 	ProfileRead:          "profile:read",
 	ProfileUpdate:        "profile:update",
@@ -88,4 +92,7 @@ var AllPermissions = struct {
 	MediaFileCreate:      "media_file:create",
 	MediaFileUpdate:      "media_file:update",
 	MediaFileDelete:      "media_file:delete",
+	SysadminModify:       "sysadmin:modify",
+	AdminModify:          "admin:modify",
+	InstructorModify:     "instructor:modify",
 }

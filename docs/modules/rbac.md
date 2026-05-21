@@ -98,6 +98,11 @@ Examples:
 | `course_outcome:read` | List course outcomes |
 | `course_skill:update` | Update a course skill tree |
 | `tag:update` | Update a taxonomy tag |
+| `sysadmin:modify` | Scoped actions on sysadmin-tier users/roles (catalog **P38**) |
+| `admin:modify` | Scoped actions on admin-tier users/roles (**P39**) |
+| `instructor:modify` | Scoped actions on instructor-tier users/roles (**P40**) |
+
+**Role-modify permissions** use the role name as the resource prefix (`sysadmin:modify`, not `role:modify`) so JWT codes align with the four stable role names (`sysadmin`, `admin`, `instructor`, `learner`). They are catalog-ready in **P38–P40**; HTTP routes may adopt `middleware.RequirePermission(...)` later. Grants: **sysadmin** → all three, **admin** → `admin:modify` + `instructor:modify`, **instructor** → `instructor:modify` only; **learner** receives none. Seeded in migration `000010_role_modify_permissions`.
 
 ---
 

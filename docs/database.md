@@ -44,7 +44,7 @@ GORM row models live under each bounded context’s `infra` package (for example
   - [`role_permissions`](#role_permissions)
   - [`user_roles`](#user_roles)
   - [`user_permissions`](#user_permissions)
-  - [Permission catalog (P1–P37)](#permission-catalog-p1p37)
+  - [Permission catalog (P1–P40)](#permission-catalog-p1p40)
   - [Default role ↔ permission matrix](#default-role--permission-matrix)
 - [Application users](#application-users)
   - [`users`](#users)
@@ -183,7 +183,7 @@ Direct permission grants (unioned with role permissions at login).
 
 ---
 
-### Permission catalog (P1–P37)
+### Permission catalog (P1–P40)
 
 Canonical definitions: **`internal/shared/constants/permissions.go`** (`constants.AllPermissions`).  
 Reflection helper for sync: **`internal/system/application/catalog.go`** → `AllPermissionEntries()`.
@@ -227,12 +227,16 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 | P35 | `course_skill:create` | Taxonomy |
 | P36 | `course_skill:update` | Taxonomy |
 | P37 | `course_skill:delete` | Taxonomy |
+| P38 | `sysadmin:modify` | Role modify |
+| P39 | `admin:modify` | Role modify |
+| P40 | `instructor:modify` | Role modify |
 
 - **P1–P13** are seeded in `000001_schema.up.sql`.
 - **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
 - **P26–P29** exist only in code until `go run ./cmd/syncpermissions` (or first deploy sync) inserts them.
 - **P18–P21** names are updated to `topic:*` in `000009_taxonomy_topics_outcomes_skills`.
 - **P30–P37** are inserted in `000009` and granted to sysadmin/admin (full CRUD) and instructor/learner (read only).
+- **P38–P40** are inserted in `000010_role_modify_permissions` and granted by role tier: sysadmin → P38–P40, admin → P39–P40, instructor → P40 only.
 
 ---
 
@@ -243,10 +247,10 @@ Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
 
 | Role | Permission IDs (summary) |
 |------|--------------------------|
-| **sysadmin** | P1–P37 (full catalog) |
-| **admin** | P1–P8, P10–P37 (all except **P9** `course_instructor:read`) |
-| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34 |
-| **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34 |
+| **sysadmin** | P1–P40 (full catalog) |
+| **admin** | P1–P8, P10–P40 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, **P40** `instructor:modify` |
+| **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34 (no role-modify permissions) |
 
 `000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
 

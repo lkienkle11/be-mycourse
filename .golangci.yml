@@ -2,7 +2,7 @@ version: "2"
 linters:
   default: none
   enable:
-    - dupl # Duplicate code (AST-based; catches renames)
+    - dupl # Duplicate AST fragments (per package; see settings.dupl)
     - gocyclo # Cyclomatic complexity (if/else, switch)
     - funlen # Long functions / too many statements
     - depguard # DDD import boundaries under internal/
@@ -29,7 +29,8 @@ linters:
     gocyclo:
       min-complexity: 15
     dupl:
-      threshold: 100
+      # Per-package clones only. Cross-package: make check-dupl (DUPL_THRESHOLD=60).
+      threshold: 60
     nolintlint:
       allow-unused: false
       allow-no-explanation: []
@@ -67,6 +68,10 @@ linters:
               desc: "domain must not generate UUIDs directly"
             - pkg: "database/sql"
               desc: "domain must not depend on database access"
+            - pkg: "database/sql/driver"
+              desc: "domain must not implement database driver persistence contracts"
+            - pkg: "encoding/json"
+              desc: "domain must not implement persistence serialization details"
             - pkg: "gorm.io/gorm"
               desc: "domain must not depend on ORM infrastructure"
             - pkg: "net/http"

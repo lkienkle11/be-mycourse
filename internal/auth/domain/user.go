@@ -2,11 +2,7 @@
 // entities, repository interfaces, and domain errors.  No GORM, no HTTP, no Redis.
 package domain
 
-import (
-	"time"
-
-	"gorm.io/gorm"
-)
+import "time"
 
 // RefreshSessionEntry holds metadata for one authenticated device session.
 type RefreshSessionEntry struct {
@@ -35,7 +31,7 @@ type User struct {
 	RefreshTokenSession        RefreshTokenSessionMap
 	CreatedAt                  time.Time
 	UpdatedAt                  time.Time
-	DeletedAt                  gorm.DeletedAt
+	DeletedAt                  *time.Time
 }
 
 // MeProfile is the /me projection used for Redis cache and service layer responses.

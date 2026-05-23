@@ -30,6 +30,21 @@ type userRow struct {
 
 func (userRow) TableName() string { return constants.TableAppUsers }
 
+func deletedAtToDomain(d gorm.DeletedAt) *time.Time {
+	if !d.Valid {
+		return nil
+	}
+	t := d.Time
+	return &t
+}
+
+func deletedAtToRow(d *time.Time) gorm.DeletedAt {
+	if d == nil {
+		return gorm.DeletedAt{}
+	}
+	return gorm.DeletedAt{Time: *d, Valid: true}
+}
+
 func toUserDomain(r *userRow) *domain.User {
 	return &domain.User{
 		ID:                         r.ID,
@@ -46,7 +61,7 @@ func toUserDomain(r *userRow) *domain.User {
 		RefreshTokenSession:        toDomainSessionMap(r.RefreshTokenSession),
 		CreatedAt:                  r.CreatedAt,
 		UpdatedAt:                  r.UpdatedAt,
-		DeletedAt:                  r.DeletedAt,
+		DeletedAt:                  deletedAtToDomain(r.DeletedAt),
 	}
 }
 
@@ -65,7 +80,7 @@ func toUserRow(u *domain.User) *userRow {
 		RegistrationEmailSendTotal: u.RegistrationEmailSendTotal,
 		CreatedAt:                  u.CreatedAt,
 		UpdatedAt:                  u.UpdatedAt,
-		DeletedAt:                  u.DeletedAt,
+		DeletedAt:                  deletedAtToRow(u.DeletedAt),
 	}
 	if u.RefreshTokenSession != nil {
 		row.RefreshTokenSession = RefreshTokenSessionMap(u.RefreshTokenSession)

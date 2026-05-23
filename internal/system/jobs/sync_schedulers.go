@@ -66,14 +66,9 @@ func StopPermissionSyncJob() { permissionSyncJob.stop() }
 // StartPermissionSyncJob starts (or replaces) a background job that syncs permissions from
 // constants on a 12h ticker; the first run happens immediately.
 func StartPermissionSyncJob(svc *application.SystemService) {
-	permissionSyncJob.start(svc, "permission-sync-job", func(svc *application.SystemService) {
-		n, err := svc.SyncPermissions(context.Background())
-		if err != nil {
-			zap.L().Error("permission sync job tick failed", zap.Error(err))
-			return
-		}
-		zap.L().Info("permission sync job synced", zap.Int("count", n))
-	})
+	startRBACSyncJob(&permissionSyncJob, svc, "permission-sync-job",
+		func(s *application.SystemService) (int, error) { return s.SyncPermissions(context.Background()) },
+		"permission sync job tick failed", "permission sync job synced", "count")
 }
 
 // StopRolePermissionSyncJob stops the in-memory role+permission sync ticker.
@@ -82,13 +77,25 @@ func StopRolePermissionSyncJob() { rolePermissionSyncJob.stop() }
 // StartRolePermissionSyncJob starts (or replaces) a background job that rebuilds role_permissions
 // from constants on a 12h ticker; the first run happens immediately.
 func StartRolePermissionSyncJob(svc *application.SystemService) {
-	rolePermissionSyncJob.start(svc, "role-permission-sync-job", func(svc *application.SystemService) {
-		n, err := svc.SyncRolePermissions(context.Background())
+	startRBACSyncJob(&rolePermissionSyncJob, svc, "role-permission-sync-job",
+		func(s *application.SystemService) (int, error) { return s.SyncRolePermissions(context.Background()) },
+		"role-permission sync job tick failed", "role-permission sync job rebuilt", "rows")
+}
+
+func startRBACSyncJob(
+	bundle *syncJobBundle,
+	svc *application.SystemService,
+	logLabel string,
+	tick func(*application.SystemService) (int, error),
+	errLog, okLog, countField string,
+) {
+	bundle.start(svc, logLabel, func(s *application.SystemService) {
+		n, err := tick(s)
 		if err != nil {
-			zap.L().Error("role-permission sync job tick failed", zap.Error(err))
+			zap.L().Error(errLog, zap.Error(err))
 			return
 		}
-		zap.L().Info("role-permission sync job rebuilt", zap.Int("rows", n))
+		zap.L().Info(okLog, zap.Int(countField, n))
 	})
 }
 

@@ -143,36 +143,15 @@ func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter)
 }
 
 func (r *GormFileRepository) GetByID(ctx context.Context, id string) (*domain.File, error) {
-	var row mediaFileRow
-	if err := r.db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrNotFound
-		}
-		return nil, err
-	}
-	return rowToFile(&row), nil
+	return firstActiveMediaFile(ctx, r.db, "id = ? AND deleted_at IS NULL", id)
 }
 
 func (r *GormFileRepository) GetByObjectKey(ctx context.Context, objectKey string) (*domain.File, error) {
-	var row mediaFileRow
-	if err := r.db.WithContext(ctx).Where("object_key = ? AND deleted_at IS NULL", objectKey).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrNotFound
-		}
-		return nil, err
-	}
-	return rowToFile(&row), nil
+	return firstActiveMediaFile(ctx, r.db, "object_key = ? AND deleted_at IS NULL", objectKey)
 }
 
 func (r *GormFileRepository) GetByBunnyVideoID(ctx context.Context, videoGUID string) (*domain.File, error) {
-	var row mediaFileRow
-	if err := r.db.WithContext(ctx).Where("bunny_video_id = ? AND deleted_at IS NULL", videoGUID).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrNotFound
-		}
-		return nil, err
-	}
-	return rowToFile(&row), nil
+	return firstActiveMediaFile(ctx, r.db, "bunny_video_id = ? AND deleted_at IS NULL", videoGUID)
 }
 
 func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.File) error {

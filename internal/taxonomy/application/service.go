@@ -110,18 +110,7 @@ func (s *TaxonomyService) UpdateTopic(ctx context.Context, id uint, in domain.Up
 }
 
 func (s *TaxonomyService) DeleteTopic(ctx context.Context, id uint) error {
-	row, err := s.topicRepo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	prevFileID := imageFileIDStr(row.ImageFileID)
-	if err := s.topicRepo.Delete(ctx, id); err != nil {
-		return err
-	}
-	if prevFileID != "" && s.orphanEnqueuer != nil {
-		s.orphanEnqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
-	}
-	return nil
+	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderTopic(s), s.topicRepo.Delete)
 }
 
 func (s *TaxonomyService) GetTopic(ctx context.Context, id uint) (*domain.CourseTopic, error) {
@@ -198,18 +187,7 @@ func (s *TaxonomyService) UpdateCourseOutcome(ctx context.Context, id uint, in d
 }
 
 func (s *TaxonomyService) DeleteCourseOutcome(ctx context.Context, id uint) error {
-	row, err := s.outcomeRepo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	prevFileID := imageFileIDStr(row.ImageFileID)
-	if err := s.outcomeRepo.Delete(ctx, id); err != nil {
-		return err
-	}
-	if prevFileID != "" && s.orphanEnqueuer != nil {
-		s.orphanEnqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
-	}
-	return nil
+	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderOutcome(s), s.outcomeRepo.Delete)
 }
 
 // --- CourseSkill -------------------------------------------------------------
@@ -262,24 +240,11 @@ func (s *TaxonomyService) ListTags(ctx context.Context, filter domain.TaxonomyFi
 }
 
 func (s *TaxonomyService) CreateTag(ctx context.Context, in domain.CreateTagInput) (*domain.Tag, error) {
-	n, sl, st := trimmedTaxonomyFields(in.Name, in.Slug, in.Status)
-	t := &domain.Tag{Name: n, Slug: sl, Status: st, CreatedBy: uintPtrIfPos(in.ActorID)}
-	if err := s.tagRepo.Create(ctx, t); err != nil {
-		return nil, err
-	}
-	return s.tagRepo.GetByID(ctx, t.ID)
+	return createSlugStatusFromInput(ctx, in, s.tagCreator())
 }
 
 func (s *TaxonomyService) UpdateTag(ctx context.Context, id uint, in domain.UpdateTagInput) (*domain.Tag, error) {
-	t, err := s.tagRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	applyOptionalTaxonomyFields(&t.Name, &t.Slug, &t.Status, in.Name, in.Slug, in.Status)
-	if err := s.tagRepo.Save(ctx, t); err != nil {
-		return nil, err
-	}
-	return s.tagRepo.GetByID(ctx, id)
+	return updateSlugStatusRepo(ctx, id, in, s.tagRepo.GetByID, s.tagRepo.Save)
 }
 
 func (s *TaxonomyService) DeleteTag(ctx context.Context, id uint) error {
@@ -293,24 +258,11 @@ func (s *TaxonomyService) ListCourseLevels(ctx context.Context, filter domain.Ta
 }
 
 func (s *TaxonomyService) CreateCourseLevel(ctx context.Context, in domain.CreateCourseLevelInput) (*domain.CourseLevel, error) {
-	n, sl, st := trimmedTaxonomyFields(in.Name, in.Slug, in.Status)
-	cl := &domain.CourseLevel{Name: n, Slug: sl, Status: st, CreatedBy: uintPtrIfPos(in.ActorID)}
-	if err := s.courseLevelRepo.Create(ctx, cl); err != nil {
-		return nil, err
-	}
-	return s.courseLevelRepo.GetByID(ctx, cl.ID)
+	return createSlugStatusFromInput(ctx, in, s.courseLevelCreator())
 }
 
 func (s *TaxonomyService) UpdateCourseLevel(ctx context.Context, id uint, in domain.UpdateCourseLevelInput) (*domain.CourseLevel, error) {
-	cl, err := s.courseLevelRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	applyOptionalTaxonomyFields(&cl.Name, &cl.Slug, &cl.Status, in.Name, in.Slug, in.Status)
-	if err := s.courseLevelRepo.Save(ctx, cl); err != nil {
-		return nil, err
-	}
-	return s.courseLevelRepo.GetByID(ctx, id)
+	return updateSlugStatusRepo(ctx, id, in, s.courseLevelRepo.GetByID, s.courseLevelRepo.Save)
 }
 
 func (s *TaxonomyService) DeleteCourseLevel(ctx context.Context, id uint) error {

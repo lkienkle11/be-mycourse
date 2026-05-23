@@ -9,7 +9,6 @@ import (
 
 	"mycourse-io-be/internal/media/application"
 	"mycourse-io-be/internal/media/domain"
-	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/utils"
 )
@@ -77,13 +76,13 @@ func toFilterDomain(q FileFilterRequest) domain.FileFilter {
 
 // BindCreateFileMultipart reads optional multipart text fields into CreateFileInput.
 // Kind and metadata are intentionally ignored (server-owned fields).
-func BindCreateFileMultipart(c *gin.Context) (application.CreateFileInput, error) {
-	return bindCreateFileMultipart(c)
+func BindCreateFileMultipart(c *gin.Context, gw domain.MediaGateway) (application.CreateFileInput, error) {
+	return bindCreateFileMultipart(c, gw)
 }
 
 // bindCreateFileMultipart reads optional multipart text fields into CreateFileInput.
-func bindCreateFileMultipart(c *gin.Context) (application.CreateFileInput, error) {
-	if _, err := mediainfra.ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
+func bindCreateFileMultipart(c *gin.Context, gw domain.MediaGateway) (application.CreateFileInput, error) {
+	if _, err := gw.ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
 		return application.CreateFileInput{}, err
 	}
 	return application.CreateFileInput{
@@ -92,8 +91,8 @@ func bindCreateFileMultipart(c *gin.Context) (application.CreateFileInput, error
 }
 
 // bindUpdateFileMultipart reads optional multipart text fields into UpdateFileInput.
-func bindUpdateFileMultipart(c *gin.Context) (application.UpdateFileInput, error) {
-	if _, err := mediainfra.ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
+func bindUpdateFileMultipart(c *gin.Context, gw domain.MediaGateway) (application.UpdateFileInput, error) {
+	if _, err := gw.ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
 		return application.UpdateFileInput{}, err
 	}
 	req := application.UpdateFileInput{
@@ -110,12 +109,12 @@ func bindUpdateFileMultipart(c *gin.Context) (application.UpdateFileInput, error
 	return req, nil
 }
 
-func bindUpdateAndCreateMultipart(c *gin.Context) (application.UpdateFileInput, application.CreateFileInput, error) {
-	updateReq, err := bindUpdateFileMultipart(c)
+func bindUpdateAndCreateMultipart(c *gin.Context, gw domain.MediaGateway) (application.UpdateFileInput, application.CreateFileInput, error) {
+	updateReq, err := bindUpdateFileMultipart(c, gw)
 	if err != nil {
 		return application.UpdateFileInput{}, application.CreateFileInput{}, err
 	}
-	createReq, err := bindCreateFileMultipart(c)
+	createReq, err := bindCreateFileMultipart(c, gw)
 	return updateReq, createReq, err
 }
 

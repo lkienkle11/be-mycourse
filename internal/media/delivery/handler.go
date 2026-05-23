@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"context"
 	stderrors "errors"
 	"net/http"
 	"strings"
@@ -9,21 +10,21 @@ import (
 
 	"mycourse-io-be/internal/media/application"
 	"mycourse-io-be/internal/media/domain"
-	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
-	"mycourse-io-be/internal/shared/utils"
 )
 
 // Handler holds the media HTTP handlers with injected dependencies.
 type Handler struct {
 	svc *application.MediaService
+	gw  domain.MediaGateway
 }
 
 // NewHandler creates a new media HTTP Handler.
-func NewHandler(svc *application.MediaService) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *application.MediaService, gw domain.MediaGateway) *Handler {
+	return &Handler{svc: svc, gw: gw}
 }
 
 func (h *Handler) optionsMedia(c *gin.Context) {
@@ -31,17 +32,14 @@ func (h *Handler) optionsMedia(c *gin.Context) {
 }
 
 func (h *Handler) listFiles(c *gin.Context) {
-	var q FileFilterRequest
-	if err := c.ShouldBindQuery(&q); err != nil {
-		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
-		return
-	}
-	rows, total, err := h.svc.ListFiles(c.Request.Context(), toFilterDomain(q))
-	if err != nil {
-		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
-		return
-	}
-	response.OKPaginated(c, "ok", toUploadFileResponses(rows), utils.BuildPage(q.getPage(), q.getPerPage(), total))
+	httpx.ListPaginated(c,
+		func(q *FileFilterRequest) error { return c.ShouldBindQuery(q) },
+		func(ctx context.Context, q FileFilterRequest) ([]domain.File, int64, error) {
+			return h.svc.ListFiles(ctx, toFilterDomain(q))
+		},
+		func(q FileFilterRequest) (int, int) { return q.getPage(), q.getPerPage() },
+		toUploadFileResponses,
+	)
 }
 
 func (h *Handler) getFile(c *gin.Context) {
@@ -64,15 +62,15 @@ func (h *Handler) parseAndOpenMultipartParts(c *gin.Context) ([]domain.OpenedUpl
 		return nil, nil, err
 	}
 	form := c.Request.MultipartForm
-	headers := mediainfra.CollectMultipartFileHeaders(form)
-	if err := mediainfra.ValidateMultipartFileHeaders(headers); err != nil {
+	headers := h.gw.CollectMultipartFileHeaders(form)
+	if err := h.gw.ValidateMultipartFileHeaders(headers); err != nil {
 		return nil, nil, err
 	}
-	parts, err := mediainfra.OpenUploadParts(headers)
+	parts, err := h.gw.OpenUploadParts(headers)
 	if err != nil {
 		return nil, nil, err
 	}
-	return parts, func() { mediainfra.CloseOpenedUploadParts(parts) }, nil
+	return parts, func() { h.gw.CloseOpenedUploadParts(parts) }, nil
 }
 
 func (h *Handler) openMultipartForMutation(c *gin.Context) ([]domain.OpenedUploadPart, func(), bool) {
@@ -95,7 +93,7 @@ func (h *Handler) createFile(c *gin.Context) {
 	if closer != nil {
 		defer closer()
 	}
-	req, err := bindCreateFileMultipart(c)
+	req, err := bindCreateFileMultipart(c, h.gw)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
@@ -124,7 +122,7 @@ func (h *Handler) updateFile(c *gin.Context) {
 	if closer != nil {
 		defer closer()
 	}
-	updateReq, createReq, err := bindUpdateAndCreateMultipart(c)
+	updateReq, createReq, err := bindUpdateAndCreateMultipart(c, h.gw)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
@@ -171,7 +169,7 @@ func (h *Handler) deleteFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid object key", nil)
 		return
 	}
-	meta, err := mediainfra.ParseMetadataFromRaw(c.Query("metadata"))
+	meta, err := h.gw.ParseMetadataFromRaw(c.Query("metadata"))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
@@ -189,7 +187,7 @@ func (h *Handler) deleteFile(c *gin.Context) {
 
 func (h *Handler) decodeLocalURL(c *gin.Context) {
 	token := c.Param("token")
-	objectKey, err := mediainfra.DecodeLocalURLToken(token)
+	objectKey, err := h.gw.DecodeLocalURLToken(token)
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return

@@ -19,7 +19,7 @@ All three are issued as **non-HttpOnly** cookies (`SameSite=Lax`, `Secure` in pr
 ```
 internal/auth/
 ├── domain/
-│   ├── user.go                  # User entity
+│   ├── user.go                  # User + RefreshTokenSessionMap (pure structs, no GORM/json tags)
 │   ├── repository.go            # UserRepository + RefreshSessionRepository interfaces
 │   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, etc.)
 │   └── token_ttl.go             # AccessTokenTTL, RefreshTokenTTL, RememberMeRefreshTTL
@@ -30,8 +30,10 @@ internal/auth/
 │   ├── cache_keys.go            # Redis key patterns
 │   └── email_limits.go          # Confirmation email limits
 ├── infra/
-│   ├── gorm_user_repo.go        # GormUserRepository
-│   ├── gorm_session_repo.go     # GormRefreshSessionRepository
+│   ├── user_model.go            # userRow (GORM model) + toUserDomain / toUserRow
+│   ├── gormjsonb.go             # RefreshTokenSessionMap JSONB Valuer/Scanner (Postgres)
+│   ├── user_repo.go             # GormUserRepository + GormRefreshSessionRepository
+│   ├── user_query.go            # findActiveUserWhere (via shared/gormx)
 │   ├── crypto.go                # Password hashing (bcrypt)
 │   └── session_limits.go        # MaxActiveSessions constant
 └── delivery/
@@ -40,6 +42,13 @@ internal/auth/
     ├── dto.go                   # Request/response DTOs
     └── mapping.go               # Domain → DTO mapping
 ```
+
+### Persistence rules
+
+- **`domain.User`** has no `gorm` import and no column tags. Soft-delete is represented as `DeletedAt *time.Time` on the domain type.
+- **`infra.userRow`** mirrors the `users` table (GORM tags, `gorm.DeletedAt` on the row model only).
+- **`infra/gormjsonb.go`** implements JSONB persistence for `refresh_token_session`; the domain map type stays a plain `map[string]RefreshSessionEntry`.
+- Do **not** add `internal/auth/entity/` or move scanners into `domain/`.
 
 ---
 

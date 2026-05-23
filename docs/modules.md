@@ -34,9 +34,9 @@ Handles user lifecycle and session management.
 - Confirmation email rate limiting (Redis sliding window + Postgres lifetime cap)
 
 **Key files:**
-- `domain/` — `User` entity, `UserRepository` and `RefreshSessionRepository` interfaces, token TTL constants
+- `domain/` — pure `User` + session map types, repository interfaces, token TTL constants
 - `application/AuthService` — orchestrates register/login/confirm/refresh flows
-- `infra/GormUserRepository`, `infra/GormRefreshSessionRepository` — Postgres persistence
+- `infra/` — `userRow`, `gormjsonb`, `user_repo` (user + refresh session), bcrypt — **no `entity` package**
 - `delivery/Handler` — Gin handlers; `routes.go` — route registration
 
 See [`docs/modules/auth.md`](modules/auth.md) for full deep-dive.
@@ -58,10 +58,10 @@ Unified API for file and video uploads with cloud storage providers.
 - `GET /media/files/local/:token` — decode reversible signed URL tokens
 
 **Key files:**
-- `domain/` — `File` entity, `FileRepository`/`PendingCleanupRepository` interfaces, Bunny status codes, webhook types, metadata key constants
-- `application/MediaService` — upload/delete/list/batch orchestration
-- `infra/` — GORM repos, B2 and Bunny SDK clients, metadata inference, WebP encoding pipeline
-- `delivery/Handler` — Gin handlers; `routes.go`; `RegisterWebhookRoutes`
+- `domain/` — `File`, `MediaGateway` port, repository interfaces, Bunny/webhook/meta types
+- `application/MediaService` — upload/delete/list/batch (uses `MediaGateway`, not `infra`)
+- `infra/storage_gateway.go` — implements `MediaGateway`; repos + cloud clients
+- `delivery/Handler` — Gin handlers + injected `MediaGateway` for multipart/metadata
 - `jobs/` — `OrphanEnqueuer`, cleanup scheduler, `GlobalCounters`
 
 See [`docs/modules/media.md`](modules/media.md) for full deep-dive.
@@ -112,6 +112,12 @@ Privileged operations for system administrators.
 - Scheduler control: create/stop permission sync job and role-permission sync job
 
 **Exposed under:** `/api/system/...` (requires system access token after login)
+
+**Key files:**
+- `domain/ports.go` — `SystemCrypto` port (HMAC credentials + system JWT mint/parse)
+- `application/SystemService` — uses `SystemCrypto`; does not import `infra`
+- `infra/crypto.go` + `infra/crypto_ports.go` — adapter wired in `server/wire.go`
+- `jobs/sync_schedulers.go` — RBAC catalog sync tickers
 
 ---
 

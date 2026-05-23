@@ -119,13 +119,15 @@ func Wire(db *gorm.DB, rdb *redis.Client) (*Services, *Handlers, error) {
 	privUserRepo := sysinfra.NewGormPrivilegedUserRepository(db)
 	permSyncer := sysinfra.NewGormPermissionSyncer(db)
 	roleSyncer := sysinfra.NewGormRolePermissionSyncer(db)
-	sysSvc := sysapp.NewSystemService(appCfgRepo, privUserRepo, permSyncer, roleSyncer)
+	sysCrypto := sysinfra.NewSystemCryptoAdapter()
+	sysSvc := sysapp.NewSystemService(appCfgRepo, privUserRepo, permSyncer, roleSyncer, sysCrypto)
 
 	// --- Media -------------------------------------------------------------------
 	fileRepo := mediainfra.NewGormFileRepository(db)
 	cleanupRepo := mediainfra.NewGormPendingCleanupRepository(db)
 	orphanEnqueuer := mediajobs.NewOrphanEnqueuer(cleanupRepo)
-	mediaSvc := mediaapp.NewMediaService(fileRepo, cleanupRepo, orphanEnqueuer, mediajobs.GlobalCounters)
+	mediaGW := mediainfra.NewStorageGateway()
+	mediaSvc := mediaapp.NewMediaService(fileRepo, cleanupRepo, orphanEnqueuer, mediajobs.GlobalCounters, mediaGW)
 
 	// Non-fatal: if cloud clients can't be loaded, media uploads will fail at request time.
 	_, _ = mediainfra.NewCloudClientsFromSetting()
@@ -164,7 +166,7 @@ func Wire(db *gorm.DB, rdb *redis.Client) (*Services, *Handlers, error) {
 
 	handlers := &Handlers{
 		Auth:     authdelivery.NewHandler(authSvc, &rbacPermissionUseCase{svc: rbacSvc}),
-		Media:    mediadelivery.NewHandler(mediaSvc),
+		Media:    mediadelivery.NewHandler(mediaSvc, mediaGW),
 		Taxonomy: taxdelivery.NewHandler(taxSvc),
 		RBAC:     rbacdelivery.NewHandler(rbacSvc),
 		System:   sysdelivery.NewHandler(sysSvc),

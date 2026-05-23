@@ -10,7 +10,6 @@ import (
 
 	"mycourse-io-be/internal/media/application"
 	mediadomain "mycourse-io-be/internal/media/domain"
-	mediainfra "mycourse-io-be/internal/media/infra"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/logger"
 	"mycourse-io-be/internal/shared/response"
@@ -36,7 +35,7 @@ func (h *Handler) readBunnyWebhookRawBody(c *gin.Context) ([]byte, bool) {
 
 func (h *Handler) verifyBunnyWebhookSignature(c *gin.Context, rawBody []byte) bool {
 	log := h.bunnyWebhookLog(c).With(zap.String("bunny_webhook_stage", "verify_signature"))
-	signingSecret := mediainfra.BunnyWebhookSigningSecret()
+	signingSecret := h.gw.BunnyWebhookSigningSecret()
 	sig := strings.TrimSpace(c.GetHeader(mediadomain.BunnyWebhookSignatureHeader))
 	ver := strings.TrimSpace(c.GetHeader(mediadomain.BunnyWebhookSignatureVersionHeader))
 	alg := strings.TrimSpace(c.GetHeader(mediadomain.BunnyWebhookSignatureAlgorithmHeader))
@@ -46,7 +45,7 @@ func (h *Handler) verifyBunnyWebhookSignature(c *gin.Context, rawBody []byte) bo
 		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
 		return false
 	}
-	if !mediainfra.IsBunnyWebhookSignatureValid(rawBody, sig, ver, alg, signingSecret) {
+	if !h.gw.IsBunnyWebhookSignatureValid(rawBody, sig, ver, alg, signingSecret) {
 		log.Warn("bunny webhook: signature validation failed",
 			zap.String("header_signature_version", ver),
 			zap.String("header_signature_algorithm", alg),

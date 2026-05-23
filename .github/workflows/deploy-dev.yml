@@ -50,7 +50,6 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           golangci-lint version
 
-
       - name: Test Go Binary
         run: |
           go test ./...
@@ -58,6 +57,9 @@ jobs:
           go vet ./...
           golangci-lint cache clean
           golangci-lint run
+          make check-layout
+          make check-architecture
+          make check-dupl
 
   build:
     needs: test

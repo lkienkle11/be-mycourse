@@ -35,36 +35,31 @@ func TestParseImageURLForOrphanCleanup_External(t *testing.T) {
 }
 
 func TestParseImageURLForOrphanCleanup_BunnyStream(t *testing.T) {
-	setting.MediaSetting.BunnyStreamBaseURL = "https://iframe.mediadelivery.net/play"
-	setting.MediaSetting.BunnyStreamLibraryID = "123456"
+	for _, tc := range []struct {
+		name   string
+		rawURL string
+	}{
+		{name: "plain", rawURL: "https://iframe.mediadelivery.net/play/123456/abc-def-guid-000"},
+		{name: "with_query", rawURL: "https://iframe.mediadelivery.net/play/123456/abc-def-guid-000?token=xyz&expires=99999"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setting.MediaSetting.BunnyStreamBaseURL = "https://iframe.mediadelivery.net/play"
+			setting.MediaSetting.BunnyStreamLibraryID = "123456"
 
-	rawURL := "https://iframe.mediadelivery.net/play/123456/abc-def-guid-000"
-	prov, key, bID, ok := mediainfra.ParseImageURLForOrphanCleanup(rawURL)
-	if !ok {
-		t.Fatalf("bunny URL should be recognised, got ok=false")
-	}
-	if string(prov) != "Bunny" {
-		t.Fatalf("expected provider Bunny, got %s", prov)
-	}
-	if key != "abc-def-guid-000" {
-		t.Fatalf("expected objectKey=abc-def-guid-000, got %s", key)
-	}
-	if bID != "abc-def-guid-000" {
-		t.Fatalf("expected bunnyVideoID=abc-def-guid-000, got %s", bID)
-	}
-}
-
-func TestParseImageURLForOrphanCleanup_BunnyStream_WithQuery(t *testing.T) {
-	setting.MediaSetting.BunnyStreamBaseURL = "https://iframe.mediadelivery.net/play"
-	setting.MediaSetting.BunnyStreamLibraryID = "123456"
-
-	rawURL := "https://iframe.mediadelivery.net/play/123456/abc-def-guid-000?token=xyz&expires=99999"
-	_, key, _, ok := mediainfra.ParseImageURLForOrphanCleanup(rawURL)
-	if !ok {
-		t.Fatal("bunny URL with query params should be recognised")
-	}
-	if key != "abc-def-guid-000" {
-		t.Fatalf("expected objectKey without query, got %s", key)
+			prov, key, bID, ok := mediainfra.ParseImageURLForOrphanCleanup(tc.rawURL)
+			if !ok {
+				t.Fatalf("bunny URL should be recognised, got ok=false")
+			}
+			if string(prov) != "Bunny" {
+				t.Fatalf("expected provider Bunny, got %s", prov)
+			}
+			if key != "abc-def-guid-000" {
+				t.Fatalf("expected objectKey=abc-def-guid-000, got %s", key)
+			}
+			if bID != "abc-def-guid-000" {
+				t.Fatalf("expected bunnyVideoID=abc-def-guid-000, got %s", bID)
+			}
+		})
 	}
 }
 

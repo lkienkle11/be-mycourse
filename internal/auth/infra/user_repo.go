@@ -3,7 +3,6 @@ package infra
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -11,8 +10,15 @@ import (
 
 	"mycourse-io-be/internal/auth/domain"
 	"mycourse-io-be/internal/shared/constants"
-	sharedErrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/gormx"
 )
+
+// syncUserRowTimestamps copies persisted row keys onto the domain user after insert.
+func syncUserRowTimestamps(u *domain.User, row *userRow) {
+	u.ID = row.ID
+	u.CreatedAt = row.CreatedAt
+	u.UpdatedAt = row.UpdatedAt
+}
 
 // GormUserRepository implements domain.UserRepository using GORM.
 type GormUserRepository struct {
@@ -25,10 +31,7 @@ func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
 
 func (r *GormUserRepository) FindByID(ctx context.Context, id uint) (*domain.User, error) {
 	var row userRow
-	if err := r.db.WithContext(ctx).First(&row, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, sharedErrors.ErrNotFound
-		}
+	if err := gormx.FirstWhere(ctx, r.db, &row, "id = ?", id); err != nil {
 		return nil, err
 	}
 	return toUserDomain(&row), nil
@@ -36,10 +39,7 @@ func (r *GormUserRepository) FindByID(ctx context.Context, id uint) (*domain.Use
 
 func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var row userRow
-	if err := r.db.WithContext(ctx).Where("email = ? AND deleted_at IS NULL", email).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, sharedErrors.ErrNotFound
-		}
+	if err := findActiveUserWhere(ctx, r.db, &row, "email = ?", email); err != nil {
 		return nil, err
 	}
 	return toUserDomain(&row), nil
@@ -47,10 +47,7 @@ func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*do
 
 func (r *GormUserRepository) FindByUserCode(ctx context.Context, userCode string) (*domain.User, error) {
 	var row userRow
-	if err := r.db.WithContext(ctx).Where("user_code = ? AND deleted_at IS NULL", userCode).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, sharedErrors.ErrNotFound
-		}
+	if err := findActiveUserWhere(ctx, r.db, &row, "user_code = ?", userCode); err != nil {
 		return nil, err
 	}
 	return toUserDomain(&row), nil
@@ -58,10 +55,7 @@ func (r *GormUserRepository) FindByUserCode(ctx context.Context, userCode string
 
 func (r *GormUserRepository) FindByConfirmationToken(ctx context.Context, token string) (*domain.User, error) {
 	var row userRow
-	if err := r.db.WithContext(ctx).Where("confirmation_token = ? AND deleted_at IS NULL", token).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, sharedErrors.ErrNotFound
-		}
+	if err := findActiveUserWhere(ctx, r.db, &row, "confirmation_token = ?", token); err != nil {
 		return nil, err
 	}
 	return toUserDomain(&row), nil
@@ -69,13 +63,7 @@ func (r *GormUserRepository) FindByConfirmationToken(ctx context.Context, token 
 
 func (r *GormUserRepository) Create(ctx context.Context, u *domain.User) error {
 	row := toUserRow(u)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
-		return err
-	}
-	u.ID = row.ID
-	u.CreatedAt = row.CreatedAt
-	u.UpdatedAt = row.UpdatedAt
-	return nil
+	return gormx.CreateAndThen(ctx, r.db, row, func() { syncUserRowTimestamps(u, row) })
 }
 
 func (r *GormUserRepository) Save(ctx context.Context, u *domain.User) error {
@@ -141,7 +129,6 @@ func (r *GormRefreshSessionRepository) AddSession(ctx context.Context, userID ui
 		if sessions == nil {
 			sessions = make(domain.RefreshTokenSessionMap)
 		}
-		// Enforce max sessions cap
 		if _, exists := sessions[sessionStr]; !exists && len(sessions) >= MaxActiveSessions {
 			delete(sessions, pickOldestSessionKey(sessions))
 		}

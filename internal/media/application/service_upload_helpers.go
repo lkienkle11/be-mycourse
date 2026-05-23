@@ -15,27 +15,19 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"mycourse-io-be/internal/media/domain"
-	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/setting"
 	"mycourse-io-be/internal/shared/utils"
 )
 
-func uploadToProvider(clients *mediainfra.CloudClients, provider, objectKey, filename string, payload []byte, meta domain.RawMetadata) (domain.ProviderUploadResult, error) {
-	switch provider {
-	case constants.FileProviderLocal:
-		return mediainfra.UploadLocal(clients, objectKey, meta)
-	case constants.FileProviderBunny:
-		return mediainfra.UploadBunnyVideo(clients, context.Background(), filename, payload, objectKey, meta)
-	default:
-		return mediainfra.UploadB2(clients, context.Background(), objectKey, bytes.NewReader(payload), meta)
-	}
+func uploadToProvider(gw domain.MediaGateway, provider, objectKey, filename string, payload []byte, meta domain.RawMetadata) (domain.ProviderUploadResult, error) {
+	return gw.UploadToProvider(context.Background(), provider, objectKey, filename, payload, meta)
 }
 
-func mergeProviderMetadataWithPrevious(upload domain.ProviderUploadResult, prev domain.RawMetadata) domain.RawMetadata {
-	uploadedMeta := mediainfra.NormalizeMetadata(upload.Metadata)
-	merged := mediainfra.NormalizeMetadata(uploadedMeta)
+func mergeProviderMetadataWithPrevious(gw domain.MediaGateway, upload domain.ProviderUploadResult, prev domain.RawMetadata) domain.RawMetadata {
+	uploadedMeta := gw.NormalizeMetadata(upload.Metadata)
+	merged := gw.NormalizeMetadata(uploadedMeta)
 	for k, v := range prev {
 		if _, ok := merged[k]; !ok {
 			merged[k] = v
@@ -44,55 +36,80 @@ func mergeProviderMetadataWithPrevious(upload domain.ProviderUploadResult, prev 
 	return merged
 }
 
-func buildCreateEntityInput(header *multipart.FileHeader, payload []byte, filename, mime, kind, provider, requestedObjectKey string, uploaded domain.ProviderUploadResult, now time.Time) domain.MediaUploadEntityInput {
-	uploadedMeta := mediainfra.NormalizeMetadata(uploaded.Metadata)
-	merged := mediainfra.NormalizeMetadata(uploadedMeta)
-	isImage := mediainfra.IsImageMIMEOrExt(mime, filename)
+type createUploadInputParams struct {
+	gw                 domain.MediaGateway
+	header             *multipart.FileHeader
+	payload            []byte
+	filename           string
+	mime               string
+	kind               string
+	provider           string
+	requestedObjectKey string
+	uploaded           domain.ProviderUploadResult
+	now                time.Time
+}
+
+func buildCreateEntityInput(p createUploadInputParams) domain.MediaUploadEntityInput {
+	uploadedMeta := p.gw.NormalizeMetadata(p.uploaded.Metadata)
+	merged := p.gw.NormalizeMetadata(uploadedMeta)
+	isImage := p.gw.IsImageMIMEOrExt(p.mime, p.filename)
 	return domain.MediaUploadEntityInput{
-		Kind:          kind,
-		Provider:      provider,
-		Filename:      filename,
-		ContentType:   mime,
-		SizeBytes:     effectiveUploadSizeBytes(header.Size, payload, isImage),
-		Payload:       payload,
-		Uploaded:      uploaded,
+		Kind:          p.kind,
+		Provider:      p.provider,
+		Filename:      p.filename,
+		ContentType:   p.mime,
+		SizeBytes:     effectiveUploadSizeBytes(p.header.Size, p.payload, isImage),
+		Payload:       p.payload,
+		Uploaded:      p.uploaded,
 		UploadedMeta:  merged,
 		B2Bucket:      strings.TrimSpace(setting.MediaSetting.B2Bucket),
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		CreatedAt:     p.now,
+		UpdatedAt:     p.now,
 		GenerateNewID: true,
 	}
 }
 
-func buildUpdateEntityInput(prevFile *domain.File, kind, provider, filename, mime string, sizeBytes int64, payload []byte, uploaded domain.ProviderUploadResult, merged domain.RawMetadata) domain.MediaUploadEntityInput {
+type updateUploadInputParams struct {
+	prevFile  *domain.File
+	kind      string
+	provider  string
+	filename  string
+	mime      string
+	sizeBytes int64
+	payload   []byte
+	uploaded  domain.ProviderUploadResult
+	merged    domain.RawMetadata
+}
+
+func buildUpdateEntityInput(p updateUploadInputParams) domain.MediaUploadEntityInput {
 	return domain.MediaUploadEntityInput{
-		Kind:          kind,
-		Provider:      provider,
-		Filename:      filename,
-		ContentType:   mime,
-		SizeBytes:     sizeBytes,
-		Payload:       payload,
-		Uploaded:      uploaded,
-		UploadedMeta:  merged,
+		Kind:          p.kind,
+		Provider:      p.provider,
+		Filename:      p.filename,
+		ContentType:   p.mime,
+		SizeBytes:     p.sizeBytes,
+		Payload:       p.payload,
+		Uploaded:      p.uploaded,
+		UploadedMeta:  p.merged,
 		B2Bucket:      strings.TrimSpace(setting.MediaSetting.B2Bucket),
-		CreatedAt:     prevFile.CreatedAt,
+		CreatedAt:     p.prevFile.CreatedAt,
 		UpdatedAt:     time.Now(),
 		GenerateNewID: false,
-		PreserveID:    prevFile.ID,
+		PreserveID:    p.prevFile.ID,
 	}
 }
 
-func prepareCreateMultipartBody(req CreateFileInput, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (
+func prepareCreateMultipartBody(gw domain.MediaGateway, req CreateFileInput, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (
 	payload []byte, filename, mime string, kind string, provider string, objectKey string, err error,
 ) {
 	payload, filename, mime, err = readMultipartPayloadLimited(file, fileHeader, remainingTotal)
 	if err != nil {
 		return
 	}
-	kind, kindInferred := mediainfra.ResolveMediaKindFromServer(mime, filename)
-	provider = mediainfra.ResolveUploadProvider(kind, kindInferred)
-	objectKey = mediainfra.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
-	isImage := mediainfra.IsImageMIMEOrExt(mime, filename)
+	kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
+	provider = gw.ResolveUploadProvider(kind, kindInferred)
+	objectKey = gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+	isImage := gw.IsImageMIMEOrExt(mime, filename)
 	if err = rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
 		return
 	}
@@ -104,18 +121,18 @@ func prepareCreateMultipartBody(req CreateFileInput, file multipart.File, fileHe
 			return
 		}
 		payload, mime, filename = enc, newMime, newName
-		objectKey = mediainfra.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+		objectKey = gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
 	}
 	return
 }
 
-func normalizeUpdateMultipartPayload(filename, mime string, payload []byte) (
+func normalizeUpdateMultipartPayload(gw domain.MediaGateway, filename, mime string, payload []byte) (
 	newPayload []byte, newFilename, newMime string, kind string, provider string, objectKey string, err error,
 ) {
-	kind, kindInferred := mediainfra.ResolveMediaKindFromServer(mime, filename)
-	provider = mediainfra.ResolveUploadProvider(kind, kindInferred)
-	objectKey = mediainfra.ResolveMediaUploadObjectKey("", filename, provider)
-	isImage := mediainfra.IsImageMIMEOrExt(mime, filename)
+	kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
+	provider = gw.ResolveUploadProvider(kind, kindInferred)
+	objectKey = gw.ResolveMediaUploadObjectKey("", filename, provider)
+	isImage := gw.IsImageMIMEOrExt(mime, filename)
 	if err = rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
 		return
 	}
@@ -127,24 +144,24 @@ func normalizeUpdateMultipartPayload(filename, mime string, payload []byte) (
 			return
 		}
 		newPayload, newMime, newFilename = enc, encMime, encName
-		objectKey = mediainfra.ResolveMediaUploadObjectKey("", newFilename, provider)
+		objectKey = gw.ResolveMediaUploadObjectKey("", newFilename, provider)
 		return
 	}
 	newPayload, newMime, newFilename = payload, mime, filename
 	return
 }
 
-func prepareCreatePartsSequential(req CreateFileInput, parts []domain.OpenedUploadPart, remaining *int64) ([]domain.PreparedCreatePart, error) {
+func prepareCreatePartsSequential(gw domain.MediaGateway, req CreateFileInput, parts []domain.OpenedUploadPart, remaining *int64) ([]domain.PreparedCreatePart, error) {
 	prepared := make([]domain.PreparedCreatePart, 0, len(parts))
 	for _, part := range parts {
 		payload, filename, mime, err := readMultipartPayloadLimited(part.File, part.Header, remaining)
 		if err != nil {
 			return nil, err
 		}
-		kind, kindInferred := mediainfra.ResolveMediaKindFromServer(mime, filename)
-		provider := mediainfra.ResolveUploadProvider(kind, kindInferred)
-		objectKey := mediainfra.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
-		isImage := mediainfra.IsImageMIMEOrExt(mime, filename)
+		kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
+		provider := gw.ResolveUploadProvider(kind, kindInferred)
+		objectKey := gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+		isImage := gw.IsImageMIMEOrExt(mime, filename)
 		if err := rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
 			return nil, err
 		}
@@ -154,7 +171,7 @@ func prepareCreatePartsSequential(req CreateFileInput, parts []domain.OpenedUplo
 				return nil, encErr
 			}
 			payload, mime, filename = enc, encMime, encName
-			objectKey = mediainfra.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+			objectKey = gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
 		}
 		prepared = append(prepared, domain.PreparedCreatePart{
 			Header: part.Header, Payload: payload, Filename: filename,
@@ -164,11 +181,11 @@ func prepareCreatePartsSequential(req CreateFileInput, parts []domain.OpenedUplo
 	return prepared, nil
 }
 
-func prepareOptionalTailPrepared(createReq CreateFileInput, parts []domain.OpenedUploadPart, remaining *int64) ([]domain.PreparedCreatePart, error) {
+func prepareOptionalTailPrepared(gw domain.MediaGateway, createReq CreateFileInput, parts []domain.OpenedUploadPart, remaining *int64) ([]domain.PreparedCreatePart, error) {
 	if len(parts) == 0 {
 		return nil, nil
 	}
-	return prepareCreatePartsSequential(createReq, parts, remaining)
+	return prepareCreatePartsSequential(gw, createReq, parts, remaining)
 }
 
 func readMultipartPayloadLimited(file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (payload []byte, filename, mime string, err error) {
@@ -284,7 +301,7 @@ func dedupeBatchDeleteKeys(keys []string) ([]string, error) {
 	return out, nil
 }
 
-func deleteUploadAttempt(clients *mediainfra.CloudClients, provider, objectKey string, uploaded domain.ProviderUploadResult) {
+func deleteUploadAttempt(gw domain.MediaGateway, provider, objectKey string, uploaded domain.ProviderUploadResult) {
 	bunny := ""
 	if uploaded.Metadata != nil {
 		if v := uploaded.Metadata[domain.MediaMetaKeyBunnyVideoID]; v != nil {
@@ -294,7 +311,7 @@ func deleteUploadAttempt(clients *mediainfra.CloudClients, provider, objectKey s
 			bunny = strings.TrimSpace(fmt.Sprintf("%v", uploaded.Metadata[domain.MediaMetaKeyVideoGUID]))
 		}
 	}
-	_ = mediainfra.DeleteStoredObject(context.Background(), clients, objectKey, provider, bunny)
+	_ = gw.DeleteStoredObject(context.Background(), objectKey, provider, bunny)
 }
 
 func scheduleParallelUpload(g *errgroup.Group, sem chan struct{}, fn func() error) {
@@ -305,7 +322,25 @@ func scheduleParallelUpload(g *errgroup.Group, sem chan struct{}, fn func() erro
 	})
 }
 
-func uploadPreparedCreatesParallel(clients *mediainfra.CloudClients, prepared []domain.PreparedCreatePart) ([]domain.ProviderUploadResult, error) {
+func runParallelProviderUpload(
+	gw domain.MediaGateway,
+	provider, objectKey, filename string,
+	payload []byte,
+) (domain.ProviderUploadResult, error) {
+	if MediaUploadParallelStartProbe != nil {
+		MediaUploadParallelStartProbe()
+	}
+	return uploadToProvider(gw, provider, objectKey, filename, payload, domain.RawMetadata{})
+}
+
+func recordParallelUploadIndex(mu *sync.Mutex, idx int, result domain.ProviderUploadResult, finished *[]int, results []domain.ProviderUploadResult) {
+	mu.Lock()
+	results[idx] = result
+	*finished = append(*finished, idx)
+	mu.Unlock()
+}
+
+func uploadPreparedCreatesParallel(gw domain.MediaGateway, prepared []domain.PreparedCreatePart) ([]domain.ProviderUploadResult, error) {
 	if len(prepared) == 0 {
 		return nil, nil
 	}
@@ -318,17 +353,11 @@ func uploadPreparedCreatesParallel(clients *mediainfra.CloudClients, prepared []
 	for i := range prepared {
 		i := i
 		scheduleParallelUpload(g, sem, func() error {
-			if MediaUploadParallelStartProbe != nil {
-				MediaUploadParallelStartProbe()
-			}
-			r, err := uploadToProvider(clients, prepared[i].Provider, prepared[i].ObjectKey, prepared[i].Filename, prepared[i].Payload, domain.RawMetadata{})
+			r, err := runParallelProviderUpload(gw, prepared[i].Provider, prepared[i].ObjectKey, prepared[i].Filename, prepared[i].Payload)
 			if err != nil {
 				return err
 			}
-			mu.Lock()
-			results[i] = r
-			finished = append(finished, i)
-			mu.Unlock()
+			recordParallelUploadIndex(&mu, i, r, &finished, results)
 			return nil
 		})
 	}
@@ -337,14 +366,14 @@ func uploadPreparedCreatesParallel(clients *mediainfra.CloudClients, prepared []
 		idxs := append([]int(nil), finished...)
 		mu.Unlock()
 		for _, idx := range idxs {
-			deleteUploadAttempt(clients, prepared[idx].Provider, prepared[idx].ObjectKey, results[idx])
+			deleteUploadAttempt(gw, prepared[idx].Provider, prepared[idx].ObjectKey, results[idx])
 		}
 		return nil, err
 	}
 	return results, nil
 }
 
-func uploadBundleParallel(clients *mediainfra.CloudClients, head *domain.PreparedUpdateHead, tail []domain.PreparedCreatePart) (domain.ProviderUploadResult, []domain.ProviderUploadResult, error) {
+func uploadBundleParallel(gw domain.MediaGateway, head *domain.PreparedUpdateHead, tail []domain.PreparedCreatePart) (domain.ProviderUploadResult, []domain.ProviderUploadResult, error) {
 	var headResult domain.ProviderUploadResult
 	tailResults := make([]domain.ProviderUploadResult, len(tail))
 
@@ -359,10 +388,7 @@ func uploadBundleParallel(clients *mediainfra.CloudClients, head *domain.Prepare
 
 	if head != nil {
 		schedule(func() error {
-			if MediaUploadParallelStartProbe != nil {
-				MediaUploadParallelStartProbe()
-			}
-			r, err := uploadToProvider(clients, head.Provider, head.ResolvedObjectKey, head.FilenameNorm, head.PayloadNorm, domain.RawMetadata{})
+			r, err := runParallelProviderUpload(gw, head.Provider, head.ResolvedObjectKey, head.FilenameNorm, head.PayloadNorm)
 			if err != nil {
 				return err
 			}
@@ -376,27 +402,21 @@ func uploadBundleParallel(clients *mediainfra.CloudClients, head *domain.Prepare
 	for i := range tail {
 		i := i
 		schedule(func() error {
-			if MediaUploadParallelStartProbe != nil {
-				MediaUploadParallelStartProbe()
-			}
-			r, err := uploadToProvider(clients, tail[i].Provider, tail[i].ObjectKey, tail[i].Filename, tail[i].Payload, domain.RawMetadata{})
+			r, err := runParallelProviderUpload(gw, tail[i].Provider, tail[i].ObjectKey, tail[i].Filename, tail[i].Payload)
 			if err != nil {
 				return err
 			}
-			mu.Lock()
-			tailResults[i] = r
-			tailFinished = append(tailFinished, i)
-			mu.Unlock()
+			recordParallelUploadIndex(&mu, i, r, &tailFinished, tailResults)
 			return nil
 		})
 	}
 
 	if err := g.Wait(); err != nil {
 		if headFinished && head != nil {
-			deleteUploadAttempt(clients, head.Provider, head.ResolvedObjectKey, headResult)
+			deleteUploadAttempt(gw, head.Provider, head.ResolvedObjectKey, headResult)
 		}
 		for _, idx := range tailFinished {
-			deleteUploadAttempt(clients, tail[idx].Provider, tail[idx].ObjectKey, tailResults[idx])
+			deleteUploadAttempt(gw, tail[idx].Provider, tail[idx].ObjectKey, tailResults[idx])
 		}
 		return domain.ProviderUploadResult{}, nil, err
 	}

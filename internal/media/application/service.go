@@ -14,7 +14,6 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/media/domain"
-	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/logger"
@@ -42,6 +41,7 @@ type MediaService struct {
 	cleanupRepo domain.PendingCleanupRepository
 	enqueuer    OrphanCleanupEnqueuer
 	counters    CleanupCounters
+	gw          domain.MediaGateway
 }
 
 // NewMediaService constructs a MediaService with required dependencies.
@@ -50,12 +50,14 @@ func NewMediaService(
 	cleanupRepo domain.PendingCleanupRepository,
 	enqueuer OrphanCleanupEnqueuer,
 	counters CleanupCounters,
+	gw domain.MediaGateway,
 ) *MediaService {
 	return &MediaService{
 		fileRepo:    fileRepo,
 		cleanupRepo: cleanupRepo,
 		enqueuer:    enqueuer,
 		counters:    counters,
+		gw:          gw,
 	}
 }
 
@@ -81,8 +83,8 @@ func (s *MediaService) GetFile(ctx context.Context, objectKey, kind string) (*do
 	if err == nil {
 		return f, nil
 	}
-	resolvedProvider := mediainfra.DefaultMediaProvider(kind)
-	fileURL := mediainfra.BuildPublicURL(resolvedProvider, key)
+	resolvedProvider := s.gw.DefaultMediaProvider(kind)
+	fileURL := s.gw.BuildPublicURL(resolvedProvider, key)
 	now := time.Now()
 	return &domain.File{
 		ID:        key,
@@ -102,21 +104,23 @@ func (s *MediaService) GetFile(ctx context.Context, objectKey, kind string) (*do
 
 // CreateFile uploads one multipart file and persists it.
 func (s *MediaService) CreateFile(ctx context.Context, req CreateFileInput, file multipart.File, fileHeader *multipart.FileHeader) (*domain.File, error) {
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		return nil, err
 	}
-	clients := mediainfra.Cloud
-	payload, filename, mime, kind, provider, objectKey, err := prepareCreateMultipartBody(req, file, fileHeader, nil)
+	payload, filename, mime, kind, provider, objectKey, err := prepareCreateMultipartBody(s.gw, req, file, fileHeader, nil)
 	if err != nil {
 		return nil, err
 	}
-	uploaded, err := uploadToProvider(clients, provider, objectKey, filename, payload, domain.RawMetadata{})
+	uploaded, err := uploadToProvider(s.gw, provider, objectKey, filename, payload, domain.RawMetadata{})
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
-	input := buildCreateEntityInput(fileHeader, payload, filename, mime, kind, provider, req.ObjectKey, uploaded, now)
-	return s.persistCreateRow(ctx, clients, input, payload)
+	input := buildCreateEntityInput(createUploadInputParams{
+		gw: s.gw, header: fileHeader, payload: payload, filename: filename, mime: mime,
+		kind: kind, provider: provider, requestedObjectKey: req.ObjectKey, uploaded: uploaded, now: now,
+	})
+	return s.persistCreateRow(ctx, input, payload)
 }
 
 // CreateFiles uploads multiple multipart files in parallel and persists them (all-or-nothing).
@@ -124,20 +128,19 @@ func (s *MediaService) CreateFiles(ctx context.Context, req CreateFileInput, par
 	if len(parts) == 0 {
 		return nil, apperrors.ErrMediaFilesRequired
 	}
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		return nil, err
 	}
-	clients := mediainfra.Cloud
 	remaining := constants.MaxMediaMultipartTotalBytes
-	prepared, err := prepareCreatePartsSequential(req, parts, &remaining)
+	prepared, err := prepareCreatePartsSequential(s.gw, req, parts, &remaining)
 	if err != nil {
 		return nil, err
 	}
-	uploaded, err := uploadPreparedCreatesParallel(clients, prepared)
+	uploaded, err := uploadPreparedCreatesParallel(s.gw, prepared)
 	if err != nil {
 		return nil, err
 	}
-	return s.persistPreparedCreates(ctx, clients, prepared, uploaded)
+	return s.persistPreparedCreates(ctx, prepared, uploaded)
 }
 
 // --- Update ------------------------------------------------------------------
@@ -148,10 +151,10 @@ func (s *MediaService) UpdateFile(ctx context.Context, objectKey string, req Upd
 	if err != nil {
 		return nil, err
 	}
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		return nil, err
 	}
-	return s.runUpdateFileMultipartBody(ctx, mediainfra.Cloud, prevRow, req, file, fileHeader, nil)
+	return s.runUpdateFileMultipartBody(ctx, prevRow, req, file, fileHeader, nil)
 }
 
 // UpdateFileBundle updates the primary row and creates additional tail rows in one request.
@@ -160,10 +163,9 @@ func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, r
 	if err != nil {
 		return nil, err
 	}
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		return nil, err
 	}
-	clients := mediainfra.Cloud
 	out := make([]*domain.File, len(parts))
 	remaining := constants.MaxMediaMultipartTotalBytes
 
@@ -171,18 +173,18 @@ func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, r
 	if err != nil {
 		return nil, err
 	}
-	tailPrepared, err := prepareOptionalTailPrepared(createReq, parts[1:], &remaining)
+	tailPrepared, err := prepareOptionalTailPrepared(s.gw, createReq, parts[1:], &remaining)
 	if err != nil {
 		return nil, err
 	}
 	if skipHead != nil {
-		return s.finishUpdateBundleSkipHead(ctx, clients, out, tailPrepared, skipHead)
+		return s.finishUpdateBundleSkipHead(ctx, out, tailPrepared, skipHead)
 	}
-	headUploaded, tailUploaded, err := uploadBundleParallel(clients, headPrep, tailPrepared)
+	headUploaded, tailUploaded, err := uploadBundleParallel(s.gw, headPrep, tailPrepared)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.persistBundleAfterUpload(ctx, clients, prevRow, headPrep, tailPrepared, headUploaded, tailUploaded, out); err != nil {
+	if err := s.persistBundleAfterUpload(ctx, prevRow, headPrep, tailPrepared, headUploaded, tailUploaded, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -192,23 +194,22 @@ func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, r
 
 // DeleteFile soft-deletes the row and removes the cloud object.
 func (s *MediaService) DeleteFile(ctx context.Context, objectKey string, metadata domain.RawMetadata) error {
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		return err
 	}
-	clients := mediainfra.Cloud
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
 		return apperrors.ErrMediaObjectKeyRequired
 	}
-	provider := mediainfra.DefaultMediaProvider(constants.FileKindFile)
+	provider := s.gw.DefaultMediaProvider(constants.FileKindFile)
 	bunnyID := strings.TrimSpace(fmt.Sprintf("%v", metadata[domain.MediaMetaKeyVideoGUID]))
 	if bunnyID == "" {
 		bunnyID = strings.TrimSpace(fmt.Sprintf("%v", metadata[domain.MediaMetaKeyBunnyVideoID]))
 	}
 	if bunnyID != "" {
-		provider = mediainfra.DefaultMediaProvider(constants.FileKindVideo)
+		provider = s.gw.DefaultMediaProvider(constants.FileKindVideo)
 	}
-	if err := mediainfra.DeleteStoredObject(context.Background(), clients, key, provider, bunnyID); err != nil {
+	if err := s.gw.DeleteStoredObject(context.Background(), key, provider, bunnyID); err != nil {
 		return err
 	}
 	return s.fileRepo.SoftDeleteByObjectKey(ctx, key)
@@ -226,10 +227,9 @@ func (s *MediaService) DeleteFilesByObjectKeys(ctx context.Context, keys []strin
 	if err != nil {
 		return err
 	}
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		return err
 	}
-	clients := mediainfra.Cloud
 	rows := make([]*domain.File, 0, len(uniq))
 	for _, key := range uniq {
 		row, err := s.fileRepo.GetByObjectKey(ctx, key)
@@ -244,9 +244,9 @@ func (s *MediaService) DeleteFilesByObjectKeys(ctx context.Context, keys []strin
 	for _, row := range rows {
 		provider := row.Provider
 		if provider == "" {
-			provider = mediainfra.DefaultMediaProvider(row.Kind)
+			provider = s.gw.DefaultMediaProvider(row.Kind)
 		}
-		if err := mediainfra.DeleteStoredObject(context.Background(), clients, row.ObjectKey, provider, row.BunnyVideoID); err != nil {
+		if err := s.gw.DeleteStoredObject(context.Background(), row.ObjectKey, provider, row.BunnyVideoID); err != nil {
 			return err
 		}
 		if err := s.fileRepo.SoftDeleteByObjectKey(ctx, row.ObjectKey); err != nil {
@@ -260,19 +260,19 @@ func (s *MediaService) DeleteFilesByObjectKeys(ctx context.Context, keys []strin
 
 // GetVideoStatus queries the Bunny Stream API for a video's processing status.
 func (s *MediaService) GetVideoStatus(ctx context.Context, videoGUID string) (*domain.VideoProviderStatus, error) {
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		return nil, err
 	}
 	guid := strings.TrimSpace(videoGUID)
 	if guid == "" {
 		return nil, apperrors.ErrMediaVideoGUIDRequired
 	}
-	video, err := mediainfra.GetBunnyVideoByID(mediainfra.Cloud, ctx, guid)
+	video, err := s.gw.GetBunnyVideoByID(ctx, guid)
 	if err != nil {
 		return nil, err
 	}
 	return &domain.VideoProviderStatus{
-		Status: mediainfra.BunnyStatusString(video.Status),
+		Status: s.gw.BunnyStatusString(video.Status),
 	}, nil
 }
 
@@ -283,7 +283,7 @@ func (s *MediaService) HandleBunnyVideoWebhook(ctx context.Context, req BunnyWeb
 		zap.Int("status", req.Status),
 		zap.String("video_guid", req.VideoGUID),
 	)
-	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+	if err := s.gw.RequireCloudReady(); err != nil {
 		log.Warn("bunny webhook: media cloud client not initialized", zap.Error(err))
 		return err
 	}
@@ -316,7 +316,7 @@ func (s *MediaService) LoadValidatedProfileImageFile(ctx context.Context, fileID
 	if row.Status != constants.FileStatusReady {
 		return nil, apperrors.ErrInvalidProfileMediaFile
 	}
-	if !mediainfra.ProfileImageFileAcceptable(row.Kind, row.MimeType, row.Filename) {
+	if !s.gw.ProfileImageFileAcceptable(row.Kind, row.MimeType, row.Filename) {
 		return nil, apperrors.ErrInvalidProfileMediaFile
 	}
 	return row, nil
@@ -336,13 +336,13 @@ func (s *MediaService) PendingCloudCleanupCounters() (deleted, failed, retried u
 // Internal helpers
 // ============================================================================
 
-func (s *MediaService) persistCreateRow(ctx context.Context, clients *mediainfra.CloudClients, input domain.MediaUploadEntityInput, payload []byte) (*domain.File, error) {
-	entity := mediainfra.BuildMediaFileEntityFromUpload(input)
+func (s *MediaService) persistCreateRow(ctx context.Context, input domain.MediaUploadEntityInput, payload []byte) (*domain.File, error) {
+	entity := s.gw.BuildMediaFileEntityFromUpload(input)
 	entity.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
 	entity.ContentFingerprint = utils.ContentFingerprint(payload)
 
 	if err := s.fileRepo.UpsertByObjectKey(ctx, entity); err != nil {
-		_ = mediainfra.DeleteStoredObject(context.Background(), clients, entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
+		_ = s.gw.DeleteStoredObject(context.Background(), entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
 		return nil, err
 	}
 	saved, err := s.fileRepo.GetByObjectKey(ctx, entity.ObjectKey)
@@ -352,16 +352,16 @@ func (s *MediaService) persistCreateRow(ctx context.Context, clients *mediainfra
 	return saved, nil
 }
 
-func (s *MediaService) persistUpdatedRow(ctx context.Context, clients *mediainfra.CloudClients, prevFile *domain.File, input domain.MediaUploadEntityInput, payload []byte, fp string) (*domain.File, error) {
-	entity := mediainfra.BuildMediaFileEntityFromUpload(input)
+func (s *MediaService) persistUpdatedRow(ctx context.Context, prevFile *domain.File, input domain.MediaUploadEntityInput, payload []byte, fp string) (*domain.File, error) {
+	entity := s.gw.BuildMediaFileEntityFromUpload(input)
 	entity.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
 	entity.ContentFingerprint = fp
 
 	if err := s.fileRepo.SaveWithRowVersionCheck(ctx, entity, prevFile.RowVersion); err != nil {
-		_ = mediainfra.DeleteStoredObject(context.Background(), clients, entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
+		_ = s.gw.DeleteStoredObject(context.Background(), entity.ObjectKey, entity.Provider, entity.BunnyVideoID)
 		return nil, err
 	}
-	if mediainfra.ShouldEnqueueSupersededCloudCleanup(prevFile.ObjectKey, prevFile.BunnyVideoID, entity.ObjectKey, entity.BunnyVideoID) {
+	if s.gw.ShouldEnqueueSupersededCloudCleanup(prevFile.ObjectKey, prevFile.BunnyVideoID, entity.ObjectKey, entity.BunnyVideoID) {
 		if s.enqueuer != nil {
 			s.enqueuer.EnqueueSupersededPendingCleanup(prevFile.ObjectKey, prevFile.Provider, prevFile.BunnyVideoID)
 		}
@@ -374,8 +374,8 @@ func (s *MediaService) persistUpdatedRow(ctx context.Context, clients *mediainfr
 }
 
 func (s *MediaService) saveUnchangedFingerprintMetadata(ctx context.Context, prevFile *domain.File, filename string) (*domain.File, error) {
-	merged := mediainfra.NormalizeMetadata(prevFile.RawMetadataMap())
-	blob, err := mediainfra.MergeMediaMetadataJSON(prevFile.MetadataJSONBytes(), domain.RawMetadata{})
+	merged := s.gw.NormalizeMetadata(prevFile.RawMetadataMap())
+	blob, err := s.gw.MergeMediaMetadataJSON(prevFile.MetadataJSONBytes(), domain.RawMetadata{})
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +417,7 @@ func (s *MediaService) loadUpdateTarget(ctx context.Context, objectKey string, r
 	return prevFile, nil
 }
 
-func (s *MediaService) runUpdateFileMultipartBody(ctx context.Context, clients *mediainfra.CloudClients, prevFile *domain.File, req UpdateFileInput, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (*domain.File, error) {
+func (s *MediaService) runUpdateFileMultipartBody(ctx context.Context, prevFile *domain.File, req UpdateFileInput, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (*domain.File, error) {
 	prevRaw := domain.RawMetadata{}
 	if raw := prevFile.RawMetadataMap(); raw != nil {
 		prevRaw = raw
@@ -432,21 +432,24 @@ func (s *MediaService) runUpdateFileMultipartBody(ctx context.Context, clients *
 		return s.saveUnchangedFingerprintMetadata(ctx, prevFile, filename)
 	}
 
-	payload, filename, mime, kind, provider, resolvedObjectKey, err := normalizeUpdateMultipartPayload(filename, mime, payload)
+	payload, filename, mime, kind, provider, resolvedObjectKey, err := normalizeUpdateMultipartPayload(s.gw, filename, mime, payload)
 	if err != nil {
 		return nil, err
 	}
-	isImage := mediainfra.IsImageMIMEOrExt(mime, filename)
+	isImage := s.gw.IsImageMIMEOrExt(mime, filename)
 
-	uploaded, err := uploadToProvider(clients, provider, resolvedObjectKey, filename, payload, domain.RawMetadata{})
+	uploaded, err := uploadToProvider(s.gw, provider, resolvedObjectKey, filename, payload, domain.RawMetadata{})
 	if err != nil {
 		return nil, err
 	}
 
-	merged := mergeProviderMetadataWithPrevious(uploaded, prevRaw)
+	merged := mergeProviderMetadataWithPrevious(s.gw, uploaded, prevRaw)
 	sizeBytes := effectiveUploadSizeBytes(fileHeader.Size, payload, isImage)
-	input := buildUpdateEntityInput(prevFile, kind, provider, filename, mime, sizeBytes, payload, uploaded, merged)
-	return s.persistUpdatedRow(ctx, clients, prevFile, input, payload, fp)
+	input := buildUpdateEntityInput(updateUploadInputParams{
+		prevFile: prevFile, kind: kind, provider: provider, filename: filename, mime: mime,
+		sizeBytes: sizeBytes, payload: payload, uploaded: uploaded, merged: merged,
+	})
+	return s.persistUpdatedRow(ctx, prevFile, input, payload, fp)
 }
 
 func (s *MediaService) prepareUpdateBundleHead(ctx context.Context, prevFile *domain.File, req UpdateFileInput, part domain.OpenedUploadPart, remaining *int64) (*domain.File, *domain.PreparedUpdateHead, error) {
@@ -466,7 +469,7 @@ func (s *MediaService) prepareUpdateBundleHead(ctx context.Context, prevFile *do
 		}
 		return skipped, nil, nil
 	}
-	payloadNorm, filenameNorm, mimeNorm, kind, provider, resolvedObjectKey, err := normalizeUpdateMultipartPayload(filename, mime, payload)
+	payloadNorm, filenameNorm, mimeNorm, kind, provider, resolvedObjectKey, err := normalizeUpdateMultipartPayload(s.gw, filename, mime, payload)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -478,17 +481,21 @@ func (s *MediaService) prepareUpdateBundleHead(ctx context.Context, prevFile *do
 	}, nil
 }
 
-func (s *MediaService) persistPreparedCreates(ctx context.Context, clients *mediainfra.CloudClients, prepared []domain.PreparedCreatePart, uploaded []domain.ProviderUploadResult) ([]*domain.File, error) {
+func (s *MediaService) persistPreparedCreates(ctx context.Context, prepared []domain.PreparedCreatePart, uploaded []domain.ProviderUploadResult) ([]*domain.File, error) {
 	if len(prepared) == 0 {
 		return nil, nil
 	}
 	out := make([]*domain.File, len(prepared))
 	now := time.Now()
 	for i := range prepared {
-		input := buildCreateEntityInput(prepared[i].Header, prepared[i].Payload, prepared[i].Filename, prepared[i].Mime, prepared[i].Kind, prepared[i].Provider, prepared[i].ObjectKey, uploaded[i], now)
-		ent, err := s.persistCreateRow(ctx, clients, input, prepared[i].Payload)
+		input := buildCreateEntityInput(createUploadInputParams{
+			gw: s.gw, header: prepared[i].Header, payload: prepared[i].Payload,
+			filename: prepared[i].Filename, mime: prepared[i].Mime, kind: prepared[i].Kind,
+			provider: prepared[i].Provider, requestedObjectKey: prepared[i].ObjectKey, uploaded: uploaded[i], now: now,
+		})
+		ent, err := s.persistCreateRow(ctx, input, prepared[i].Payload)
 		if err != nil {
-			s.rollbackCreatedRows(ctx, clients, out[:i])
+			s.rollbackCreatedRows(ctx, out[:i])
 			return nil, err
 		}
 		out[i] = ent
@@ -496,26 +503,26 @@ func (s *MediaService) persistPreparedCreates(ctx context.Context, clients *medi
 	return out, nil
 }
 
-func (s *MediaService) rollbackCreatedRows(ctx context.Context, clients *mediainfra.CloudClients, rows []*domain.File) {
+func (s *MediaService) rollbackCreatedRows(ctx context.Context, rows []*domain.File) {
 	for _, ent := range rows {
 		if ent == nil {
 			continue
 		}
-		_ = mediainfra.DeleteStoredObject(context.Background(), clients, ent.ObjectKey, ent.Provider, ent.BunnyVideoID)
+		_ = s.gw.DeleteStoredObject(context.Background(), ent.ObjectKey, ent.Provider, ent.BunnyVideoID)
 		_ = s.fileRepo.SoftDeleteByObjectKey(ctx, ent.ObjectKey)
 	}
 }
 
-func (s *MediaService) finishUpdateBundleSkipHead(ctx context.Context, clients *mediainfra.CloudClients, out []*domain.File, tailPrepared []domain.PreparedCreatePart, skipHead *domain.File) ([]*domain.File, error) {
+func (s *MediaService) finishUpdateBundleSkipHead(ctx context.Context, out []*domain.File, tailPrepared []domain.PreparedCreatePart, skipHead *domain.File) ([]*domain.File, error) {
 	out[0] = skipHead
 	if len(tailPrepared) == 0 {
 		return out[:1], nil
 	}
-	uploadedTail, err := uploadPreparedCreatesParallel(clients, tailPrepared)
+	uploadedTail, err := uploadPreparedCreatesParallel(s.gw, tailPrepared)
 	if err != nil {
 		return nil, err
 	}
-	tailEntities, err := s.persistPreparedCreates(ctx, clients, tailPrepared, uploadedTail)
+	tailEntities, err := s.persistPreparedCreates(ctx, tailPrepared, uploadedTail)
 	if err != nil {
 		return nil, err
 	}
@@ -525,24 +532,28 @@ func (s *MediaService) finishUpdateBundleSkipHead(ctx context.Context, clients *
 	return out, nil
 }
 
-func (s *MediaService) persistBundleAfterUpload(ctx context.Context, clients *mediainfra.CloudClients, prevFile *domain.File, headPrep *domain.PreparedUpdateHead, tailPrepared []domain.PreparedCreatePart, headUploaded domain.ProviderUploadResult, tailUploaded []domain.ProviderUploadResult, out []*domain.File) error {
-	tailEntities, err := s.persistPreparedCreates(ctx, clients, tailPrepared, tailUploaded)
+func (s *MediaService) persistBundleAfterUpload(ctx context.Context, prevFile *domain.File, headPrep *domain.PreparedUpdateHead, tailPrepared []domain.PreparedCreatePart, headUploaded domain.ProviderUploadResult, tailUploaded []domain.ProviderUploadResult, out []*domain.File) error {
+	tailEntities, err := s.persistPreparedCreates(ctx, tailPrepared, tailUploaded)
 	if err != nil {
-		deleteUploadAttempt(clients, headPrep.Provider, headPrep.ResolvedObjectKey, headUploaded)
+		deleteUploadAttempt(s.gw, headPrep.Provider, headPrep.ResolvedObjectKey, headUploaded)
 		return err
 	}
 	prevRaw := domain.RawMetadata{}
 	if raw := prevFile.RawMetadataMap(); raw != nil {
 		prevRaw = raw
 	}
-	merged := mergeProviderMetadataWithPrevious(headUploaded, prevRaw)
-	isImage := mediainfra.IsImageMIMEOrExt(headPrep.MimeNorm, headPrep.FilenameNorm)
+	merged := mergeProviderMetadataWithPrevious(s.gw, headUploaded, prevRaw)
+	isImage := s.gw.IsImageMIMEOrExt(headPrep.MimeNorm, headPrep.FilenameNorm)
 	sizeBytes := effectiveUploadSizeBytes(headPrep.Header.Size, headPrep.PayloadNorm, isImage)
-	input := buildUpdateEntityInput(prevFile, headPrep.Kind, headPrep.Provider, headPrep.FilenameNorm, headPrep.MimeNorm, sizeBytes, headPrep.PayloadNorm, headUploaded, merged)
-	headEntity, err := s.persistUpdatedRow(ctx, clients, prevFile, input, headPrep.PayloadNorm, headPrep.Fingerprint)
+	input := buildUpdateEntityInput(updateUploadInputParams{
+		prevFile: prevFile, kind: headPrep.Kind, provider: headPrep.Provider,
+		filename: headPrep.FilenameNorm, mime: headPrep.MimeNorm, sizeBytes: sizeBytes,
+		payload: headPrep.PayloadNorm, uploaded: headUploaded, merged: merged,
+	})
+	headEntity, err := s.persistUpdatedRow(ctx, prevFile, input, headPrep.PayloadNorm, headPrep.Fingerprint)
 	if err != nil {
-		s.rollbackCreatedRows(ctx, clients, tailEntities)
-		deleteUploadAttempt(clients, headPrep.Provider, headPrep.ResolvedObjectKey, headUploaded)
+		s.rollbackCreatedRows(ctx, tailEntities)
+		deleteUploadAttempt(s.gw, headPrep.Provider, headPrep.ResolvedObjectKey, headUploaded)
 		return err
 	}
 	out[0] = headEntity
@@ -560,7 +571,7 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 		zap.String("video_guid", videoGUID),
 	)
 	trimmedGUID := strings.TrimSpace(videoGUID)
-	video, err := mediainfra.GetBunnyVideoByID(mediainfra.Cloud, ctx, trimmedGUID)
+	video, err := s.gw.GetBunnyVideoByID(ctx, trimmedGUID)
 	if err != nil {
 		log.Warn("bunny webhook: GetBunnyVideoByID failed", zap.Error(err))
 		return err
@@ -582,9 +593,9 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 	}
 	streamBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
 	libID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
-	mediainfra.ApplyBunnyDetailToMetadata(raw, video, libID, streamBase)
-	typed := mediainfra.BuildTypedMetadata(row.Kind, row.MimeType, row.Filename, row.SizeBytes, nil, raw)
-	mediainfra.ApplyTypedMetadataToRaw(raw, typed)
+	s.gw.ApplyBunnyDetailToMetadata(raw, video, libID, streamBase)
+	typed := s.gw.BuildTypedMetadata(row.Kind, row.MimeType, row.Filename, row.SizeBytes, nil, raw)
+	s.gw.ApplyTypedMetadataToRaw(raw, typed)
 
 	blob, err := json.Marshal(raw)
 	if err != nil {
@@ -592,7 +603,7 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 	}
 	row.MetadataJSON = string(blob)
 	row.Status = constants.FileStatusReady
-	if thumb := mediainfra.EffectiveBunnyThumbnailURL(video); thumb != "" {
+	if thumb := s.gw.EffectiveBunnyThumbnailURL(video); thumb != "" {
 		row.ThumbnailURL = thumb
 	}
 	if dur := int64(typed.DurationSeconds); dur > 0 {

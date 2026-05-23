@@ -24,7 +24,7 @@ func TestBindCreateFileMultipart_ignoresClientKindAndMetadata(t *testing.T) {
 		"object_key": []string{"abc"},
 	}
 
-	req, err := mediadelivery.BindCreateFileMultipart(c)
+	req, err := mediadelivery.BindCreateFileMultipart(c, mediainfra.NewStorageGateway())
 	if err != nil {
 		t.Fatalf("bind should accept metadata payload for backward-compat: %v", err)
 	}

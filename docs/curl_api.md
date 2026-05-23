@@ -90,6 +90,8 @@ Every response is JSON in one of two shapes:
 
 `code: 0` = success. Any non-zero `code` = application error (see [section 14](#14-error-code-reference)).
 
+**Audit timestamps:** `created_at`, `updated_at`, and `deleted_at` (when present) are **Unix epoch integers** (seconds) in JSON — not RFC3339/ISO strings. This applies to auth `/me`, RBAC, taxonomy, and media list responses.
+
 ### Authentication Headers
 
 | Header | Used for |
@@ -693,7 +695,8 @@ curl -X POST {{BASE_URL}}/api/system/delete-role-permission-sync-job \
 ## 6. Internal RBAC — Permissions
 
 > **Auth:** `X-API-Key: <key>`  
-> **Rate limit:** 60 requests / 1 minute
+> **Rate limit:** 60 requests / 1 minute  
+> **Audit timestamps:** `created_at` and `updated_at` are Unix epoch **integers** (seconds), not ISO strings.
 
 ```bash
 # Store key for convenience
@@ -731,8 +734,8 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/permissions?page=1&per_page=10&se
         "permission_id":   "P5",
         "permission_name": "course:read",
         "description":     "",
-        "created_at":      "2025-01-01T00:00:00Z",
-        "updated_at":      "2025-01-01T00:00:00Z"
+        "created_at": 1735689600,
+        "updated_at": 1735689600
       }
     ],
     "page_info": {
@@ -781,8 +784,8 @@ curl -X POST {{BASE_URL}}/api/internal-v1/rbac/permissions \
     "permission_id":   "P14",
     "permission_name": "lesson:read",
     "description":     "Read lesson content",
-    "created_at":      "2026-04-18T10:00:00Z",
-    "updated_at":      "2026-04-18T10:00:00Z"
+    "created_at": 1744970400,
+    "updated_at": 1744970400
   }
 }
 ```
@@ -830,8 +833,8 @@ curl -X PATCH {{BASE_URL}}/api/internal-v1/rbac/permissions/P14 \
     "permission_id":   "P14",
     "permission_name": "lesson:view",
     "description":     "View lesson content",
-    "created_at":      "...",
-    "updated_at":      "2026-04-18T11:00:00Z"
+    "created_at": 1735689600,
+    "updated_at": 1744974000
   }
 }
 ```
@@ -897,10 +900,10 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/roles?with_permissions=1" \
       "name": "admin",
       "description": "Business administration",
       "permissions": [
-        { "permission_id": "P1", "permission_name": "profile:read", "description": "", "created_at": "...", "updated_at": "..." }
+        { "permission_id": "P1", "permission_name": "profile:read", "description": "", "created_at": 1735689600, "updated_at": 1735689600 }
       ],
-      "created_at": "...",
-      "updated_at": "..."
+      "created_at": 1735689600,
+      "updated_at": 1735689600
     }
   ]
 }
@@ -940,8 +943,8 @@ curl -X POST {{BASE_URL}}/api/internal-v1/rbac/roles \
     "id": 5,
     "name": "moderator",
     "description": "Content moderation role",
-    "created_at": "2026-04-18T10:00:00Z",
-    "updated_at": "2026-04-18T10:00:00Z"
+    "created_at": 1744970400,
+    "updated_at": 1744970400
   }
 }
 ```
@@ -1068,8 +1071,8 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/users/42/roles" \
         { "permission_id": "P5", "permission_name": "course:read", ... },
         { "permission_id": "P10", "permission_name": "user:read", ... }
       ],
-      "created_at": "...",
-      "updated_at": "..."
+      "created_at": 1735689600,
+      "updated_at": 1735689600
     }
   ]
 }
@@ -1170,8 +1173,8 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions" \
       "permission_id":   "P8",
       "permission_name": "course:create",
       "description":     "Create courses",
-      "created_at":      "...",
-      "updated_at":      "..."
+      "created_at": 1735689600,
+      "updated_at": 1735689600
     }
   ]
 }

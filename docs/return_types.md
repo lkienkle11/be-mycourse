@@ -119,9 +119,9 @@ type User struct {
     ConfirmationToken   *string                            `json:"-"`               // never serialized
     ConfirmationSentAt  *time.Time                         `json:"-"`               // never serialized
     RefreshTokenSession gormjsonbauth.RefreshTokenSessionMap   `json:"-"`               // never serialized
-    CreatedAt           time.Time                          `json:"created_at"`
-    UpdatedAt           time.Time                          `json:"updated_at"`
-    DeletedAt           DeletedAt                          `json:"deleted_at,omitempty"`
+    CreatedAt           int64                              `json:"created_at"`      // Unix epoch seconds
+    UpdatedAt           int64                              `json:"updated_at"`      // Unix epoch seconds
+    DeletedAt           *int64                             `json:"deleted_at,omitempty"`
 }
 ```
 
@@ -183,8 +183,8 @@ type Permission struct {
     PermissionID   string    `json:"permission_id"`   // e.g. "P1"
     PermissionName string    `json:"permission_name"` // e.g. "profile:read"
     Description    string    `json:"description"`
-    CreatedAt      time.Time `json:"created_at"`
-    UpdatedAt      time.Time `json:"updated_at"`
+    CreatedAt      int64     `json:"created_at"`      // Unix epoch seconds
+    UpdatedAt      int64     `json:"updated_at"`      // Unix epoch seconds
 }
 ```
 
@@ -197,8 +197,8 @@ type Role struct {
     Name        string       `json:"name"`
     Description string       `json:"description"`
     Permissions []Permission `json:"permissions,omitempty"` // populated when with_permissions=1
-    CreatedAt   time.Time    `json:"created_at"`
-    UpdatedAt   time.Time    `json:"updated_at"`
+    CreatedAt   int64        `json:"created_at"`      // Unix epoch seconds
+    UpdatedAt   int64        `json:"updated_at"`      // Unix epoch seconds
 }
 ```
 
@@ -709,7 +709,7 @@ For multipart create/update, client-sent `kind` and `metadata` text fields are p
 
 ### Taxonomy API `/api/v1/taxonomy`
 
-Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `result` + `page_info`. JSON field names match `delivery/dto.go`.
+Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `result` + `page_info`. JSON field names match `delivery/dto.go`. Audit fields `created_at` and `updated_at` are **Unix epoch integers** (seconds), not ISO strings.
 
 #### Course topic (`/topics`, permission `topic:*`)
 
@@ -729,8 +729,8 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
   ],
   "status": "ACTIVE",
   "created_by": 1,
-  "created_at": "2026-05-20T10:00:00Z",
-  "updated_at": "2026-05-20T10:00:00Z"
+  "created_at": 1747744800,
+  "updated_at": 1747744800
 }
 ```
 
@@ -745,8 +745,8 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
   "image_url": "",
   "status": "ACTIVE",
   "created_by": 1,
-  "created_at": "2026-05-20T10:00:00Z",
-  "updated_at": "2026-05-20T10:00:00Z"
+  "created_at": 1747744800,
+  "updated_at": 1747744800
 }
 ```
 
@@ -760,8 +760,8 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
   "children": [],
   "status": "ACTIVE",
   "created_by": 1,
-  "created_at": "2026-05-20T10:00:00Z",
-  "updated_at": "2026-05-20T10:00:00Z"
+  "created_at": 1747744800,
+  "updated_at": 1747744800
 }
 ```
 
@@ -890,8 +890,8 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
       "permission_id":   "P1",
       "permission_name": "profile:read",
       "description":     "",
-      "created_at":      "2025-01-01T00:00:00Z",
-      "updated_at":      "2025-01-01T00:00:00Z"
+      "created_at": 1735689600,
+      "updated_at": 1735689600
     }
   ],
   "page_info": { "page": 1, "per_page": 20, "total_pages": 1, "total_items": 13 }
@@ -917,8 +917,8 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
   "permission_id":   "P14",
   "permission_name": "lesson:read",
   "description":     "Read lessons",
-  "created_at":      "2026-04-18T10:00:00Z",
-  "updated_at":      "2026-04-18T10:00:00Z"
+  "created_at": 1744970400,
+  "updated_at": 1744970400
 }
 ```
 
@@ -965,10 +965,10 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
     "name": "sysadmin",
     "description": "System-wide administration",
     "permissions": [
-      { "permission_id": "P1", "permission_name": "profile:read", "description": "", "created_at": "...", "updated_at": "..." }
+      { "permission_id": "P1", "permission_name": "profile:read", "description": "", "created_at": 1735689600, "updated_at": 1735689600 }
     ],
-    "created_at": "...",
-    "updated_at": "..."
+    "created_at": 1735689600,
+    "updated_at": 1735689600
   }
 ]
 ```

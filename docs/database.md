@@ -104,6 +104,12 @@ Created in migration `000002_taxonomy_domain`:
 
 Used by `course_levels.status`, `course_topics.status`, `course_outcomes.status`, `course_skills.status`, `tags.status`. Default: `ACTIVE`.
 
+### Audit timestamps (`created_at`, `updated_at`, `deleted_at`)
+
+Since migration **`000011_audit_timestamps_bigint`**, all audit columns store **Unix epoch seconds** as **`BIGINT`**. Defaults use `EXTRACT(EPOCH FROM NOW())::BIGINT`. Go domain/infra/DTO layers use `int64` (nullable `*int64` for `deleted_at`). JSON APIs emit **numbers**, not RFC3339 strings.
+
+Other time columns (`confirmation_sent_at`, `next_run_at`, JWT `exp`/`iat`) remain **`TIMESTAMPTZ`** or token-native types.
+
 ---
 
 ## RBAC tables
@@ -117,8 +123,8 @@ Flat permission catalog. Primary key is the stable catalog id (`permission_id`, 
 | `permission_id` | `VARCHAR(10)` | PK | Stable id (`P{number}`); matches `perm_id` tags on `constants.AllPermissions` |
 | `permission_name` | `VARCHAR(50)` | UNIQUE NOT NULL | Runtime string in JWT `permissions` claim and `middleware.RequirePermission` (`resource:action`) |
 | `description` | `VARCHAR(512)` | NOT NULL DEFAULT `''` | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **GORM model:** `internal/rbac/infra/repos.go` (`permissionRow`), `internal/system/infra/repos.go` (`permissionSyncRow` for sync).
 
@@ -133,8 +139,8 @@ Named roles. Default names: `sysadmin`, `admin`, `instructor`, `learner` (seeded
 | `id` | `BIGSERIAL` | PK | |
 | `name` | `VARCHAR(64)` | UNIQUE NOT NULL | |
 | `description` | `VARCHAR(512)` | NOT NULL DEFAULT `''` | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **GORM model:** `internal/rbac/infra/repos.go` (`roleRow`).
 
@@ -276,9 +282,9 @@ Application accounts. Passwords are bcrypt-hashed.
 | `confirmation_sent_at` | `TIMESTAMPTZ` | nullable | Last confirmation email send time |
 | `registration_email_send_total` | `INTEGER` | NOT NULL DEFAULT `0` | Successful confirmation emails while pending; **not** in public JSON; reset to `0` on confirm; cap **15** in app logic |
 | `refresh_token_session` | `JSONB` | NOT NULL DEFAULT `'{}'` | Device sessions map (see below) |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `deleted_at` | `TIMESTAMPTZ` | nullable | Soft delete (GORM) |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (manual UPDATE, Unix epoch seconds) |
 
 **Indexes:** `idx_users_email`, `idx_users_user_code`, `idx_users_deleted_at` (partial, `deleted_at IS NULL`), `idx_users_confirm_token` (partial, token not null), `idx_users_avatar_file_id` (migration `000006`).
 
@@ -326,8 +332,8 @@ Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_u
 | `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | URL-safe identifier |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Index:** `idx_course_levels_created_by`.
 
@@ -346,8 +352,8 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | `child_topics` | `JSONB` | NOT NULL DEFAULT `'[]'` | Nested tree: `{ id, name, slug, children[] }` |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Indexes:** `idx_course_topics_created_by`, `idx_course_topics_image_file_id`.
 
@@ -365,8 +371,8 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Indexes:** `idx_course_outcomes_created_by`, `idx_course_outcomes_image_file_id`.
 
@@ -382,8 +388,8 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | `children` | `JSONB` | NOT NULL DEFAULT `'[]'` | Skill tree (same node shape as `child_topics`) |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Index:** `idx_course_skills_created_by`.
 
@@ -398,8 +404,8 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Index:** `idx_tags_created_by`.
 
@@ -436,9 +442,9 @@ Product media (B2 files, Bunny Stream videos, local signed URLs, etc.).
 | `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic concurrency / orphan safety (`000004`) |
 | `content_fingerprint` | `VARCHAR(128)` | NOT NULL DEFAULT `''` | Content hash for bundle updates (`000004`) |
 | `metadata_json` | `JSONB` | NOT NULL DEFAULT `'{}'` | Server-side provider + typed metadata store; **not** returned raw in API — mapped to typed `metadata` in responses |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `deleted_at` | `TIMESTAMPTZ` | nullable | Soft delete |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
 **Indexes:** `idx_media_files_kind`, `idx_media_files_provider`, `idx_media_files_bunny_video_id`, `idx_media_files_created_at`, `idx_media_files_metadata_json_gin` (GIN on `metadata_json`, migration `000008`).
 
@@ -475,8 +481,8 @@ Deferred cloud object deletion queue (`000004_media_orphan_safety`). No FK to `m
 | `attempt_count` | `INT` | NOT NULL DEFAULT `0` | Retry counter |
 | `last_error` | `TEXT` | NOT NULL DEFAULT `''` | Last failure message |
 | `next_run_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | Scheduled processing time |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Indexes:** `idx_media_pending_cloud_cleanup_due` (partial, `status = 'pending'`), `idx_media_pending_cloud_cleanup_status`.
 
@@ -498,7 +504,7 @@ Singleton configuration row (`id` must be `1`).
 | `app_cli_system_password` | `TEXT` NOT NULL DEFAULT `''` | CLI registration password (plaintext) |
 | `app_system_env` | `TEXT` NOT NULL DEFAULT `''` | HMAC key for system credential derivation |
 | `app_token_env` | `TEXT` NOT NULL DEFAULT `''` | JWT secret for system access tokens |
-| `updated_at` | `TIMESTAMPTZ` NOT NULL DEFAULT `NOW()` | |
+| `updated_at` | `BIGINT` NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 Seeded with one empty row in `000001_schema`.
 
@@ -515,7 +521,7 @@ Privileged system operators. Username/password are stored as HMAC-hex derived wi
 | `id` | `BIGSERIAL` PK | |
 | `username_secret` | `TEXT` NOT NULL UNIQUE | HMAC-hex(username, `app_system_env`) |
 | `password_secret` | `TEXT` NOT NULL | HMAC-hex(password, `app_system_env`) |
-| `created_at` | `TIMESTAMPTZ` NOT NULL DEFAULT `NOW()` | |
+| `created_at` | `BIGINT` NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Index:** `uix_system_privileged_users_username_secret`.
 
@@ -560,6 +566,8 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000007 | `registration_email_limits` | `users.registration_email_send_total` + column `COMMENT` (no `;` inside comment text — migrate splits on `;`) |
 | 000008 | `media_metadata_json_storage` | Ensure `metadata_json` NOT NULL default `{}`, backfill typed metadata keys, GIN index `idx_media_files_metadata_json_gin` |
 | 000009 | `taxonomy_topics_outcomes_skills` | Rename `categories` → `course_topics` + `child_topics` JSONB, tables `course_outcomes` / `course_skills`, P18–P21 → `topic:*`, seed P30–P37 |
+| 000010 | `role_modify_permissions` | Seed P38–P40 role-modify permissions and role matrix |
+| 000011 | `audit_timestamps_bigint` | Convert audit columns (`created_at`, `updated_at`, `deleted_at`) from `TIMESTAMPTZ` to `BIGINT` Unix seconds on all affected tables |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

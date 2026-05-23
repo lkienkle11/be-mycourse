@@ -50,6 +50,16 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           golangci-lint version
 
+      - name: Install go-arch-lint
+        run: |
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          GO_ARCH_LINT_VERSION="v1.15.0"
+          if command -v go-arch-lint >/dev/null 2>&1; then
+            echo "go-arch-lint already present, skipping go install"
+          else
+            go install "github.com/fe3dback/go-arch-lint@${GO_ARCH_LINT_VERSION}"
+          fi
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Test Go Binary
         run: |
@@ -58,6 +68,7 @@ jobs:
           go vet ./...
           golangci-lint cache clean
           golangci-lint run
+          make check-architecture
 
   build:
     needs: test

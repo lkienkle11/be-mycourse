@@ -7,7 +7,6 @@ import (
 
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/system/domain"
-	"mycourse-io-be/internal/system/infra"
 )
 
 // SystemService provides all SYSTEM use-cases.
@@ -16,6 +15,7 @@ type SystemService struct {
 	privUserRepo domain.PrivilegedUserRepository
 	permSyncer   domain.PermissionSyncer
 	roleSyncer   domain.RolePermissionSyncer
+	crypto       domain.SystemCrypto
 }
 
 // NewSystemService constructs a SystemService.
@@ -24,12 +24,14 @@ func NewSystemService(
 	privUserRepo domain.PrivilegedUserRepository,
 	permSyncer domain.PermissionSyncer,
 	roleSyncer domain.RolePermissionSyncer,
+	crypto domain.SystemCrypto,
 ) *SystemService {
 	return &SystemService{
 		appCfgRepo:   appCfgRepo,
 		privUserRepo: privUserRepo,
 		permSyncer:   permSyncer,
 		roleSyncer:   roleSyncer,
+		crypto:       crypto,
 	}
 }
 
@@ -47,8 +49,8 @@ func (s *SystemService) SystemLogin(ctx context.Context, username, password stri
 	if strings.TrimSpace(cfg.AppSystemEnv) == "" || strings.TrimSpace(cfg.AppTokenEnv) == "" {
 		return "", apperrors.ErrSystemSecretsNotReady
 	}
-	uh := infra.CredentialHMACHex(cfg.AppSystemEnv, username)
-	ph := infra.CredentialHMACHex(cfg.AppSystemEnv, password)
+	uh := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, username)
+	ph := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, password)
 	n, err := s.privUserRepo.MatchCount(ctx, uh, ph)
 	if err != nil {
 		return "", err
@@ -56,7 +58,7 @@ func (s *SystemService) SystemLogin(ctx context.Context, username, password stri
 	if n == 0 {
 		return "", apperrors.ErrSystemLoginFailed
 	}
-	return infra.MintSystemAccessToken(cfg.AppTokenEnv, uh)
+	return s.crypto.MintSystemAccessToken(cfg.AppTokenEnv, uh)
 }
 
 // VerifySystemAccessToken checks the bearer token against app_token_env in DB.
@@ -69,7 +71,7 @@ func (s *SystemService) VerifySystemAccessToken(tokenStr string) error {
 	if strings.TrimSpace(cfg.AppTokenEnv) == "" {
 		return apperrors.ErrSystemSecretsNotReady
 	}
-	_, err = infra.ParseSystemAccessToken(cfg.AppTokenEnv, strings.TrimSpace(tokenStr))
+	_, err = s.crypto.ParseSystemAccessToken(cfg.AppTokenEnv, strings.TrimSpace(tokenStr))
 	return err
 }
 
@@ -87,8 +89,8 @@ func (s *SystemService) RegisterPrivilegedUser(ctx context.Context, username, pa
 	if strings.TrimSpace(cfg.AppSystemEnv) == "" {
 		return apperrors.ErrSystemSecretsNotReady
 	}
-	uh := infra.CredentialHMACHex(cfg.AppSystemEnv, username)
-	ph := infra.CredentialHMACHex(cfg.AppSystemEnv, password)
+	uh := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, username)
+	ph := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, password)
 	u := &domain.PrivilegedUser{UsernameSecret: uh, PasswordSecret: ph}
 	return s.privUserRepo.Create(ctx, u)
 }
@@ -111,7 +113,10 @@ func (s *SystemService) SyncRolePermissions(ctx context.Context) (int, error) {
 	return s.roleSyncer.SyncRolePermissionsFromCatalog(ctx, pairs)
 }
 
+// systemAccessTokenTTLSeconds matches infra.SystemAccessTokenTTL without importing infra.
+const systemAccessTokenTTLSeconds = 90
+
 // SystemAccessTokenTTL exposes the token lifetime for response body use.
 func SystemAccessTokenTTL() int {
-	return int(infra.SystemAccessTokenTTL.Seconds())
+	return systemAccessTokenTTLSeconds
 }

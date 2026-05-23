@@ -2,6 +2,7 @@
 package delivery
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -70,21 +71,24 @@ func (h *Handler) systemLogin(c *gin.Context) {
 }
 
 func (h *Handler) permissionSyncNow(c *gin.Context) {
-	n, err := h.svc.SyncPermissions(c.Request.Context())
-	if err != nil {
-		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, err.Error(), nil)
-		return
-	}
-	response.OK(c, "permission_sync_completed", permissionSyncResponse{Synced: n})
+	runSyncNow(c, h.svc.SyncPermissions, "permission_sync_completed", func(n int) any {
+		return permissionSyncResponse{Synced: n}
+	})
 }
 
 func (h *Handler) rolePermissionSyncNow(c *gin.Context) {
-	n, err := h.svc.SyncRolePermissions(c.Request.Context())
+	runSyncNow(c, h.svc.SyncRolePermissions, "role_permission_sync_completed", func(n int) any {
+		return rolePermissionSyncResponse{Rows: n}
+	})
+}
+
+func runSyncNow(c *gin.Context, syncFn func(context.Context) (int, error), okMsg string, resp func(int) any) {
+	n, err := syncFn(c.Request.Context())
 	if err != nil {
 		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, err.Error(), nil)
 		return
 	}
-	response.OK(c, "role_permission_sync_completed", rolePermissionSyncResponse{Rows: n})
+	response.OK(c, okMsg, resp(n))
 }
 
 func (h *Handler) createPermissionSyncJob(c *gin.Context) {

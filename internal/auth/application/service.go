@@ -384,7 +384,7 @@ func buildMeProfile(user *domain.User, perms []string) *domain.MeProfile {
 		AvatarFileID:   user.AvatarFileID,
 		EmailConfirmed: user.EmailConfirmed,
 		IsDisabled:     user.IsDisable,
-		CreatedAt:      user.CreatedAt.Unix(),
+		CreatedAt:      user.CreatedAt,
 		Permissions:    perms,
 	}
 }

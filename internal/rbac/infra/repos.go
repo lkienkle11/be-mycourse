@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/rbac/domain"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -40,21 +40,21 @@ func init() {
 // --- GORM row types ----------------------------------------------------------
 
 type permissionRow struct {
-	PermissionID   string    `gorm:"column:permission_id;primaryKey;size:10"`
-	PermissionName string    `gorm:"column:permission_name;uniqueIndex;size:50;not null"`
-	Description    string    `gorm:"size:512"`
-	CreatedAt      time.Time `gorm:"autoCreateTime"`
-	UpdatedAt      time.Time `gorm:"autoUpdateTime"`
+	PermissionID   string `gorm:"column:permission_id;primaryKey;size:10"`
+	PermissionName string `gorm:"column:permission_name;uniqueIndex;size:50;not null"`
+	Description    string `gorm:"size:512"`
+	CreatedAt      int64  `gorm:"column:created_at;not null"`
+	UpdatedAt      int64  `gorm:"column:updated_at;not null"`
 }
 
 func (permissionRow) TableName() string { return constants.TableRBACPermissions }
 
 type roleRow struct {
-	ID          uint      `gorm:"primaryKey"`
-	Name        string    `gorm:"uniqueIndex;size:64;not null"`
-	Description string    `gorm:"size:512"`
-	CreatedAt   time.Time `gorm:"autoCreateTime"`
-	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
+	ID          uint   `gorm:"primaryKey"`
+	Name        string `gorm:"uniqueIndex;size:64;not null"`
+	Description string `gorm:"size:512"`
+	CreatedAt   int64  `gorm:"column:created_at;not null"`
+	UpdatedAt   int64  `gorm:"column:updated_at;not null"`
 }
 
 func (roleRow) TableName() string { return constants.TableRBACRoles }
@@ -152,11 +152,16 @@ func (r *GormPermissionRepository) GetByID(ctx context.Context, permissionID str
 
 func (r *GormPermissionRepository) Create(ctx context.Context, p *domain.Permission) error {
 	row := permissionToRow(p)
+	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
+	p.CreatedAt = row.CreatedAt
+	p.UpdatedAt = row.UpdatedAt
 	return r.db.WithContext(ctx).Create(row).Error
 }
 
 func (r *GormPermissionRepository) Save(ctx context.Context, p *domain.Permission) error {
 	row := permissionToRow(p)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	p.UpdatedAt = row.UpdatedAt
 	return r.db.WithContext(ctx).Save(row).Error
 }
 
@@ -174,6 +179,7 @@ func (r *GormPermissionRepository) Delete(ctx context.Context, permissionID stri
 
 func (r *GormPermissionRepository) Upsert(ctx context.Context, p *domain.Permission) error {
 	row := permissionToRow(p)
+	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 	return r.db.WithContext(ctx).
 		Where("permission_id = ?", row.PermissionID).
 		Assign(row).
@@ -226,6 +232,7 @@ func (r *GormRoleRepository) GetByID(ctx context.Context, id uint, withPermissio
 
 func (r *GormRoleRepository) Create(ctx context.Context, role *domain.Role) error {
 	row := &roleRow{Name: role.Name, Description: role.Description}
+	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
 		return err
 	}
@@ -236,7 +243,9 @@ func (r *GormRoleRepository) Create(ctx context.Context, role *domain.Role) erro
 }
 
 func (r *GormRoleRepository) Save(ctx context.Context, role *domain.Role) error {
-	row := &roleRow{ID: role.ID, Name: role.Name, Description: role.Description}
+	row := &roleRow{ID: role.ID, Name: role.Name, Description: role.Description, CreatedAt: role.CreatedAt}
+	gormx.TouchUpdated(&row.UpdatedAt)
+	role.UpdatedAt = row.UpdatedAt
 	return r.db.WithContext(ctx).Save(row).Error
 }
 

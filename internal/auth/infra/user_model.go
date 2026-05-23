@@ -3,8 +3,6 @@ package infra
 import (
 	"time"
 
-	"gorm.io/gorm"
-
 	"mycourse-io-be/internal/auth/domain"
 	"mycourse-io-be/internal/shared/constants"
 )
@@ -23,27 +21,12 @@ type userRow struct {
 	ConfirmationSentAt         *time.Time
 	RegistrationEmailSendTotal int                    `gorm:"column:registration_email_send_total;not null;default:0"`
 	RefreshTokenSession        RefreshTokenSessionMap `gorm:"type:jsonb;not null;default:'{}'"`
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
-	DeletedAt                  gorm.DeletedAt `gorm:"index"`
+	CreatedAt                  int64                  `gorm:"column:created_at;not null"`
+	UpdatedAt                  int64                  `gorm:"column:updated_at;not null"`
+	DeletedAt                  *int64                 `gorm:"column:deleted_at;index"`
 }
 
 func (userRow) TableName() string { return constants.TableAppUsers }
-
-func deletedAtToDomain(d gorm.DeletedAt) *time.Time {
-	if !d.Valid {
-		return nil
-	}
-	t := d.Time
-	return &t
-}
-
-func deletedAtToRow(d *time.Time) gorm.DeletedAt {
-	if d == nil {
-		return gorm.DeletedAt{}
-	}
-	return gorm.DeletedAt{Time: *d, Valid: true}
-}
 
 func toUserDomain(r *userRow) *domain.User {
 	return &domain.User{
@@ -61,7 +44,7 @@ func toUserDomain(r *userRow) *domain.User {
 		RefreshTokenSession:        toDomainSessionMap(r.RefreshTokenSession),
 		CreatedAt:                  r.CreatedAt,
 		UpdatedAt:                  r.UpdatedAt,
-		DeletedAt:                  deletedAtToDomain(r.DeletedAt),
+		DeletedAt:                  r.DeletedAt,
 	}
 }
 
@@ -80,7 +63,7 @@ func toUserRow(u *domain.User) *userRow {
 		RegistrationEmailSendTotal: u.RegistrationEmailSendTotal,
 		CreatedAt:                  u.CreatedAt,
 		UpdatedAt:                  u.UpdatedAt,
-		DeletedAt:                  deletedAtToRow(u.DeletedAt),
+		DeletedAt:                  u.DeletedAt,
 	}
 	if u.RefreshTokenSession != nil {
 		row.RefreshTokenSession = RefreshTokenSessionMap(u.RefreshTokenSession)

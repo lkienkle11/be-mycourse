@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"regexp"
 	"testing"
-	"time"
 
 	mediadelivery "mycourse-io-be/internal/media/delivery"
 	mediadomain "mycourse-io-be/internal/media/domain"
 	mediainfra "mycourse-io-be/internal/media/infra"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -95,8 +95,8 @@ func TestBuildMediaFileEntityFromUpload_persistsTypedMetadataKeys(t *testing.T) 
 				"video_codec":    "x264",
 			},
 		},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: timex.NowUnix(),
+		UpdatedAt: timex.NowUnix(),
 	})
 
 	if entity.Metadata.DurationSeconds != 190 {

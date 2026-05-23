@@ -2,7 +2,6 @@ package delivery
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -169,8 +168,8 @@ func toCourseTopicResponse(t domain.CourseTopic) CourseTopicResponse {
 		ID: t.ID, Name: t.Name, Slug: t.Slug, Status: t.Status,
 		ImageFileID: fid, ImageURL: t.ImageFileURL, ChildTopics: child,
 		CreatedBy: t.CreatedBy,
-		CreatedAt: t.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: t.UpdatedAt.Format(time.RFC3339),
+		CreatedAt: t.CreatedAt,
+		UpdatedAt: t.UpdatedAt,
 	}
 }
 
@@ -190,7 +189,7 @@ func toCourseOutcomeResponse(o domain.CourseOutcome) CourseOutcomeResponse {
 	return CourseOutcomeResponse{
 		ID: o.ID, ShortDescription: o.ShortDescription, Description: desc,
 		ImageFileID: fid, ImageURL: o.ImageFileURL, Status: o.Status, CreatedBy: o.CreatedBy,
-		CreatedAt: o.CreatedAt.Format(time.RFC3339), UpdatedAt: o.UpdatedAt.Format(time.RFC3339),
+		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 }
 
@@ -205,7 +204,7 @@ func toCourseSkillResponse(s domain.CourseSkill) CourseSkillResponse {
 	}
 	return CourseSkillResponse{
 		ID: s.ID, Name: s.Name, Slug: s.Slug, Children: child, Status: s.Status, CreatedBy: s.CreatedBy,
-		CreatedAt: s.CreatedAt.Format(time.RFC3339), UpdatedAt: s.UpdatedAt.Format(time.RFC3339),
+		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }
 

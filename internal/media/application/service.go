@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"mime/multipart"
 	"strings"
-	"time"
 
 	"gorm.io/gorm"
 
@@ -18,6 +17,7 @@ import (
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/logger"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/utils"
 
 	"go.uber.org/zap"
@@ -85,7 +85,7 @@ func (s *MediaService) GetFile(ctx context.Context, objectKey, kind string) (*do
 	}
 	resolvedProvider := s.gw.DefaultMediaProvider(kind)
 	fileURL := s.gw.BuildPublicURL(resolvedProvider, key)
-	now := time.Now()
+	now := timex.NowUnix()
 	return &domain.File{
 		ID:        key,
 		Kind:      kind,
@@ -115,7 +115,7 @@ func (s *MediaService) CreateFile(ctx context.Context, req CreateFileInput, file
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now()
+	now := timex.NowUnix()
 	input := buildCreateEntityInput(createUploadInputParams{
 		gw: s.gw, header: fileHeader, payload: payload, filename: filename, mime: mime,
 		kind: kind, provider: provider, requestedObjectKey: req.ObjectKey, uploaded: uploaded, now: now,
@@ -381,7 +381,7 @@ func (s *MediaService) saveUnchangedFingerprintMetadata(ctx context.Context, pre
 	}
 	updated := *prevFile
 	updated.MetadataJSON = string(blob)
-	updated.UpdatedAt = time.Now()
+	updated.UpdatedAt = timex.NowUnix()
 	if filename != "" {
 		updated.Filename = filename
 	}
@@ -486,7 +486,7 @@ func (s *MediaService) persistPreparedCreates(ctx context.Context, prepared []do
 		return nil, nil
 	}
 	out := make([]*domain.File, len(prepared))
-	now := time.Now()
+	now := timex.NowUnix()
 	for i := range prepared {
 		input := buildCreateEntityInput(createUploadInputParams{
 			gw: s.gw, header: prepared[i].Header, payload: prepared[i].Payload,

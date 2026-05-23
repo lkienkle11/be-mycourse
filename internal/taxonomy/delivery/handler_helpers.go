@@ -4,7 +4,6 @@ import (
 	"context"
 	stderrors "errors"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -177,11 +176,11 @@ func createTaxonomyMutation[Req any, In any, Row any, Resp any](
 	response.Created(c, "created", toResponse(*row))
 }
 
-func slugStatusResponse(id uint, name, slug, status string, createdBy *uint, createdAt, updatedAt time.Time) SlugStatusResponse {
+func slugStatusResponse(id uint, name, slug, status string, createdBy *uint, createdAt, updatedAt int64) SlugStatusResponse {
 	return SlugStatusResponse{
 		ID: id, Name: name, Slug: slug, Status: status, CreatedBy: createdBy,
-		CreatedAt: createdAt.Format(time.RFC3339),
-		UpdatedAt: updatedAt.Format(time.RFC3339),
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	}
 }
 

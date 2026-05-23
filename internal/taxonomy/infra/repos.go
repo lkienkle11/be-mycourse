@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/taxonomy/domain"
 	taxpkg "mycourse-io-be/pkg/taxonomy"
 )
@@ -25,8 +25,8 @@ type courseTopicRow struct {
 	ChildTopics treeNodesJSONB `gorm:"column:child_topics;type:jsonb;not null;default:'[]'"`
 	Status      string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy   *uint          `gorm:"column:created_by"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt   int64
+	UpdatedAt   int64
 }
 
 func (courseTopicRow) TableName() string { return constants.TableTaxonomyCourseTopics }
@@ -38,8 +38,8 @@ type courseOutcomeRow struct {
 	ImageFileID      *string          `gorm:"column:image_file_id;type:uuid"`
 	Status           string           `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy        *uint            `gorm:"column:created_by"`
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	CreatedAt        int64
+	UpdatedAt        int64
 }
 
 func (courseOutcomeRow) TableName() string { return constants.TableTaxonomyCourseOutcomes }
@@ -51,8 +51,8 @@ type courseSkillRow struct {
 	Children  treeNodesJSONB `gorm:"type:jsonb;not null;default:'[]'"`
 	Status    string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy *uint          `gorm:"column:created_by"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 func (courseSkillRow) TableName() string { return constants.TableTaxonomyCourseSkills }
@@ -63,8 +63,8 @@ type tagRow struct {
 	Slug      string `gorm:"size:255;not null;uniqueIndex"`
 	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy *uint  `gorm:"column:created_by"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 func (tagRow) TableName() string { return constants.TableTaxonomyTags }
@@ -75,8 +75,8 @@ type courseLevelRow struct {
 	Slug      string `gorm:"size:255;not null;uniqueIndex"`
 	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy *uint  `gorm:"column:created_by"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 func (courseLevelRow) TableName() string { return constants.TableTaxonomyCourseLevels }
@@ -163,7 +163,10 @@ func (r *GormCourseTopicRepository) Create(ctx context.Context, t *domain.Course
 }
 
 func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTopic) error {
-	return r.db.WithContext(ctx).Save(courseTopicToRow(t)).Error
+	row := courseTopicToRow(t)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	t.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
 func (r *GormCourseTopicRepository) Delete(ctx context.Context, id uint) error {
@@ -197,7 +200,10 @@ func (r *GormCourseOutcomeRepository) Create(ctx context.Context, o *domain.Cour
 }
 
 func (r *GormCourseOutcomeRepository) Save(ctx context.Context, o *domain.CourseOutcome) error {
-	return r.db.WithContext(ctx).Save(courseOutcomeToRow(o)).Error
+	row := courseOutcomeToRow(o)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	o.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
 func (r *GormCourseOutcomeRepository) Delete(ctx context.Context, id uint) error {
@@ -227,7 +233,10 @@ func (r *GormCourseSkillRepository) Create(ctx context.Context, s *domain.Course
 }
 
 func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSkill) error {
-	return r.db.WithContext(ctx).Save(courseSkillToRow(s)).Error
+	row := courseSkillToRow(s)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	s.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
 func (r *GormCourseSkillRepository) Delete(ctx context.Context, id uint) error {
@@ -257,7 +266,10 @@ func (r *GormTagRepository) Create(ctx context.Context, t *domain.Tag) error {
 }
 
 func (r *GormTagRepository) Save(ctx context.Context, t *domain.Tag) error {
-	return r.db.WithContext(ctx).Save(tagToRow(t)).Error
+	row := tagToRow(t)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	t.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
 func (r *GormTagRepository) Delete(ctx context.Context, id uint) error {
@@ -287,7 +299,10 @@ func (r *GormCourseLevelRepository) Create(ctx context.Context, cl *domain.Cours
 }
 
 func (r *GormCourseLevelRepository) Save(ctx context.Context, cl *domain.CourseLevel) error {
-	return r.db.WithContext(ctx).Save(courseLevelToRow(cl)).Error
+	row := courseLevelToRow(cl)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	cl.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
 func (r *GormCourseLevelRepository) Delete(ctx context.Context, id uint) error {

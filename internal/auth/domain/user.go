@@ -29,9 +29,9 @@ type User struct {
 	ConfirmationSentAt         *time.Time
 	RegistrationEmailSendTotal int
 	RefreshTokenSession        RefreshTokenSessionMap
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
-	DeletedAt                  *time.Time
+	CreatedAt                  int64
+	UpdatedAt                  int64
+	DeletedAt                  *int64
 }
 
 // MeProfile is the /me projection used for Redis cache and service layer responses.

@@ -2,8 +2,6 @@
 package domain
 
 import (
-	"time"
-
 	taxpkg "mycourse-io-be/pkg/taxonomy"
 )
 
@@ -16,8 +14,8 @@ type CourseTopic struct {
 	ChildTopics []taxpkg.TreeNode
 	Status      string
 	CreatedBy   *uint
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt   int64
+	UpdatedAt   int64
 
 	ImageFileURL  string
 	ImageFileKind string
@@ -32,8 +30,8 @@ type CourseOutcome struct {
 	ImageFileID      *string
 	Status           string
 	CreatedBy        *uint
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	CreatedAt        int64
+	UpdatedAt        int64
 
 	ImageFileURL  string
 	ImageFileKind string
@@ -48,8 +46,8 @@ type CourseSkill struct {
 	Children  []taxpkg.TreeNode
 	Status    string
 	CreatedBy *uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 // Tag is the aggregate root for a taxonomy tag.
@@ -59,8 +57,8 @@ type Tag struct {
 	Slug      string
 	Status    string
 	CreatedBy *uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 // CourseLevel is the aggregate root for a taxonomy course level.
@@ -70,8 +68,8 @@ type CourseLevel struct {
 	Slug      string
 	Status    string
 	CreatedBy *uint
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 // TaxonomyFilter is the common filter for all taxonomy list queries.

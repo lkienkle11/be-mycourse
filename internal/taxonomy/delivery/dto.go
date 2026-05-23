@@ -95,18 +95,10 @@ type UpdateTagRequest struct {
 }
 
 // CreateCourseLevelRequest is the JSON body for creating a course level.
-type CreateCourseLevelRequest struct {
-	Name   string `json:"name" validate:"required,min=1,max=255"`
-	Slug   string `json:"slug" validate:"required,min=1,max=255"`
-	Status string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
-}
+type CreateCourseLevelRequest = CreateTagRequest
 
 // UpdateCourseLevelRequest is the JSON body for updating a course level.
-type UpdateCourseLevelRequest struct {
-	Name   *string `json:"name" validate:"omitempty,min=1,max=255"`
-	Slug   *string `json:"slug" validate:"omitempty,min=1,max=255"`
-	Status *string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
-}
+type UpdateCourseLevelRequest = UpdateTagRequest
 
 // CourseTopicResponse is the JSON response for a course topic.
 type CourseTopicResponse struct {
@@ -147,8 +139,8 @@ type CourseSkillResponse struct {
 	UpdatedAt string            `json:"updated_at"`
 }
 
-// TagResponse is the JSON response for a tag.
-type TagResponse struct {
+// SlugStatusResponse is the shared JSON shape for simple slug+status taxonomy resources.
+type SlugStatusResponse struct {
 	ID        uint   `json:"id"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
@@ -158,13 +150,8 @@ type TagResponse struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// TagResponse is the JSON response for a tag.
+type TagResponse = SlugStatusResponse
+
 // CourseLevelResponse is the JSON response for a course level.
-type CourseLevelResponse struct {
-	ID        uint   `json:"id"`
-	Name      string `json:"name"`
-	Slug      string `json:"slug"`
-	Status    string `json:"status"`
-	CreatedBy *uint  `json:"created_by,omitempty"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-}
+type CourseLevelResponse = SlugStatusResponse

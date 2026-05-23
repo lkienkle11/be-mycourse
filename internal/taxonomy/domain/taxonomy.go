@@ -153,16 +153,7 @@ type UpdateTagInput struct {
 }
 
 // CreateCourseLevelInput carries data for creating a new course level.
-type CreateCourseLevelInput struct {
-	ActorID uint
-	Name    string
-	Slug    string
-	Status  string
-}
+type CreateCourseLevelInput = CreateTagInput
 
 // UpdateCourseLevelInput carries partial-update data for a course level.
-type UpdateCourseLevelInput struct {
-	Name   *string
-	Slug   *string
-	Status *string
-}
+type UpdateCourseLevelInput = UpdateTagInput

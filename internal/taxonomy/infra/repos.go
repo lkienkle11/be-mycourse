@@ -146,41 +146,20 @@ func NewGormCourseTopicRepository(db *gorm.DB) *GormCourseTopicRepository {
 	return &GormCourseTopicRepository{db: db}
 }
 
+func mapCourseTopicRow(row *courseTopicRow) domain.CourseTopic {
+	return rowToCourseTopic(row, nil)
+}
+
 func (r *GormCourseTopicRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseTopic, int64, error) {
-	q := applyTaxonomyFilter(r.db.WithContext(ctx).Model(&courseTopicRow{}), filter)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var rows []courseTopicRow
-	if err := applyPagination(q, filter).Find(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.CourseTopic, len(rows))
-	for i := range rows {
-		out[i] = rowToCourseTopic(&rows[i], nil)
-	}
-	return out, total, nil
+	return taxonomyList(ctx, r.db, &courseTopicRow{}, filter, applyTaxonomyFilter, mapCourseTopicRow)
 }
 
 func (r *GormCourseTopicRepository) GetByID(ctx context.Context, id uint) (*domain.CourseTopic, error) {
-	var row courseTopicRow
-	if err := r.db.WithContext(ctx).First(&row, id).Error; err != nil {
-		return nil, mapNotFound(err)
-	}
-	t := rowToCourseTopic(&row, nil)
-	return &t, nil
+	return taxonomyGetByID(ctx, r.db, id, mapCourseTopicRow)
 }
 
 func (r *GormCourseTopicRepository) Create(ctx context.Context, t *domain.CourseTopic) error {
-	row := courseTopicToRow(t)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
-		return err
-	}
-	t.ID = row.ID
-	t.CreatedAt = row.CreatedAt
-	t.UpdatedAt = row.UpdatedAt
-	return nil
+	return createTaxonomyDomain(ctx, r.db, t, courseTopicToRow, &t.ID, &t.CreatedAt, &t.UpdatedAt, metaCourseTopicRow)
 }
 
 func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTopic) error {
@@ -201,41 +180,20 @@ func NewGormCourseOutcomeRepository(db *gorm.DB) *GormCourseOutcomeRepository {
 	return &GormCourseOutcomeRepository{db: db}
 }
 
+func mapCourseOutcomeRow(row *courseOutcomeRow) domain.CourseOutcome {
+	return rowToCourseOutcome(row, nil)
+}
+
 func (r *GormCourseOutcomeRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseOutcome, int64, error) {
-	q := applyOutcomeSearch(r.db.WithContext(ctx).Model(&courseOutcomeRow{}), filter)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var rows []courseOutcomeRow
-	if err := applyPagination(q, filter).Find(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.CourseOutcome, len(rows))
-	for i := range rows {
-		out[i] = rowToCourseOutcome(&rows[i], nil)
-	}
-	return out, total, nil
+	return taxonomyList(ctx, r.db, &courseOutcomeRow{}, filter, applyOutcomeSearch, mapCourseOutcomeRow)
 }
 
 func (r *GormCourseOutcomeRepository) GetByID(ctx context.Context, id uint) (*domain.CourseOutcome, error) {
-	var row courseOutcomeRow
-	if err := r.db.WithContext(ctx).First(&row, id).Error; err != nil {
-		return nil, mapNotFound(err)
-	}
-	o := rowToCourseOutcome(&row, nil)
-	return &o, nil
+	return taxonomyGetByID(ctx, r.db, id, mapCourseOutcomeRow)
 }
 
 func (r *GormCourseOutcomeRepository) Create(ctx context.Context, o *domain.CourseOutcome) error {
-	row := courseOutcomeToRow(o)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
-		return err
-	}
-	o.ID = row.ID
-	o.CreatedAt = row.CreatedAt
-	o.UpdatedAt = row.UpdatedAt
-	return nil
+	return createTaxonomyDomain(ctx, r.db, o, courseOutcomeToRow, &o.ID, &o.CreatedAt, &o.UpdatedAt, metaCourseOutcomeRow)
 }
 
 func (r *GormCourseOutcomeRepository) Save(ctx context.Context, o *domain.CourseOutcome) error {
@@ -257,40 +215,15 @@ func NewGormCourseSkillRepository(db *gorm.DB) *GormCourseSkillRepository {
 }
 
 func (r *GormCourseSkillRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseSkill, int64, error) {
-	q := applyTaxonomyFilter(r.db.WithContext(ctx).Model(&courseSkillRow{}), filter)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var rows []courseSkillRow
-	if err := applyPagination(q, filter).Find(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.CourseSkill, len(rows))
-	for i := range rows {
-		out[i] = rowToCourseSkill(&rows[i])
-	}
-	return out, total, nil
+	return taxonomyList(ctx, r.db, &courseSkillRow{}, filter, applyTaxonomyFilter, rowToCourseSkill)
 }
 
 func (r *GormCourseSkillRepository) GetByID(ctx context.Context, id uint) (*domain.CourseSkill, error) {
-	var row courseSkillRow
-	if err := r.db.WithContext(ctx).First(&row, id).Error; err != nil {
-		return nil, mapNotFound(err)
-	}
-	s := rowToCourseSkill(&row)
-	return &s, nil
+	return taxonomyGetByID(ctx, r.db, id, rowToCourseSkill)
 }
 
 func (r *GormCourseSkillRepository) Create(ctx context.Context, s *domain.CourseSkill) error {
-	row := courseSkillToRow(s)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
-		return err
-	}
-	s.ID = row.ID
-	s.CreatedAt = row.CreatedAt
-	s.UpdatedAt = row.UpdatedAt
-	return nil
+	return createTaxonomyDomain(ctx, r.db, s, courseSkillToRow, &s.ID, &s.CreatedAt, &s.UpdatedAt, metaCourseSkillRow)
 }
 
 func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSkill) error {
@@ -312,40 +245,15 @@ func NewGormTagRepository(db *gorm.DB) *GormTagRepository {
 }
 
 func (r *GormTagRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.Tag, int64, error) {
-	q := applyTaxonomyFilter(r.db.WithContext(ctx).Model(&tagRow{}), filter)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var rows []tagRow
-	if err := applyPagination(q, filter).Find(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.Tag, len(rows))
-	for i := range rows {
-		out[i] = rowToTag(&rows[i])
-	}
-	return out, total, nil
+	return taxonomyList(ctx, r.db, &tagRow{}, filter, applyTaxonomyFilter, rowToTag)
 }
 
 func (r *GormTagRepository) GetByID(ctx context.Context, id uint) (*domain.Tag, error) {
-	var row tagRow
-	if err := r.db.WithContext(ctx).First(&row, id).Error; err != nil {
-		return nil, mapNotFound(err)
-	}
-	t := rowToTag(&row)
-	return &t, nil
+	return taxonomyGetByID(ctx, r.db, id, rowToTag)
 }
 
 func (r *GormTagRepository) Create(ctx context.Context, t *domain.Tag) error {
-	row := tagToRow(t)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
-		return err
-	}
-	t.ID = row.ID
-	t.CreatedAt = row.CreatedAt
-	t.UpdatedAt = row.UpdatedAt
-	return nil
+	return createTaxonomyDomain(ctx, r.db, t, tagToRow, &t.ID, &t.CreatedAt, &t.UpdatedAt, metaTagRow)
 }
 
 func (r *GormTagRepository) Save(ctx context.Context, t *domain.Tag) error {
@@ -367,40 +275,15 @@ func NewGormCourseLevelRepository(db *gorm.DB) *GormCourseLevelRepository {
 }
 
 func (r *GormCourseLevelRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseLevel, int64, error) {
-	q := applyTaxonomyFilter(r.db.WithContext(ctx).Model(&courseLevelRow{}), filter)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var rows []courseLevelRow
-	if err := applyPagination(q, filter).Find(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.CourseLevel, len(rows))
-	for i := range rows {
-		out[i] = rowToCourseLevel(&rows[i])
-	}
-	return out, total, nil
+	return taxonomyList(ctx, r.db, &courseLevelRow{}, filter, applyTaxonomyFilter, rowToCourseLevel)
 }
 
 func (r *GormCourseLevelRepository) GetByID(ctx context.Context, id uint) (*domain.CourseLevel, error) {
-	var row courseLevelRow
-	if err := r.db.WithContext(ctx).First(&row, id).Error; err != nil {
-		return nil, mapNotFound(err)
-	}
-	cl := rowToCourseLevel(&row)
-	return &cl, nil
+	return taxonomyGetByID(ctx, r.db, id, rowToCourseLevel)
 }
 
 func (r *GormCourseLevelRepository) Create(ctx context.Context, cl *domain.CourseLevel) error {
-	row := courseLevelToRow(cl)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
-		return err
-	}
-	cl.ID = row.ID
-	cl.CreatedAt = row.CreatedAt
-	cl.UpdatedAt = row.UpdatedAt
-	return nil
+	return createTaxonomyDomain(ctx, r.db, cl, courseLevelToRow, &cl.ID, &cl.CreatedAt, &cl.UpdatedAt, metaCourseLevelRow)
 }
 
 func (r *GormCourseLevelRepository) Save(ctx context.Context, cl *domain.CourseLevel) error {

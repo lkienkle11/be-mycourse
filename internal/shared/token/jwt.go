@@ -83,12 +83,10 @@ func GenerateSessionString(jwtSecret string) (string, error) {
 	return hex.EncodeToString(mac.Sum(nil)), nil // 64 bytes → 128 hex chars
 }
 
-// ParseAccess validates an access token and returns its claims.
-func ParseAccess(secret, tokenString string) (*Claims, error) {
+func parseJWTClaims[T jwt.Claims](secret, tokenString string, claims T) (T, error) {
 	if secret == "" || tokenString == "" {
-		return nil, errors.New(constants.MsgJWTMissingSecretOrToken)
+		return claims, errors.New(constants.MsgJWTMissingSecretOrToken)
 	}
-	claims := &Claims{}
 	t, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf(constants.MsgJWTUnexpectedSigningMethod, t.Header["alg"])
@@ -96,33 +94,22 @@ func ParseAccess(secret, tokenString string) (*Claims, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
-		return nil, err
+		return claims, err
 	}
 	if !t.Valid {
-		return nil, errors.New(constants.MsgJWTInvalidToken)
+		return claims, errors.New(constants.MsgJWTInvalidToken)
 	}
 	return claims, nil
 }
 
+// ParseAccess validates an access token and returns its claims.
+func ParseAccess(secret, tokenString string) (*Claims, error) {
+	return parseJWTClaims(secret, tokenString, &Claims{})
+}
+
 // ParseRefresh validates a refresh token and returns its claims.
 func ParseRefresh(secret, tokenString string) (*RefreshClaims, error) {
-	if secret == "" || tokenString == "" {
-		return nil, errors.New(constants.MsgJWTMissingSecretOrToken)
-	}
-	claims := &RefreshClaims{}
-	t, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
-		if t.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf(constants.MsgJWTUnexpectedSigningMethod, t.Header["alg"])
-		}
-		return []byte(secret), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if !t.Valid {
-		return nil, errors.New(constants.MsgJWTInvalidToken)
-	}
-	return claims, nil
+	return parseJWTClaims(secret, tokenString, &RefreshClaims{})
 }
 
 // ParseRefreshIgnoreExpiry parses a refresh token verifying the signature but ignoring

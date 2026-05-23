@@ -135,5 +135,6 @@ func newSystemService(db *gorm.DB) *application.SystemService {
 		sysinfra.NewGormPrivilegedUserRepository(db),
 		sysinfra.NewGormPermissionSyncer(db),
 		sysinfra.NewGormRolePermissionSyncer(db),
+		sysinfra.NewSystemCryptoAdapter(),
 	)
 }

@@ -35,14 +35,18 @@ jobs/           ← (Optional) Background workers, schedulers, tickers,
 ### Dependency rule
 
 ```
-delivery, jobs → application → infra → domain
+delivery, jobs → application → domain
+infra          → domain
+server/wire    → all layers
 ```
 
-- `domain` never imports any other layer.
-- `application` never imports `delivery` or `jobs`.
-- `infra` never imports `application`, `delivery`, or `jobs`.
-- `jobs` (when present) may import its own module's `application` and/or `domain` package, but never `delivery`. Treat `jobs` as a peer "entry point" to `delivery`: HTTP-triggered work lives in `delivery`, time-/ticker-triggered work lives in `jobs`.
-- Cross-domain dependencies are handled via **interfaces** defined in the consuming domain and adapted in `internal/server/wire.go`.
+- `domain` never imports `application`, `infra`, `delivery`, or `jobs`.
+- `application` never imports `infra` or `delivery`; it uses **repository interfaces** and optional **ports** (`MediaGateway`, `SystemCrypto`, …).
+- `delivery` never imports `infra`; HTTP adapters receive ports from `wire.go` when handlers need infra-backed helpers (e.g. multipart validation).
+- `infra` implements repositories and ports; never imports `application`, `delivery`, or `jobs`.
+- `jobs` may import `infra` for cloud cleanup; never imports `delivery`.
+- Cross-domain dependencies use **interfaces** on the consumer side, wired in `internal/server/wire.go`.
+- No separate `entity` layer — GORM models and JSONB scanners live in `infra` only.
 
 ---
 
@@ -77,6 +81,9 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
 | `internal/shared/constants/` | Cross-domain constants (only 5 files: dbschema names, error messages, media limits, permission IDs, register HTTP headers) |
 | `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint) |
+| `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`) |
+| `internal/shared/cryptox/` | Shared HMAC/JWT helpers (used by auth/system infra) |
+| `internal/shared/httpx/` | Shared HTTP handler helpers (`ListPaginated`) |
 
 ---
 
@@ -84,15 +91,16 @@ Cross-cutting concerns that are not domain-specific:
 
 Dependency injection lives in **`internal/server/wire.go`**. The `Wire()` function:
 
-1. Instantiates all infrastructure (GORM repos, cloud clients, Redis).
+1. Instantiates infra repositories and **port adapters** (`mediainfra.NewStorageGateway()`, `sysinfra.NewSystemCryptoAdapter()`).
 2. Constructs application services in dependency order:
    - RBAC (no cross-domain deps)
-   - System (no cross-domain deps)
-   - Media (no cross-domain deps)
+   - System (`SystemService` + `SystemCrypto` port)
+   - Media (`MediaService` + `MediaGateway` port)
    - Taxonomy (depends on Media for image validation)
    - Auth (depends on RBAC + Media)
 3. Wraps cross-domain interface adapters (e.g. `rbacPermissionReader`, `mediaProfileImageValidator`).
-4. Returns `*Services` and `*Handlers` structs.
+4. Passes `MediaGateway` into `mediadelivery.NewHandler(svc, gw)` so delivery stays free of `infra` imports.
+5. Returns `*Services` and `*Handlers` structs.
 
 `main.go` calls `server.Wire(db, redis)` and passes the results to `server.InitRouter()`.
 

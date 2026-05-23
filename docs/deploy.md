@@ -13,6 +13,24 @@ The sections under **Deployment runbook** are ordered: follow **Step 1 → Step 
 
 ---
 
+## Local backend quality gate (before push)
+
+Run from the **`be-mycourse`** repo root (same checks as CI **`test`** job, except CGO tests are optional locally):
+
+```bash
+go fmt ./...
+golangci-lint cache clean && golangci-lint run
+make check-layout
+make check-architecture
+make check-dupl
+make build-nocgo   # or make build when libvips is installed
+go test ./...
+```
+
+See **`docs/patterns.md`** (Linting and quality gate) for what each target enforces. DDD rules: **no `internal/*/entity` package**; auth JSONB and GORM rows stay in **`infra`**; media/system use **`domain` ports** wired in **`internal/server/wire.go`**.
+
+---
+
 ## Deployment runbook (do these in order)
 
 ### Step 1 — Prerequisites
@@ -557,7 +575,7 @@ File: `.github/workflows/deploy-dev.yml`
 **Concurrency:** `cancel-in-progress: true` — a second push while the first is deploying cancels the in-flight run.  
 **Job structure:** **`test`** → **`build`** → **`deploy`** (`build` needs `test`; `deploy` needs `build`).
 
-- **`test`:** **`vegardit/fast-apt-mirror.sh@v1`** rewrites the runner’s **APT sources** to a fast mirror; then **`apt-get update`** + **`apt-get install`** pulls **libvips-dev**, **libhdf5-dev** (**`hdf5.pc`** for **matio**), and **pkg-config** over that same mirror (**`sudo` does not change the mirror**). Steps **`go mod download`**, **`go test ./...`**, **`CGO_ENABLED=1 go test ./...`**, **`go vet ./...`**, **`golangci-lint cache clean`** + **`golangci-lint run`**. Local full compile gate remains **`make build`** (see root **`Makefile`**).
+- **`test`:** **`vegardit/fast-apt-mirror.sh@v1`** rewrites the runner’s **APT sources** to a fast mirror; then **`apt-get update`** + **`apt-get install`** pulls **libvips-dev**, **libhdf5-dev** (**`hdf5.pc`** for **matio**), and **pkg-config** over that same mirror (**`sudo` does not change the mirror**). Steps **`go mod download`**, **`go test ./...`**, **`CGO_ENABLED=1 go test ./...`**, **`go vet ./...`**, **`golangci-lint cache clean`** + **`golangci-lint run`**, then **`make check-layout`**, **`make check-architecture`**, **`make check-dupl`**. Local full compile gate remains **`make build`** (see root **`Makefile`**).
 - **`build`:** **`CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o mycourse-io-be-dev .`**, uploads the **`backend-binary`** artifact (1-day retention).
 - **`deploy`:** downloads the artifact, **`scp`** the rollback helper, backs up the live binary to **`mycourse-io-be-dev.prev`**, **`rsync`** the new binary, runs **`scripts/pm2-reload-with-binary-rollback.sh`**.
 
@@ -569,7 +587,7 @@ The authoritative definition is **`.github/workflows/deploy-dev.yml`** in the re
 |------|---------|
 | **Checkout** | All jobs clone the repo (`deploy` needs `scripts/pm2-reload-with-binary-rollback.sh`). |
 | **Setup Go** | Go **1.25.0** with module cache enabled (`test` / `build`). |
-| **Test job** | Fast APT mirror, then **`apt-get install`** **libvips-dev** / **libhdf5-dev** / **pkg-config** (same mirror for all **`apt`** traffic); **`go test`** (plain + CGO), **`go vet`**, **`golangci-lint run`**. |
+| **Test job** | Fast APT mirror, then **`apt-get install`** **libvips-dev** / **libhdf5-dev** / **pkg-config** (same mirror for all **`apt`** traffic); **`go test`** (plain + CGO), **`go vet`**, **`golangci-lint run`**, **`make check-layout`**, **`make check-architecture`**, **`make check-dupl`**. |
 | **Build** | `go build -trimpath -ldflags="-s -w"` — stripped, reproducible binary named `mycourse-io-be-dev` |
 | **Upload artifact** | Binary stored in GitHub's temporary artifact storage (1-day retention) |
 | **Download artifact** | `deploy` job fetches the binary |

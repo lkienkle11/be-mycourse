@@ -14,15 +14,21 @@
 
 ### Dependency rule (strict)
 
+Enforced by **`go-arch-lint`** (`make check-architecture`, config `.go-arch-lint.yml`) and **`depguard`** in `.golangci.yml`.
+
 ```
-delivery, jobs → application → infra → domain
+delivery, jobs → application → domain
+infra          → domain (+ application only when infra implements an application-facing adapter — rare)
+server/wire    → all layers (composition root)
 ```
 
-- `domain` MUST NOT import any other internal layer.
-- `application` MUST NOT import `delivery` or `jobs`.
-- `infra` MUST NOT import `application`, `delivery`, or `jobs`.
-- `jobs` (when present) MAY import its own `application` and/or `domain` package, but MUST NOT import `delivery`. Treat `jobs` as a peer "entry point" to `delivery` — `delivery` is triggered by HTTP, `jobs` is triggered by a ticker/scheduler.
-- Cross-domain dependencies (e.g. Auth needing RBAC) are injected as **interfaces** defined in the consuming domain and adapted in `internal/server/wire.go`.
+- `domain` MUST NOT import `application`, `infra`, `delivery`, `jobs`, or framework/ORM packages listed in `.golangci.yml` (`gorm.io/gorm`, `encoding/json`, `database/sql/driver`, `gin`, `jwt`, etc.).
+- `application` MUST NOT import `infra`, `delivery`, or `jobs`. It depends on **`domain` repository interfaces** and optional **`domain` ports** (e.g. `MediaGateway`, `SystemCrypto`).
+- `infra` implements domain repositories and ports; MUST NOT import `application`, `delivery`, or `jobs`.
+- `delivery` MUST NOT import `infra`. Handlers call `application` services and, when needed, **`domain` ports** injected alongside the service in `wire.go` (e.g. multipart parsing on `MediaGateway`).
+- `jobs` (when present) MAY import its own `application` and/or `domain`, and MAY import `infra` for cloud deletes; MUST NOT import `delivery`.
+- Cross-domain dependencies (e.g. Auth → RBAC permissions, Taxonomy → Media profile image) use **interfaces** on the consuming side, adapted in `internal/server/wire.go`.
+- Do **not** add an `internal/*/entity` package or layer; persistence models (`userRow`, GORM tags, JSONB `Valuer`/`Scanner`) stay in **`infra`** only.
 
 ---
 
@@ -55,7 +61,27 @@ delivery, jobs → application → infra → domain
 
 ### GORM not-found mapping
 
-Map `gorm.ErrRecordNotFound` to the shared `ErrNotFound` sentinel at the infra/repository boundary.
+Map `gorm.ErrRecordNotFound` to the shared `ErrNotFound` sentinel at the infra/repository boundary. Prefer `internal/shared/gormx.FirstWhere` for repeated `Where(...).First(...)` patterns.
+
+### Domain ports (infra behind interfaces)
+
+When `application` or `delivery` needs cloud SDKs, crypto, or multipart helpers that cannot live in `domain` entities:
+
+| Port | Package | Infra adapter | Wired in |
+|------|---------|---------------|----------|
+| `MediaGateway` | `internal/media/domain/gateway.go` | `internal/media/infra/storage_gateway.go` | `server/wire.go` → `MediaService` + `delivery.Handler` |
+| `SystemCrypto` | `internal/system/domain/ports.go` | `internal/system/infra/crypto_ports.go` | `server/wire.go` → `SystemService` |
+
+Repository interfaces remain in `domain/repository.go`; ports cover **stateless infrastructure operations** that are not entity persistence.
+
+### Auth persistence split (canonical)
+
+| Concern | Layer | Files |
+|---------|-------|-------|
+| `User`, `RefreshTokenSessionMap`, session entry types | `domain/` | `user.go` — no GORM tags, no `encoding/json` for DB |
+| GORM row + column tags | `infra/` | `user_model.go` (`userRow`), `toUserDomain` / `toUserRow` |
+| JSONB `Value`/`Scan` for `refresh_token_session` | `infra/` | `gormjsonb.go` |
+| Repositories | `infra/` | `user_repo.go`, `user_query.go` |
 
 ---
 
@@ -137,30 +163,59 @@ go test ./...
 
 ---
 
-## Linting
+## Linting and quality gate
 
-- `golangci-lint` is configured at repo root via `.golangci.yml`.
-- **`revive file-length-limit`**: max 300 logical lines per `.go` file. Split oversized files by cohesive concern within the same package.
-- **`funlen`**: max 30 lines / 25 statements per function. Extract unexported helpers when you touch a long function.
-- When a function grows past `funlen`, prefer **unexported helpers in the same package** rather than moving logic to a different layer.
+Configuration: `.golangci.yml`, `.go-arch-lint.yml`, `Makefile`, `tools/layoutguard`.
+
+| Check | Command | What it enforces |
+|-------|---------|------------------|
+| Format | `go fmt ./...` | Standard Go formatting |
+| Static lint | `golangci-lint run` | `dupl` (per-package, threshold **60**), `depguard`, `revive`, `funlen`, `errcheck`, `staticcheck`, `govet`, `nolintlint` |
+| Layer imports | `make check-architecture` | DDD boundaries (`go-arch-lint` v1.15+) |
+| File placement | `make check-layout` | Go files only under allowed top-level dirs |
+| Cross-package clones | `make check-dupl` | `dupl -t 60 internal` (paths outside a single package) |
+| Compile (no CGO) | `make build-nocgo` | CI-friendly build; WebP encode uses stub |
+| Tests | `go test ./...` | All package tests |
+
+**`revive` highlights:** `file-length-limit` max **600** lines (comments/blank lines skipped); `argument-limit` max **8** parameters — use small param structs when needed.
+
+**`funlen`:** max **60** lines / **40** statements per function.
+
+**`dupl`:** golangci only sees clones **within one package**; cross-package similarity must pass `make check-dupl`.
+
+### Local gate (run before push)
 
 ```bash
-golangci-lint run
+cd be-mycourse
+go fmt ./...
+golangci-lint cache clean && golangci-lint run
+make check-layout
+make check-architecture
+make check-dupl
+make build-nocgo
+go test ./...
 ```
 
-### Makefile compile targets (`Makefile`)
+CI (`.github/workflows/deploy-dev.yml` **`test`** job) runs the same layout/arch/dupl targets after `golangci-lint run`.
 
-- **`make build`** — production compile with **`CGO_ENABLED=1`** (requires **`libvips-dev`**, **`libhdf5-dev`**, and **`pkg-config`** on Ubuntu when libvips pulls **matio**/HDF5; see CI workflow).
-- **`make build-nocgo`** — pure Go compile when CGO/libvips are unavailable; at runtime, WebP encode may return **`9017`** (`ImageEncodeBusy`); other features are unaffected.
+### Makefile compile targets
+
+- **`make build`** — **`CGO_ENABLED=1`** (requires **libvips-dev**, **libhdf5-dev**, **pkg-config** on Ubuntu).
+- **`make build-nocgo`** — pure Go; runtime WebP encode may return **`9017`** (`ImageEncodeBusy`).
 
 ---
 
 ## Documentation Sync
 
-When public JSON, DTOs, DB migrations, or persistence columns change for a documented feature, update every maintained doc referencing that feature. Minimum checklist:
+When **public API**, DTOs, DB migrations, or persistence columns change, update the docs that reference that feature.
+
+**This refactor (DDD ports, helpers, dupl cleanup) did not change HTTP routes or JSON shapes** — no Apidog/Postman regen required.
+
+Minimum checklist when behavior or API **does** change:
 
 1. `docs/modules/<domain>.md`
 2. `docs/data-flow.md`
 3. `docs/router.md`
 4. `docs/modules.md`, `README.md`, `docs/architecture.md`
 5. `docs/database.md` (if schema changed)
+6. `ruby scripts/generate-apidog-postman.rb` (if request/response contracts changed)

@@ -10,14 +10,17 @@ The taxonomy module (`internal/taxonomy/`) handles classification reference data
 internal/taxonomy/
 ├── domain/
 │   ├── taxonomy.go          # Entities and input types
-│   └── repository.go        # Repository interfaces
+│   └── repository.go        # Repository interfaces (incl. generic list patterns)
 ├── application/
-│   └── service.go           # TaxonomyService use-cases
+│   ├── service.go           # TaxonomyService use-cases
+│   └── service_helpers.go   # Shared create/update/delete, slug+status entities, orphan image hook
 ├── infra/
 │   ├── repos.go             # GORM repositories (topics, outcomes, skills, tags, levels)
+│   ├── repos_crud_helper.go # Shared list/create helpers to avoid duplicated repo code
 │   └── jsonb_types.go       # JSONB scanners for tree nodes and description arrays
 └── delivery/
-    ├── handler.go
+    ├── handler.go           # Thin handlers per resource
+    ├── handler_helpers.go   # listTaxonomyItems, shared mutation error mapping
     ├── routes.go
     └── dto.go
 
@@ -26,6 +29,8 @@ pkg/taxonomy/
 ├── tree_validate.go         # Depth, node count, UUID id, duplicate slug checks
 └── description_validate.go  # Outcome description paragraph limits
 ```
+
+List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (same pattern as media list).
 
 ---
 

@@ -19,21 +19,21 @@ be-mycourse/
 ├── internal/
 │   ├── appcli/                     # CLI: register first system user
 │   ├── auth/
-│   │   ├── domain/                 # User entity, UserRepository interface, domain errors, token TTL constants
+│   │   ├── domain/                 # User (pure), repository interfaces, errors, token TTL
 │   │   ├── application/            # AuthService, cache_keys.go, email_limits.go
-│   │   ├── infra/                  # GormUserRepository, GormRefreshSessionRepository, crypto, session_limits.go
+│   │   ├── infra/                  # userRow, gormjsonb, user_repo, user_query, crypto, session_limits
 │   │   └── delivery/               # HTTP handlers, routes, DTOs, mapping
 │   ├── media/
-│   │   ├── domain/                 # File entity, repository interfaces, errors, bunny_status_codes.go, bunny_webhook.go, meta_keys.go
+│   │   ├── domain/                 # File, MediaGateway port, repos interfaces, bunny/meta types
 │   │   ├── application/            # MediaService, service_upload_helpers.go
-│   │   ├── infra/                  # GORM repos, B2/Bunny cloud clients, metadata parsers, webhook validation
-│   │   ├── delivery/               # HTTP handlers, routes, DTOs
+│   │   ├── infra/                  # storage_gateway, repos, cloud clients, metadata, webhooks
+│   │   ├── delivery/               # HTTP handlers, routes, DTOs, handler_helpers via httpx
 │   │   └── jobs/                   # Cleanup scheduler, OrphanEnqueuer, cleanup_constants.go
 │   ├── rbac/
-│   │   ├── domain/                 # Permission entity, Role entity
+│   │   ├── domain/                 # Permission, Role entities
 │   │   ├── application/            # RBACService
 │   │   ├── infra/                  # GORM repos, sql_templates.go
-│   │   └── delivery/               # HTTP handlers, routes
+│   │   └── delivery/               # handler.go, handler_helpers.go, handler_mutations.go
 │   ├── system/
 │   │   ├── domain/
 │   │   ├── application/            # SystemService, catalog.go, roles_permission.go
@@ -62,6 +62,9 @@ be-mycourse/
 │   │   ├── middleware/             # Gin middleware: CORS, AuthJWT, RBAC, rate limit, request logger
 │   │   ├── response/               # Unified response envelope helpers
 │   │   ├── setting/                # YAML config loading + env substitution
+│   │   ├── gormx/                  # FirstWhere, CreateAndThen
+│   │   ├── cryptox/                # Credential HMAC, system JWT helpers
+│   │   ├── httpx/                  # Paginated list handler helper
 │   │   ├── token/                  # JWT generation and validation
 │   │   ├── utils/                  # Generic utilities: image encode, random, fingerprint
 │   │   │   └── webp_test.go
@@ -95,19 +98,19 @@ be-mycourse/
 
 | Path | Purpose |
 |------|---------|
-| `domain/` | `User` entity, `UserRepository` and `RefreshSessionRepository` interfaces, domain errors, `AccessTokenTTL` / `RefreshTokenTTL` |
+| `domain/` | Pure `User` (no GORM), `RefreshTokenSessionMap`, repository interfaces, errors, token TTLs |
 | `application/` | `AuthService`: register, login, confirm, refresh, GetMe, UpdateMe, DeleteMe. `cache_keys.go`, `email_limits.go` |
-| `infra/` | `GormUserRepository`, `GormRefreshSessionRepository`, bcrypt hashing, session limit constants |
+| `infra/` | `userRow` + mappers, `gormjsonb.go` (JSONB scanner), `user_repo.go` (user + refresh session repos), `user_query.go`, bcrypt `crypto.go`, `session_limits.go` |
 | `delivery/` | `Handler` (HTTP handlers), `routes.go`, request/response DTOs, mapping |
 
 ### `internal/media/`
 
 | Path | Purpose |
 |------|---------|
-| `domain/` | `File` entity, `FileRepository` and `PendingCleanupRepository` interfaces, domain errors, Bunny status codes, webhook types, metadata key constants |
-| `application/` | `MediaService`: create/update/delete/list files, batch delete, video status, Bunny webhook handling |
-| `infra/` | `GormFileRepository`, `GormPendingCleanupRepository`, B2/BunnyCDN SDK clients, metadata parsing, WebP encoding |
-| `delivery/` | `Handler` (HTTP handlers), `routes.go`, `RegisterWebhookRoutes`, DTOs |
+| `domain/` | `File`, `MediaGateway` port, repository interfaces, Bunny status/webhook/meta types |
+| `application/` | `MediaService` (injected `MediaGateway`), `service_upload_helpers.go` |
+| `infra/` | `storage_gateway.go` (implements `MediaGateway`), `repos.go`, B2/Bunny clients, metadata, webhooks, multipart open/validate |
+| `delivery/` | `Handler` + `MediaGateway` for multipart/metadata; `routes.go`, DTOs |
 | `jobs/` | `OrphanEnqueuer`, cleanup scheduler, `GlobalCounters`, `cleanup_constants.go` |
 
 ### `internal/rbac/`
@@ -117,23 +120,24 @@ be-mycourse/
 | `domain/` | `Permission` and `Role` entities |
 | `application/` | `RBACService`: permission CRUD, role CRUD, user-role/direct-permission bindings |
 | `infra/` | GORM repos for permissions, roles, user-roles, user-permissions; `sql_templates.go` |
-| `delivery/` | `Handler`, `routes.go` — RBAC admin API under `/api/internal-v1/rbac` |
+| `delivery/` | `handler.go`, `handler_helpers.go`, `handler_mutations.go` — RBAC admin API under `/api/internal-v1/rbac` |
 
 ### `internal/taxonomy/`
 
 | Path | Purpose |
 |------|---------|
-| `domain/` | Taxonomy entity types |
-| `application/` | `TaxonomyService`: topics, outcomes, skills, tags, course levels |
-| `infra/` | GORM repos with shared list query helpers |
-| `delivery/` | `Handler`, `routes.go` — taxonomy CRUD under `/api/v1/taxonomy` |
+| `domain/` | Taxonomy entities and repository interfaces |
+| `application/` | `TaxonomyService`, `service_helpers.go` (shared create/update/delete) |
+| `infra/` | `repos.go`, `repos_crud_helper.go`, `jsonb_types.go` |
+| `delivery/` | `handler.go`, `handler_helpers.go` (shared list/mutation HTTP), `routes.go` |
 
 ### `internal/system/`
 
 | Path | Purpose |
 |------|---------|
-| `application/` | `SystemService`: permission sync, role-permission sync, scheduler control, system login |
-| `infra/` | GORM repos (`AppConfig`, `PrivilegedUser`), `PermissionSyncer`, `RolePermissionSyncer`, crypto |
+| `domain/` | `SystemCrypto` port, repository interfaces |
+| `application/` | `SystemService` (injected `SystemCrypto`): permission sync, role-permission sync, scheduler control, system login |
+| `infra/` | GORM repos, `crypto.go` + `crypto_ports.go` adapter |
 | `delivery/` | `Handler`, `routes.go` — system API under `/api/system` |
 | `jobs/` | RBAC permission-sync and role-permission-sync schedulers (`sync_schedulers.go`) — ticker-driven, started/stopped via `/api/system` endpoints |
 

@@ -17,35 +17,46 @@ Provider selection is **server-side only** (`setting.MediaSetting.AppMediaProvid
 ```
 internal/media/
 ├── domain/
-│   ├── file.go                    # File entity
+│   ├── media.go                   # File entity, upload types, OpenedUploadPart
+│   ├── gateway.go                 # MediaGateway port (cloud upload, metadata, multipart, webhooks)
 │   ├── repository.go              # FileRepository + PendingCleanupRepository interfaces
 │   ├── errors.go                  # Domain errors
 │   ├── bunny_status_codes.go      # Bunny numeric video status constants
 │   ├── bunny_webhook.go           # Bunny webhook payload types
 │   └── meta_keys.go               # JSON metadata key constants (video_id, thumbnail_url, etc.)
 ├── application/
-│   ├── media_service.go           # MediaService: create/update/delete/list files, batch delete, video status, webhook
+│   ├── service.go                 # MediaService (depends on MediaGateway, not infra)
 │   └── service_upload_helpers.go  # Upload orchestration helpers
 ├── infra/
-│   ├── gorm_file_repo.go          # GormFileRepository
-│   ├── gorm_cleanup_repo.go       # GormPendingCleanupRepository
-│   ├── cloud_clients.go           # B2 + BunnyCDN SDK client init (NewCloudClientsFromSetting)
+│   ├── storage_gateway.go         # StorageGateway — implements domain.MediaGateway
+│   ├── repos.go                   # GormFileRepository + GormPendingCleanupRepository
+│   ├── repos_query_helper.go      # Shared first-row lookups
+│   ├── cloud_clients.go           # B2 + BunnyCDN SDK (global Cloud clients)
 │   ├── media_metadata.go          # Typed metadata inference (image/video/document)
-│   ├── webp_encode.go             # WebP encoding via bimg/libvips (CGO)
-│   ├── webp_encode_stub.go        # Stub for CGO_ENABLED=0 builds
-│   └── bunny_webhook_*.go         # Bunny webhook signature verification
+│   ├── media_upload_entity.go     # BuildMediaFileEntityFromUpload
+│   ├── multipart_files.go           # Collect/validate multipart headers
+│   ├── multipart_opened_parts.go  # Open/close upload streams
+│   ├── webhook_signature.go         # Bunny webhook HMAC verification
+│   └── …                          # upload keys, delete stored object, local URL codec, etc.
 ├── delivery/
-│   ├── handler.go                 # HTTP handlers
-│   ├── routes.go                  # RegisterRoutes (authenticated) + RegisterWebhookRoutes (no-auth)
+│   ├── handler.go                 # HTTP handlers (injected MediaGateway for multipart/metadata)
+│   ├── webhook_handler.go         # Bunny webhook (signature via MediaGateway)
+│   ├── routes.go                  # RegisterRoutes + RegisterWebhookRoutes
 │   ├── dto.go                     # UploadFileResponse, VideoStatusResponse, etc.
-│   ├── mapping.go                 # Domain/entity → DTO mapping
+│   ├── mapping.go                 # Domain → DTO mapping
 │   └── server_owned_test.go       # delivery_test
 └── jobs/
-    ├── orphan_enqueuer.go         # OrphanEnqueuer: enqueue superseded file cleanup
+    ├── enqueue.go                 # OrphanEnqueuer
     ├── cleanup_scheduler.go       # Background cleanup worker
-    ├── cleanup_constants.go       # Cleanup job constants
-    └── global_counters.go         # GlobalCounters (metrics)
+    ├── cleanup_batch.go           # Batch cloud delete (imports infra — allowed for jobs)
+    └── metrics.go                 # GlobalCounters
 ```
+
+### Layering
+
+- **`application.MediaService`** and **`delivery.Handler`** must not import `internal/media/infra`.
+- All B2/Bunny/multipart/webhook operations go through **`domain.MediaGateway`**, implemented by **`infra.StorageGateway`**, constructed in **`internal/server/wire.go`** and passed to both service and handler.
+- WebP encoding remains in **`internal/shared/utils/`** (CGO / stub), invoked from application upload paths.
 
 ---
 
@@ -414,13 +425,14 @@ Gin `MaxMultipartMemory` = 64 MiB (set in `internal/server/router.go`). Large pa
 
 | Concern | Location |
 |---------|----------|
-| File entity + repository interfaces | `internal/media/domain/` |
-| MediaService use-cases | `internal/media/application/media_service.go` |
-| GORM repositories | `internal/media/infra/gorm_file_repo.go`, `gorm_cleanup_repo.go` |
-| Cloud SDK client init | `internal/media/infra/cloud_clients.go` |
+| File entity + `MediaGateway` port | `internal/media/domain/` |
+| MediaService use-cases | `internal/media/application/service.go` |
+| `MediaGateway` implementation | `internal/media/infra/storage_gateway.go` |
+| GORM repositories | `internal/media/infra/repos.go` |
+| Cloud SDK client init | `internal/media/infra/cloud_clients.go`, `setup.go` |
 | Metadata inference | `internal/media/infra/media_metadata.go` |
 | WebP encoding | `internal/shared/utils/webp_encode.go` (CGO), `webp_encode_stub.go` (no-CGO) |
-| HTTP handlers | `internal/media/delivery/handler.go` |
+| HTTP handlers | `internal/media/delivery/handler.go`, `webhook_handler.go` |
 | Route registration | `internal/media/delivery/routes.go` |
 | Orphan cleanup jobs | `internal/media/jobs/` |
 | DB migrations | `migrations/000003_media_metadata.*`, `000004_media_orphan_safety.*`, `000005_media_bunny_response_fields.*`, `000008_media_metadata_json_storage.*` |

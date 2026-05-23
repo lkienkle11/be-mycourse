@@ -101,29 +101,34 @@ func newFileEntityUploadCore(in domain.MediaUploadEntityInput, merged domain.Raw
 	}
 }
 
-func attachStreamFieldsToFile(
-	f *domain.File,
-	bunnyVideoID, videoID, thumbnailURL, embededHTML, bunnyLibraryID, videoProvider string,
-	duration int64,
-) {
-	f.BunnyVideoID = bunnyVideoID
-	f.BunnyLibraryID = bunnyLibraryID
-	f.VideoID = videoID
-	f.ThumbnailURL = thumbnailURL
-	f.EmbededHTML = embededHTML
-	f.Duration = duration
-	f.VideoProvider = videoProvider
+type uploadStreamFields struct {
+	bunnyVideoID   string
+	videoID        string
+	thumbnailURL   string
+	embededHTML    string
+	bunnyLibraryID string
+	videoProvider  string
+	duration       int64
+}
+
+func attachStreamFieldsToFile(f *domain.File, stream uploadStreamFields) {
+	f.BunnyVideoID = stream.bunnyVideoID
+	f.BunnyLibraryID = stream.bunnyLibraryID
+	f.VideoID = stream.videoID
+	f.ThumbnailURL = stream.thumbnailURL
+	f.EmbededHTML = stream.embededHTML
+	f.Duration = stream.duration
+	f.VideoProvider = stream.videoProvider
 }
 
 func fileEntityFromUploadStreamFields(
 	in domain.MediaUploadEntityInput,
 	merged domain.RawMetadata,
 	typed domain.UploadFileMetadata,
-	bunnyVideoID, videoID, thumbnailURL, embededHTML, bunnyLibraryID, videoProvider string,
-	duration int64,
+	stream uploadStreamFields,
 ) *domain.File {
 	f := newFileEntityUploadCore(in, merged, typed)
-	attachStreamFieldsToFile(f, bunnyVideoID, videoID, thumbnailURL, embededHTML, bunnyLibraryID, videoProvider, duration)
+	attachStreamFieldsToFile(f, stream)
 	return f
 }
 
@@ -132,5 +137,8 @@ func BuildMediaFileEntityFromUpload(in domain.MediaUploadEntityInput) *domain.Fi
 	typed := BuildTypedMetadata(in.Kind, in.ContentType, in.Filename, in.SizeBytes, in.Payload, merged)
 	ApplyTypedMetadataToRaw(merged, typed)
 	bv, vid, thumb, embed, lib, vprov, dur := streamMetadataFromMerged(merged, typed)
-	return fileEntityFromUploadStreamFields(in, merged, typed, bv, vid, thumb, embed, lib, vprov, dur)
+	return fileEntityFromUploadStreamFields(in, merged, typed, uploadStreamFields{
+		bunnyVideoID: bv, videoID: vid, thumbnailURL: thumb, embededHTML: embed,
+		bunnyLibraryID: lib, videoProvider: vprov, duration: dur,
+	})
 }

@@ -7,34 +7,6 @@ import (
 	"time"
 )
 
-// MediaFile is the core media entity persisted in the media_files table.
-type MediaFile struct {
-	ID                 string
-	ObjectKey          string
-	Kind               string
-	Provider           string
-	Filename           string
-	MimeType           string
-	SizeBytes          int64
-	URL                string
-	OriginURL          string
-	Status             string
-	B2BucketName       string
-	BunnyVideoID       string
-	BunnyLibraryID     string
-	VideoID            string
-	ThumbnailURL       string
-	EmbededHTML        string
-	Duration           int64
-	VideoProvider      string
-	RowVersion         int64
-	ContentFingerprint string
-	MetadataJSON       []byte
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	DeletedAt          *time.Time
-}
-
 // MediaPendingCloudCleanup tracks media objects scheduled for deferred cloud deletion.
 type MediaPendingCloudCleanup struct {
 	ID           int64

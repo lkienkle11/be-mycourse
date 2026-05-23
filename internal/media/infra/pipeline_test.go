@@ -53,16 +53,7 @@ func TestJoinURLPathSegments_noDoubleSlash(t *testing.T) {
 }
 
 func TestBuildPublicURL_B2_includesBucketInPath(t *testing.T) {
-	prev := *setting.MediaSetting
-	t.Cleanup(func() { *setting.MediaSetting = prev })
-
-	setting.MediaSetting.GcoreCDNURL = "https://cdn.example.com"
-	setting.MediaSetting.B2Bucket = "app-media"
-	got := mediainfra.BuildPublicURL(constants.FileProviderB2, "/videos/x.mp4")
-	want := "https://cdn.example.com/app-media/videos/x.mp4"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
-	}
+	runBuildPublicURLB2Test(t, "https://cdn.example.com", "app-media", "/videos/x.mp4", "https://cdn.example.com/app-media/videos/x.mp4")
 }
 
 func TestBuildB2ObjectKey_eightDigitsAndSanitizedName(t *testing.T) {
@@ -155,9 +146,6 @@ func TestGenerateRandomDigits(t *testing.T) {
 }
 
 func TestBuildPublicURL_B2_trailingSlashVariants(t *testing.T) {
-	const objectKey = "videos/sample.mp4"
-	const want = "https://cdn.example.com/my-bucket/videos/sample.mp4"
-
 	cases := []struct {
 		name   string
 		cdnURL string
@@ -170,40 +158,27 @@ func TestBuildPublicURL_B2_trailingSlashVariants(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			prev := *setting.MediaSetting
-			t.Cleanup(func() { *setting.MediaSetting = prev })
-
-			setting.MediaSetting.GcoreCDNURL = tc.cdnURL
-			setting.MediaSetting.B2Bucket = tc.bucket
-			got := mediainfra.BuildPublicURL(constants.FileProviderB2, objectKey)
-			if got != want {
-				t.Fatalf("got %q want %q", got, want)
-			}
+			runBuildPublicURLB2Test(t, tc.cdnURL, tc.bucket, "videos/sample.mp4", "https://cdn.example.com/my-bucket/videos/sample.mp4")
 		})
 	}
 }
 
 func TestBuildPublicURL_B2_emptyBucket(t *testing.T) {
-	prev := *setting.MediaSetting
-	t.Cleanup(func() { *setting.MediaSetting = prev })
-
-	setting.MediaSetting.GcoreCDNURL = "https://cdn.example.com"
-	setting.MediaSetting.B2Bucket = ""
-	got := mediainfra.BuildPublicURL(constants.FileProviderB2, "foo/bar.jpg")
-	want := "https://cdn.example.com/foo/bar.jpg"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
-	}
+	runBuildPublicURLB2Test(t, "https://cdn.example.com", "", "foo/bar.jpg", "https://cdn.example.com/foo/bar.jpg")
 }
 
 func TestBuildPublicURL_B2_leadingSlashInKey(t *testing.T) {
+	runBuildPublicURLB2Test(t, "https://cdn.example.com", "bucket", "/leading/slash.jpg", "https://cdn.example.com/bucket/leading/slash.jpg")
+}
+
+func runBuildPublicURLB2Test(t *testing.T, cdnURL, bucket, objectKey, want string) {
+	t.Helper()
 	prev := *setting.MediaSetting
 	t.Cleanup(func() { *setting.MediaSetting = prev })
 
-	setting.MediaSetting.GcoreCDNURL = "https://cdn.example.com"
-	setting.MediaSetting.B2Bucket = "bucket"
-	got := mediainfra.BuildPublicURL(constants.FileProviderB2, "/leading/slash.jpg")
-	want := "https://cdn.example.com/bucket/leading/slash.jpg"
+	setting.MediaSetting.GcoreCDNURL = cdnURL
+	setting.MediaSetting.B2Bucket = bucket
+	got := mediainfra.BuildPublicURL(constants.FileProviderB2, objectKey)
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}

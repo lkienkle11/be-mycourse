@@ -28,6 +28,7 @@ type AuthUseCase interface {
 	GetMe(ctx context.Context, userID uint) (*domain.MeProfile, error)
 	UpdateMe(ctx context.Context, userID uint, avatarFileID *string) (*domain.MeProfile, error)
 	SoftDeleteUser(ctx context.Context, userID uint) error
+	HardDeleteUser(ctx context.Context, userID uint) error
 }
 
 // PermissionUseCase provides a user's permissions set (used by /me/permissions).
@@ -114,6 +115,8 @@ func (h *Handler) Login(c *gin.Context) {
 			response.Fail(c, http.StatusUnauthorized, apperrors.EmailNotConfirmed, apperrors.DefaultMessage(apperrors.EmailNotConfirmed), nil)
 		case errors.Is(err, domain.ErrUserDisabled):
 			response.Fail(c, http.StatusForbidden, apperrors.UserDisabled, apperrors.DefaultMessage(apperrors.UserDisabled), nil)
+		case errors.Is(err, domain.ErrUserBanned):
+			response.Fail(c, http.StatusForbidden, apperrors.UserBanned, apperrors.DefaultMessage(apperrors.UserBanned), nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
 		}
@@ -161,6 +164,8 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 			response.Fail(c, http.StatusUnauthorized, apperrors.InvalidSession, apperrors.DefaultMessage(apperrors.InvalidSession), nil)
 		case errors.Is(err, domain.ErrUserDisabled):
 			response.Fail(c, http.StatusForbidden, apperrors.UserDisabled, apperrors.DefaultMessage(apperrors.UserDisabled), nil)
+		case errors.Is(err, domain.ErrUserBanned):
+			response.Fail(c, http.StatusForbidden, apperrors.UserBanned, apperrors.DefaultMessage(apperrors.UserBanned), nil)
 		default:
 			response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
 		}
@@ -197,11 +202,7 @@ func (h *Handler) GetMe(c *gin.Context) {
 	uid := currentUserID(c)
 	me, err := h.auth.GetMe(c.Request.Context(), uid)
 	if err != nil {
-		if errors.Is(err, domain.ErrUserNotFound) {
-			response.Fail(c, http.StatusNotFound, apperrors.NotFound, "user not found", nil)
-		} else {
-			response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
-		}
+		writeMeAccessError(c, err, false)
 		return
 	}
 	response.OK(c, "ok", toMeResponse(me))
@@ -217,29 +218,47 @@ func (h *Handler) PatchMe(c *gin.Context) {
 	}
 	me, err := h.auth.UpdateMe(c.Request.Context(), uid, req.AvatarFileID)
 	if err != nil {
-		switch {
-		case errors.Is(err, domain.ErrUserNotFound):
-			response.Fail(c, http.StatusNotFound, apperrors.NotFound, "user not found", nil)
-		default:
-			response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
-		}
+		writeMeAccessError(c, err, true)
 		return
 	}
 	response.OK(c, "ok", toMeResponse(me))
 }
 
-// DeleteMe — DELETE /api/v1/me
+// DeleteMe — DELETE /api/v1/me (soft delete)
 func (h *Handler) DeleteMe(c *gin.Context) {
 	uid := currentUserID(c)
 	if err := h.auth.SoftDeleteUser(c.Request.Context(), uid); err != nil {
-		if errors.Is(err, domain.ErrUserNotFound) {
-			response.Fail(c, http.StatusNotFound, apperrors.NotFound, "user not found", nil)
-		} else {
-			response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
-		}
+		writeMeAccessError(c, err, false)
 		return
 	}
 	response.OK(c, "account_deleted", nil)
+}
+
+// HardDeleteMe — DELETE /api/v1/me/hard
+func (h *Handler) HardDeleteMe(c *gin.Context) {
+	uid := currentUserID(c)
+	if err := h.auth.HardDeleteUser(c.Request.Context(), uid); err != nil {
+		writeMeAccessError(c, err, false)
+		return
+	}
+	response.OK(c, "account_deleted", nil)
+}
+
+func writeMeAccessError(c *gin.Context, err error, validationFallback bool) {
+	switch {
+	case errors.Is(err, domain.ErrUserNotFound):
+		response.Fail(c, http.StatusNotFound, apperrors.NotFound, "user not found", nil)
+	case errors.Is(err, domain.ErrUserDisabled):
+		response.Fail(c, http.StatusForbidden, apperrors.UserDisabled, apperrors.DefaultMessage(apperrors.UserDisabled), nil)
+	case errors.Is(err, domain.ErrUserBanned):
+		response.Fail(c, http.StatusForbidden, apperrors.UserBanned, apperrors.DefaultMessage(apperrors.UserBanned), nil)
+	default:
+		if validationFallback {
+			response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
+			return
+		}
+		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
+	}
 }
 
 // GetMyPermissions — GET /api/v1/me/permissions

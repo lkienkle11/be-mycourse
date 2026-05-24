@@ -32,7 +32,7 @@ func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
 
 func (r *GormUserRepository) FindByID(ctx context.Context, id uint) (*domain.User, error) {
 	var row userRow
-	if err := gormx.FirstWhere(ctx, r.db, &row, "id = ?", id); err != nil {
+	if err := findActiveUserWhere(ctx, r.db, &row, "id = ?", id); err != nil {
 		return nil, err
 	}
 	return toUserDomain(&row), nil
@@ -89,6 +89,10 @@ func (r *GormUserRepository) UpdateAvatar(ctx context.Context, userID uint, avat
 
 func (r *GormUserRepository) SoftDelete(ctx context.Context, userID uint) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &userRow{}, "id = ? AND deleted_at IS NULL", userID)
+}
+
+func (r *GormUserRepository) HardDelete(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).Delete(&userRow{}, userID).Error
 }
 
 // GormRefreshSessionRepository implements domain.RefreshSessionRepository using GORM.

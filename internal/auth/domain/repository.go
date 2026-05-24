@@ -13,6 +13,7 @@ type UserRepository interface {
 	UpdateDisplayName(ctx context.Context, userID uint, displayName string) error
 	UpdateAvatar(ctx context.Context, userID uint, avatarFileID *string) error
 	SoftDelete(ctx context.Context, userID uint) error
+	HardDelete(ctx context.Context, userID uint) error
 }
 
 // RefreshSessionRepository manages the refresh_token_session JSONB column on users.

@@ -32,6 +32,7 @@ type User struct {
 	CreatedAt                  int64
 	UpdatedAt                  int64
 	DeletedAt                  *int64
+	BannedUntil                *int64 // Unix seconds when a time-limited ban lifts; nil = not banned
 }
 
 // MeProfile is the /me projection used for Redis cache and service layer responses.

@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"mycourse-io-be/internal/shared/brevo"
 	sharedErrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/timex"
 )
 
 // PermissionReader returns the set of permission codes granted to a user (via RBAC roles + direct grants).
@@ -88,8 +90,12 @@ func (s *AuthService) Login(ctx context.Context, email, password string, remembe
 		return domain.TokenPairResult{}, err
 	}
 
-	if user.IsDisable {
-		return domain.TokenPairResult{}, domain.ErrUserDisabled
+	if err := checkUserAccessible(user, timex.NowUnix()); err != nil {
+		if errors.Is(err, domain.ErrUserDisabled) || errors.Is(err, domain.ErrUserBanned) {
+			return domain.TokenPairResult{}, err
+		}
+		s.setLoginInvalidCache(ctx, normEmail)
+		return domain.TokenPairResult{}, domain.ErrInvalidCredentials
 	}
 	if !user.EmailConfirmed {
 		return domain.TokenPairResult{}, domain.ErrEmailNotConfirmed
@@ -250,11 +256,8 @@ func (s *AuthService) GetMe(ctx context.Context, userID uint) (*domain.MeProfile
 	if me, ok := s.getCachedMe(ctx, userID); ok {
 		return me, nil
 	}
-	user, err := s.userRepo.FindByID(ctx, userID)
+	user, err := s.loadAccessibleUser(ctx, userID)
 	if err != nil {
-		if isNotFound(err) {
-			return nil, domain.ErrUserNotFound
-		}
 		return nil, err
 	}
 	perms, err := s.permissionSlice(user.ID)
@@ -273,11 +276,8 @@ func (s *AuthService) UpdateMe(ctx context.Context, userID uint, avatarFileID *s
 	if avatarFileID == nil {
 		return s.GetMe(ctx, userID)
 	}
-	user, err := s.userRepo.FindByID(ctx, userID)
+	user, err := s.loadAccessibleUser(ctx, userID)
 	if err != nil {
-		if isNotFound(err) {
-			return nil, domain.ErrUserNotFound
-		}
 		return nil, err
 	}
 	var prev string
@@ -308,18 +308,24 @@ func (s *AuthService) UpdateMe(ctx context.Context, userID uint, avatarFileID *s
 
 // SoftDeleteUser soft-deletes the user and schedules avatar cleanup.
 func (s *AuthService) SoftDeleteUser(ctx context.Context, userID uint) error {
-	user, err := s.userRepo.FindByID(ctx, userID)
+	return s.deleteUserAccount(ctx, userID, s.userRepo.SoftDelete)
+}
+
+// HardDeleteUser permanently removes the user row and schedules avatar cleanup.
+func (s *AuthService) HardDeleteUser(ctx context.Context, userID uint) error {
+	return s.deleteUserAccount(ctx, userID, s.userRepo.HardDelete)
+}
+
+func (s *AuthService) deleteUserAccount(ctx context.Context, userID uint, deleteFn func(context.Context, uint) error) error {
+	user, err := s.loadAccessibleUser(ctx, userID)
 	if err != nil {
-		if isNotFound(err) {
-			return domain.ErrUserNotFound
-		}
 		return err
 	}
 	var avatarFID string
 	if user.AvatarFileID != nil {
 		avatarFID = strings.TrimSpace(*user.AvatarFileID)
 	}
-	if err := s.userRepo.SoftDelete(ctx, userID); err != nil {
+	if err := deleteFn(ctx, userID); err != nil {
 		return err
 	}
 	s.delCachedMe(ctx, userID)
@@ -327,6 +333,20 @@ func (s *AuthService) SoftDeleteUser(ctx context.Context, userID uint) error {
 		s.orphanEnqueuer.EnqueueOrphanCleanup(avatarFID)
 	}
 	return nil
+}
+
+func (s *AuthService) loadAccessibleUser(ctx context.Context, userID uint) (*domain.User, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, domain.ErrUserNotFound
+		}
+		return nil, err
+	}
+	if err := checkUserAccessible(user, timex.NowUnix()); err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
 // --- internal helpers ---

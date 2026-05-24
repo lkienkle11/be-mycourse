@@ -16,6 +16,7 @@ type userRow struct {
 	DisplayName                string  `gorm:"size:255;not null;default:''"`
 	AvatarFileID               *string `gorm:"column:avatar_file_id;type:uuid"`
 	IsDisable                  bool    `gorm:"not null;default:false"`
+	BannedUntil                *int64  `gorm:"column:banned_until"`
 	EmailConfirmed             bool    `gorm:"not null;default:false"`
 	ConfirmationToken          *string `gorm:"size:128"`
 	ConfirmationSentAt         *time.Time
@@ -37,6 +38,7 @@ func toUserDomain(r *userRow) *domain.User {
 		DisplayName:                r.DisplayName,
 		AvatarFileID:               r.AvatarFileID,
 		IsDisable:                  r.IsDisable,
+		BannedUntil:                r.BannedUntil,
 		EmailConfirmed:             r.EmailConfirmed,
 		ConfirmationToken:          r.ConfirmationToken,
 		ConfirmationSentAt:         r.ConfirmationSentAt,
@@ -57,6 +59,7 @@ func toUserRow(u *domain.User) *userRow {
 		DisplayName:                u.DisplayName,
 		AvatarFileID:               u.AvatarFileID,
 		IsDisable:                  u.IsDisable,
+		BannedUntil:                u.BannedUntil,
 		EmailConfirmed:             u.EmailConfirmed,
 		ConfirmationToken:          u.ConfirmationToken,
 		ConfirmationSentAt:         u.ConfirmationSentAt,

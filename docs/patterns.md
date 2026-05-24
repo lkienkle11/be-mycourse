@@ -129,6 +129,19 @@ zap.L().Info("tick", zap.String("job", "media-cleanup"))
 - Embedded SQL migrations via `golang-migrate`.
 - PostgreSQL table names: defined once in `internal/shared/constants/dbschema_name.go`. All GORM `TableName()` methods and raw SQL reference these constants — no hardcoded string literals.
 
+### Audit timestamps (Unix seconds)
+
+Since migration **`000011`**, `created_at` / `updated_at` / `deleted_at` are **`BIGINT`** Unix epoch **seconds** in Postgres and **`int64`** / **`*int64`** in Go domain and infra rows. JSON APIs expose them as **numbers**, not ISO/RFC3339 strings.
+
+| Helper | Package | Use |
+|--------|---------|-----|
+| `NowUnix`, `PtrUnix`, `UnixOrZero` | `internal/shared/timex` | Current time and nullable epoch fields |
+| `TouchCreatedUpdated`, `TouchUpdated` | `internal/shared/gormx` | Set audit fields on create/update in application/infra |
+| `SoftDeleteWithAudit` | `internal/shared/gormx` | Set `deleted_at` + `updated_at` on soft delete |
+| `ScopeActiveOnly` | `internal/shared/gormx` | `WHERE deleted_at IS NULL` for list/get |
+
+Do not use GORM `autoCreateTime` / `autoUpdateTime` on audit columns — writes go through `timex` + `gormx` so DB and API stay aligned.
+
 ### CRUD APIs with soft delete
 
 Convention for resources that support reversible deletion. Implemented on **taxonomy** (all five resources) and **auth users** (`/me` only). See **`docs/router.md`**, **`docs/database.md`**.

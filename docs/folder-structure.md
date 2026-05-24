@@ -62,7 +62,8 @@ be-mycourse/
 │   │   ├── middleware/             # Gin middleware: CORS, AuthJWT, RBAC, rate limit, request logger
 │   │   ├── response/               # Unified response envelope helpers
 │   │   ├── setting/                # YAML config loading + env substitution
-│   │   ├── gormx/                  # FirstWhere, CreateAndThen
+│   │   ├── gormx/                  # FirstWhere, CreateAndThen, audit timestamps, soft-delete scope
+│   │   ├── timex/                  # NowUnix and nullable epoch helpers (audit columns)
 │   │   ├── cryptox/                # Credential HMAC, system JWT helpers
 │   │   ├── httpx/                  # Paginated list handler helper
 │   │   ├── token/                  # JWT generation and validation

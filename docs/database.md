@@ -108,6 +108,10 @@ Used by `course_levels.status`, `course_topics.status`, `course_outcomes.status`
 
 Since migration **`000011_audit_timestamps_bigint`**, all audit columns store **Unix epoch seconds** as **`BIGINT`**. Defaults use `EXTRACT(EPOCH FROM NOW())::BIGINT`. Go domain/infra/DTO layers use `int64` (nullable `*int64` for `deleted_at`). JSON APIs emit **numbers**, not RFC3339 strings.
 
+Application code sets audit fields via **`internal/shared/timex.NowUnix()`** and **`internal/shared/gormx`** (`TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`) — not GORM `autoCreateTime` / `autoUpdateTime`.
+
+**Migration note:** Postgres cannot cast an existing `TIMESTAMPTZ DEFAULT NOW()` to `BIGINT` in one step. Migration `000011` drops defaults first, alters types with `USING EXTRACT(EPOCH FROM …)::BIGINT`, then sets the new bigint defaults.
+
 Other time columns (`confirmation_sent_at`, `next_run_at`, JWT `exp`/`iat`) remain **`TIMESTAMPTZ`** or token-native types.
 
 ---
@@ -573,7 +577,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000008 | `media_metadata_json_storage` | Ensure `metadata_json` NOT NULL default `{}`, backfill typed metadata keys, GIN index `idx_media_files_metadata_json_gin` |
 | 000009 | `taxonomy_topics_outcomes_skills` | Rename `categories` → `course_topics` + `child_topics` JSONB, tables `course_outcomes` / `course_skills`, P18–P21 → `topic:*`, seed P30–P37 |
 | 000010 | `role_modify_permissions` | Seed P38–P40 role-modify permissions and role matrix |
-| 000011 | `audit_timestamps_bigint` | Convert audit columns (`created_at`, `updated_at`, `deleted_at`) from `TIMESTAMPTZ` to `BIGINT` Unix seconds on all affected tables |
+| 000011 | `audit_timestamps_bigint` | `DROP DEFAULT` → convert audit columns to `BIGINT` Unix seconds (`USING EXTRACT(EPOCH…)`) → `SET DEFAULT` bigint epoch on all affected tables |
 | 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.

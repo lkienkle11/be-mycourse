@@ -82,7 +82,7 @@ func mountAPITree(apiRoot *gin.RouterGroup, svc *Services, h *Handlers) {
 	authen := v1.Group("")
 	// Temporarily disabled for rollout safety; keep logic in codebase for quick re-enable.
 	// authen.Use(middleware.RateLimitLocal(120, 1), middleware.AuthJWT(), middleware.RequireCSRF())
-	authen.Use(middleware.RateLimitLocal(120, 1), middleware.AuthJWT())
+	authen.Use(middleware.RateLimitLocal(120, 1), middleware.AuthJWT(), middleware.RequireActiveUser(svc.Auth))
 	authdelivery.RegisterRoutes(authen, nil, h.Auth, svc.RBAC)
 	taxdelivery.RegisterRoutes(authen, h.Taxonomy, svc.RBAC)
 	mediadelivery.RegisterRoutes(authen, h.Media, svc.RBAC)

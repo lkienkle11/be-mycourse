@@ -66,11 +66,11 @@ type AssignUserPermissionRequest struct {
 
 // PermissionResponse is the JSON response for a single permission.
 type PermissionResponse struct {
-	PermissionID   string    `json:"permission_id"`
-	PermissionName string    `json:"permission_name"`
-	Description    string    `json:"description"`
-	CreatedAt      int64 `json:"created_at"`
-	UpdatedAt      int64 `json:"updated_at"`
+	PermissionID   string `json:"permission_id"`
+	PermissionName string `json:"permission_name"`
+	Description    string `json:"description"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
 }
 
 // RoleResponse is the JSON response for a role (permissions optionally included).

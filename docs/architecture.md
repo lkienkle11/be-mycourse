@@ -81,7 +81,8 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
 | `internal/shared/constants/` | Cross-domain constants (only 5 files: dbschema names, error messages, media limits, permission IDs, register HTTP headers) |
 | `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint) |
-| `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `ScopeActiveOnly`, `SoftDeleteWithAudit`) — see **`docs/patterns.md`** (CRUD soft delete) |
+| `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `TouchCreatedUpdated`, `ScopeActiveOnly`, `SoftDeleteWithAudit`) — see **`docs/patterns.md`** |
+| `internal/shared/timex/` | Unix epoch second helpers for audit columns (`NowUnix`, `PtrUnix`) |
 | `internal/shared/cryptox/` | Shared HMAC/JWT helpers (used by auth/system infra) |
 | `internal/shared/httpx/` | Shared HTTP handler helpers (`ListPaginated`) |
 

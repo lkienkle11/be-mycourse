@@ -25,6 +25,26 @@
 - **Current usage:** `main.go`, `middleware/request_logger.go`, `pkg/httperr`, `internal/jobs/*`, `pkg/cache_clients`, `api/v1/media/webhook_handler.go`.
 - **Reuse:** Prefer `logger.FromContext(ctx)` in new handlers/services; use `zap.L()` only where no context exists.
 
+### Asset: timex (audit epoch seconds)
+- **Name:** `NowUnix`, `PtrUnix`, `UnixOrZero`
+- **Type:** Package (`internal/shared/timex`)
+- **Path:** `internal/shared/timex/timex.go`
+- **Purpose:** Single source for **Unix epoch seconds** on `created_at` / `updated_at` / `deleted_at` (DB `BIGINT`, Go `int64` / `*int64`, JSON numbers).
+- **Scope:** All modules that write audit columns; auth ban checks compare `banned_until` to `timex.NowUnix()`.
+- **Dependencies:** Go `time` only.
+- **Current usage:** `internal/shared/gormx`, auth/media/taxonomy/system infra and application layers.
+- **Reuse:** Never use `time.Now()` directly for persisted audit fields — use `NowUnix()` (see **`docs/patterns.md`** — Audit timestamps).
+
+### Asset: gormx audit + soft-delete helpers
+- **Name:** `TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`, `ScopeActiveOnly`, `FirstWhere`, `CreateAndThen`
+- **Type:** Package (`internal/shared/gormx`)
+- **Path:** `internal/shared/gormx/`
+- **Purpose:** Shared GORM patterns — audit timestamp writes, active-row scope, generic `First`/`Create` helpers.
+- **Scope:** Taxonomy soft delete, auth `/me` delete, media soft delete, system config sync rows.
+- **Dependencies:** `gorm.io/gorm`, `internal/shared/timex`.
+- **Current usage:** `internal/taxonomy/infra`, `internal/auth/infra`, `internal/media/infra`, `internal/system/infra`.
+- **Reuse:** Prefer these over ad-hoc `Updates(map…)` for `deleted_at` / `updated_at`.
+
 ### Asset: PendingCloudCleanupCounters (media job metrics boundary)
 - **Name:** `PendingCloudCleanupCounters`
 - **Type:** Function (service)

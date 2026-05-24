@@ -244,7 +244,7 @@ type SystemAppConfig struct {
     AppCLISystemPassword  string
     AppSystemEnv          string
     AppTokenEnv           string
-    UpdatedAt             time.Time
+    UpdatedAt             int64     // Unix epoch seconds (migration 000011)
 }
 ```
 

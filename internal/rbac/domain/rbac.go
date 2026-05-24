@@ -1,15 +1,13 @@
 // Package domain contains the RBAC bounded-context core entities and repository interfaces.
 package domain
 
-import "time"
-
 // Permission is the smallest authorization unit.
 type Permission struct {
 	PermissionID   string
 	PermissionName string
 	Description    string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	CreatedAt      int64
+	UpdatedAt      int64
 }
 
 // Role groups permissions; users receive roles via UserRole.
@@ -18,8 +16,8 @@ type Role struct {
 	Name        string
 	Description string
 	Permissions []Permission
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt   int64
+	UpdatedAt   int64
 }
 
 // UserRole binds a user to a role.

@@ -11,34 +11,36 @@ import (
 	"mycourse-io-be/internal/media/domain"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/timex"
 )
 
 // mediaFileRow is the GORM model for the media_files table.
 type mediaFileRow struct {
-	ID                 string     `gorm:"column:id;type:uuid;primaryKey"`
-	ObjectKey          string     `gorm:"column:object_key;type:varchar(512);uniqueIndex;not null"`
-	Kind               string     `gorm:"column:kind;type:varchar(16);not null"`
-	Provider           string     `gorm:"column:provider;type:varchar(16);not null"`
-	Filename           string     `gorm:"column:filename;type:varchar(512);not null"`
-	MimeType           string     `gorm:"column:mime_type;type:varchar(255);not null;default:''"`
-	SizeBytes          int64      `gorm:"column:size_bytes;not null;default:0"`
-	URL                string     `gorm:"column:url;type:text;not null"`
-	OriginURL          string     `gorm:"column:origin_url;type:text;not null"`
-	Status             string     `gorm:"column:status;type:varchar(16);not null"`
-	B2BucketName       string     `gorm:"column:b2_bucket_name;type:varchar(255);not null;default:''"`
-	BunnyVideoID       string     `gorm:"column:bunny_video_id;type:varchar(255)"`
-	BunnyLibraryID     string     `gorm:"column:bunny_library_id;type:varchar(255)"`
-	VideoID            string     `gorm:"column:video_id;type:varchar(255);not null;default:''"`
-	ThumbnailURL       string     `gorm:"column:thumbnail_url;type:text;not null;default:''"`
-	EmbededHTML        string     `gorm:"column:embeded_html;type:text;not null;default:''"`
-	Duration           int64      `gorm:"column:duration;not null;default:0"`
-	VideoProvider      string     `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
-	RowVersion         int64      `gorm:"column:row_version;not null;default:1"`
-	ContentFingerprint string     `gorm:"column:content_fingerprint;type:varchar(128);not null;default:''"`
-	MetadataJSON       []byte     `gorm:"column:metadata_json;type:jsonb;not null;default:'{}'::jsonb"`
-	CreatedAt          time.Time  `gorm:"column:created_at;autoCreateTime"`
-	UpdatedAt          time.Time  `gorm:"column:updated_at;autoUpdateTime"`
-	DeletedAt          *time.Time `gorm:"column:deleted_at"`
+	ID                 string `gorm:"column:id;type:uuid;primaryKey"`
+	ObjectKey          string `gorm:"column:object_key;type:varchar(512);uniqueIndex;not null"`
+	Kind               string `gorm:"column:kind;type:varchar(16);not null"`
+	Provider           string `gorm:"column:provider;type:varchar(16);not null"`
+	Filename           string `gorm:"column:filename;type:varchar(512);not null"`
+	MimeType           string `gorm:"column:mime_type;type:varchar(255);not null;default:''"`
+	SizeBytes          int64  `gorm:"column:size_bytes;not null;default:0"`
+	URL                string `gorm:"column:url;type:text;not null"`
+	OriginURL          string `gorm:"column:origin_url;type:text;not null"`
+	Status             string `gorm:"column:status;type:varchar(16);not null"`
+	B2BucketName       string `gorm:"column:b2_bucket_name;type:varchar(255);not null;default:''"`
+	BunnyVideoID       string `gorm:"column:bunny_video_id;type:varchar(255)"`
+	BunnyLibraryID     string `gorm:"column:bunny_library_id;type:varchar(255)"`
+	VideoID            string `gorm:"column:video_id;type:varchar(255);not null;default:''"`
+	ThumbnailURL       string `gorm:"column:thumbnail_url;type:text;not null;default:''"`
+	EmbededHTML        string `gorm:"column:embeded_html;type:text;not null;default:''"`
+	Duration           int64  `gorm:"column:duration;not null;default:0"`
+	VideoProvider      string `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
+	RowVersion         int64  `gorm:"column:row_version;not null;default:1"`
+	ContentFingerprint string `gorm:"column:content_fingerprint;type:varchar(128);not null;default:''"`
+	MetadataJSON       []byte `gorm:"column:metadata_json;type:jsonb;not null;default:'{}'::jsonb"`
+	CreatedAt          int64  `gorm:"column:created_at;not null"`
+	UpdatedAt          int64  `gorm:"column:updated_at;not null"`
+	DeletedAt          *int64 `gorm:"column:deleted_at"`
 }
 
 func (mediaFileRow) TableName() string { return constants.TableMediaFiles }
@@ -53,8 +55,8 @@ type pendingCleanupRow struct {
 	AttemptCount int       `gorm:"column:attempt_count;not null;default:0"`
 	LastError    string    `gorm:"column:last_error;type:text;not null;default:''"`
 	NextRunAt    time.Time `gorm:"column:next_run_at;not null"`
-	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;autoUpdateTime"`
+	CreatedAt    int64     `gorm:"column:created_at;not null"`
+	UpdatedAt    int64     `gorm:"column:updated_at;not null"`
 }
 
 func (pendingCleanupRow) TableName() string { return constants.TableMediaPendingCloudCleanup }
@@ -165,9 +167,7 @@ func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.Fi
 		First(&existing).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// First insert (upload create path). Use the supplied row as-is so
-			// that DEFAULTs on the table (empty metadata_json -> '{}') and
-			// auto-managed timestamps still apply.
+			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 			return db.Create(row).Error
 		}
 		return err
@@ -185,7 +185,7 @@ func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.Fi
 	//     empty strings, which is what we want for an idempotent upsert.
 	cols := buildUpsertUpdateColumns(row)
 	cols["row_version"] = gorm.Expr("row_version + 1")
-	cols["updated_at"] = time.Now()
+	cols["updated_at"] = timex.NowUnix()
 	return db.Model(&mediaFileRow{}).
 		Where("id = ?", existing.ID).
 		Updates(cols).Error
@@ -232,7 +232,7 @@ func (r *GormFileRepository) SaveWithRowVersionCheck(ctx context.Context, f *dom
 			"thumbnail_url": row.ThumbnailURL, "embeded_html": row.EmbededHTML,
 			"duration": row.Duration, "video_provider": row.VideoProvider,
 			"content_fingerprint": row.ContentFingerprint, "metadata_json": row.MetadataJSON,
-			"updated_at":  time.Now(),
+			"updated_at":  timex.NowUnix(),
 			"row_version": gorm.Expr("row_version + 1"),
 		})
 	if result.Error != nil {
@@ -245,10 +245,7 @@ func (r *GormFileRepository) SaveWithRowVersionCheck(ctx context.Context, f *dom
 }
 
 func (r *GormFileRepository) SoftDeleteByObjectKey(ctx context.Context, objectKey string) error {
-	return r.db.WithContext(ctx).
-		Model(&mediaFileRow{}).
-		Where("object_key = ? AND deleted_at IS NULL", objectKey).
-		Update("deleted_at", time.Now()).Error
+	return gormx.SoftDeleteWithAudit(ctx, r.db, &mediaFileRow{}, "object_key = ? AND deleted_at IS NULL", objectKey)
 }
 
 // --- GormPendingCleanupRepository --------------------------------------------
@@ -265,6 +262,7 @@ func (r *GormPendingCleanupRepository) Create(ctx context.Context, rec *domain.M
 		Provider: rec.Provider, ObjectKey: rec.ObjectKey, BunnyVideoID: rec.BunnyVideoID,
 		Status: "PENDING", NextRunAt: time.Now(),
 	}
+	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 	return r.db.WithContext(ctx).Create(row).Error
 }
 
@@ -294,7 +292,7 @@ func (r *GormPendingCleanupRepository) MarkDone(ctx context.Context, id int64) e
 
 func (r *GormPendingCleanupRepository) MarkFailed(ctx context.Context, id int64, errMsg string, _ interface{}) error {
 	return r.db.WithContext(ctx).Model(&pendingCleanupRow{}).Where("id = ?", id).Updates(map[string]any{
-		"status": "FAILED", "last_error": errMsg, "updated_at": time.Now(),
+		"status": "FAILED", "last_error": errMsg, "updated_at": timex.NowUnix(),
 	}).Error
 }
 

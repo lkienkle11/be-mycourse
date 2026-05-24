@@ -2,12 +2,14 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
 	"mycourse-io-be/internal/auth/domain"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/token"
 )
 
@@ -25,8 +27,11 @@ func (s *AuthService) RefreshSession(ctx context.Context, sessionStr, refreshTok
 		}
 		return domain.TokenPairResult{}, err
 	}
-	if user.IsDisable {
-		return domain.TokenPairResult{}, domain.ErrUserDisabled
+	if err := checkUserAccessible(user, timex.NowUnix()); err != nil {
+		if errors.Is(err, domain.ErrUserDisabled) || errors.Is(err, domain.ErrUserBanned) {
+			return domain.TokenPairResult{}, err
+		}
+		return domain.TokenPairResult{}, domain.ErrUserNotFound
 	}
 	entry, ok := user.RefreshTokenSession[sessionStr]
 	if !ok || entry.RefreshTokenUUID != refreshClaims.UUID {

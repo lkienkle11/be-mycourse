@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -18,6 +17,7 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -46,7 +46,7 @@ type createUploadInputParams struct {
 	provider           string
 	requestedObjectKey string
 	uploaded           domain.ProviderUploadResult
-	now                time.Time
+	now                int64
 }
 
 func buildCreateEntityInput(p createUploadInputParams) domain.MediaUploadEntityInput {
@@ -93,7 +93,7 @@ func buildUpdateEntityInput(p updateUploadInputParams) domain.MediaUploadEntityI
 		UploadedMeta:  p.merged,
 		B2Bucket:      strings.TrimSpace(setting.MediaSetting.B2Bucket),
 		CreatedAt:     p.prevFile.CreatedAt,
-		UpdatedAt:     time.Now(),
+		UpdatedAt:     timex.NowUnix(),
 		GenerateNewID: false,
 		PreserveID:    p.prevFile.ID,
 	}

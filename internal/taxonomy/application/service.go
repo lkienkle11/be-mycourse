@@ -59,6 +59,11 @@ func (s *TaxonomyService) ListTopics(ctx context.Context, filter domain.Taxonomy
 	return s.topicRepo.List(ctx, filter)
 }
 
+func (s *TaxonomyService) ListTopicsFull(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseTopic, int64, error) {
+	filter.IncludeDeleted = true
+	return s.topicRepo.List(ctx, filter)
+}
+
 func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCourseTopicInput) (*domain.CourseTopic, error) {
 	if err := validateChildTopics(in.ChildTopics); err != nil {
 		return nil, err
@@ -110,7 +115,11 @@ func (s *TaxonomyService) UpdateTopic(ctx context.Context, id uint, in domain.Up
 }
 
 func (s *TaxonomyService) DeleteTopic(ctx context.Context, id uint) error {
-	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderTopic(s), s.topicRepo.Delete)
+	return s.topicRepo.SoftDelete(ctx, id)
+}
+
+func (s *TaxonomyService) HardDeleteTopic(ctx context.Context, id uint) error {
+	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderTopic(s), s.topicRepo.HardDelete)
 }
 
 func (s *TaxonomyService) GetTopic(ctx context.Context, id uint) (*domain.CourseTopic, error) {
@@ -120,6 +129,11 @@ func (s *TaxonomyService) GetTopic(ctx context.Context, id uint) (*domain.Course
 // --- CourseOutcome -----------------------------------------------------------
 
 func (s *TaxonomyService) ListCourseOutcomes(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseOutcome, int64, error) {
+	return s.outcomeRepo.List(ctx, filter)
+}
+
+func (s *TaxonomyService) ListCourseOutcomesFull(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseOutcome, int64, error) {
+	filter.IncludeDeleted = true
 	return s.outcomeRepo.List(ctx, filter)
 }
 
@@ -187,12 +201,21 @@ func (s *TaxonomyService) UpdateCourseOutcome(ctx context.Context, id uint, in d
 }
 
 func (s *TaxonomyService) DeleteCourseOutcome(ctx context.Context, id uint) error {
-	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderOutcome(s), s.outcomeRepo.Delete)
+	return s.outcomeRepo.SoftDelete(ctx, id)
+}
+
+func (s *TaxonomyService) HardDeleteCourseOutcome(ctx context.Context, id uint) error {
+	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderOutcome(s), s.outcomeRepo.HardDelete)
 }
 
 // --- CourseSkill -------------------------------------------------------------
 
 func (s *TaxonomyService) ListCourseSkills(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseSkill, int64, error) {
+	return s.skillRepo.List(ctx, filter)
+}
+
+func (s *TaxonomyService) ListCourseSkillsFull(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseSkill, int64, error) {
+	filter.IncludeDeleted = true
 	return s.skillRepo.List(ctx, filter)
 }
 
@@ -230,12 +253,21 @@ func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id uint, in dom
 }
 
 func (s *TaxonomyService) DeleteCourseSkill(ctx context.Context, id uint) error {
-	return s.skillRepo.Delete(ctx, id)
+	return s.skillRepo.SoftDelete(ctx, id)
+}
+
+func (s *TaxonomyService) HardDeleteCourseSkill(ctx context.Context, id uint) error {
+	return s.skillRepo.HardDelete(ctx, id)
 }
 
 // --- Tag ---------------------------------------------------------------------
 
 func (s *TaxonomyService) ListTags(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.Tag, int64, error) {
+	return s.tagRepo.List(ctx, filter)
+}
+
+func (s *TaxonomyService) ListTagsFull(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.Tag, int64, error) {
+	filter.IncludeDeleted = true
 	return s.tagRepo.List(ctx, filter)
 }
 
@@ -248,12 +280,21 @@ func (s *TaxonomyService) UpdateTag(ctx context.Context, id uint, in domain.Upda
 }
 
 func (s *TaxonomyService) DeleteTag(ctx context.Context, id uint) error {
-	return s.tagRepo.Delete(ctx, id)
+	return s.tagRepo.SoftDelete(ctx, id)
+}
+
+func (s *TaxonomyService) HardDeleteTag(ctx context.Context, id uint) error {
+	return s.tagRepo.HardDelete(ctx, id)
 }
 
 // --- CourseLevel -------------------------------------------------------------
 
 func (s *TaxonomyService) ListCourseLevels(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseLevel, int64, error) {
+	return s.courseLevelRepo.List(ctx, filter)
+}
+
+func (s *TaxonomyService) ListCourseLevelsFull(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseLevel, int64, error) {
+	filter.IncludeDeleted = true
 	return s.courseLevelRepo.List(ctx, filter)
 }
 
@@ -266,7 +307,11 @@ func (s *TaxonomyService) UpdateCourseLevel(ctx context.Context, id uint, in dom
 }
 
 func (s *TaxonomyService) DeleteCourseLevel(ctx context.Context, id uint) error {
-	return s.courseLevelRepo.Delete(ctx, id)
+	return s.courseLevelRepo.SoftDelete(ctx, id)
+}
+
+func (s *TaxonomyService) HardDeleteCourseLevel(ctx context.Context, id uint) error {
+	return s.courseLevelRepo.HardDelete(ctx, id)
 }
 
 // --- internal helpers --------------------------------------------------------

@@ -29,9 +29,10 @@ type User struct {
 	ConfirmationSentAt         *time.Time
 	RegistrationEmailSendTotal int
 	RefreshTokenSession        RefreshTokenSessionMap
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
-	DeletedAt                  *time.Time
+	CreatedAt                  int64
+	UpdatedAt                  int64
+	DeletedAt                  *int64
+	BannedUntil                *int64 // Unix seconds when a time-limited ban lifts; nil = not banned
 }
 
 // MeProfile is the /me projection used for Redis cache and service layer responses.

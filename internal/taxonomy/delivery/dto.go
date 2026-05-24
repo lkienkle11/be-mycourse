@@ -110,8 +110,8 @@ type CourseTopicResponse struct {
 	ChildTopics []taxpkg.TreeNode `json:"child_topics"`
 	Status      string            `json:"status"`
 	CreatedBy   *uint             `json:"created_by,omitempty"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
+	CreatedAt   int64             `json:"created_at"`
+	UpdatedAt   int64             `json:"updated_at"`
 }
 
 // CourseOutcomeResponse is the JSON response for a course outcome.
@@ -123,8 +123,8 @@ type CourseOutcomeResponse struct {
 	ImageURL         string   `json:"image_url,omitempty"`
 	Status           string   `json:"status"`
 	CreatedBy        *uint    `json:"created_by,omitempty"`
-	CreatedAt        string   `json:"created_at"`
-	UpdatedAt        string   `json:"updated_at"`
+	CreatedAt        int64    `json:"created_at"`
+	UpdatedAt        int64    `json:"updated_at"`
 }
 
 // CourseSkillResponse is the JSON response for a course skill.
@@ -135,8 +135,8 @@ type CourseSkillResponse struct {
 	Children  []taxpkg.TreeNode `json:"children"`
 	Status    string            `json:"status"`
 	CreatedBy *uint             `json:"created_by,omitempty"`
-	CreatedAt string            `json:"created_at"`
-	UpdatedAt string            `json:"updated_at"`
+	CreatedAt int64             `json:"created_at"`
+	UpdatedAt int64             `json:"updated_at"`
 }
 
 // SlugStatusResponse is the shared JSON shape for simple slug+status taxonomy resources.
@@ -146,8 +146,8 @@ type SlugStatusResponse struct {
 	Slug      string `json:"slug"`
 	Status    string `json:"status"`
 	CreatedBy *uint  `json:"created_by,omitempty"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
 }
 
 // TagResponse is the JSON response for a tag.

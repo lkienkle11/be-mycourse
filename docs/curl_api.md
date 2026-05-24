@@ -90,6 +90,8 @@ Every response is JSON in one of two shapes:
 
 `code: 0` = success. Any non-zero `code` = application error (see [section 14](#14-error-code-reference)).
 
+**Audit timestamps:** `created_at`, `updated_at`, and `deleted_at` (when present) are **Unix epoch integers** (seconds) in JSON — not RFC3339/ISO strings. This applies to auth `/me`, RBAC, taxonomy, and media list responses.
+
 ### Authentication Headers
 
 | Header | Used for |
@@ -267,6 +269,9 @@ session_id=<128hex>; Path=/; Max-Age=2592000; SameSite=Lax
 
 // 403 — account disabled
 { "code": 4005, "message": "Account has been disabled", "data": null }
+
+// 403 — account temporarily banned (banned_until > now)
+{ "code": 4012, "message": "Your account is temporarily banned", "data": null }
 ```
 
 ---
@@ -454,6 +459,8 @@ curl -X GET {{BASE_URL}}/api/v1/me \
 > `permissions` is a sorted array of `permission_name` strings.  
 > When an avatar is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** object (see `docs/return_types.md`).
 
+**Access guards:** Returns **404** if the user is soft-deleted. Returns **403** (`4005` disabled, `4012` banned) if `is_disable` is true or `banned_until > now()`. Valid JWT alone is not enough after delete/ban.
+
 ### 3.2 Patch My Profile
 
 **`PATCH /api/v1/me`** — body: `{ "avatar_file_id": "<uuid of media_files row>" }`. Use **`""`** to clear. Upload an image via **`POST /api/v1/media/files`** first, then pass the returned **`id`**.
@@ -476,7 +483,27 @@ curl -X PATCH {{BASE_URL}}/api/v1/me \
 
 ---
 
-### 3.2 Get My Permissions
+### 3.3 Delete My Account
+
+**`DELETE /api/v1/me`** — soft delete (sets `deleted_at`). Subsequent login, refresh, and `/me` calls fail.
+
+```bash
+curl -X DELETE {{BASE_URL}}/api/v1/me \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+**`DELETE /api/v1/me/hard`** — permanent row removal (same permission as soft delete; no extra permission).
+
+```bash
+curl -X DELETE {{BASE_URL}}/api/v1/me/hard \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Both return **`account_deleted`** on success.
+
+---
+
+### 3.4 Get My Permissions
 
 **`GET /api/v1/me/permissions`**
 
@@ -693,7 +720,8 @@ curl -X POST {{BASE_URL}}/api/system/delete-role-permission-sync-job \
 ## 6. Internal RBAC — Permissions
 
 > **Auth:** `X-API-Key: <key>`  
-> **Rate limit:** 60 requests / 1 minute
+> **Rate limit:** 60 requests / 1 minute  
+> **Audit timestamps:** `created_at` and `updated_at` are Unix epoch **integers** (seconds), not ISO strings.
 
 ```bash
 # Store key for convenience
@@ -731,8 +759,8 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/permissions?page=1&per_page=10&se
         "permission_id":   "P5",
         "permission_name": "course:read",
         "description":     "",
-        "created_at":      "2025-01-01T00:00:00Z",
-        "updated_at":      "2025-01-01T00:00:00Z"
+        "created_at": 1735689600,
+        "updated_at": 1735689600
       }
     ],
     "page_info": {
@@ -781,8 +809,8 @@ curl -X POST {{BASE_URL}}/api/internal-v1/rbac/permissions \
     "permission_id":   "P14",
     "permission_name": "lesson:read",
     "description":     "Read lesson content",
-    "created_at":      "2026-04-18T10:00:00Z",
-    "updated_at":      "2026-04-18T10:00:00Z"
+    "created_at": 1744970400,
+    "updated_at": 1744970400
   }
 }
 ```
@@ -830,8 +858,8 @@ curl -X PATCH {{BASE_URL}}/api/internal-v1/rbac/permissions/P14 \
     "permission_id":   "P14",
     "permission_name": "lesson:view",
     "description":     "View lesson content",
-    "created_at":      "...",
-    "updated_at":      "2026-04-18T11:00:00Z"
+    "created_at": 1735689600,
+    "updated_at": 1744974000
   }
 }
 ```
@@ -897,10 +925,10 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/roles?with_permissions=1" \
       "name": "admin",
       "description": "Business administration",
       "permissions": [
-        { "permission_id": "P1", "permission_name": "profile:read", "description": "", "created_at": "...", "updated_at": "..." }
+        { "permission_id": "P1", "permission_name": "profile:read", "description": "", "created_at": 1735689600, "updated_at": 1735689600 }
       ],
-      "created_at": "...",
-      "updated_at": "..."
+      "created_at": 1735689600,
+      "updated_at": 1735689600
     }
   ]
 }
@@ -940,8 +968,8 @@ curl -X POST {{BASE_URL}}/api/internal-v1/rbac/roles \
     "id": 5,
     "name": "moderator",
     "description": "Content moderation role",
-    "created_at": "2026-04-18T10:00:00Z",
-    "updated_at": "2026-04-18T10:00:00Z"
+    "created_at": 1744970400,
+    "updated_at": 1744970400
   }
 }
 ```
@@ -1068,8 +1096,8 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/users/42/roles" \
         { "permission_id": "P5", "permission_name": "course:read", ... },
         { "permission_id": "P10", "permission_name": "user:read", ... }
       ],
-      "created_at": "...",
-      "updated_at": "..."
+      "created_at": 1735689600,
+      "updated_at": 1735689600
     }
   ]
 }
@@ -1170,8 +1198,8 @@ curl -X GET "{{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions" \
       "permission_id":   "P8",
       "permission_name": "course:create",
       "description":     "Create courses",
-      "created_at":      "...",
-      "updated_at":      "..."
+      "created_at": 1735689600,
+      "updated_at": 1735689600
     }
   ]
 }
@@ -1391,14 +1419,18 @@ Provider is chosen by server config (`setting.MediaSetting.AppMediaProvider`), n
 
 All list endpoints support pagination query params as [Global Conventions](#1-global-conventions), plus taxonomy-specific: `sort_by`, `sort_desc` (boolean), `search` (ILIKE on `name`; outcomes search `short_description`), optional `status` = `ACTIVE` | `INACTIVE`.
 
+**Soft delete (migration `000012`):** Default `GET /taxonomy/{resource}` returns only active rows (`deleted_at IS NULL`). `GET /taxonomy/{resource}/full` includes soft-deleted rows. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE /taxonomy/{resource}/:id/hard` permanently removes the row. Topics/outcomes hard-delete enqueues orphan image cleanup. See **`docs/patterns.md`** (CRUD soft delete).
+
 ### 12.1 Course levels
 
 | Method | Path |
 |--------|------|
 | GET | `/api/v1/taxonomy/levels` |
+| GET | `/api/v1/taxonomy/levels/full` |
 | POST | `/api/v1/taxonomy/levels` |
 | PATCH | `/api/v1/taxonomy/levels/:id` |
 | DELETE | `/api/v1/taxonomy/levels/:id` |
+| DELETE | `/api/v1/taxonomy/levels/:id/hard` |
 
 **Create body:** `{ "name", "slug", "status"? }` — `status` optional (`ACTIVE` / `INACTIVE`).  
 **Update body:** partial `{ "name"?, "slug"?, "status"? }`.
@@ -1420,8 +1452,12 @@ curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/1 \
   -H "Content-Type: application/json" \
   -d '{"name":"Beginner (updated)"}'
 
-# Delete
+# Delete (soft)
 curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1 \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Hard delete
+curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1/hard \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
@@ -1430,9 +1466,11 @@ curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1 \
 | Method | Path |
 |--------|------|
 | GET | `/api/v1/taxonomy/topics` |
+| GET | `/api/v1/taxonomy/topics/full` |
 | POST | `/api/v1/taxonomy/topics` |
 | PATCH | `/api/v1/taxonomy/topics/:id` |
 | DELETE | `/api/v1/taxonomy/topics/:id` |
+| DELETE | `/api/v1/taxonomy/topics/:id/hard` |
 
 **Create body:** `{ "name", "slug", "image_file_id"?, "child_topics"?, "status"? }` — optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** is a tree of `{ "id", "name", "slug", "children" }` nodes (UUID ids, max depth 5, max 100 nodes).  
 **Update body:** partial fields including optional **`child_topics`** array.
@@ -1449,9 +1487,11 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/topics \
 | Method | Path |
 |--------|------|
 | GET | `/api/v1/taxonomy/outcomes` |
+| GET | `/api/v1/taxonomy/outcomes/full` |
 | POST | `/api/v1/taxonomy/outcomes` |
 | PATCH | `/api/v1/taxonomy/outcomes/:id` |
 | DELETE | `/api/v1/taxonomy/outcomes/:id` |
+| DELETE | `/api/v1/taxonomy/outcomes/:id/hard` |
 
 **Create body:** `{ "short_description", "description"?, "image_file_id"?, "status"? }` — `description` is a string array (max 8 items, each ≤120 chars).
 
@@ -1467,9 +1507,11 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/outcomes \
 | Method | Path |
 |--------|------|
 | GET | `/api/v1/taxonomy/skills` |
+| GET | `/api/v1/taxonomy/skills/full` |
 | POST | `/api/v1/taxonomy/skills` |
 | PATCH | `/api/v1/taxonomy/skills/:id` |
 | DELETE | `/api/v1/taxonomy/skills/:id` |
+| DELETE | `/api/v1/taxonomy/skills/:id/hard` |
 
 **Create body:** `{ "name", "slug", "children"?, "status"? }` — `children` uses the same tree node shape as `child_topics`.
 
@@ -1485,9 +1527,11 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
 | Method | Path |
 |--------|------|
 | GET | `/api/v1/taxonomy/tags` |
+| GET | `/api/v1/taxonomy/tags/full` |
 | POST | `/api/v1/taxonomy/tags` |
 | PATCH | `/api/v1/taxonomy/tags/:id` |
 | DELETE | `/api/v1/taxonomy/tags/:id` |
+| DELETE | `/api/v1/taxonomy/tags/:id/hard` |
 
 **Create body:** `{ "name", "slug", "status"? }`.
 
@@ -1543,6 +1587,7 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 | 400 | 4003 | `WeakPassword` | Password does not meet strength requirements |
 | 401 | 4004 | `EmailNotConfirmed` | Attempted login before email confirmation |
 | 403 | 4005 | `UserDisabled` | Account has been disabled |
+| 403 | 4012 | `UserBanned` | Account temporarily banned (`banned_until > now()`) |
 | 400 | 4006 | `InvalidConfirmToken` | Invalid or already-used confirmation token |
 | 401 | 4007 | `InvalidSession` | Session ID not found or refresh token UUID mismatch |
 | 401 | 4008 | `RefreshTokenExpired` | DB-stored `refresh_token_expired` has passed |

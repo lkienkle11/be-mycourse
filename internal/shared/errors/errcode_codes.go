@@ -40,6 +40,7 @@ const (
 	WeakPassword                 = 4003
 	EmailNotConfirmed            = 4004
 	UserDisabled                 = 4005
+	UserBanned                   = 4012
 	InvalidConfirmToken          = 4006
 	InvalidSession               = 4007
 	RefreshTokenExpired          = 4008

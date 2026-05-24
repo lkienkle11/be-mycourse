@@ -5,43 +5,43 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/system/domain"
 )
 
 // --- GORM row types ----------------------------------------------------------
 
 type appConfigRow struct {
-	ID                   int       `gorm:"column:id;primaryKey"`
-	AppCLISystemPassword string    `gorm:"column:app_cli_system_password;not null"`
-	AppSystemEnv         string    `gorm:"column:app_system_env;not null"`
-	AppTokenEnv          string    `gorm:"column:app_token_env;not null"`
-	UpdatedAt            time.Time `gorm:"column:updated_at;autoUpdateTime"`
+	ID                   int    `gorm:"column:id;primaryKey"`
+	AppCLISystemPassword string `gorm:"column:app_cli_system_password;not null"`
+	AppSystemEnv         string `gorm:"column:app_system_env;not null"`
+	AppTokenEnv          string `gorm:"column:app_token_env;not null"`
+	UpdatedAt            int64  `gorm:"column:updated_at;not null"`
 }
 
 func (appConfigRow) TableName() string { return constants.TableSystemAppConfig }
 
 type privilegedUserRow struct {
-	ID             uint      `gorm:"column:id;primaryKey"`
-	UsernameSecret string    `gorm:"column:username_secret;not null;uniqueIndex"`
-	PasswordSecret string    `gorm:"column:password_secret;not null"`
-	CreatedAt      time.Time `gorm:"column:created_at;autoCreateTime"`
+	ID             uint   `gorm:"column:id;primaryKey"`
+	UsernameSecret string `gorm:"column:username_secret;not null;uniqueIndex"`
+	PasswordSecret string `gorm:"column:password_secret;not null"`
+	CreatedAt      int64  `gorm:"column:created_at;not null"`
 }
 
 func (privilegedUserRow) TableName() string { return constants.TableSystemPrivilegedUsers }
 
 // permissionSyncRow is a minimal GORM row used only during permission sync.
 type permissionSyncRow struct {
-	PermissionID   string    `gorm:"column:permission_id;primaryKey"`
-	PermissionName string    `gorm:"column:permission_name;not null"`
-	Description    string    `gorm:"column:description"`
-	CreatedAt      time.Time `gorm:"column:created_at;autoCreateTime"`
-	UpdatedAt      time.Time `gorm:"column:updated_at;autoUpdateTime"`
+	PermissionID   string `gorm:"column:permission_id;primaryKey"`
+	PermissionName string `gorm:"column:permission_name;not null"`
+	Description    string `gorm:"column:description"`
+	CreatedAt      int64  `gorm:"column:created_at;not null"`
+	UpdatedAt      int64  `gorm:"column:updated_at;not null"`
 }
 
 func (permissionSyncRow) TableName() string { return constants.TableRBACPermissions }
@@ -97,6 +97,7 @@ func NewGormPrivilegedUserRepository(db *gorm.DB) *GormPrivilegedUserRepository 
 
 func (r *GormPrivilegedUserRepository) Create(ctx context.Context, u *domain.PrivilegedUser) error {
 	row := &privilegedUserRow{UsernameSecret: u.UsernameSecret, PasswordSecret: u.PasswordSecret}
+	gormx.TouchCreatedUpdated(&row.CreatedAt, nil)
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
 		return err
 	}
@@ -136,6 +137,7 @@ func (s *GormPermissionSyncer) SyncPermissionsFromCatalog(ctx context.Context, e
 					PermissionName: e.PermissionName,
 					Description:    e.Description,
 				}
+				gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 				if createErr := tx.Create(&row).Error; createErr != nil {
 					return createErr
 				}
@@ -148,6 +150,7 @@ func (s *GormPermissionSyncer) SyncPermissionsFromCatalog(ctx context.Context, e
 			if e.Description != "" {
 				row.Description = e.Description
 			}
+			gormx.TouchUpdated(&row.UpdatedAt)
 			if saveErr := tx.Save(&row).Error; saveErr != nil {
 				return saveErr
 			}

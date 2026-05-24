@@ -4,7 +4,6 @@ import (
 	"context"
 	stderrors "errors"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,10 +21,19 @@ func listTaxonomyItems[TRow any, TResp any](
 	listFn func(context.Context, domain.TaxonomyFilter) ([]TRow, int64, error),
 	toResponses func([]TRow) []TResp,
 ) {
+	listTaxonomyItemsWithDeleted(c, listFn, toResponses, false)
+}
+
+func listTaxonomyItemsWithDeleted[TRow any, TResp any](
+	c *gin.Context,
+	listFn func(context.Context, domain.TaxonomyFilter) ([]TRow, int64, error),
+	toResponses func([]TRow) []TResp,
+	includeDeleted bool,
+) {
 	httpx.ListPaginated(c,
 		func(q *TaxonomyBaseFilter) error { return c.ShouldBindQuery(q) },
 		func(ctx context.Context, q TaxonomyBaseFilter) ([]TRow, int64, error) {
-			return listFn(ctx, toFilter(q))
+			return listFn(ctx, toFilter(q, includeDeleted))
 		},
 		func(q TaxonomyBaseFilter) (int, int) { return q.getPage(), q.getPerPage() },
 		toResponses,
@@ -177,11 +185,11 @@ func createTaxonomyMutation[Req any, In any, Row any, Resp any](
 	response.Created(c, "created", toResponse(*row))
 }
 
-func slugStatusResponse(id uint, name, slug, status string, createdBy *uint, createdAt, updatedAt time.Time) SlugStatusResponse {
+func slugStatusResponse(id uint, name, slug, status string, createdBy *uint, createdAt, updatedAt int64) SlugStatusResponse {
 	return SlugStatusResponse{
 		ID: id, Name: name, Slug: slug, Status: status, CreatedBy: createdBy,
-		CreatedAt: createdAt.Format(time.RFC3339),
-		UpdatedAt: updatedAt.Format(time.RFC3339),
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	}
 }
 

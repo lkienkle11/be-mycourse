@@ -73,7 +73,7 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/setting/` | YAML config loading with env-var substitution |
 | `internal/shared/logger/` | Uber Zap bootstrap, `WithRequestID`, `FromContext` |
 | `internal/shared/token/` | JWT generation and validation |
-| `internal/shared/middleware/` | Gin middleware: CORS, auth JWT, RBAC permission checks, rate limiting, request logger |
+| `internal/shared/middleware/` | Gin middleware: CORS, auth JWT, **active-user guard**, RBAC permission checks, rate limiting, request logger |
 | `internal/shared/response/` | Unified `{ code, message, data }` response envelope |
 | `internal/shared/validate/` | Request validation helpers |
 | `internal/shared/brevo/` | Brevo SMTP email client |
@@ -81,7 +81,7 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
 | `internal/shared/constants/` | Cross-domain constants (only 5 files: dbschema names, error messages, media limits, permission IDs, register HTTP headers) |
 | `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint) |
-| `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`) |
+| `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `ScopeActiveOnly`, `SoftDeleteWithAudit`) — see **`docs/patterns.md`** (CRUD soft delete) |
 | `internal/shared/cryptox/` | Shared HMAC/JWT helpers (used by auth/system infra) |
 | `internal/shared/httpx/` | Shared HTTP handler helpers (`ListPaginated`) |
 

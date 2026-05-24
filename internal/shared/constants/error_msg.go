@@ -113,6 +113,7 @@ const (
 	MsgAuthWeakPassword        = "password does not meet requirements"
 	MsgAuthEmailNotConfirmed   = "email not confirmed"
 	MsgAuthUserDisabled        = "user account is disabled"
+	MsgAuthUserBanned          = "user account is temporarily banned"
 	MsgAuthInvalidConfirmToken = "invalid or expired confirmation token"
 	MsgAuthUserNotFound        = "user not found"
 	MsgAuthInvalidSession      = "invalid session"

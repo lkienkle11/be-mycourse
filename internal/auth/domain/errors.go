@@ -12,6 +12,7 @@ var (
 	ErrWeakPassword                = stderrors.New("password does not meet requirements")
 	ErrEmailNotConfirmed           = stderrors.New("email not confirmed")
 	ErrUserDisabled                = stderrors.New("user account is disabled")
+	ErrUserBanned                  = stderrors.New("user account is temporarily banned")
 	ErrInvalidConfirmToken         = stderrors.New("invalid or expired confirmation token")
 	ErrUserNotFound                = stderrors.New("user not found")
 	ErrInvalidSession              = stderrors.New("invalid session")

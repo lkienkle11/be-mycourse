@@ -2,7 +2,6 @@ package infra
 
 import (
 	"context"
-	"time"
 
 	"gorm.io/gorm"
 
@@ -10,33 +9,33 @@ import (
 	"mycourse-io-be/internal/taxonomy/domain"
 )
 
-func copyUintRowMeta(entityID *uint, createdAt, updatedAt *time.Time, rowID uint, rowCreated, rowUpdated time.Time) {
+func copyUintRowMeta(entityID *uint, createdAt, updatedAt *int64, rowID uint, rowCreated, rowUpdated int64) {
 	*entityID = rowID
 	*createdAt = rowCreated
 	*updatedAt = rowUpdated
 }
 
-func rowUintTimestamps(id uint, createdAt, updatedAt time.Time) (uint, time.Time, time.Time) {
+func rowUintTimestamps(id uint, createdAt, updatedAt int64) (uint, int64, int64) {
 	return id, createdAt, updatedAt
 }
 
-func metaCourseTopicRow(r *courseTopicRow) (uint, time.Time, time.Time) {
+func metaCourseTopicRow(r *courseTopicRow) (uint, int64, int64) {
 	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaCourseOutcomeRow(r *courseOutcomeRow) (uint, time.Time, time.Time) {
+func metaCourseOutcomeRow(r *courseOutcomeRow) (uint, int64, int64) {
 	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaCourseSkillRow(r *courseSkillRow) (uint, time.Time, time.Time) {
+func metaCourseSkillRow(r *courseSkillRow) (uint, int64, int64) {
 	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaTagRow(r *tagRow) (uint, time.Time, time.Time) {
+func metaTagRow(r *tagRow) (uint, int64, int64) {
 	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaCourseLevelRow(r *courseLevelRow) (uint, time.Time, time.Time) {
+func metaCourseLevelRow(r *courseLevelRow) (uint, int64, int64) {
 	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
@@ -46,8 +45,8 @@ func createTaxonomyDomain[Row any, Domain any](
 	d *Domain,
 	toRow func(*Domain) *Row,
 	entityID *uint,
-	createdAt, updatedAt *time.Time,
-	meta func(*Row) (uint, time.Time, time.Time),
+	createdAt, updatedAt *int64,
+	meta func(*Row) (uint, int64, int64),
 ) error {
 	return taxonomyCreateSync(ctx, db, toRow(d), entityID, createdAt, updatedAt, meta)
 }
@@ -57,9 +56,10 @@ func taxonomyCreateSync[Row any](
 	db *gorm.DB,
 	row *Row,
 	entityID *uint,
-	createdAt, updatedAt *time.Time,
-	meta func(*Row) (uint, time.Time, time.Time),
+	createdAt, updatedAt *int64,
+	meta func(*Row) (uint, int64, int64),
 ) error {
+	gormx.TouchCreatedUpdated(createdAt, updatedAt)
 	return taxonomyCreate(ctx, db, row, func(r *Row) {
 		id, c, u := meta(r)
 		copyUintRowMeta(entityID, createdAt, updatedAt, id, c, u)
@@ -74,7 +74,13 @@ func taxonomyList[R any, D any](
 	applySearch func(*gorm.DB, domain.TaxonomyFilter) *gorm.DB,
 	mapRow func(*R) D,
 ) ([]D, int64, error) {
-	q := applySearch(db.WithContext(ctx).Model(model), filter)
+	q := db.WithContext(ctx).Model(model)
+	if filter.IncludeDeleted {
+		q = gormx.ScopeIncludeDeleted(q)
+	} else {
+		q = gormx.ScopeActiveOnly(q)
+	}
+	q = applySearch(q, filter)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -97,7 +103,8 @@ func taxonomyGetByID[R any, D any](
 	mapRow func(*R) D,
 ) (*D, error) {
 	var row R
-	if err := db.WithContext(ctx).First(&row, id).Error; err != nil {
+	q := gormx.ScopeActiveOnly(db.WithContext(ctx))
+	if err := q.First(&row, id).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
 	out := mapRow(&row)

@@ -54,10 +54,12 @@ All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <tok
 
 | Method | Path | Permission | Description |
 |--------|------|-----------|-------------|
-| GET | `/taxonomy/topics` | `topic:read` | List topics (paginated) |
+| GET | `/taxonomy/topics` | `topic:read` | List active topics (paginated) |
+| GET | `/taxonomy/topics/full` | `topic:read` | List topics including soft-deleted |
 | POST | `/taxonomy/topics` | `topic:create` | Create topic |
-| PATCH | `/taxonomy/topics/:id` | `topic:update` | Update topic |
-| DELETE | `/taxonomy/topics/:id` | `topic:delete` | Delete topic |
+| PATCH | `/taxonomy/topics/:id` | `topic:update` | Update topic (active only) |
+| DELETE | `/taxonomy/topics/:id` | `topic:delete` | Soft-delete topic |
+| DELETE | `/taxonomy/topics/:id/hard` | `topic:delete` | Hard-delete topic (+ orphan image cleanup) |
 
 **Body fields:** `name`, `slug`, `status`, optional `image_file_id`, `child_topics` (tree array).
 
@@ -68,6 +70,8 @@ All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <tok
 | Method | Path | Permission |
 |--------|------|-----------|
 | GET/POST/PATCH/DELETE | `/taxonomy/outcomes` | `course_outcome:*` (P30–P33) |
+| GET | `/taxonomy/outcomes/full` | `course_outcome:read` | List including soft-deleted |
+| DELETE | `/taxonomy/outcomes/:id/hard` | `course_outcome:delete` | Hard delete (+ orphan image) |
 
 **Body:** `short_description` (≤100 chars), `description` (string array, ≤8 items × ≤120 chars each), optional `image_file_id`, `status`.
 
@@ -76,12 +80,16 @@ All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <tok
 | Method | Path | Permission |
 |--------|------|-----------|
 | GET/POST/PATCH/DELETE | `/taxonomy/skills` | `course_skill:*` (P34–P37) |
+| GET | `/taxonomy/skills/full` | `course_skill:read` | List including soft-deleted |
+| DELETE | `/taxonomy/skills/:id/hard` | `course_skill:delete` | Hard delete |
 
 **Body:** `name`, `slug`, `children` (tree), `status`.
 
 ### Course Levels / Tags
 
-Unchanged: `/taxonomy/levels`, `/taxonomy/tags` with `course_level:*` and `tag:*`.
+`/taxonomy/levels` and `/taxonomy/tags` with `course_level:*` and `tag:*`. Each resource supports `GET /full`, soft `DELETE /:id`, and hard `DELETE /:id/hard` (same permission as delete).
+
+**Soft delete:** `deleted_at` Unix seconds on all five taxonomy tables. Default list/get exclude soft-deleted rows. Slug uniqueness is enforced only among active rows (partial unique index).
 
 ---
 
@@ -89,7 +97,7 @@ Unchanged: `/taxonomy/levels`, `/taxonomy/tags` with `course_level:*` and `tag:*
 
 - **Create/Update:** optional `image_file_id` (UUID of a `media_files` row).
 - **Validation:** `MediaFileValidator` → `MediaService.LoadValidatedProfileImageFile`.
-- **Orphan cleanup:** replaced or deleted `image_file_id` → `OrphanImageEnqueuer.EnqueueOrphanCleanupForFileID`.
+- **Orphan cleanup:** on **hard delete** or when `image_file_id` is replaced on update → `OrphanImageEnqueuer.EnqueueOrphanCleanupForFileID`. Soft delete does **not** enqueue orphan cleanup.
 
 ---
 

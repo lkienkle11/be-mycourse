@@ -85,33 +85,44 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req/s, burst 1), AuthJWT
 |--------|------|-----------|-------------|
 | GET | `/api/v1/me` | None (JWT only) | Get current user profile |
 | PATCH | `/api/v1/me` | None (JWT only) | Update current user profile |
-| DELETE | `/api/v1/me` | None (JWT only) | Delete current user account |
+| DELETE | `/api/v1/me` | None (JWT only) | Soft-delete current user account |
+| DELETE | `/api/v1/me/hard` | None (JWT only) | Permanently delete current user account |
 | GET | `/api/v1/me/permissions` | `user:read` | Get current user permission list |
 
 #### Taxonomy
 
 | Method | Path | Permission | Description |
 |--------|------|-----------|-------------|
-| GET | `/api/v1/taxonomy/levels` | `course_level:read` | List course levels |
+| GET | `/api/v1/taxonomy/levels` | `course_level:read` | List active course levels |
+| GET | `/api/v1/taxonomy/levels/full` | `course_level:read` | List course levels including soft-deleted |
 | POST | `/api/v1/taxonomy/levels` | `course_level:create` | Create course level |
 | PATCH | `/api/v1/taxonomy/levels/:id` | `course_level:update` | Update course level |
-| DELETE | `/api/v1/taxonomy/levels/:id` | `course_level:delete` | Delete course level |
-| GET | `/api/v1/taxonomy/topics` | `topic:read` | List course topics |
+| DELETE | `/api/v1/taxonomy/levels/:id` | `course_level:delete` | Soft-delete course level |
+| DELETE | `/api/v1/taxonomy/levels/:id/hard` | `course_level:delete` | Hard-delete course level |
+| GET | `/api/v1/taxonomy/topics` | `topic:read` | List active course topics |
+| GET | `/api/v1/taxonomy/topics/full` | `topic:read` | List topics including soft-deleted |
 | POST | `/api/v1/taxonomy/topics` | `topic:create` | Create course topic |
 | PATCH | `/api/v1/taxonomy/topics/:id` | `topic:update` | Update course topic |
-| DELETE | `/api/v1/taxonomy/topics/:id` | `topic:delete` | Delete course topic |
-| GET | `/api/v1/taxonomy/outcomes` | `course_outcome:read` | List course outcomes |
+| DELETE | `/api/v1/taxonomy/topics/:id` | `topic:delete` | Soft-delete course topic |
+| DELETE | `/api/v1/taxonomy/topics/:id/hard` | `topic:delete` | Hard-delete course topic (orphan image cleanup) |
+| GET | `/api/v1/taxonomy/outcomes` | `course_outcome:read` | List active course outcomes |
+| GET | `/api/v1/taxonomy/outcomes/full` | `course_outcome:read` | List outcomes including soft-deleted |
 | POST | `/api/v1/taxonomy/outcomes` | `course_outcome:create` | Create course outcome |
 | PATCH | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:update` | Update course outcome |
-| DELETE | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:delete` | Delete course outcome |
-| GET | `/api/v1/taxonomy/skills` | `course_skill:read` | List course skills |
+| DELETE | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:delete` | Soft-delete course outcome |
+| DELETE | `/api/v1/taxonomy/outcomes/:id/hard` | `course_outcome:delete` | Hard-delete course outcome (orphan image cleanup) |
+| GET | `/api/v1/taxonomy/skills` | `course_skill:read` | List active course skills |
+| GET | `/api/v1/taxonomy/skills/full` | `course_skill:read` | List skills including soft-deleted |
 | POST | `/api/v1/taxonomy/skills` | `course_skill:create` | Create course skill |
 | PATCH | `/api/v1/taxonomy/skills/:id` | `course_skill:update` | Update course skill |
-| DELETE | `/api/v1/taxonomy/skills/:id` | `course_skill:delete` | Delete course skill |
-| GET | `/api/v1/taxonomy/tags` | `tag:read` | List tags |
+| DELETE | `/api/v1/taxonomy/skills/:id` | `course_skill:delete` | Soft-delete course skill |
+| DELETE | `/api/v1/taxonomy/skills/:id/hard` | `course_skill:delete` | Hard-delete course skill |
+| GET | `/api/v1/taxonomy/tags` | `tag:read` | List active tags |
+| GET | `/api/v1/taxonomy/tags/full` | `tag:read` | List tags including soft-deleted |
 | POST | `/api/v1/taxonomy/tags` | `tag:create` | Create tag |
 | PATCH | `/api/v1/taxonomy/tags/:id` | `tag:update` | Update tag |
-| DELETE | `/api/v1/taxonomy/tags/:id` | `tag:delete` | Delete tag |
+| DELETE | `/api/v1/taxonomy/tags/:id` | `tag:delete` | Soft-delete tag |
+| DELETE | `/api/v1/taxonomy/tags/:id/hard` | `tag:delete` | Hard-delete tag |
 
 #### Media Files
 

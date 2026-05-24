@@ -30,6 +30,7 @@ func RegisterRoutes(
 	if authen != nil {
 		authen.GET("/me", h.GetMe)
 		authen.PATCH("/me", h.PatchMe)
+		authen.DELETE("/me/hard", h.HardDeleteMe)
 		authen.DELETE("/me", h.DeleteMe)
 		authen.GET("/me/permissions",
 			middleware.RequirePermission(permChecker, constants.AllPermissions.UserRead),

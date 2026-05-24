@@ -8,7 +8,8 @@ type taxonomyRepository[T any] interface {
 	GetByID(ctx context.Context, id uint) (*T, error)
 	Create(ctx context.Context, t *T) error
 	Save(ctx context.Context, t *T) error
-	Delete(ctx context.Context, id uint) error
+	SoftDelete(ctx context.Context, id uint) error
+	HardDelete(ctx context.Context, id uint) error
 }
 
 // CourseTopicRepository defines persistence for the CourseTopic aggregate.

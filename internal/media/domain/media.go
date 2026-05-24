@@ -17,8 +17,8 @@ type MediaPendingCloudCleanup struct {
 	AttemptCount int
 	LastError    string
 	NextRunAt    time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	CreatedAt    int64
+	UpdatedAt    int64
 }
 
 // MediaFilePublic is the client-facing subset of a stored media row (no server-only fields).
@@ -94,8 +94,8 @@ type File struct {
 	ContentFingerprint string
 	MetadataJSON       string
 	Metadata           UploadFileMetadata
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	CreatedAt          int64
+	UpdatedAt          int64
 }
 
 // RawMetadataMap decodes MetadataJSON into a RawMetadata map.
@@ -159,8 +159,8 @@ type MediaUploadEntityInput struct {
 	UploadedMeta  RawMetadata
 	B2Bucket      string
 	GenerateNewID bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	CreatedAt     int64
+	UpdatedAt     int64
 	PreserveID    string
 }
 

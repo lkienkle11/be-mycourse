@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/taxonomy/domain"
 	taxpkg "mycourse-io-be/pkg/taxonomy"
 )
@@ -20,13 +20,14 @@ import (
 type courseTopicRow struct {
 	ID          uint           `gorm:"primaryKey;autoIncrement"`
 	Name        string         `gorm:"size:255;not null"`
-	Slug        string         `gorm:"size:255;not null;uniqueIndex"`
+	Slug        string         `gorm:"size:255;not null;index"`
 	ImageFileID *string        `gorm:"column:image_file_id;type:uuid"`
 	ChildTopics treeNodesJSONB `gorm:"column:child_topics;type:jsonb;not null;default:'[]'"`
 	Status      string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy   *uint          `gorm:"column:created_by"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt   int64
+	UpdatedAt   int64
+	DeletedAt   *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (courseTopicRow) TableName() string { return constants.TableTaxonomyCourseTopics }
@@ -38,8 +39,9 @@ type courseOutcomeRow struct {
 	ImageFileID      *string          `gorm:"column:image_file_id;type:uuid"`
 	Status           string           `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy        *uint            `gorm:"column:created_by"`
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	CreatedAt        int64
+	UpdatedAt        int64
+	DeletedAt        *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (courseOutcomeRow) TableName() string { return constants.TableTaxonomyCourseOutcomes }
@@ -47,12 +49,13 @@ func (courseOutcomeRow) TableName() string { return constants.TableTaxonomyCours
 type courseSkillRow struct {
 	ID        uint           `gorm:"primaryKey;autoIncrement"`
 	Name      string         `gorm:"size:255;not null"`
-	Slug      string         `gorm:"size:255;not null;uniqueIndex"`
+	Slug      string         `gorm:"size:255;not null;index"`
 	Children  treeNodesJSONB `gorm:"type:jsonb;not null;default:'[]'"`
 	Status    string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy *uint          `gorm:"column:created_by"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
+	DeletedAt *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (courseSkillRow) TableName() string { return constants.TableTaxonomyCourseSkills }
@@ -60,11 +63,12 @@ func (courseSkillRow) TableName() string { return constants.TableTaxonomyCourseS
 type tagRow struct {
 	ID        uint   `gorm:"primaryKey;autoIncrement"`
 	Name      string `gorm:"size:255;not null"`
-	Slug      string `gorm:"size:255;not null;uniqueIndex"`
+	Slug      string `gorm:"size:255;not null;index"`
 	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy *uint  `gorm:"column:created_by"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
+	DeletedAt *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (tagRow) TableName() string { return constants.TableTaxonomyTags }
@@ -72,11 +76,12 @@ func (tagRow) TableName() string { return constants.TableTaxonomyTags }
 type courseLevelRow struct {
 	ID        uint   `gorm:"primaryKey;autoIncrement"`
 	Name      string `gorm:"size:255;not null"`
-	Slug      string `gorm:"size:255;not null;uniqueIndex"`
+	Slug      string `gorm:"size:255;not null;index"`
 	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
 	CreatedBy *uint  `gorm:"column:created_by"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64
+	UpdatedAt int64
+	DeletedAt *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (courseLevelRow) TableName() string { return constants.TableTaxonomyCourseLevels }
@@ -163,10 +168,17 @@ func (r *GormCourseTopicRepository) Create(ctx context.Context, t *domain.Course
 }
 
 func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTopic) error {
-	return r.db.WithContext(ctx).Save(courseTopicToRow(t)).Error
+	row := courseTopicToRow(t)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	t.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseTopicRepository) Delete(ctx context.Context, id uint) error {
+func (r *GormCourseTopicRepository) SoftDelete(ctx context.Context, id uint) error {
+	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseTopicRow{}, "id = ? AND deleted_at IS NULL", id)
+}
+
+func (r *GormCourseTopicRepository) HardDelete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&courseTopicRow{}, id).Error
 }
 
@@ -197,10 +209,17 @@ func (r *GormCourseOutcomeRepository) Create(ctx context.Context, o *domain.Cour
 }
 
 func (r *GormCourseOutcomeRepository) Save(ctx context.Context, o *domain.CourseOutcome) error {
-	return r.db.WithContext(ctx).Save(courseOutcomeToRow(o)).Error
+	row := courseOutcomeToRow(o)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	o.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseOutcomeRepository) Delete(ctx context.Context, id uint) error {
+func (r *GormCourseOutcomeRepository) SoftDelete(ctx context.Context, id uint) error {
+	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseOutcomeRow{}, "id = ? AND deleted_at IS NULL", id)
+}
+
+func (r *GormCourseOutcomeRepository) HardDelete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&courseOutcomeRow{}, id).Error
 }
 
@@ -227,10 +246,17 @@ func (r *GormCourseSkillRepository) Create(ctx context.Context, s *domain.Course
 }
 
 func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSkill) error {
-	return r.db.WithContext(ctx).Save(courseSkillToRow(s)).Error
+	row := courseSkillToRow(s)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	s.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseSkillRepository) Delete(ctx context.Context, id uint) error {
+func (r *GormCourseSkillRepository) SoftDelete(ctx context.Context, id uint) error {
+	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseSkillRow{}, "id = ? AND deleted_at IS NULL", id)
+}
+
+func (r *GormCourseSkillRepository) HardDelete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&courseSkillRow{}, id).Error
 }
 
@@ -257,10 +283,17 @@ func (r *GormTagRepository) Create(ctx context.Context, t *domain.Tag) error {
 }
 
 func (r *GormTagRepository) Save(ctx context.Context, t *domain.Tag) error {
-	return r.db.WithContext(ctx).Save(tagToRow(t)).Error
+	row := tagToRow(t)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	t.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormTagRepository) Delete(ctx context.Context, id uint) error {
+func (r *GormTagRepository) SoftDelete(ctx context.Context, id uint) error {
+	return gormx.SoftDeleteWithAudit(ctx, r.db, &tagRow{}, "id = ? AND deleted_at IS NULL", id)
+}
+
+func (r *GormTagRepository) HardDelete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&tagRow{}, id).Error
 }
 
@@ -287,10 +320,17 @@ func (r *GormCourseLevelRepository) Create(ctx context.Context, cl *domain.Cours
 }
 
 func (r *GormCourseLevelRepository) Save(ctx context.Context, cl *domain.CourseLevel) error {
-	return r.db.WithContext(ctx).Save(courseLevelToRow(cl)).Error
+	row := courseLevelToRow(cl)
+	gormx.TouchUpdated(&row.UpdatedAt)
+	cl.UpdatedAt = row.UpdatedAt
+	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseLevelRepository) Delete(ctx context.Context, id uint) error {
+func (r *GormCourseLevelRepository) SoftDelete(ctx context.Context, id uint) error {
+	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseLevelRow{}, "id = ? AND deleted_at IS NULL", id)
+}
+
+func (r *GormCourseLevelRepository) HardDelete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&courseLevelRow{}, id).Error
 }
 
@@ -310,7 +350,7 @@ func rowToCourseTopic(r *courseTopicRow, img *imageFileRow) domain.CourseTopic {
 	t := domain.CourseTopic{
 		ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status,
 		ImageFileID: r.ImageFileID, ChildTopics: child, CreatedBy: r.CreatedBy,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
 	}
 	if img != nil {
 		t.ImageFileURL = img.URL
@@ -328,7 +368,7 @@ func courseTopicToRow(t *domain.CourseTopic) *courseTopicRow {
 	return &courseTopicRow{
 		ID: t.ID, Name: t.Name, Slug: t.Slug, Status: t.Status,
 		ImageFileID: t.ImageFileID, ChildTopics: treeNodesJSONB(child),
-		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, DeletedAt: t.DeletedAt,
 	}
 }
 
@@ -340,7 +380,7 @@ func rowToCourseOutcome(r *courseOutcomeRow, img *imageFileRow) domain.CourseOut
 	o := domain.CourseOutcome{
 		ID: r.ID, ShortDescription: r.ShortDescription, Description: desc,
 		Status: r.Status, ImageFileID: r.ImageFileID, CreatedBy: r.CreatedBy,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
 	}
 	if img != nil {
 		o.ImageFileURL = img.URL
@@ -358,7 +398,7 @@ func courseOutcomeToRow(o *domain.CourseOutcome) *courseOutcomeRow {
 	return &courseOutcomeRow{
 		ID: o.ID, ShortDescription: o.ShortDescription, Description: descriptionJSONB(desc),
 		Status: o.Status, ImageFileID: o.ImageFileID, CreatedBy: o.CreatedBy,
-		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
+		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt, DeletedAt: o.DeletedAt,
 	}
 }
 
@@ -369,7 +409,7 @@ func rowToCourseSkill(r *courseSkillRow) domain.CourseSkill {
 	}
 	return domain.CourseSkill{
 		ID: r.ID, Name: r.Name, Slug: r.Slug, Children: child, Status: r.Status,
-		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
 	}
 }
 
@@ -380,34 +420,34 @@ func courseSkillToRow(s *domain.CourseSkill) *courseSkillRow {
 	}
 	return &courseSkillRow{
 		ID: s.ID, Name: s.Name, Slug: s.Slug, Children: treeNodesJSONB(child),
-		Status: s.Status, CreatedBy: s.CreatedBy, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		Status: s.Status, CreatedBy: s.CreatedBy, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, DeletedAt: s.DeletedAt,
 	}
 }
 
 func rowToTag(r *tagRow) domain.Tag {
 	return domain.Tag{
 		ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status,
-		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
 	}
 }
 
 func tagToRow(t *domain.Tag) *tagRow {
 	return &tagRow{
 		ID: t.ID, Name: t.Name, Slug: t.Slug, Status: t.Status,
-		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, DeletedAt: t.DeletedAt,
 	}
 }
 
 func rowToCourseLevel(r *courseLevelRow) domain.CourseLevel {
 	return domain.CourseLevel{
 		ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status,
-		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
 	}
 }
 
 func courseLevelToRow(cl *domain.CourseLevel) *courseLevelRow {
 	return &courseLevelRow{
 		ID: cl.ID, Name: cl.Name, Slug: cl.Slug, Status: cl.Status,
-		CreatedBy: cl.CreatedBy, CreatedAt: cl.CreatedAt, UpdatedAt: cl.UpdatedAt,
+		CreatedBy: cl.CreatedBy, CreatedAt: cl.CreatedAt, UpdatedAt: cl.UpdatedAt, DeletedAt: cl.DeletedAt,
 	}
 }

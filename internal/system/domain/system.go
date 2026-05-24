@@ -1,15 +1,13 @@
 // Package domain contains the SYSTEM bounded-context core entities and repository interfaces.
 package domain
 
-import "time"
-
 // AppConfig is the singleton row (id must be 1) holding isolated system secrets.
 type AppConfig struct {
 	ID                   int
 	AppCLISystemPassword string
 	AppSystemEnv         string
 	AppTokenEnv          string
-	UpdatedAt            time.Time
+	UpdatedAt            int64
 }
 
 // PrivilegedUser stores hashed credentials for system-level operators.
@@ -17,7 +15,7 @@ type PrivilegedUser struct {
 	ID             uint
 	UsernameSecret string
 	PasswordSecret string
-	CreatedAt      time.Time
+	CreatedAt      int64
 }
 
 // PermissionCatalogEntry is a permission entry from the constants catalog.

@@ -16,6 +16,8 @@ Các file `*_up.sql` được **nhúng (embed)** vào binary (`migrations/embed.
 | `000008_media_metadata_json_storage` | Đảm bảo **`media_files.metadata_json`** là JSONB server-side metadata store, backfill typed keys như **`duration_seconds`**, **`width_bytes`**, **`height_bytes`**, **`fps`**, và thêm GIN index **`idx_media_files_metadata_json_gin`** để query provider metadata khi cần. |
 | `000009_taxonomy_topics_outcomes_skills` | Đổi `categories` → **`course_topics`** + `child_topics` JSONB, bảng **`course_outcomes`** / **`course_skills`**, đổi P18–P21 thành **`topic:*`**, seed P30–P37 **`course_outcome:*`** / **`course_skill:*`**. |
 | `000010_role_modify_permissions` | Seed P38–P40 **`sysadmin:modify`** / **`admin:modify`** / **`instructor:modify`** và gán theo role tier (sysadmin → cả ba, admin → P39–P40, instructor → P40). |
+| `000011_audit_timestamps_bigint` | Đổi cột audit **`created_at`**, **`updated_at`**, **`deleted_at`** (nơi có) từ `TIMESTAMPTZ` sang **`BIGINT`** Unix epoch seconds trên toàn bộ bảng có audit columns. |
+| `000012_soft_delete_taxonomy_users_ban` | **`deleted_at`** trên 5 bảng taxonomy + partial unique slug indexes, cột **`users.banned_until`** (Unix seconds, thời điểm hết ban). |
 
 **Xóa toàn bộ bảng bằng SQL (đúng thứ tự FK):** xem `docs/database.md` — mục **Drop All Tables**; khi thêm bảng mới cập nhật danh sách `DROP TABLE` tương ứng.
 

@@ -27,8 +27,9 @@ Handles user lifecycle and session management.
 **Capabilities:**
 - Register (pending user + confirmation email via Brevo)
 - Login / email confirmation / token refresh
-- `GET /me`, `PATCH /me`, `DELETE /me`
+- `GET /me`, `PATCH /me`, `DELETE /me` (soft), `DELETE /me/hard`
 - `GET /me/permissions`
+- User access guards via `application/service_access.go` (`checkUserAccessible`: deleted / disabled / `banned_until`)
 - Stateful JWT sessions backed by PostgreSQL JSONB
 - Redis cache for `/me` responses and login negative cache
 - Confirmation email rate limiting (Redis sliding window + Postgres lifetime cap)
@@ -91,11 +92,11 @@ See [`docs/modules/rbac.md`](modules/rbac.md) for full deep-dive.
 Reference data for classifying course content.
 
 **Capabilities:**
-- **Categories**: hierarchical or flat subject groupings with optional image (linked to `media_files`)
-- **Course Levels**: difficulty designations (Beginner, Intermediate, Advanced)
-- **Tags**: free-form keyword labels
+- **Course topics**, **outcomes**, **skills**, **levels**, **tags** — CRUD with soft delete (`DELETE /:id`), hard delete (`DELETE /:id/hard`), list including deleted (`GET /full`)
+- Partial unique slug indexes among active rows only (re-create slug after soft delete)
+- Optional topic/outcome images linked to `media_files`; orphan cleanup on hard delete only
 
-**Exposed under:** `/api/v1/taxonomy/...` (requires JWT + permission)
+**Exposed under:** `/api/v1/taxonomy/...` (requires JWT + permission). Convention: **`docs/patterns.md`** (CRUD soft delete).
 
 See [`docs/modules/taxonomy.md`](modules/taxonomy.md) for full deep-dive.
 

@@ -43,19 +43,12 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 ### `/api/v1` (auth subgroup)
 - `GET /me`
 - `PATCH /me` — partial profile update; body supports **`avatar_file_id`** (UUID of an existing **`media_files`** row). Response uses nested **`avatar`** (`dto.MediaFilePublic`) instead of a raw URL string.
+- `DELETE /me` — soft delete account
+- `DELETE /me/hard` — permanent account removal
 - `GET /me/permissions` (currently guarded with `RequirePermission(user:read)`).
-- Taxonomy (admin CRUD):
-  - `GET /taxonomy/levels`
-  - `POST /taxonomy/levels`
-  - `PATCH /taxonomy/levels/:id`
-  - `DELETE /taxonomy/levels/:id`
-  - `GET /taxonomy/topics` … `DELETE /taxonomy/topics/:id` (`topic:*`)
-  - `GET /taxonomy/outcomes` … `DELETE /taxonomy/outcomes/:id` (`course_outcome:*`)
-  - `GET /taxonomy/skills` … `DELETE /taxonomy/skills/:id` (`course_skill:*`)
-  - `GET /taxonomy/tags`
-  - `POST /taxonomy/tags`
-  - `PATCH /taxonomy/tags/:id`
-  - `DELETE /taxonomy/tags/:id`
+- Taxonomy (admin CRUD; soft delete — see **`docs/patterns.md`**):
+  - Each resource: `GET /taxonomy/{resource}`, `GET /taxonomy/{resource}/full`, `POST`, `PATCH /:id`, `DELETE /:id` (soft), `DELETE /:id/hard`
+  - Resources: `levels`, `topics`, `outcomes`, `skills`, `tags`
 - Media upload/files:
   - `OPTIONS /media/files`
   - `GET /media/files`

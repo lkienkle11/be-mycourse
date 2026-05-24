@@ -1,7 +1,5 @@
 package delivery
 
-import "time"
-
 // PermissionFilterRequest is the query-param DTO for listing permissions.
 type PermissionFilterRequest struct {
 	Page       int    `form:"page"`
@@ -68,11 +66,11 @@ type AssignUserPermissionRequest struct {
 
 // PermissionResponse is the JSON response for a single permission.
 type PermissionResponse struct {
-	PermissionID   string    `json:"permission_id"`
-	PermissionName string    `json:"permission_name"`
-	Description    string    `json:"description"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	PermissionID   string `json:"permission_id"`
+	PermissionName string `json:"permission_name"`
+	Description    string `json:"description"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
 }
 
 // RoleResponse is the JSON response for a role (permissions optionally included).
@@ -81,8 +79,8 @@ type RoleResponse struct {
 	Name        string               `json:"name"`
 	Description string               `json:"description"`
 	Permissions []PermissionResponse `json:"permissions,omitempty"`
-	CreatedAt   time.Time            `json:"created_at"`
-	UpdatedAt   time.Time            `json:"updated_at"`
+	CreatedAt   int64                `json:"created_at"`
+	UpdatedAt   int64                `json:"updated_at"`
 }
 
 // UserPermissionCodesResponse lists effective permission codes for a user.

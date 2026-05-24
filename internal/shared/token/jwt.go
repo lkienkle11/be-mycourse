@@ -35,14 +35,14 @@ type RefreshClaims struct {
 }
 
 // GenerateAccess signs a short-lived access token carrying user identity and permissions.
-func GenerateAccess(secret string, userID uint, userCode, email, displayName string, createdAt time.Time, permissions []string, ttl time.Duration) (string, error) {
+func GenerateAccess(secret string, userID uint, userCode, email, displayName string, createdAt int64, permissions []string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:      userID,
 		UserCode:    userCode,
 		Email:       email,
 		DisplayName: displayName,
-		CreatedAt:   createdAt.Unix(),
+		CreatedAt:   createdAt,
 		Permissions: permissions,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),

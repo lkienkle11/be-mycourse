@@ -276,7 +276,8 @@ Application accounts. Passwords are bcrypt-hashed.
 | `hash_password` | `VARCHAR(255)` | NOT NULL | bcrypt hash |
 | `display_name` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | |
 | `avatar_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Profile image; API exposes nested `avatar` object, not a raw URL column |
-| `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Account disabled |
+| `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Permanent admin disable (separate from time-limited ban) |
+| `banned_until` | `BIGINT` | nullable | Unix seconds when a time-limited ban **lifts**; `NULL` = not banned (migration **`000012`**) |
 | `email_confirmed` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Email verified |
 | `confirmation_token` | `VARCHAR(128)` | nullable | One-time confirmation token |
 | `confirmation_sent_at` | `TIMESTAMPTZ` | nullable | Last confirmation email send time |
@@ -319,9 +320,11 @@ Domain types: `internal/auth/domain/user.go` (`RefreshSessionEntry`, `RefreshTok
 
 ## Taxonomy
 
-Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_user_media_refs`**.
+Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_user_media_refs`**. Soft delete added in **`000012_soft_delete_taxonomy_users_ban`**.
 
 **GORM models:** `internal/taxonomy/infra/repos.go` (`courseTopicRow`, `courseOutcomeRow`, `courseSkillRow`, `tagRow`, `courseLevelRow`).
+
+**Soft delete:** default list/get exclude rows where `deleted_at IS NOT NULL`. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE .../:id/hard` permanently removes the row. Slug columns use partial unique indexes (`uix_*_slug_active`) so slugs can be reused after soft delete.
 
 ### `course_levels`
 
@@ -329,13 +332,14 @@ Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_u
 |--------|------|-------------|-------------|
 | `id` | `BIGSERIAL` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | URL-safe identifier |
+| `slug` | `VARCHAR(255)` | NOT NULL | URL-safe identifier; unique among active rows (`uix_course_levels_slug_active`) |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
-**Index:** `idx_course_levels_created_by`.
+**Indexes:** `idx_course_levels_created_by`, `idx_course_levels_deleted_at` (partial, `deleted_at IS NULL`), `uix_course_levels_slug_active` (partial unique on `slug` where `deleted_at IS NULL`).
 
 ---
 
@@ -347,15 +351,16 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 |--------|------|-------------|-------------|
 | `id` | `BIGSERIAL` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
+| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_topics_slug_active`) |
 | `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Topic image |
 | `child_topics` | `JSONB` | NOT NULL DEFAULT `'[]'` | Nested tree: `{ id, name, slug, children[] }` |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
-**Indexes:** `idx_course_topics_created_by`, `idx_course_topics_image_file_id`.
+**Indexes:** `idx_course_topics_created_by`, `idx_course_topics_image_file_id`, `idx_course_topics_deleted_at`, `uix_course_topics_slug_active`.
 
 **Removed columns:** `image_url` (dropped in `000006`).
 
@@ -373,8 +378,9 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
-**Indexes:** `idx_course_outcomes_created_by`, `idx_course_outcomes_image_file_id`.
+**Indexes:** `idx_course_outcomes_created_by`, `idx_course_outcomes_image_file_id`, `idx_course_outcomes_deleted_at`.
 
 ---
 
@@ -384,14 +390,15 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 |--------|------|-------------|-------------|
 | `id` | `BIGSERIAL` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
+| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_skills_slug_active`) |
 | `children` | `JSONB` | NOT NULL DEFAULT `'[]'` | Skill tree (same node shape as `child_topics`) |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
-**Index:** `idx_course_skills_created_by`.
+**Indexes:** `idx_course_skills_created_by`, `idx_course_skills_deleted_at`, `uix_course_skills_slug_active`.
 
 ---
 
@@ -401,15 +408,14 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 |--------|------|-------------|-------------|
 | `id` | `BIGSERIAL` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | UNIQUE NOT NULL | |
+| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_tags_slug_active`) |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `created_by` | `BIGINT` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
-**Index:** `idx_tags_created_by`.
-
----
+**Indexes:** `idx_tags_created_by`, `idx_tags_deleted_at`, `uix_tags_slug_active`.
 
 ## Media
 
@@ -538,7 +544,7 @@ At login / token refresh, effective permissions = **union** of:
 
 The access token `permissions` claim contains **`permission_name`** strings (e.g. `course:read`). `middleware.RequirePermission` checks the same strings from `constants.AllPermissions`.
 
-Disabled users (`is_disable = true`) must not receive new tokens (enforced in auth service).
+Disabled users (`is_disable = true`) and actively banned users (`banned_until > now()`) must not receive new tokens or `/me` responses (enforced in auth application via `checkUserAccessible`). Soft-deleted users (`deleted_at IS NOT NULL`) are excluded from active lookups.
 
 ---
 
@@ -568,6 +574,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000009 | `taxonomy_topics_outcomes_skills` | Rename `categories` → `course_topics` + `child_topics` JSONB, tables `course_outcomes` / `course_skills`, P18–P21 → `topic:*`, seed P30–P37 |
 | 000010 | `role_modify_permissions` | Seed P38–P40 role-modify permissions and role matrix |
 | 000011 | `audit_timestamps_bigint` | Convert audit columns (`created_at`, `updated_at`, `deleted_at`) from `TIMESTAMPTZ` to `BIGINT` Unix seconds on all affected tables |
+| 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

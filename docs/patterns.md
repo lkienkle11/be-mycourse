@@ -129,6 +129,52 @@ zap.L().Info("tick", zap.String("job", "media-cleanup"))
 - Embedded SQL migrations via `golang-migrate`.
 - PostgreSQL table names: defined once in `internal/shared/constants/dbschema_name.go`. All GORM `TableName()` methods and raw SQL reference these constants — no hardcoded string literals.
 
+### CRUD APIs with soft delete
+
+Convention for resources that support reversible deletion. Implemented on **taxonomy** (all five resources) and **auth users** (`/me` only). See **`docs/router.md`**, **`docs/database.md`**.
+
+#### Semantics
+
+| State | Rule |
+|-------|------|
+| Active row | `deleted_at IS NULL` |
+| Soft-deleted row | `deleted_at > 0` (Unix epoch **seconds**) |
+| Banned user (auth) | `banned_until IS NOT NULL AND banned_until > now()` — ban **expires at** that timestamp |
+| Permanent disable (auth) | `is_disable = true` — separate from time-limited ban |
+
+#### Routes
+
+| Operation | Default | Variant |
+|-----------|---------|---------|
+| List / search | `GET /resources` — active only | `GET /resources/full` — includes soft-deleted |
+| Get by id | `GET /resources/:id` — active only (404 if soft-deleted) | `GET /resources/:id/full` — when list-by-id is exposed |
+| Delete | `DELETE /resources/:id` — soft delete | `DELETE /resources/:id/hard` — permanent GORM `Delete` |
+
+Register **static** paths (`/full`, `/:id/hard`) **before** generic `/:id` routes in Gin.
+
+#### Repository / infra
+
+- List: `gormx.ScopeActiveOnly` unless `filter.IncludeDeleted` (taxonomy: `domain.TaxonomyFilter.IncludeDeleted`).
+- GetByID (default): active-only — keeps PATCH/update safe.
+- Soft delete: `gormx.SoftDeleteWithAudit` sets `deleted_at` and `updated_at`.
+- Hard delete: GORM `db.Delete(&row{}, id)`; side effects (e.g. orphan image cleanup) **only** on hard delete.
+
+#### Slug uniqueness (taxonomy)
+
+Partial unique index `WHERE deleted_at IS NULL` (migration **`000012`**) so slugs can be re-created after soft delete.
+
+#### Exceptions
+
+| Area | Behavior |
+|------|----------|
+| **RBAC** | Junction row removes — hard delete only |
+| **Auth `/me`** | No `GET /me/full`; login, refresh, `/me` reject deleted, disabled, and actively banned users |
+| **Media** | Soft delete on `media_files`; route convention deferred |
+
+#### Auth access guard
+
+`AuthService.EnsureActiveUser` / `checkUserAccessible` in **`internal/auth/application/service_access.go`**. Wired into **`middleware.RequireActiveUser`** on every JWT-protected `/api/v1` route (after `AuthJWT`). Also used explicitly in login, refresh, and `/me` handlers.
+
 ---
 
 ## Testing

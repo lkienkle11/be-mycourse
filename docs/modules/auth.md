@@ -24,7 +24,8 @@ internal/auth/
 │   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, etc.)
 │   └── token_ttl.go             # AccessTokenTTL, RefreshTokenTTL, RememberMeRefreshTTL
 ├── application/
-│   ├── service.go               # AuthService: Register, Login, ConfirmEmail, GetMe, UpdateMe, DeleteMe
+│   ├── service.go               # AuthService: Register, Login, ConfirmEmail, GetMe, UpdateMe, SoftDeleteUser, HardDeleteUser
+│   ├── service_access.go          # checkUserAccessible, isUserBanned (login / refresh / /me guards)
 │   ├── service_session.go       # RefreshSession, Logout, issueTokenPair, rotateSession
 │   ├── service_cache.go         # Redis cache helpers for /me and login
 │   ├── cache_keys.go            # Redis key patterns
@@ -37,7 +38,7 @@ internal/auth/
 │   ├── crypto.go                # Password hashing (bcrypt)
 │   └── session_limits.go        # MaxActiveSessions constant
 └── delivery/
-    ├── handler.go               # HTTP handlers: Register, Login, ConfirmEmail, RefreshToken, Logout, GetMe, PatchMe, DeleteMe, GetMyPermissions
+    ├── handler.go               # HTTP handlers: Register, Login, ConfirmEmail, RefreshToken, Logout, GetMe, PatchMe, DeleteMe, HardDeleteMe, GetMyPermissions
     ├── routes.go                # Route registration
     ├── dto.go                   # Request/response DTOs
     └── mapping.go               # Domain → DTO mapping
@@ -45,8 +46,9 @@ internal/auth/
 
 ### Persistence rules
 
-- **`domain.User`** has no `gorm` import and no column tags. Soft-delete is represented as `DeletedAt *time.Time` on the domain type.
-- **`infra.userRow`** mirrors the `users` table (GORM tags, `gorm.DeletedAt` on the row model only).
+- **`domain.User`** has no `gorm` import and no column tags. Audit fields use **`int64`** / **`*int64`**: `CreatedAt`, `UpdatedAt`, `DeletedAt` (soft delete), `BannedUntil` (Unix seconds when a time-limited ban lifts; `nil` = not banned).
+- **`infra.userRow`** mirrors the `users` table (GORM column tags). Soft delete is **manual** via `gormx.SoftDeleteWithAudit` — not GORM's built-in soft-delete plugin.
+- **`application/service_access.go`** owns **`checkUserAccessible`**: rejects soft-deleted (`deleted_at`), permanently disabled (`is_disable`), and actively banned (`banned_until > now()`) users. Returns domain errors `ErrUserNotFound`, `ErrUserDisabled`, `ErrUserBanned`.
 - **`infra/gormjsonb.go`** implements JSONB persistence for `refresh_token_session`; the domain map type stays a plain `map[string]RefreshSessionEntry`.
 - Do **not** add `internal/auth/entity/` or move scanners into `domain/`.
 
@@ -56,8 +58,16 @@ internal/auth/
 
 **All protected endpoints require the access token via the `Authorization` header only.** Cookies are NOT read by the auth middleware.
 
+After JWT validation, **`RequireActiveUser`** (injected auth checker) loads the user from Postgres and rejects soft-deleted (**404**), disabled (**403** `4005`), and actively banned (**403** `4012`) accounts — so a still-valid JWT cannot access taxonomy/media while banned.
+
 ```
 Authorization: Bearer <access_token>
+```
+
+Middleware chain on `/api/v1` authenticated routes:
+
+```
+RateLimitLocal → AuthJWT (parse JWT) → RequireActiveUser (DB accessibility) → handler / RequirePermission
 ```
 
 When the access token is expired:
@@ -154,7 +164,9 @@ Validates credentials and issues a full token set.
 }
 ```
 
-**Errors:** `4002` InvalidCredentials · `4004` EmailNotConfirmed · `4005` UserDisabled
+**Errors:** `4002` InvalidCredentials · `4004` EmailNotConfirmed · `4005` UserDisabled · `4012` UserBanned (`banned_until > now()`)
+
+**Access check:** After loading the user, `AuthService.Login` calls **`checkUserAccessible`** (`application/service_access.go`). Soft-deleted users are treated as invalid credentials (`4002`); disabled and banned users get `4005` / `4012`.
 
 **Redis keys used:**
 - `mycourse:user:me:{user_id}` — cached `MeResponse`, TTL 1 minute
@@ -195,7 +207,9 @@ X-Session-Id:    <128-char-hex>
 }
 ```
 
-**Errors:** `4007` InvalidSession · `4008` RefreshTokenExpired · `4005` UserDisabled · `3001` BadRequest (missing headers)
+**Errors:** `4007` InvalidSession · `4008` RefreshTokenExpired · `4005` UserDisabled · `4012` UserBanned · `3001` BadRequest (missing headers)
+
+**Access check:** Same **`checkUserAccessible`** guard as login after user load.
 
 ---
 
@@ -220,17 +234,25 @@ X-Session-Id:    <128-char-hex>
 
 Returns the current user's profile and effective permission names. Redis cache-first; DB fallback with up to **1 minute** staleness.
 
+**Access check:** `loadAccessibleUser` → **`checkUserAccessible`** in `application/service_access.go`. Rejects soft-deleted users (**404**), permanently disabled users (**403**, `4005`), and actively banned users (**403**, `4012` — `banned_until > now()`).
+
 ---
 
 ### `PATCH /api/v1/me` (JWT required)
 
-Updates profile fields (display name, avatar `image_file_id`). Validates the avatar against `media_files` via a Media domain interface.
+Updates profile fields (display name, avatar `image_file_id`). Same access guards as `GET /me`.
 
 ---
 
 ### `DELETE /api/v1/me` (JWT required)
 
-Deletes the current user account.
+Soft-deletes the current user account (`deleted_at` set). Avatar orphan cleanup is scheduled when applicable.
+
+---
+
+### `DELETE /api/v1/me/hard` (JWT required)
+
+Permanently removes the user row. Avatar orphan cleanup is scheduled when applicable. No `GET /me/full` endpoint.
 
 ---
 
@@ -284,7 +306,8 @@ Session state lives in `users.refresh_token_session` — a JSONB column mapping 
 | `4002` | `InvalidCredentials` | Wrong email or password |
 | `4003` | `WeakPassword` | Password fails strength check |
 | `4004` | `EmailNotConfirmed` | Login before confirming email |
-| `4005` | `UserDisabled` | Account has been disabled |
+| `4005` | `UserDisabled` | Account has been disabled (`is_disable`) |
+| `4012` | `UserBanned` | Account is temporarily banned (`banned_until > now()`) |
 | `4006` | `InvalidConfirmToken` | Confirm with stale or unknown token |
 | `4007` | `InvalidSession` | session_id or UUID mismatch |
 | `4008` | `RefreshTokenExpired` | DB-stored expiry has passed |

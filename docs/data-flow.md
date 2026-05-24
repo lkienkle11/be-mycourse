@@ -4,7 +4,7 @@
 
 1. HTTP request enters the Gin router (`internal/server/router.go`).
 2. Global middleware executes: `RequestLogger` (structured access log + `X-Request-ID`), `httperr.Middleware`, `httperr.Recovery`, CORS, gzip.
-3. Group middleware executes based on route group (rate limit, JWT auth, API key, system token).
+3. Group middleware executes based on route group (rate limit, JWT auth, active-user DB check, API key, system token).
 4. Delivery handler (in `internal/<domain>/delivery/`) binds and validates the request DTO, then calls the application service.
 5. Application service (`internal/<domain>/application/`) executes business logic using injected domain interfaces (repos, external clients).
 6. Infrastructure implementations (`internal/<domain>/infra/`) perform DB queries, cloud API calls, etc.
@@ -38,7 +38,8 @@ POST /api/v1/auth/login
   └─ internal/auth/delivery/handler.go (Login)
        └─ AuthService.Login
             ├─ Check Redis negative cache (mycourse:auth:login:invalid:{email})
-            ├─ Load user from DB (with email→user_id Redis cache)
+            ├─ Load user from DB (with email→user_id Redis cache; active rows only)
+            ├─ checkUserAccessible (application/service_access.go)
             ├─ Verify password (bcrypt)
             ├─ Issue access token + refresh token + session_id
             ├─ Persist refresh session to users.refresh_token_session JSONB
@@ -55,6 +56,7 @@ POST /api/v1/auth/refresh
        └─ AuthService.RefreshSession
             ├─ Parse X-Refresh-Token header (refresh JWT)
             ├─ Parse X-Session-Id header
+            ├─ Load user (active only) + checkUserAccessible
             ├─ Load session entry from users.refresh_token_session JSONB
             ├─ Validate UUID and expiry
             ├─ Issue new access token + refresh token
@@ -82,9 +84,21 @@ GET /api/v1/me (JWT required)
   └─ internal/auth/delivery/handler.go (GetMe)
        └─ AuthService.GetMe
             ├─ Check Redis cache (mycourse:user:me:{user_id}) — up to 1 minute stale
-            ├─ On miss: load user + permissions from DB
+            ├─ On miss: loadAccessibleUser → checkUserAccessible → permissions from DB
             ├─ Cache result
             └─ Return MeResponse DTO
+```
+
+### DELETE /me (soft) and DELETE /me/hard
+
+```
+DELETE /api/v1/me | DELETE /api/v1/me/hard (JWT required)
+  └─ internal/auth/delivery/handler.go (DeleteMe | HardDeleteMe)
+       └─ AuthService.SoftDeleteUser | HardDeleteUser
+            ├─ loadAccessibleUser → checkUserAccessible
+            ├─ SoftDelete (gormx.SoftDeleteWithAudit) | HardDelete (GORM Delete)
+            ├─ delCachedMe(userID)
+            └─ Enqueue avatar orphan cleanup when avatar_file_id set
 ```
 
 ### Permission Check (middleware)
@@ -106,6 +120,8 @@ POST /api/system/permission-sync-now  (system JWT required)
 ```
 
 ### Taxonomy CRUD
+
+Default list/get: active rows only (`gormx.ScopeActiveOnly`). Soft delete: `DELETE /:id`. Hard delete: `DELETE /:id/hard`. Include deleted: `GET /full`. See **`docs/patterns.md`**.
 
 ```
 POST /api/v1/taxonomy/topics  (JWT + topic:create required)

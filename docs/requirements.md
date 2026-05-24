@@ -103,7 +103,11 @@
 #### FR-1.3 User Login
 
 - The system **MUST** validate email + password against the stored bcrypt hash.
-- The system **MUST** reject login if the account's `is_disable` flag is `true` (`ErrUserDisabled`).
+- The system **MUST** reject login if the account's `is_disable` flag is `true` (`ErrUserDisabled`, HTTP **403**, code **4005**).
+- The system **MUST** reject login if `banned_until` is set and `banned_until > now()` (`ErrUserBanned`, HTTP **403**, code **4012**). Ban lifts automatically when time passes.
+- The system **MUST** reject login for soft-deleted users (`deleted_at IS NOT NULL`) as invalid credentials (`ErrInvalidCredentials`, HTTP **401**, code **4002**).
+- Access checks are implemented in **`internal/auth/application/service_access.go`** (`checkUserAccessible`), not in the domain layer.
+- Every JWT-protected `/api/v1` route **MUST** pass **`middleware.RequireActiveUser`** after `AuthJWT`, which calls `AuthService.EnsureActiveUser` (Postgres lookup) so ban/disable/delete apply even when the access token has not expired.
 - The system **MUST** reject login if `email_confirmed` is `false` (`ErrEmailNotConfirmed`).
 - The system **SHOULD** use a short-lived Redis negative cache (`mycourse:auth:login:invalid:{normalized_email}`, TTL 1 min) to avoid Postgres hits on repeat failed attempts.
 - The system **SHOULD** cache the email → user ID mapping in Redis (`mycourse:auth:login:user_by_email:{normalized_email}`, TTL 30 s) to skip the unique-email query on subsequent logins.
@@ -123,6 +127,7 @@
 | Wrong email or password | 401 | 4002 `InvalidCredentials` |
 | Email not confirmed | 401 | 4004 `EmailNotConfirmed` |
 | Account disabled | 403 | 4005 `UserDisabled` |
+| Account temporarily banned | 403 | 4012 `UserBanned` |
 | Request validation failure | 400 | 2001 `ValidationFailed` |
 | DB error | 500 | 9001 `InternalError` |
 
@@ -147,6 +152,7 @@
 | Session ID not found or UUID mismatch | 401 | 4007 `InvalidSession` |
 | `refresh_token_expired` has passed | 401 | 4008 `RefreshTokenExpired` |
 | Account disabled | 403 | 4005 `UserDisabled` |
+| Account temporarily banned | 403 | 4012 `UserBanned` |
 | DB error | 500 | 9001 `InternalError` |
 
 ---
@@ -160,7 +166,7 @@
 - The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), and `permissions` (sorted `permission_name` strings).
 - Sensitive fields (`hash_password`, `confirmation_token`, `confirmation_sent_at`, `refresh_token_session`) **MUST NOT** be returned.
 - The system **SHOULD** serve the response from Redis cache (`mycourse:user:me:{user_id}`, TTL 1 min) on cache hit.
-- On a cache miss the system **MUST** read from Postgres, build the response, and populate the cache.
+- On a cache miss the system **MUST** load the user via active-only lookup and run **`checkUserAccessible`** (`internal/auth/application/service_access.go`) before building the response.
 - Requires `Authorization: Bearer <access_token>`.
 
 **Error cases:**
@@ -168,7 +174,9 @@
 | Condition | HTTP | App Code |
 |-----------|------|----------|
 | Missing or invalid JWT | 401 | 3002 `Unauthorized` |
-| User not found in DB | 404 | 3004 `NotFound` |
+| User soft-deleted or not found | 404 | 3004 `NotFound` |
+| Account disabled | 403 | 4005 `UserDisabled` |
+| Account temporarily banned | 403 | 4012 `UserBanned` |
 | DB error | 500 | 9001 `InternalError` |
 
 #### FR-2.1b Patch My Profile (`PATCH /api/v1/me`)
@@ -177,6 +185,19 @@
 - The system **MUST** validate the file (kind **FILE**, status **READY**, image MIME or common raster extension) and **MUST NOT** accept arbitrary URLs from the client to set storage.
 - On success the system **MUST** invalidate the Redis `/me` cache entry for that user.
 - Invalid file id **MUST** return HTTP **400** with application code **2001** (`ValidationFailed`) and **`ErrInvalidProfileMediaFile`** semantics.
+- Same **`checkUserAccessible`** guards as FR-2.1 (`4005` / `4012` / `404`).
+
+---
+
+#### FR-2.1c Delete My Account
+
+- **`DELETE /api/v1/me`** **MUST** soft-delete the authenticated user (`deleted_at` + `updated_at` via `gormx.SoftDeleteWithAudit`).
+- **`DELETE /api/v1/me/hard`** **MUST** permanently remove the user row (GORM `Delete`).
+- Both endpoints **MUST** schedule avatar orphan cleanup when `avatar_file_id` is set.
+- There is **no** `GET /me/full` endpoint.
+- Setting `banned_until` via admin API is **out of scope**; the DB column exists for future use.
+
+**Error cases:** same access guards as FR-2.1 (`404` / `403` `4005` / `403` `4012`).
 
 ---
 

@@ -21,10 +21,19 @@ func listTaxonomyItems[TRow any, TResp any](
 	listFn func(context.Context, domain.TaxonomyFilter) ([]TRow, int64, error),
 	toResponses func([]TRow) []TResp,
 ) {
+	listTaxonomyItemsWithDeleted(c, listFn, toResponses, false)
+}
+
+func listTaxonomyItemsWithDeleted[TRow any, TResp any](
+	c *gin.Context,
+	listFn func(context.Context, domain.TaxonomyFilter) ([]TRow, int64, error),
+	toResponses func([]TRow) []TResp,
+	includeDeleted bool,
+) {
 	httpx.ListPaginated(c,
 		func(q *TaxonomyBaseFilter) error { return c.ShouldBindQuery(q) },
 		func(ctx context.Context, q TaxonomyBaseFilter) ([]TRow, int64, error) {
-			return listFn(ctx, toFilter(q))
+			return listFn(ctx, toFilter(q, includeDeleted))
 		},
 		func(q TaxonomyBaseFilter) (int, int) { return q.getPage(), q.getPerPage() },
 		toResponses,

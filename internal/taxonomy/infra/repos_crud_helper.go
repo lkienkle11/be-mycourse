@@ -74,7 +74,13 @@ func taxonomyList[R any, D any](
 	applySearch func(*gorm.DB, domain.TaxonomyFilter) *gorm.DB,
 	mapRow func(*R) D,
 ) ([]D, int64, error) {
-	q := applySearch(db.WithContext(ctx).Model(model), filter)
+	q := db.WithContext(ctx).Model(model)
+	if filter.IncludeDeleted {
+		q = gormx.ScopeIncludeDeleted(q)
+	} else {
+		q = gormx.ScopeActiveOnly(q)
+	}
+	q = applySearch(q, filter)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -97,7 +103,8 @@ func taxonomyGetByID[R any, D any](
 	mapRow func(*R) D,
 ) (*D, error) {
 	var row R
-	if err := db.WithContext(ctx).First(&row, id).Error; err != nil {
+	q := gormx.ScopeActiveOnly(db.WithContext(ctx))
+	if err := q.First(&row, id).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
 	out := mapRow(&row)

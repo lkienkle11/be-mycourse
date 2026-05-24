@@ -110,8 +110,8 @@ type CourseTopicResponse struct {
 	ChildTopics []taxpkg.TreeNode `json:"child_topics"`
 	Status      string            `json:"status"`
 	CreatedBy   *uint             `json:"created_by,omitempty"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	CreatedAt   int64             `json:"created_at"`
+	UpdatedAt   int64             `json:"updated_at"`
 }
 
 // CourseOutcomeResponse is the JSON response for a course outcome.

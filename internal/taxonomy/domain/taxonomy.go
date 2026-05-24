@@ -16,6 +16,7 @@ type CourseTopic struct {
 	CreatedBy   *uint
 	CreatedAt   int64
 	UpdatedAt   int64
+	DeletedAt   *int64
 
 	ImageFileURL  string
 	ImageFileKind string
@@ -32,6 +33,7 @@ type CourseOutcome struct {
 	CreatedBy        *uint
 	CreatedAt        int64
 	UpdatedAt        int64
+	DeletedAt        *int64
 
 	ImageFileURL  string
 	ImageFileKind string
@@ -48,6 +50,7 @@ type CourseSkill struct {
 	CreatedBy *uint
 	CreatedAt int64
 	UpdatedAt int64
+	DeletedAt *int64
 }
 
 // Tag is the aggregate root for a taxonomy tag.
@@ -59,6 +62,7 @@ type Tag struct {
 	CreatedBy *uint
 	CreatedAt int64
 	UpdatedAt int64
+	DeletedAt *int64
 }
 
 // CourseLevel is the aggregate root for a taxonomy course level.
@@ -70,16 +74,18 @@ type CourseLevel struct {
 	CreatedBy *uint
 	CreatedAt int64
 	UpdatedAt int64
+	DeletedAt *int64
 }
 
 // TaxonomyFilter is the common filter for all taxonomy list queries.
 type TaxonomyFilter struct {
-	Page     int
-	PageSize int
-	Status   *string
-	Search   string
-	SortBy   string
-	SortDesc bool
+	Page           int
+	PageSize       int
+	Status         *string
+	Search         string
+	SortBy         string
+	SortDesc       bool
+	IncludeDeleted bool // true for GET .../full list routes
 }
 
 // CreateCourseTopicInput carries data for creating a new course topic.

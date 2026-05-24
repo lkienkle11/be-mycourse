@@ -30,6 +30,10 @@ func (h *Handler) listTopics(c *gin.Context) {
 	listTaxonomyItems(c, h.svc.ListTopics, toCourseTopicResponses)
 }
 
+func (h *Handler) listTopicsFull(c *gin.Context) {
+	listTaxonomyItemsWithDeleted(c, h.svc.ListTopicsFull, toCourseTopicResponses, true)
+}
+
 func (h *Handler) createTopic(c *gin.Context) {
 	var req CreateCourseTopicRequest
 	if err := validate.BindJSON(c, &req); err != nil {
@@ -73,10 +77,18 @@ func (h *Handler) deleteTopic(c *gin.Context) {
 	deleteTaxonomyByID(c, h.svc.DeleteTopic)
 }
 
+func (h *Handler) hardDeleteTopic(c *gin.Context) {
+	deleteTaxonomyByID(c, h.svc.HardDeleteTopic)
+}
+
 // --- CourseOutcome handlers --------------------------------------------------
 
 func (h *Handler) listCourseOutcomes(c *gin.Context) {
 	listTaxonomyItems(c, h.svc.ListCourseOutcomes, toCourseOutcomeResponses)
+}
+
+func (h *Handler) listCourseOutcomesFull(c *gin.Context) {
+	listTaxonomyItemsWithDeleted(c, h.svc.ListCourseOutcomesFull, toCourseOutcomeResponses, true)
 }
 
 func (h *Handler) createCourseOutcome(c *gin.Context) {
@@ -91,10 +103,18 @@ func (h *Handler) deleteCourseOutcome(c *gin.Context) {
 	deleteTaxonomyByID(c, h.svc.DeleteCourseOutcome)
 }
 
+func (h *Handler) hardDeleteCourseOutcome(c *gin.Context) {
+	deleteTaxonomyByID(c, h.svc.HardDeleteCourseOutcome)
+}
+
 // --- CourseSkill handlers ----------------------------------------------------
 
 func (h *Handler) listCourseSkills(c *gin.Context) {
 	listTaxonomyItems(c, h.svc.ListCourseSkills, toCourseSkillResponses)
+}
+
+func (h *Handler) listCourseSkillsFull(c *gin.Context) {
+	listTaxonomyItemsWithDeleted(c, h.svc.ListCourseSkillsFull, toCourseSkillResponses, true)
 }
 
 func (h *Handler) createCourseSkill(c *gin.Context) {
@@ -109,10 +129,18 @@ func (h *Handler) deleteCourseSkill(c *gin.Context) {
 	deleteTaxonomyByID(c, h.svc.DeleteCourseSkill)
 }
 
+func (h *Handler) hardDeleteCourseSkill(c *gin.Context) {
+	deleteTaxonomyByID(c, h.svc.HardDeleteCourseSkill)
+}
+
 // --- Tag handlers ------------------------------------------------------------
 
 func (h *Handler) listTags(c *gin.Context) {
 	listTaxonomyItems(c, h.svc.ListTags, toTagResponses)
+}
+
+func (h *Handler) listTagsFull(c *gin.Context) {
+	listTaxonomyItemsWithDeleted(c, h.svc.ListTagsFull, toTagResponses, true)
 }
 
 func (h *Handler) createTag(c *gin.Context) {
@@ -127,10 +155,18 @@ func (h *Handler) deleteTag(c *gin.Context) {
 	deleteTaxonomyByID(c, h.svc.DeleteTag)
 }
 
+func (h *Handler) hardDeleteTag(c *gin.Context) {
+	deleteTaxonomyByID(c, h.svc.HardDeleteTag)
+}
+
 // --- CourseLevel handlers ----------------------------------------------------
 
 func (h *Handler) listCourseLevels(c *gin.Context) {
 	listTaxonomyItems(c, h.svc.ListCourseLevels, toCourseLevelResponses)
+}
+
+func (h *Handler) listCourseLevelsFull(c *gin.Context) {
+	listTaxonomyItemsWithDeleted(c, h.svc.ListCourseLevelsFull, toCourseLevelResponses, true)
 }
 
 func (h *Handler) createCourseLevel(c *gin.Context) {
@@ -145,13 +181,18 @@ func (h *Handler) deleteCourseLevel(c *gin.Context) {
 	deleteTaxonomyByID(c, h.svc.DeleteCourseLevel)
 }
 
+func (h *Handler) hardDeleteCourseLevel(c *gin.Context) {
+	deleteTaxonomyByID(c, h.svc.HardDeleteCourseLevel)
+}
+
 // --- mapping helpers ---------------------------------------------------------
 
-func toFilter(q TaxonomyBaseFilter) domain.TaxonomyFilter {
+func toFilter(q TaxonomyBaseFilter, includeDeleted bool) domain.TaxonomyFilter {
 	return domain.TaxonomyFilter{
 		Page: q.getPage(), PageSize: q.getPerPage(),
 		Status: q.Status, Search: q.Search,
 		SortBy: q.SortBy, SortDesc: q.SortDesc,
+		IncludeDeleted: includeDeleted,
 	}
 }
 

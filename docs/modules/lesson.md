@@ -1,13 +1,8 @@
 # Lesson Module
 
 
-## Global Type Placement Rule (Mandatory)
-
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
-
 > **Status: Planned / Not yet implemented.**  
+> No lesson endpoints or `internal/lesson/` package. Roadmap only — see **`docs/modules.md`**.  
 > This document describes the intended design. No lesson-related endpoints exist in the current codebase.
 
 ---

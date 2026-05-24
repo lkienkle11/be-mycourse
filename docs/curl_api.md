@@ -1,15 +1,12 @@
 # MyCourse Backend — API Reference & cURL Examples
 
 
-## Global Type Placement Rule (Mandatory)
-
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
-
 > **Base URL:** `http://localhost:8080` (local) / `https://api.mycourse.io` (production)  
 > Replace `{{BASE_URL}}` with the actual base URL in all examples.  
-> **Last updated:** 2026-04-29
+> **Handlers:** `internal/<domain>/delivery` (routes in `routes.go`, wired from `internal/server/wire.go`).  
+> **Last updated:** 2026-05-24
+
+**Audit timestamps:** JSON `created_at` / `updated_at` (and soft-delete `deleted_at` where returned) are **integers** — Unix epoch **seconds**, not ISO strings. See **`docs/database.md`** and migration `000011`.
 
 ---
 
@@ -1649,6 +1646,35 @@ if (data && data.access_token) {
 ### Token Refresh Pre-request Script
 
 Add to any authenticated request to auto-refresh when needed:
+
+## 15. Local smoke test (after migration `000011`)
+
+Run on **`http://localhost:8080`** only after `MIGRATE=1` (or manual `000011` SQL) and `go run .`. Expect `users.created_at` = `bigint` in Postgres — see **`docs/deploy.md`** (Troubleshooting).
+
+**1. Login**
+
+```bash
+curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user01@yopmail.com","password":"Test@1234","remember_me":false}'
+```
+
+Pass: HTTP **200**, `code: 0`, `data.access_token` present (no **500** scan error).
+
+**2. Taxonomy outcomes** (replace token from step 1)
+
+```bash
+export ACCESS_TOKEN="<paste access_token>"
+curl -sS 'http://localhost:8080/api/v1/taxonomy/outcomes?page=1&per_page=20&sort_desc=false&status=ACTIVE' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **200**, `code: 0`; each item’s `created_at` / `updated_at` are JSON **numbers** (Unix seconds).
+
+---
+
+## Postman — auto-refresh script
 
 ```javascript
 // Postman Pre-request Script — auto-refresh on expired token

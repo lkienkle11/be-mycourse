@@ -13,6 +13,7 @@ var (
 	ErrWeakPassword                = stderrors.New(constants.MsgAuthWeakPassword)
 	ErrEmailNotConfirmed           = stderrors.New(constants.MsgAuthEmailNotConfirmed)
 	ErrUserDisabled                = stderrors.New(constants.MsgAuthUserDisabled)
+	ErrUserBanned                  = stderrors.New(constants.MsgAuthUserBanned)
 	ErrInvalidConfirmToken         = stderrors.New(constants.MsgAuthInvalidConfirmToken)
 	ErrUserNotFound                = stderrors.New(constants.MsgAuthUserNotFound)
 	ErrInvalidSession              = stderrors.New(constants.MsgAuthInvalidSession)

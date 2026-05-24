@@ -42,6 +42,7 @@ var defaultMessages = map[int]string{
 	WeakPassword:        "Password must be at least 8 characters and contain uppercase, lowercase, and special characters",
 	EmailNotConfirmed:   "Please confirm your email address before logging in",
 	UserDisabled:        "Your account has been disabled",
+	UserBanned:          "Your account is temporarily banned",
 	InvalidConfirmToken: "Invalid or expired confirmation token",
 	InvalidSession:      "Invalid or missing session",
 	RefreshTokenExpired: "Session has expired, please log in again",

@@ -99,11 +99,25 @@ curl http://localhost:8080/api/v1/health
 
 ### Database migrations
 
-Set `MIGRATE=1` in the environment before starting to apply pending SQL migrations:
+After pulling commits that add files under `migrations/`, apply them on **every** environment that runs the new binary (local `.env`, dev/staging/prod PM2). Use the **same** Postgres DSN as the running app (`DATABASE_URL` or `[database]` in config).
 
 ```bash
 MIGRATE=1 go run .
 ```
+
+The server still starts HTTP after migrate (see **`docs/deploy.md`** — Troubleshooting). Prefer: stop PM2 → `MIGRATE=1 go run .` once → restart without `MIGRATE` on every boot unless you accept migrate-on-start.
+
+**Verify** (requires `psql`; Homebrew: `brew install libpq` then `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"`):
+
+```bash
+psql "$DATABASE_URL" -c "SELECT version, dirty FROM schema_migrations;"
+psql "$DATABASE_URL" -c "SELECT column_name, data_type FROM information_schema.columns
+  WHERE table_name = 'users' AND column_name IN ('created_at','updated_at','deleted_at');"
+```
+
+Expect `version >= 12` and `bigint` for audit columns. If version is ≥ 11 but columns are still `timestamptz`, re-run `migrations/000011_audit_timestamps_bigint.up.sql` — see **`docs/deploy.md`** (audit timestamp mismatch).
+
+**Local smoke test** after migrate: `POST /api/v1/auth/login` and `GET /api/v1/taxonomy/outcomes` on `http://localhost:8080` (examples in **`docs/curl_api.md`**).
 
 ### RBAC sync
 

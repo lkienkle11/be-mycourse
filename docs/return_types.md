@@ -1,14 +1,9 @@
 # MyCourse Backend — Return Types
 
 
-## Global Type Placement Rule (Mandatory)
-
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
-
-> This document catalogues the **Go return types** of every service function and the **JSON response shapes** of every API endpoint.  
-> **Last updated:** 2026-04-30
+> This document catalogues **application-layer return types** (`internal/*/application`) and **JSON response shapes** from `internal/*/delivery` handlers.  
+> **Last updated:** 2026-05-24  
+> **Audit timestamps:** `created_at`, `updated_at`, `deleted_at` (when present) are **`int64` Unix seconds** in Go and JSON numbers — see **`docs/database.md`**.
 
 ---
 
@@ -16,11 +11,11 @@
 
 1. [Response Envelope](#1-response-envelope)
 2. [Core Types (Models / DTOs)](#2-core-types-models--dtos)
-3. [Service Layer Return Types](#3-service-layer-return-types)
-   - [services/auth](#servicesauth)
-   - [services/rbac](#servicesrbac)
-   - [services/system.go](#servicessystemgo)
-4. [API Layer Return Types](#4-api-layer-return-types)
+3. [Application Layer Return Types](#3-application-layer-return-types)
+   - [internal/auth/application](#internalauthapplication)
+   - [internal/rbac/application](#internalrbacapplication)
+   - [internal/system/application](#internalsystemapplication)
+4. [Delivery (HTTP) Return Types](#4-delivery-http-return-types)
    - [Public API `/api/v1`](#public-api-apiv1)
    - [Media API `/api/v1/media/files`](#media-api-apiv1mediafiles)
    - [System API `/api/system`](#system-api-apisystem)
@@ -36,7 +31,7 @@
 All API endpoints (except `/health`) return the same JSON envelope shape:
 
 ```go
-// pkg/response/response.go
+// internal/shared/response/response.go
 type Response struct {
     Code    int    `json:"code"`
     Message string `json:"message"`
@@ -363,26 +358,26 @@ type AssignUserPermissionRequest struct {
 
 ---
 
-## 3. Service Layer Return Types
+## 3. Application Layer Return Types
 
-### services/auth (package `auth`)
+### internal/auth/application (package `auth`)
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
 | `Register` | `Register(email, password, displayName string) error` | `nil` on success; `ErrWeakPassword`, `ErrEmailAlreadyExists`, or a DB/email error |
 | `Login` | `Login(email, password string, rememberMe bool) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidCredentials`, `ErrEmailNotConfirmed`, `ErrUserDisabled`, or DB error |
 | `ConfirmEmail` | `ConfirmEmail(confirmToken string) (TokenPairResult, error)` | `TokenPairResult` on success; `ErrInvalidConfirmToken` or DB error |
-| `RefreshSession` | `RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error)` in **`services/auth/auth_refresh_rotation.go`** | `TokenPairResult` on success; `ErrInvalidSession`, `ErrUserNotFound`, `ErrUserDisabled`, `ErrRefreshTokenExpired`, or DB error |
+| `RefreshSession` | `RefreshSession(sessionStr, refreshTokenStr string) (TokenPairResult, error)` in **`internal/*/application/auth/auth_refresh_rotation.go`** | `TokenPairResult` on success; `ErrInvalidSession`, `ErrUserNotFound`, `ErrUserDisabled`, `ErrRefreshTokenExpired`, or DB error |
 | `GetMe` | `GetMe(userID uint) (*entities.MeProfile, error)` | `*entities.MeProfile` on success (HTTP handler maps via **`mapping.ToMeResponseFromProfile`**); `ErrUserNotFound` or DB error |
-| `UpdateMe` | `UpdateMe(userID uint, req dto.UpdateMeRequest) (*entities.MeProfile, error)` in **`services/auth/me_update.go`** | Same shape as **`GetMe`** after avatar update |
+| `UpdateMe` | `UpdateMe(userID uint, req dto.UpdateMeRequest) (*entities.MeProfile, error)` in **`internal/*/application/auth/me_update.go`** | Same shape as **`GetMe`** after avatar update |
 | `issueTokenPair` _(internal)_ | `issueTokenPair(user User, rememberMe bool, refreshTTL time.Duration) (TokenPairResult, error)` | `TokenPairResult` or error |
 | `userPermissionSlice` _(internal)_ | `userPermissionSlice(userID uint) ([]string, error)` | Sorted `[]string` of `permission_name` values |
 
-**Sentinel errors:** defined in **`pkg/errors/auth.go`** using **`constants.MsgAuth*`** message constants (ruleguard / ST1005). **`services/auth`** returns those variables; **`api/v1`** compares with **`errors.Is(err, pkgerrors.ErrWeakPassword)`** (same pointer identity as `pkg/errors`).
+**Sentinel errors:** defined in **`pkg/errors/auth.go`** using **`constants.MsgAuth*`** message constants (ruleguard / ST1005). **`internal/*/application/auth`** returns those variables; **`api/v1`** compares with **`errors.Is(err, pkgerrors.ErrWeakPassword)`** (same pointer identity as `pkg/errors`).
 
 ---
 
-### services/rbac (package `rbac`)
+### internal/rbac/application
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
@@ -421,7 +416,7 @@ type ListPermissionsParams struct {
 
 ---
 
-### services/system.go
+### internal/system/application
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
@@ -430,11 +425,11 @@ type ListPermissionsParams struct {
 | `SystemLogin` | `SystemLogin(db *gorm.DB, username, password string) (accessToken string, err error)` | `string` (JWT) on success; `ErrSystemLoginFailed`, `ErrSystemSecretsNotReady`, or DB error |
 | `VerifySystemAccessToken` | `VerifySystemAccessToken(db *gorm.DB, tokenStr string) error` | `nil` if valid; JWT parse error or `ErrSystemSecretsNotReady` |
 
-**Sentinel errors:** defined in **`pkg/errors/system.go`** using **`constants.MsgSystem*`** text. **`services/system.go`** assigns the same error values to **`services.ErrSystem*`** so existing **`errors.Is(err, services.ErrSystemLoginFailed)`** checks (e.g. in `api/system`) keep working.
+**Sentinel errors:** defined in **`pkg/errors/system.go`** using **`constants.MsgSystem*`** text. **`internal/*/application/system.go`** assigns the same error values to **`services.ErrSystem*`** so existing **`errors.Is(err, services.ErrSystemLoginFailed)`** checks (e.g. in `api/system`) keep working.
 
 ---
 
-### services/cache/auth_user.go
+### internal/auth/application (Redis `/me` cache)
 
 All cache functions return nothing on error (graceful no-op):
 
@@ -460,7 +455,7 @@ All cache functions return nothing on error (graceful no-op):
 
 ---
 
-## 4. API Layer Return Types
+## 4. Delivery (HTTP) Return Types
 
 All endpoints return `application/json`. The outer envelope is always `Response` or `HealthResponse` (see section 1).
 

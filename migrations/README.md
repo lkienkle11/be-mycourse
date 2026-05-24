@@ -27,6 +27,8 @@ Các file `*_up.sql` được **nhúng (embed)** vào binary (`migrations/embed.
 
 **Đổi kiểu cột có DEFAULT:** khi `ALTER COLUMN … TYPE` mà default cũ không cast được (ví dụ `TIMESTAMPTZ DEFAULT NOW()` → `BIGINT`), chạy theo thứ tự: `DROP DEFAULT` → `ALTER TYPE … USING …` → `SET DEFAULT` mới. Lỗi `default for column "created_at" cannot be cast automatically to type bigint` nghĩa là thiếu bước `DROP DEFAULT` — xem `000011_audit_timestamps_bigint.up.sql`.
 
+**Version ≥ 11 nhưng cột vẫn `timestamptz`:** `schema_migrations` có thể đã tăng version mà SQL `000011` chưa chạy hết. Verify bằng `information_schema` (xem **`docs/deploy.md`** — Troubleshooting), rồi chạy lại `psql … -f migrations/000011_audit_timestamps_bigint.up.sql`.
+
 ## Cách chạy migration với Gin / server hiện tại
 
 1. Cấu hình Postgres giống lúc chạy app (`config/app.yaml` + `.env` — mục `[database]`).

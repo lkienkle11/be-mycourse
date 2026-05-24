@@ -1,11 +1,9 @@
 # Deploying MyCourse (Backend + Frontend) on Ubuntu 24.04
 
 
-## Global Type Placement Rule (Mandatory)
+## DDD layout (code)
 
-- For all new code from now on, if a module contains logic handling (including under `pkg/*`, `services/*`, `repository/*`, and similar layers), newly introduced reusable types must be declared in `pkg/entities`.
-- Do not declare new reusable/domain types inline inside logic implementation files.
-- Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
+Bounded contexts live under `internal/<domain>/{domain,application,infra,delivery}`. Shared helpers: `internal/shared/{db,gormx,timex,response,middleware,constants}`. See **`docs/architecture.md`**.
 
 This guide walks through **server setup**, **HTTPS for two hostnames on one machine**—the **apex / `www` domain for the Next.js frontend** (e.g. `yourdomain.net`) and **`api.` for the Go API** (e.g. `api.yourdomain.net`)—plus **CI/CD** (`.github/workflows/deploy-dev.yml` for the backend on **`master`**, and the frontend workflow in the **Next.js repo** on **`dev`** — checkout path on the server is often `/opt/mycourse/fe` or `fe-mycourse`). Replace **`yourdomain.net`** everywhere with your real **`.net`** domain.
 
@@ -260,6 +258,52 @@ Set at least:
 - Stop the running process (PM2/systemd), run once with `MIGRATE=1`, then return to normal startup; or
 - Keep `MIGRATE=1` on every start if you accept running migrate on boot (safe when migrations are idempotent); or
 - Later, add a dedicated `cmd/migrate` that only runs `Up` and exits—cleaner for CI.
+
+**Deploy order:** Apply DB migrations **before** (or together with) deploying a binary that expects `BIGINT` audit columns (`000011`+). A new binary against an old `TIMESTAMPTZ` schema causes login/list **500** with `Scan error ... time.Time ... int64`.
+
+#### Troubleshooting — audit timestamp / scan mismatch
+
+| Symptom | Likely cause | Fix |
+|---------|----------------|-----|
+| **500** on login; log `converting driver.Value type time.Time ... to a int64` | Go models use `int64` audit fields; DB columns still `timestamptz` | Run migrations on the **same** `DATABASE_URL` as PM2 (see below) |
+| `schema_migrations.version >= 11` but `users.created_at` is still `timestamp with time zone` | Version bumped without `000011` SQL applied (dirty/partial migrate) | Re-apply `migrations/000011_audit_timestamps_bigint.up.sql` with `psql`, then verify column types |
+
+**Verify (use the app’s `[database]` DSN):**
+
+```bash
+export PATH="/opt/homebrew/opt/libpq/bin:$PATH"   # Homebrew libpq client, if needed
+psql "$DATABASE_URL" -c "SELECT version, dirty FROM schema_migrations;"
+psql "$DATABASE_URL" -c "SELECT column_name, data_type FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'users'
+    AND column_name IN ('created_at', 'updated_at', 'deleted_at');"
+```
+
+Expect `version >= 12`, `dirty = f`, and `data_type = bigint` for all three columns.
+
+**Apply migrations:**
+
+```bash
+cd /var/www/be-mycourse   # or local clone
+MIGRATE=1 go run .
+```
+
+If `000011` was skipped but version is already 12, run the up file once (no Go code change):
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000011_audit_timestamps_bigint.up.sql
+```
+
+**Local smoke test** (after migrate + `go run .` on `http://localhost:8080`):
+
+```bash
+curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user01@yopmail.com","password":"Test@1234","remember_me":false}'
+
+# Then GET /api/v1/taxonomy/outcomes with Bearer access_token from login
+```
+
+See also **`migrations/README.md`** (`000011`, `000012`) and **`docs/database.md`** (BIGINT audit convention).
 
 ---
 
@@ -636,13 +680,13 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 
 | Area | Path | Notes |
 |------|------|-------|
-| Entry point | `main.go` | `setting.Setup()` → DB → Redis → router → listen |
-| Router | `api/router.go`, `api/v1/routes.go` | Gin: CORS, gzip, JWT middleware, public + private routes |
-| Settings | `config/app.yaml`, `config/app-*.yaml`, `pkg/setting/setting.go` | YAML + `.env` merge via `STAGE` env var |
-| DB / migrate | `models/setup.go`, `migrations/*.sql` | Run with `MIGRATE=1`; applied on startup |
-| Cache | `pkg/cache_clients/redis.go`, `services/cache/` | Redis client; degrades gracefully if unavailable |
-| Error codes | `pkg/errcode/codes.go`, `pkg/errcode/messages.go` | Mirrors `src/types/api.ts` (ApiErrorCode) in the FE |
-| HTTP errors | `pkg/httperr/middleware.go` | Global Gin error handler |
+| Entry point | `main.go` | `setting.Setup()` → DB → Redis → wire → `internal/server/router.go` |
+| Router | `internal/server/router.go`, `internal/*/delivery/routes.go` | Gin: CORS, gzip, JWT, RBAC middleware |
+| Settings | `config/app.yaml`, `internal/shared/setting/` | YAML + `.env` merge via `STAGE` |
+| DB / migrate | `internal/shared/db/`, `migrations/*.sql` | `MIGRATE=1` → `MigrateDatabase()` on startup |
+| Cache | `internal/shared/cache/` | Redis; auth/taxonomy helpers in module `application` |
+| Error codes | `internal/shared/errcode/` | App `code` values for JSON envelope |
+| HTTP errors | `pkg/httperr/` | Global Gin error handler |
 | CI/CD | `.github/workflows/deploy-dev.yml` | Active workflow: **test** → **build** → **deploy** on **`master`** |
 | Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |

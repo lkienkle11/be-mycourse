@@ -595,6 +595,8 @@ components:
           $ref: "#/components/schemas/UploadFileMetadata"
         row_version: { type: integer, format: int64 }
         content_fingerprint: { type: string }
+        created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+        updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
 
 paths:
   /api/v1/health:
@@ -1097,8 +1099,10 @@ paths:
       summary: List media files (paginated)
       description: |
         Sortable `sort_by`: created_at, updated_at, filename, size_bytes (default created_at).
-        Searchable `search_by`: filename, object_key, mime_type, status.
+        Sort direction `sort_order`: asc, desc (default desc).
         Filter `provider`: S3, GCS, B2, R2, Bunny, Local. Filter `kind`: FILE, VIDEO.
+        Filter `category`: image, document, video — forces kind when set (image/document → FILE, video → VIDEO)
+        and applies MIME/extension rules aligned with upload classification.
       security:
         - bearerJwt: []
       parameters:
@@ -1106,16 +1110,20 @@ paths:
         - $ref: "#/components/parameters/PerPage"
         - name: sort_by
           in: query
-          schema: { type: string }
+          schema:
+            type: string
+            enum: [created_at, updated_at, filename, size_bytes]
+            default: created_at
         - $ref: "#/components/parameters/SortOrder"
-        - $ref: "#/components/parameters/SearchBy"
-        - $ref: "#/components/parameters/SearchData"
         - name: provider
           in: query
           schema: { type: string, enum: [S3, GCS, B2, R2, Bunny, Local] }
         - name: kind
           in: query
           schema: { type: string, enum: [FILE, VIDEO] }
+        - name: category
+          in: query
+          schema: { type: string, enum: [image, document, video] }
       responses:
         "200":
           description: Paginated upload descriptors

@@ -3,10 +3,13 @@ package delivery
 
 // FileFilterRequest is the query-param DTO for listing media files.
 type FileFilterRequest struct {
-	Page     int     `form:"page"`
-	PerPage  int     `form:"per_page"`
-	Provider *string `form:"provider" binding:"omitempty,oneof=S3 GCS B2 R2 Bunny Local"`
-	Kind     *string `form:"kind" binding:"omitempty,oneof=FILE VIDEO"`
+	Page      int     `form:"page"`
+	PerPage   int     `form:"per_page"`
+	Provider  *string `form:"provider" binding:"omitempty,oneof=S3 GCS B2 R2 Bunny Local"`
+	Kind      *string `form:"kind" binding:"omitempty,oneof=FILE VIDEO"`
+	SortBy    string  `form:"sort_by" binding:"omitempty,oneof=created_at updated_at filename size_bytes"`
+	SortOrder string  `form:"sort_order" binding:"omitempty,oneof=asc desc"`
+	Category  *string `form:"category" binding:"omitempty,oneof=image document video"`
 }
 
 func (f FileFilterRequest) getPage() int {
@@ -91,6 +94,8 @@ type UploadFileResponse struct {
 	Metadata           UploadFileMetadata `json:"metadata"`
 	RowVersion         int64              `json:"row_version,omitempty"`
 	ContentFingerprint string             `json:"content_fingerprint,omitempty"`
+	CreatedAt          int64              `json:"created_at,omitempty"`
+	UpdatedAt          int64              `json:"updated_at,omitempty"`
 }
 
 // UploadFileMetadata is the metadata sub-object in UploadFileResponse.

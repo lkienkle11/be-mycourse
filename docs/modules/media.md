@@ -81,6 +81,22 @@ All routes below are under `/api/v1`. Authenticated routes require `Authorizatio
 | GET | `/media/videos/:id/status` | JWT | `media_file:read` | Bunny video processing status |
 | POST | `/webhook/bunny` | **None** | — | Bunny Stream callback (no-filter lane) |
 
+### List files (`GET /media/files`)
+
+Query parameters (all optional unless noted):
+
+| Param | Values | Default | Notes |
+|-------|--------|---------|-------|
+| `page` | int ≥ 1 | `1` | Page number |
+| `per_page` | int 1–100 | `20` | Page size |
+| `provider` | `S3`, `GCS`, `B2`, `R2`, `Bunny`, `Local` | — | Storage provider filter |
+| `kind` | `FILE`, `VIDEO` | — | Overridden when `category` is set |
+| `category` | `image`, `document`, `video` | — | Tab filter: forces `kind` and applies MIME/extension rules (`IsImageMIMEOrExt` for images; document extensions for documents) |
+| `sort_by` | `created_at`, `updated_at`, `filename`, `size_bytes` | `created_at` | Whitelisted column only |
+| `sort_order` | `asc`, `desc` | `desc` | Sort direction |
+
+`DELETE /media/files/:id` uses **`:id` = `object_key`**, not the row UUID.
+
 ---
 
 ## Permissions

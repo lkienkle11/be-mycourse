@@ -46,6 +46,7 @@ func toUploadFileResponse(file domain.File) UploadFileResponse {
 		EmbededHTML: file.EmbededHTML, Duration: file.Duration, VideoProvider: file.VideoProvider,
 		Metadata: toUploadMetadataDTO(file.Metadata), RowVersion: file.RowVersion,
 		ContentFingerprint: file.ContentFingerprint,
+		CreatedAt: file.CreatedAt, UpdatedAt: file.UpdatedAt,
 	}
 }
 
@@ -68,9 +69,29 @@ func toUploadFileResponsesFromPointers(files []*domain.File) []UploadFileRespons
 }
 
 func toFilterDomain(q FileFilterRequest) domain.FileFilter {
+	kind := q.Kind
+	if q.Category != nil {
+		switch *q.Category {
+		case "video":
+			videoKind := constants.FileKindVideo
+			kind = &videoKind
+		case "image", "document":
+			fileKind := constants.FileKindFile
+			kind = &fileKind
+		}
+	}
+	sortBy := strings.TrimSpace(q.SortBy)
+	if sortBy == "" {
+		sortBy = "created_at"
+	}
+	sortOrder := strings.TrimSpace(q.SortOrder)
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
 	return domain.FileFilter{
 		Page: q.getPage(), PageSize: q.getPerPage(),
-		Provider: q.Provider, Kind: q.Kind,
+		Provider: q.Provider, Kind: kind,
+		SortBy: sortBy, SortOrder: sortOrder, Category: q.Category,
 	}
 }
 

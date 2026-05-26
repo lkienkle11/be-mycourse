@@ -114,13 +114,10 @@ type GormFileRepository struct{ db *gorm.DB }
 func NewGormFileRepository(db *gorm.DB) *GormFileRepository { return &GormFileRepository{db: db} }
 
 func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter) ([]domain.File, int64, error) {
-	q := r.db.WithContext(ctx).Model(&mediaFileRow{}).Where("deleted_at IS NULL")
-	if filter.Provider != nil {
-		q = q.Where("provider = ?", *filter.Provider)
-	}
-	if filter.Kind != nil {
-		q = q.Where("kind = ?", *filter.Kind)
-	}
+	q := applyMediaListFilters(
+		r.db.WithContext(ctx).Model(&mediaFileRow{}).Where("deleted_at IS NULL"),
+		filter,
+	)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -133,8 +130,9 @@ func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter)
 	if pageSize < 1 {
 		pageSize = 20
 	}
+	orderClause := mediaListOrderClause(filter.SortBy, filter.SortOrder)
 	var rows []mediaFileRow
-	if err := q.Offset((page - 1) * pageSize).Limit(pageSize).Order("created_at DESC").Find(&rows).Error; err != nil {
+	if err := q.Offset((page-1)*pageSize).Limit(pageSize).Order(orderClause).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.File, len(rows))

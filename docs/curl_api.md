@@ -1291,12 +1291,12 @@ Path param `:id` on file routes is the **object key** (Gin matches one URL segme
 
 **`GET /api/v1/media/files`**
 
-Query: standard pagination (`page`, `per_page`, `sort_by`, `sort_order`, `search_by`, `search_data`) plus optional `provider` (`S3|GCS|B2|R2|Bunny|Local`), `kind` (`FILE|VIDEO`).  
-Sort whitelist: `created_at`, `updated_at`, `filename`, `size_bytes` (default `created_at`).  
-Search whitelist: `filename`, `object_key`, `mime_type`, `status`.
+Query: `page`, `per_page`, `sort_by`, `sort_order`, optional `provider` (`S3|GCS|B2|R2|Bunny|Local`), `kind` (`FILE|VIDEO`), `category` (`image|document|video`).  
+Sort whitelist: `created_at`, `updated_at`, `filename`, `size_bytes` (default `created_at`, `sort_order` default `desc`).  
+`category` forces `kind` and applies MIME/extension filters for tabbed UIs (see `docs/modules/media.md`).
 
 ```bash
-curl -X GET "{{BASE_URL}}/api/v1/media/files?page=1&per_page=20&kind=FILE&sort_by=created_at&sort_order=desc" \
+curl -X GET "{{BASE_URL}}/api/v1/media/files?page=1&per_page=20&category=image&sort_by=filename&sort_order=asc" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

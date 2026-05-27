@@ -197,7 +197,7 @@ components:
           type: array
           items: { type: string }
         image_file_id: { type: string, format: uuid }
-        image_url: { type: string }
+        image_file_url: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
         created_by: { type: integer, nullable: true }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
@@ -209,7 +209,7 @@ components:
         name: { type: string }
         slug: { type: string }
         image_file_id: { type: string, format: uuid }
-        image_url: { type: string }
+        image_file_url: { type: string }
         child_topics:
           type: array
           items: { $ref: "#/components/schemas/TreeNode" }

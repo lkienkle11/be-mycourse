@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultMaxTreeDepth = 5
+	DefaultMaxTreeDepth = 12
 	DefaultMaxTreeNodes = 100
 	DefaultMaxNameLen   = 255
 	DefaultMaxSlugLen   = 255
@@ -62,6 +62,9 @@ func ValidateTree(nodes []TreeNode, opts ValidateTreeOpts) error {
 }
 
 func walkTree(list []TreeNode, depth int, o resolvedTreeOpts, seenID, seenSlug map[string]struct{}, count *int) error {
+	if len(list) == 0 {
+		return nil
+	}
 	if depth > o.maxDepth {
 		return errors.New("tree exceeds max depth")
 	}

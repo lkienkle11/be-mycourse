@@ -97,6 +97,11 @@ Query parameters (all optional unless noted):
 | `sort_order` | `asc`, `desc` | `desc` | Sort direction |
 
 `DELETE /media/files/:id` uses **`:id` = `object_key`**, not the row UUID.
+Provider routing for single delete is resolved from the persisted `media_files` row first:
+
+1. Use stored `provider` (fallback to stored `kind` -> default provider when provider is empty).
+2. Use stored `bunny_video_id` when present.
+3. Only when no active row exists for `object_key`, fallback to legacy metadata-based inference (`video_guid` / `bunny_video_id`).
 
 ---
 

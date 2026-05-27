@@ -718,7 +718,7 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
   "name": "Mathematics",
   "slug": "mathematics",
   "image_file_id": "550e8400-e29b-41d4-a716-446655440000",
-  "image_url": "",
+  "image_file_url": "",
   "child_topics": [
     { "id": "660e8400-e29b-41d4-a716-446655440001", "name": "Algebra", "slug": "algebra", "children": [] }
   ],
@@ -737,7 +737,7 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
   "short_description": "Solve linear equations",
   "description": ["Use substitution", "Check solutions"],
   "image_file_id": "",
-  "image_url": "",
+  "image_file_url": "",
   "status": "ACTIVE",
   "created_by": 1,
   "created_at": 1747744800,

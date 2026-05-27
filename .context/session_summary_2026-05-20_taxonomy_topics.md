@@ -10,7 +10,7 @@
 |--------|------|------------|
 | GET/POST/PATCH/DELETE | `/api/v1/taxonomy/topics` | `topic:*` (P18–P21) |
 
-Fields: `id`, `name`, `slug`, `image_file_id`, `image_url`, `child_topics`, `status`, `created_by`, timestamps.
+Fields: `id`, `name`, `slug`, `image_file_id`, `image_file_url`, `child_topics`, `status`, `created_by`, timestamps.
 
 ### Outcomes
 
@@ -26,7 +26,7 @@ Fields: `id`, `name`, `slug`, `image_file_id`, `image_url`, `child_topics`, `sta
 |--------|------|------------|
 | GET/POST/PATCH/DELETE | `/api/v1/taxonomy/skills` | `course_skill:*` (P34–P37) |
 
-`children` tree: max depth 5, max 100 nodes, UUID `id` per node.
+`children` tree: max depth 12, max 100 nodes, UUID `id` per node.
 
 ## Files touched
 

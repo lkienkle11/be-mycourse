@@ -91,6 +91,7 @@ Query parameters (all optional unless noted):
 | `per_page` | int 1–100 | `20` | Page size |
 | `provider` | `S3`, `GCS`, `B2`, `R2`, `Bunny`, `Local` | — | Storage provider filter |
 | `kind` | `FILE`, `VIDEO` | — | Overridden when `category` is set |
+| `search` | string | — | Filename search (`ILIKE %term%`), not ID/object key search |
 | `category` | `image`, `document`, `video` | — | Tab filter: forces `kind` and applies MIME/extension rules (`IsImageMIMEOrExt` for images; document extensions for documents) |
 | `sort_by` | `created_at`, `updated_at`, `filename`, `size_bytes` | `created_at` | Whitelisted column only |
 | `sort_order` | `asc`, `desc` | `desc` | Sort direction |

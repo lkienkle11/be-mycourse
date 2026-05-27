@@ -1100,6 +1100,7 @@ paths:
       description: |
         Sortable `sort_by`: created_at, updated_at, filename, size_bytes (default created_at).
         Sort direction `sort_order`: asc, desc (default desc).
+        Filename `search`: case-insensitive partial match on `filename` only.
         Filter `provider`: S3, GCS, B2, R2, Bunny, Local. Filter `kind`: FILE, VIDEO.
         Filter `category`: image, document, video — forces kind when set (image/document → FILE, video → VIDEO)
         and applies MIME/extension rules aligned with upload classification.
@@ -1108,6 +1109,10 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Filename search term (`filename ILIKE %term%`), not ID/object key search.
         - name: sort_by
           in: query
           schema:

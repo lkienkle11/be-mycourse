@@ -1291,8 +1291,9 @@ Path param `:id` on file routes is the **object key** (Gin matches one URL segme
 
 **`GET /api/v1/media/files`**
 
-Query: `page`, `per_page`, `sort_by`, `sort_order`, optional `provider` (`S3|GCS|B2|R2|Bunny|Local`), `kind` (`FILE|VIDEO`), `category` (`image|document|video`).  
+Query: `page`, `per_page`, `sort_by`, `sort_order`, optional `search` (filename contains match), `provider` (`S3|GCS|B2|R2|Bunny|Local`), `kind` (`FILE|VIDEO`), `category` (`image|document|video`).  
 Sort whitelist: `created_at`, `updated_at`, `filename`, `size_bytes` (default `created_at`, `sort_order` default `desc`).  
+`search` applies only to `filename` (`ILIKE %term%`); no ID/object-key search path is provided.  
 `category` forces `kind` and applies MIME/extension filters for tabbed UIs (see `docs/modules/media.md`).
 
 ```bash

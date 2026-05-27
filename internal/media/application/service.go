@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"mime/multipart"
 	"strings"
 
@@ -201,14 +200,36 @@ func (s *MediaService) DeleteFile(ctx context.Context, objectKey string, metadat
 	if key == "" {
 		return apperrors.ErrMediaObjectKeyRequired
 	}
-	provider := s.gw.DefaultMediaProvider(constants.FileKindFile)
-	bunnyID := strings.TrimSpace(fmt.Sprintf("%v", metadata[domain.MediaMetaKeyVideoGUID]))
+	bunnyID := utils.StringFromRaw(metadata, domain.MediaMetaKeyVideoGUID)
 	if bunnyID == "" {
-		bunnyID = strings.TrimSpace(fmt.Sprintf("%v", metadata[domain.MediaMetaKeyBunnyVideoID]))
+		bunnyID = utils.StringFromRaw(metadata, domain.MediaMetaKeyBunnyVideoID)
 	}
-	if bunnyID != "" {
-		provider = s.gw.DefaultMediaProvider(constants.FileKindVideo)
+	provider := s.gw.DefaultMediaProvider(constants.FileKindFile)
+
+	row, err := s.fileRepo.GetByObjectKey(ctx, key)
+	switch {
+	case err == nil:
+		if rowProvider := strings.TrimSpace(row.Provider); rowProvider != "" {
+			provider = rowProvider
+		} else {
+			rowKind := strings.TrimSpace(row.Kind)
+			if rowKind == "" {
+				rowKind = constants.FileKindFile
+			}
+			provider = s.gw.DefaultMediaProvider(rowKind)
+		}
+		if rowBunnyID := strings.TrimSpace(row.BunnyVideoID); rowBunnyID != "" {
+			bunnyID = rowBunnyID
+		}
+	case errors.Is(err, apperrors.ErrNotFound):
+		// Keep legacy behavior when DB row is absent: infer video deletion only from metadata.
+		if bunnyID != "" {
+			provider = s.gw.DefaultMediaProvider(constants.FileKindVideo)
+		}
+	default:
+		return err
 	}
+
 	if err := s.gw.DeleteStoredObject(context.Background(), key, provider, bunnyID); err != nil {
 		return err
 	}

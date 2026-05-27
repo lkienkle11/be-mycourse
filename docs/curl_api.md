@@ -1470,7 +1470,7 @@ curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1/hard \
 | DELETE | `/api/v1/taxonomy/topics/:id` |
 | DELETE | `/api/v1/taxonomy/topics/:id/hard` |
 
-**Create body:** `{ "name", "slug", "image_file_id"?, "child_topics"?, "status"? }` — optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** is a tree of `{ "id", "name", "slug", "children" }` nodes (UUID ids, max depth 5, max 100 nodes).  
+**Create body:** `{ "name", "slug", "image_file_id"?, "child_topics"?, "status"? }` — optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** is a tree of `{ "id", "name", "slug", "children" }` nodes (UUID ids, max depth 12, max 100 nodes).  
 **Update body:** partial fields including optional **`child_topics`** array.
 
 ```bash

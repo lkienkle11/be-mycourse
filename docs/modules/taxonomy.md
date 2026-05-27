@@ -63,7 +63,7 @@ All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <tok
 
 **Body fields:** `name`, `slug`, `status`, optional `image_file_id`, `child_topics` (tree array).
 
-**Tree node shape:** `{ "id": "<uuid>", "name": "...", "slug": "...", "children": [...] }` — max depth **5**, max **100** nodes per tree.
+**Tree node shape:** `{ "id": "<uuid>", "name": "...", "slug": "...", "children": [...] }` — max depth **12**, max **100** nodes per tree.
 
 ### Course Outcomes
 
@@ -96,6 +96,7 @@ All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <tok
 ## Image contract (topics and outcomes)
 
 - **Create/Update:** optional `image_file_id` (UUID of a `media_files` row).
+- **Read:** responses return both `image_file_id` and `image_file_url` (resolved from `media_files.url`).
 - **Validation:** `MediaFileValidator` → `MediaService.LoadValidatedProfileImageFile`.
 - **Orphan cleanup:** on **hard delete** or when `image_file_id` is replaced on update → `OrphanImageEnqueuer.EnqueueOrphanCleanupForFileID`. Soft delete does **not** enqueue orphan cleanup.
 

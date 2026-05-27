@@ -48,3 +48,24 @@ func TestImageCategorySQL_matchesResolverExtensions(t *testing.T) {
 		t.Error("image SQL should match image/* mime prefix")
 	}
 }
+
+func TestMediaFilenameSearchValue(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		search string
+		want   string
+		ok     bool
+	}{
+		{name: "blank", search: "", want: "", ok: false},
+		{name: "spaces", search: "   ", want: "", ok: false},
+		{name: "trimmed", search: "  intro  ", want: "%intro%", ok: true},
+		{name: "normal", search: "slide", want: "%slide%", ok: true},
+	}
+	for _, tt := range tests {
+		got, ok := mediaFilenameSearchValue(tt.search)
+		if ok != tt.ok || got != tt.want {
+			t.Fatalf("%s: mediaFilenameSearchValue(%q) = (%q, %v), want (%q, %v)", tt.name, tt.search, got, ok, tt.want, tt.ok)
+		}
+	}
+}

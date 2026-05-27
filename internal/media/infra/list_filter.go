@@ -45,7 +45,7 @@ func applyMediaCategoryFilter(q *gorm.DB, category *string) *gorm.DB {
 		return q.Where(imageCategorySQL)
 	case "document":
 		return q.Where("kind = ?", constants.FileKindFile).
-			Where("NOT ("+imageCategorySQL+")").
+			Where("NOT (" + imageCategorySQL + ")").
 			Where(documentCategorySQL)
 	case "video":
 		return q.Where("kind = ?", constants.FileKindVideo)
@@ -76,6 +76,9 @@ func buildDocumentCategorySQL() string {
 }
 
 func applyMediaListFilters(q *gorm.DB, filter domain.FileFilter) *gorm.DB {
+	if term, ok := mediaFilenameSearchValue(filter.Search); ok {
+		q = q.Where("filename ILIKE ?", term)
+	}
 	if filter.Provider != nil {
 		q = q.Where("provider = ?", *filter.Provider)
 	}
@@ -83,4 +86,12 @@ func applyMediaListFilters(q *gorm.DB, filter domain.FileFilter) *gorm.DB {
 		q = q.Where("kind = ?", *filter.Kind)
 	}
 	return applyMediaCategoryFilter(q, filter.Category)
+}
+
+func mediaFilenameSearchValue(search string) (string, bool) {
+	term := strings.TrimSpace(search)
+	if term == "" {
+		return "", false
+	}
+	return "%" + term + "%", true
 }

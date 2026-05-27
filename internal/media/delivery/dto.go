@@ -5,6 +5,7 @@ package delivery
 type FileFilterRequest struct {
 	Page      int     `form:"page"`
 	PerPage   int     `form:"per_page"`
+	Search    string  `form:"search"`
 	Provider  *string `form:"provider" binding:"omitempty,oneof=S3 GCS B2 R2 Bunny Local"`
 	Kind      *string `form:"kind" binding:"omitempty,oneof=FILE VIDEO"`
 	SortBy    string  `form:"sort_by" binding:"omitempty,oneof=created_at updated_at filename size_bytes"`

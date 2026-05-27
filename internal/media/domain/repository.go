@@ -6,6 +6,7 @@ import "context"
 type FileFilter struct {
 	Page      int
 	PageSize  int
+	Search    string
 	Provider  *string
 	Kind      *string
 	SortBy    string

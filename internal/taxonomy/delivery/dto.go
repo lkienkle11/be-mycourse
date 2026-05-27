@@ -102,16 +102,16 @@ type UpdateCourseLevelRequest = UpdateTagRequest
 
 // CourseTopicResponse is the JSON response for a course topic.
 type CourseTopicResponse struct {
-	ID          uint              `json:"id"`
-	Name        string            `json:"name"`
-	Slug        string            `json:"slug"`
-	ImageFileID string            `json:"image_file_id,omitempty"`
-	ImageURL    string            `json:"image_url,omitempty"`
-	ChildTopics []taxpkg.TreeNode `json:"child_topics"`
-	Status      string            `json:"status"`
-	CreatedBy   *uint             `json:"created_by,omitempty"`
-	CreatedAt   int64             `json:"created_at"`
-	UpdatedAt   int64             `json:"updated_at"`
+	ID           uint              `json:"id"`
+	Name         string            `json:"name"`
+	Slug         string            `json:"slug"`
+	ImageFileID  string            `json:"image_file_id,omitempty"`
+	ImageFileURL string            `json:"image_file_url,omitempty"`
+	ChildTopics  []taxpkg.TreeNode `json:"child_topics"`
+	Status       string            `json:"status"`
+	CreatedBy    *uint             `json:"created_by,omitempty"`
+	CreatedAt    int64             `json:"created_at"`
+	UpdatedAt    int64             `json:"updated_at"`
 }
 
 // CourseOutcomeResponse is the JSON response for a course outcome.
@@ -120,7 +120,7 @@ type CourseOutcomeResponse struct {
 	ShortDescription string   `json:"short_description"`
 	Description      []string `json:"description"`
 	ImageFileID      string   `json:"image_file_id,omitempty"`
-	ImageURL         string   `json:"image_url,omitempty"`
+	ImageFileURL     string   `json:"image_file_url,omitempty"`
 	Status           string   `json:"status"`
 	CreatedBy        *uint    `json:"created_by,omitempty"`
 	CreatedAt        int64    `json:"created_at"`

@@ -156,11 +156,27 @@ func mapCourseTopicRow(row *courseTopicRow) domain.CourseTopic {
 }
 
 func (r *GormCourseTopicRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseTopic, int64, error) {
-	return taxonomyList(ctx, r.db, &courseTopicRow{}, filter, applyTaxonomyFilter, mapCourseTopicRow)
+	return listTaxonomyWithImageURLs(
+		ctx,
+		r.db,
+		&courseTopicRow{},
+		filter,
+		applyTaxonomyFilter,
+		mapCourseTopicRow,
+		topicImageID,
+		applyTopicImageRow,
+	)
 }
 
 func (r *GormCourseTopicRepository) GetByID(ctx context.Context, id uint) (*domain.CourseTopic, error) {
-	return taxonomyGetByID(ctx, r.db, id, mapCourseTopicRow)
+	return taxonomyGetByIDWithImageURLs(
+		ctx,
+		r.db,
+		id,
+		mapCourseTopicRow,
+		topicImageID,
+		applyTopicImageRow,
+	)
 }
 
 func (r *GormCourseTopicRepository) Create(ctx context.Context, t *domain.CourseTopic) error {
@@ -197,11 +213,27 @@ func mapCourseOutcomeRow(row *courseOutcomeRow) domain.CourseOutcome {
 }
 
 func (r *GormCourseOutcomeRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseOutcome, int64, error) {
-	return taxonomyList(ctx, r.db, &courseOutcomeRow{}, filter, applyOutcomeSearch, mapCourseOutcomeRow)
+	return listTaxonomyWithImageURLs(
+		ctx,
+		r.db,
+		&courseOutcomeRow{},
+		filter,
+		applyOutcomeSearch,
+		mapCourseOutcomeRow,
+		outcomeImageID,
+		applyOutcomeImageRow,
+	)
 }
 
 func (r *GormCourseOutcomeRepository) GetByID(ctx context.Context, id uint) (*domain.CourseOutcome, error) {
-	return taxonomyGetByID(ctx, r.db, id, mapCourseOutcomeRow)
+	return taxonomyGetByIDWithImageURLs(
+		ctx,
+		r.db,
+		id,
+		mapCourseOutcomeRow,
+		outcomeImageID,
+		applyOutcomeImageRow,
+	)
 }
 
 func (r *GormCourseOutcomeRepository) Create(ctx context.Context, o *domain.CourseOutcome) error {
@@ -337,9 +369,134 @@ func (r *GormCourseLevelRepository) HardDelete(ctx context.Context, id uint) err
 // --- row mappers -------------------------------------------------------------
 
 type imageFileRow struct {
-	URL  string
-	Kind string
-	Mime string
+	ID   string `gorm:"column:id"`
+	URL  string `gorm:"column:url"`
+	Kind string `gorm:"column:kind"`
+	Mime string `gorm:"column:mime_type"`
+}
+
+func topicImageID(row *domain.CourseTopic) *string { return row.ImageFileID }
+
+func outcomeImageID(row *domain.CourseOutcome) *string { return row.ImageFileID }
+
+func applyTopicImageRow(row *domain.CourseTopic, img imageFileRow) {
+	row.ImageFileURL = img.URL
+	row.ImageFileKind = img.Kind
+	row.ImageFileMime = img.Mime
+}
+
+func applyOutcomeImageRow(row *domain.CourseOutcome, img imageFileRow) {
+	row.ImageFileURL = img.URL
+	row.ImageFileKind = img.Kind
+	row.ImageFileMime = img.Mime
+}
+
+func trimStringPtr(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return strings.TrimSpace(*v)
+}
+
+func collectImageFileIDs[T any](rows []T, getID func(*T) *string) []string {
+	ids := make([]string, 0, len(rows))
+	seen := map[string]struct{}{}
+	for i := range rows {
+		id := trimStringPtr(getID(&rows[i]))
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func loadImageFileMap(ctx context.Context, db *gorm.DB, ids []string) (map[string]imageFileRow, error) {
+	if len(ids) == 0 {
+		return map[string]imageFileRow{}, nil
+	}
+	var rows []imageFileRow
+	err := db.WithContext(ctx).
+		Table(constants.TableMediaFiles).
+		Select("id, url, kind, mime_type").
+		Where("id IN ? AND deleted_at IS NULL", ids).
+		Find(&rows).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]imageFileRow, len(rows))
+	for _, row := range rows {
+		out[row.ID] = row
+	}
+	return out, nil
+}
+
+func hydrateImageURLs[T any](
+	ctx context.Context,
+	db *gorm.DB,
+	rows []T,
+	getID func(*T) *string,
+	setImage func(*T, imageFileRow),
+) ([]T, error) {
+	ids := collectImageFileIDs(rows, getID)
+	images, err := loadImageFileMap(ctx, db, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		id := trimStringPtr(getID(&rows[i]))
+		img, ok := images[id]
+		if !ok {
+			continue
+		}
+		setImage(&rows[i], img)
+	}
+	return rows, nil
+}
+
+func listTaxonomyWithImageURLs[R any, D any](
+	ctx context.Context,
+	db *gorm.DB,
+	model *R,
+	filter domain.TaxonomyFilter,
+	applySearch func(*gorm.DB, domain.TaxonomyFilter) *gorm.DB,
+	mapRow func(*R) D,
+	getID func(*D) *string,
+	setImage func(*D, imageFileRow),
+) ([]D, int64, error) {
+	rows, total, err := taxonomyList(ctx, db, model, filter, applySearch, mapRow)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err = hydrateImageURLs(ctx, db, rows, getID, setImage)
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+func taxonomyGetByIDWithImageURLs[R any, D any](
+	ctx context.Context,
+	db *gorm.DB,
+	id uint,
+	mapRow func(*R) D,
+	getID func(*D) *string,
+	setImage func(*D, imageFileRow),
+) (*D, error) {
+	row, err := taxonomyGetByID(ctx, db, id, mapRow)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := hydrateImageURLs(ctx, db, []D{*row}, getID, setImage)
+	if err != nil {
+		return nil, err
+	}
+	return &rows[0], nil
 }
 
 func rowToCourseTopic(r *courseTopicRow, img *imageFileRow) domain.CourseTopic {

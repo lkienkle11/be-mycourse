@@ -1415,7 +1415,14 @@ Provider is chosen by server config (`setting.MediaSetting.AppMediaProvider`), n
 
 > **Auth:** Bearer JWT. Permissions: levels `course_level:*` (P14–P17), topics `topic:*` (P18–P21), outcomes `course_outcome:*` (P30–P33), skills `course_skill:*` (P34–P37), tags `tag:*` (P22–P25).
 
-All list endpoints support pagination query params as [Global Conventions](#1-global-conventions), plus taxonomy-specific: `sort_by`, `sort_desc` (boolean), `search` (ILIKE on `name`; outcomes search `short_description`), optional `status` = `ACTIVE` | `INACTIVE`.
+All list endpoints support pagination query params as [Global Conventions](#1-global-conventions), plus taxonomy-specific:
+- `sort_by`, `sort_desc` (boolean)
+- optional `status` = `ACTIVE` | `INACTIVE`
+- typed search: `search_by` + `search_value`
+
+Allowed `search_by` values:
+- Levels / Topics / Skills / Tags: `name`, `slug`
+- Outcomes: `short_description`
 
 **Soft delete (migration `000012`):** Default `GET /taxonomy/{resource}` returns only active rows (`deleted_at IS NULL`). `GET /taxonomy/{resource}/full` includes soft-deleted rows. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE /taxonomy/{resource}/:id/hard` permanently removes the row. Topics/outcomes hard-delete enqueues orphan image cleanup. See **`docs/patterns.md`** (CRUD soft delete).
 
@@ -1534,7 +1541,7 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
 **Create body:** `{ "name", "slug", "status"? }`.
 
 ```bash
-curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search=react&status=ACTIVE" \
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search_by=slug&search_value=react&status=ACTIVE" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

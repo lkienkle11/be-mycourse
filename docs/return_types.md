@@ -760,7 +760,9 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
 }
 ```
 
-**List query params:** `page`, `per_page`, `sort_by`, `sort_desc`, `search`, `status` (`ACTIVE` | `INACTIVE`).
+**List query params:** `page`, `per_page`, `sort_by`, `sort_desc`, `status` (`ACTIVE` | `INACTIVE`), `search_by`, `search_value`.
+- Levels / Topics / Skills / Tags: `search_by` in `name | slug`
+- Outcomes: `search_by` in `short_description`
 
 ---
 

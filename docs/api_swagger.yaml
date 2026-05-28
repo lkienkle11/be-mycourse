@@ -141,11 +141,6 @@ components:
       in: query
       schema: { type: boolean, default: false }
       description: When true, sort descending.
-    TaxonomySearch:
-      name: search
-      in: query
-      schema: { type: string }
-      description: ILIKE filter on name (outcomes match short_description).
     TaxonomyStatus:
       name: status
       in: query
@@ -787,7 +782,14 @@ paths:
             type: string
             enum: [id, name, slug, status, created_at]
         - $ref: "#/components/parameters/TaxonomySortDesc"
-        - $ref: "#/components/parameters/TaxonomySearch"
+        - name: search_by
+          in: query
+          schema:
+            type: string
+            enum: [name, slug]
+        - name: search_value
+          in: query
+          schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
@@ -850,7 +852,14 @@ paths:
             type: string
             enum: [id, name, slug, status, created_at]
         - $ref: "#/components/parameters/TaxonomySortDesc"
-        - $ref: "#/components/parameters/TaxonomySearch"
+        - name: search_by
+          in: query
+          schema:
+            type: string
+            enum: [name, slug]
+        - name: search_value
+          in: query
+          schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
@@ -915,7 +924,14 @@ paths:
             type: string
             enum: [id, status, created_at]
         - $ref: "#/components/parameters/TaxonomySortDesc"
-        - $ref: "#/components/parameters/TaxonomySearch"
+        - name: search_by
+          in: query
+          schema:
+            type: string
+            enum: [short_description]
+        - name: search_value
+          in: query
+          schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
@@ -980,7 +996,14 @@ paths:
             type: string
             enum: [id, name, slug, status, created_at]
         - $ref: "#/components/parameters/TaxonomySortDesc"
-        - $ref: "#/components/parameters/TaxonomySearch"
+        - name: search_by
+          in: query
+          schema:
+            type: string
+            enum: [name, slug]
+        - name: search_value
+          in: query
+          schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":
@@ -1045,7 +1068,14 @@ paths:
             type: string
             enum: [id, name, slug, status, created_at]
         - $ref: "#/components/parameters/TaxonomySortDesc"
-        - $ref: "#/components/parameters/TaxonomySearch"
+        - name: search_by
+          in: query
+          schema:
+            type: string
+            enum: [name, slug]
+        - name: search_value
+          in: query
+          schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
       responses:
         "200":

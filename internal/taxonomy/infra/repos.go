@@ -11,6 +11,7 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	sharedutils "mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
 	taxpkg "mycourse-io-be/pkg/taxonomy"
 )
@@ -88,30 +89,39 @@ func (courseLevelRow) TableName() string { return constants.TableTaxonomyCourseL
 
 // --- query helpers -----------------------------------------------------------
 
-var searchCols = map[string]string{"name": "name", "slug": "slug"}
+var taxonomySearchCols = map[string]string{"name": "name", "slug": "slug"}
+var outcomeSearchCols = map[string]string{"short_description": "short_description"}
 var sortCols = map[string]string{
 	"id": "id", "name": "name", "slug": "slug", "status": "status", "created_at": "created_at",
 }
 
 func applyTaxonomyFilter(q *gorm.DB, filter domain.TaxonomyFilter) *gorm.DB {
-	if filter.Status != nil && strings.TrimSpace(*filter.Status) != "" {
-		q = q.Where("status = ?", strings.ToUpper(strings.TrimSpace(*filter.Status)))
-	}
-	if filter.Search != "" {
-		col, ok := searchCols["name"]
-		if ok {
-			q = q.Where(col+" ILIKE ?", "%"+filter.Search+"%")
-		}
-	}
-	return q
+	q = applyStatusFilter(q, filter.Status)
+	return applySearchByFilter(q, filter, taxonomySearchCols)
 }
 
 func applyOutcomeSearch(q *gorm.DB, filter domain.TaxonomyFilter) *gorm.DB {
-	q = applyTaxonomyFilter(q, filter)
-	if filter.Search != "" {
-		q = q.Where("short_description ILIKE ?", "%"+filter.Search+"%")
+	q = applyStatusFilter(q, filter.Status)
+	return applySearchByFilter(q, filter, outcomeSearchCols)
+}
+
+func applyStatusFilter(q *gorm.DB, status *string) *gorm.DB {
+	if status == nil || strings.TrimSpace(*status) == "" {
+		return q
 	}
-	return q
+	return q.Where("status = ?", strings.ToUpper(strings.TrimSpace(*status)))
+}
+
+func applySearchByFilter(q *gorm.DB, filter domain.TaxonomyFilter, allowed map[string]string) *gorm.DB {
+	base := sharedutils.BaseFilter{
+		SearchBy:   strings.ToLower(strings.TrimSpace(filter.SearchBy)),
+		SearchData: strings.TrimSpace(filter.SearchValue),
+	}
+	clause, value, ok := sharedutils.BuildSearchClause(base, allowed)
+	if !ok {
+		return q
+	}
+	return q.Where(clause, value)
 }
 
 func applyPagination(q *gorm.DB, filter domain.TaxonomyFilter) *gorm.DB {

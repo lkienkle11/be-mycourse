@@ -82,7 +82,8 @@ type TaxonomyFilter struct {
 	Page           int
 	PageSize       int
 	Status         *string
-	Search         string
+	SearchBy       string
+	SearchValue    string
 	SortBy         string
 	SortDesc       bool
 	IncludeDeleted bool // true for GET .../full list routes

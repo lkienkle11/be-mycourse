@@ -50,6 +50,13 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 
 All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <token>`.
 
+List query contract:
+- `page`, `per_page`, `sort_by`, `sort_desc`, optional `status`
+- typed search: `search_by` + `search_value`
+- allowed `search_by` values:
+  - levels/topics/skills/tags: `name`, `slug`
+  - outcomes: `short_description`
+
 ### Course Topics (replaces `/categories`)
 
 | Method | Path | Permission | Description |

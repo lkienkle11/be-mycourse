@@ -190,7 +190,7 @@ func (h *Handler) hardDeleteCourseLevel(c *gin.Context) {
 func toFilter(q TaxonomyBaseFilter, includeDeleted bool) domain.TaxonomyFilter {
 	return domain.TaxonomyFilter{
 		Page: q.getPage(), PageSize: q.getPerPage(),
-		Status: q.Status, Search: q.Search,
+		Status: q.Status, SearchBy: q.SearchBy, SearchValue: q.SearchValue,
 		SortBy: q.SortBy, SortDesc: q.SortDesc,
 		IncludeDeleted: includeDeleted,
 	}

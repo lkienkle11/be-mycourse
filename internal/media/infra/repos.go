@@ -132,7 +132,7 @@ func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter)
 	}
 	orderClause := mediaListOrderClause(filter.SortBy, filter.SortOrder)
 	var rows []mediaFileRow
-	if err := q.Offset((page-1)*pageSize).Limit(pageSize).Order(orderClause).Find(&rows).Error; err != nil {
+	if err := q.Offset((page - 1) * pageSize).Limit(pageSize).Order(orderClause).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.File, len(rows))

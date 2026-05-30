@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	authdelivery "mycourse-io-be/internal/auth/delivery"
+	instdelivery "mycourse-io-be/internal/instructor/delivery"
 	mediadelivery "mycourse-io-be/internal/media/delivery"
 	rbacdelivery "mycourse-io-be/internal/rbac/delivery"
 	sysdelivery "mycourse-io-be/internal/system/delivery"
@@ -86,6 +87,7 @@ func mountAPITree(apiRoot *gin.RouterGroup, svc *Services, h *Handlers) {
 	authdelivery.RegisterRoutes(authen, nil, h.Auth, svc.RBAC)
 	taxdelivery.RegisterRoutes(authen, h.Taxonomy, svc.RBAC)
 	mediadelivery.RegisterRoutes(authen, h.Media, svc.RBAC)
+	instdelivery.RegisterRoutes(authen, h.Instructor, svc.RBAC)
 
 	// --- /api/internal-v1 (internal API key required) ---
 	internalV1 := apiRoot.Group("/internal-v1")

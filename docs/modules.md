@@ -102,6 +102,26 @@ See [`docs/modules/taxonomy.md`](modules/taxonomy.md) for full deep-dive.
 
 ---
 
+### Instructor (`internal/instructor/`)
+
+Instructor roster, applications (approve/reject with reason), profiles, expertise junctions, and support tickets.
+
+**Capabilities:**
+- Roster: list/add-by-email/delete (assign/remove **`instructor`** role only — **learner** retained)
+- Applications: submit → pending; approve → add instructor role; reject → reason required, no role change
+- Profiles: admin CRUD + `/me`; media file validation for CV / intro video
+- Expertise: per-user topic/skill links to taxonomy tables
+- Tickets + messages; close with P58; no messages when closed
+- Stubs: `/instructor-stubs/assignments`, `/activity-log` → coming soon
+
+**Exposed under:** `/api/v1/instructors`, `/instructor-applications`, `/instructor-profiles`, `/instructor-tickets`, … (JWT + permission). Wired in `internal/server/router.go`.
+
+**Migration:** `000013_instructor_management` (not `000011` — that migration is audit timestamps BIGINT).
+
+See [`docs/modules/instructor.md`](modules/instructor.md) for full deep-dive.
+
+---
+
 ### System (`internal/system/`)
 
 Privileged operations for system administrators.

@@ -20,7 +20,7 @@
 
 ## Implemented Endpoint Inventory
 
-For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`pkg/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, **`pkg/media`** (resolver, metadata, multipart). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`pkg/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, **`pkg/media`** (resolver, metadata, multipart); **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise, tickets (migration **`000013`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
 
 ### `/api/system`
 - `POST /login`
@@ -65,6 +65,13 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - Note: multipart text fields `kind` and `metadata` are accepted for backward-compat parsing only and ignored in create/update business flow (server-owned policy).
 - Public webhook (registered before auth middleware):
   - `POST /webhook/bunny`
+- Instructor management (see **`docs/modules/instructor.md`**):
+  - `GET/POST/DELETE /instructors` — roster
+  - `GET/POST /instructor-applications`, `POST …/approve`, `POST …/reject`, `DELETE …/:id`
+  - `GET/POST/PATCH/DELETE /instructor-profiles`, `GET …/me`
+  - `GET/POST/DELETE /instructors/:id/expertise/topics|skills`
+  - `GET/POST /instructor-tickets`, `POST …/close`, `GET/POST …/messages`
+  - `GET /instructor-stubs/assignments|activity-log` — stubs
 
 ### `/api/internal-v1/rbac`
 - Permissions CRUD: list/create/update/delete.
@@ -91,7 +98,8 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - `/api/system`: interceptor + system-IP rate limit + system access token (except `/login`).
 
 ## Gaps vs Planned E-learning Domains
-- Taxonomy domain is now implemented in Phase 01.
-- Media upload domain is now implemented in Phase sub 02 with unified file/video API branch.
+- Taxonomy domain is implemented.
+- Media upload domain is implemented (unified file/video API).
+- Instructor management (roster, applications, profiles, expertise, tickets) is implemented — **`docs/modules/instructor.md`**.
 - No course/lesson/enrollment/commerce CRUD endpoints implemented yet.
 - Planned module docs (`docs/modules/*.md`) describe intended touchpoints in `api/v1`, `services`, `dto`, `models`, `migrations`.

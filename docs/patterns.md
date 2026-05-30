@@ -229,10 +229,10 @@ Configuration: `.golangci.yml`, `.go-arch-lint.yml`, `Makefile`, `tools/layoutgu
 | Check | Command | What it enforces |
 |-------|---------|------------------|
 | Format | `go fmt ./...` | Standard Go formatting |
-| Static lint | `golangci-lint run` | `dupl` (per-package, threshold **60**), `depguard`, `revive`, `funlen`, `errcheck`, `staticcheck`, `govet`, `nolintlint` |
+| Static lint | `golangci-lint run` | `dupl` (per-package, threshold **60** — `.golangci.yml` `settings.dupl.threshold`), `depguard`, `revive`, `funlen`, `errcheck`, `staticcheck`, `govet`, `nolintlint` |
 | Layer imports | `make check-architecture` | DDD boundaries (`go-arch-lint` v1.15+) |
 | File placement | `make check-layout` | Go files only under allowed top-level dirs |
-| Cross-package clones | `make check-dupl` | `dupl -t 60 internal` (paths outside a single package) |
+| Cross-package clones | `make check-dupl` | `dupl -t 60 internal` via Makefile `DUPL_THRESHOLD` (paths outside a single package) |
 | Compile (no CGO) | `make build-nocgo` | CI-friendly build; WebP encode uses stub |
 | Tests | `go test ./...` | All package tests |
 
@@ -240,7 +240,7 @@ Configuration: `.golangci.yml`, `.go-arch-lint.yml`, `Makefile`, `tools/layoutgu
 
 **`funlen`:** max **60** lines / **40** statements per function.
 
-**`dupl`:** golangci only sees clones **within one package**; cross-package similarity must pass `make check-dupl`.
+**`dupl`:** golangci only sees clones **within one package** (threshold **60**); cross-package similarity must pass `make check-dupl` (same threshold via `DUPL_THRESHOLD` in the root **`Makefile`**).
 
 ### Local gate (run before push)
 

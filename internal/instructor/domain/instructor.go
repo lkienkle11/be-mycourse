@@ -41,6 +41,9 @@ type ProfilePayload struct {
 type Application struct {
 	ID              uint
 	UserID          uint
+	FullName        string
+	AvatarURL       string
+	AvatarFileID    string
 	ReviewStatus    string
 	RejectionReason string
 	ProfilePayload
@@ -50,8 +53,11 @@ type Application struct {
 
 // Profile is the admin-managed instructor profile per user.
 type Profile struct {
-	ID     uint
-	UserID uint
+	ID           uint
+	UserID       uint
+	FullName     string
+	AvatarURL    string
+	AvatarFileID string
 	ProfilePayload
 	CreatedAt int64
 	UpdatedAt int64

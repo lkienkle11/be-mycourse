@@ -36,15 +36,16 @@ func activeScope(db *gorm.DB) *gorm.DB {
 // --- Applications -----------------------------------------------------------
 
 func (r *GormRepository) ListApplications(ctx context.Context, f domain.ApplicationFilter) ([]domain.Application, int64, error) {
-	q := activeScope(r.db.WithContext(ctx).Model(&applicationRow{}))
+	q := activeScope(r.db.WithContext(ctx).Table(constants.TableInstructorApplications + " ia")).
+		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = ia.user_id AND u.deleted_at IS NULL")
 	if s := strings.TrimSpace(f.ReviewStatus); s != "" {
-		q = q.Where("review_status = ?", s)
+		q = q.Where("ia.review_status = ?", s)
 	}
 	if f.HasProfile != nil {
 		if *f.HasProfile {
-			q = q.Where("headline <> '' AND cv_file_id <> ''")
+			q = q.Where("ia.headline <> '' AND ia.cv_file_id <> ''")
 		} else {
-			q = q.Where("headline = '' OR cv_file_id = ''")
+			q = q.Where("ia.headline = '' OR ia.cv_file_id = ''")
 		}
 	}
 	var total int64
@@ -52,23 +53,35 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
-	var rows []applicationRow
-	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
+	type applicationWithUserRow struct {
+		applicationRow
+		FullName     string `gorm:"column:full_name"`
+		AvatarFileID string `gorm:"column:avatar_file_id"`
+	}
+	var rows []applicationWithUserRow
+	if err := q.
+		Select("ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Order("ia.id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.Application, len(rows))
 	for i := range rows {
-		out[i] = appRowToDomain(&rows[i])
+		out[i] = appRowToDomain(&rows[i].applicationRow)
+		out[i].FullName = rows[i].FullName
+		out[i].AvatarFileID = rows[i].AvatarFileID
 	}
 	return out, total, nil
 }
 
 func (r *GormRepository) GetApplicationByID(ctx context.Context, id uint) (*domain.Application, error) {
-	return loadApplicationRow(ctx, r.db, "id = ?", id)
+	return loadApplicationRow(ctx, r.db, "ia.id = ?", id)
 }
 
 func (r *GormRepository) GetActiveApplicationByUserID(ctx context.Context, userID uint) (*domain.Application, error) {
-	return loadApplicationRow(ctx, r.db, "user_id = ?", userID)
+	return loadApplicationRow(ctx, r.db, "ia.user_id = ?", userID)
 }
 
 func (r *GormRepository) UpsertPendingApplication(ctx context.Context, userID uint, p domain.ProfilePayload) (*domain.Application, error) {
@@ -117,25 +130,38 @@ func (r *GormRepository) DeleteApplicationsByUserID(ctx context.Context, userID 
 // --- Profiles ---------------------------------------------------------------
 
 func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilter) ([]domain.Profile, int64, error) {
-	q := activeScope(r.db.WithContext(ctx).Model(&profileRow{}))
+	q := activeScope(r.db.WithContext(ctx).Table(constants.TableInstructorProfiles + " ip")).
+		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = ip.user_id AND u.deleted_at IS NULL")
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
-	var rows []profileRow
-	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
+	type profileWithUserRow struct {
+		profileRow
+		FullName     string `gorm:"column:full_name"`
+		AvatarFileID string `gorm:"column:avatar_file_id"`
+	}
+	var rows []profileWithUserRow
+	if err := q.
+		Select("ip.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Order("ip.id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.Profile, len(rows))
 	for i := range rows {
-		out[i] = profileRowToDomain(&rows[i])
+		out[i] = profileRowToDomain(&rows[i].profileRow)
+		out[i].FullName = rows[i].FullName
+		out[i].AvatarFileID = rows[i].AvatarFileID
 	}
 	return out, total, nil
 }
 
 func (r *GormRepository) GetProfileByUserID(ctx context.Context, userID uint) (*domain.Profile, error) {
-	return loadProfileRow(ctx, r.db, "user_id = ?", userID)
+	return loadProfileRow(ctx, r.db, "ip.user_id = ?", userID)
 }
 
 func (r *GormRepository) UpsertProfile(ctx context.Context, in domain.UpsertProfileInput) (*domain.Profile, error) {

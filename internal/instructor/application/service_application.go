@@ -9,18 +9,38 @@ import (
 )
 
 func (s *InstructorService) ListApplications(ctx context.Context, f domain.ApplicationFilter) ([]domain.Application, int64, error) {
-	return s.repo.ListApplications(ctx, f)
+	return listWithIdentity(
+		s,
+		ctx,
+		func() ([]domain.Application, int64, error) { return s.repo.ListApplications(ctx, f) },
+		applicationAvatarFileID,
+		setApplicationAvatarURL,
+	)
 }
 
 func (s *InstructorService) GetApplication(ctx context.Context, id uint) (*domain.Application, error) {
-	return s.repo.GetApplicationByID(ctx, id)
+	return loadOneWithIdentity(
+		s,
+		ctx,
+		func() (*domain.Application, error) { return s.repo.GetApplicationByID(ctx, id) },
+		applicationAvatarFileID,
+		setApplicationAvatarURL,
+	)
 }
 
 func (s *InstructorService) SubmitApplication(ctx context.Context, in domain.SubmitApplicationInput) (*domain.Application, error) {
 	if err := s.validateProfile(ctx, in.ProfilePayload); err != nil {
 		return nil, err
 	}
-	return s.repo.UpsertPendingApplication(ctx, in.ActorUserID, in.ProfilePayload)
+	return loadOneWithIdentity(
+		s,
+		ctx,
+		func() (*domain.Application, error) {
+			return s.repo.UpsertPendingApplication(ctx, in.ActorUserID, in.ProfilePayload)
+		},
+		applicationAvatarFileID,
+		setApplicationAvatarURL,
+	)
 }
 
 func (s *InstructorService) ApproveApplication(ctx context.Context, id uint) (*domain.Application, error) {
@@ -38,7 +58,7 @@ func (s *InstructorService) ApproveApplication(ctx context.Context, id uint) (*d
 	if err := s.repo.SetApplicationReview(ctx, id, domain.ReviewStatusApproved, ""); err != nil {
 		return nil, err
 	}
-	return s.repo.GetApplicationByID(ctx, id)
+	return s.GetApplication(ctx, id)
 }
 
 func (s *InstructorService) RejectApplication(ctx context.Context, in domain.RejectApplicationInput) (*domain.Application, error) {
@@ -56,7 +76,7 @@ func (s *InstructorService) RejectApplication(ctx context.Context, in domain.Rej
 	if err := s.repo.SetApplicationReview(ctx, in.ApplicationID, domain.ReviewStatusRejected, reason); err != nil {
 		return nil, err
 	}
-	return s.repo.GetApplicationByID(ctx, in.ApplicationID)
+	return s.GetApplication(ctx, in.ApplicationID)
 }
 
 func (s *InstructorService) DeleteApplication(ctx context.Context, id uint) error {

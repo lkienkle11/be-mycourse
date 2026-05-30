@@ -85,6 +85,8 @@ type rosterResponse struct {
 type applicationResponse struct {
 	ID              uint        `json:"id"`
 	UserID          uint        `json:"user_id"`
+	FullName        string      `json:"full_name"`
+	AvatarURL       string      `json:"avatar"`
 	ReviewStatus    string      `json:"review_status"`
 	RejectionReason string      `json:"rejection_reason,omitempty"`
 	Profile         profileBody `json:"profile"`
@@ -98,7 +100,7 @@ func toRosterResponse(m domain.RosterMember) rosterResponse {
 
 func profileToResponse(row domain.Profile) applicationResponse {
 	return applicationResponse{
-		ID: row.ID, UserID: row.UserID, ReviewStatus: "managed",
+		ID: row.ID, UserID: row.UserID, FullName: row.FullName, AvatarURL: row.AvatarURL, ReviewStatus: "managed",
 		Profile: profileBodyFromPayload(row.ProfilePayload),
 	}
 }
@@ -117,7 +119,8 @@ func profileBodyFromPayload(p domain.ProfilePayload) profileBody {
 func toApplicationResponse(a domain.Application) applicationResponse {
 	p := a.ProfilePayload
 	return applicationResponse{
-		ID: a.ID, UserID: a.UserID, ReviewStatus: a.ReviewStatus, RejectionReason: a.RejectionReason,
+		ID: a.ID, UserID: a.UserID, FullName: a.FullName, AvatarURL: a.AvatarURL,
+		ReviewStatus: a.ReviewStatus, RejectionReason: a.RejectionReason,
 		Profile: profileBodyFromPayload(p),
 	}
 }

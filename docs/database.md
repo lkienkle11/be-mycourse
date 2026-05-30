@@ -240,6 +240,24 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 | P38 | `sysadmin:modify` | Role modify |
 | P39 | `admin:modify` | Role modify |
 | P40 | `instructor:modify` | Role modify |
+| P41 | `instructor_roster:read` | Instructor roster |
+| P42 | `instructor_roster:create` | Instructor roster |
+| P43 | `instructor_roster:delete` | Instructor roster |
+| P44 | `instructor_application:read` | Instructor application |
+| P45 | `instructor_application:create` | Instructor application |
+| P46 | `instructor_application:update` | Instructor application |
+| P47 | `instructor_application:delete` | Instructor application |
+| P48 | `instructor_application:approve` | Instructor application |
+| P49 | `instructor_application:reject` | Instructor application |
+| P50 | `instructor_profile:read` | Instructor profile |
+| P51 | `instructor_profile:create` | Instructor profile |
+| P52 | `instructor_profile:update` | Instructor profile |
+| P53 | `instructor_profile:delete` | Instructor profile |
+| P54 | `instructor_expertise:read` | Instructor expertise |
+| P55 | `instructor_expertise:create` | Instructor expertise |
+| P56 | `instructor_expertise:update` | Instructor expertise |
+| P57 | `instructor_expertise:delete` | Instructor expertise |
+| P58 | `instructor_ticket:close` | Instructor ticket |
 
 - **P1–P13** are seeded in `000001_schema.up.sql`.
 - **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
@@ -247,6 +265,7 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 - **P18–P21** names are updated to `topic:*` in `000009_taxonomy_topics_outcomes_skills`.
 - **P30–P37** are inserted in `000009` and granted to sysadmin/admin (full CRUD) and instructor/learner (read only).
 - **P38–P40** are inserted in `000010_role_modify_permissions` and granted by role tier: sysadmin → P38–P40, admin → P39–P40, instructor → P40 only.
+- **P41–P58** are inserted in **`000013_instructor_management`** (instructor roster, applications, profiles, expertise, ticket close). Migration also seeds role grants; keep **`roles_permission.go`** in sync and run **`go run ./cmd/syncpermissions`** + **`go run ./cmd/syncrolepermissions`** after code changes.
 
 ---
 
@@ -257,10 +276,10 @@ Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
 
 | Role | Permission IDs (summary) |
 |------|--------------------------|
-| **sysadmin** | P1–P40 (full catalog) |
-| **admin** | P1–P8, P10–P40 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
-| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, **P40** `instructor:modify` |
-| **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34 (no role-modify permissions) |
+| **sysadmin** | P1–P58 (full catalog) |
+| **admin** | P1–P8, P10–P58 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, P40, **P45, P47, P49, P55–P58** (applications submit/delete/reject, expertise mutate, ticket close) |
+| **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34, **P45** (submit application / create ticket) |
 
 `000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
 
@@ -286,6 +305,7 @@ Application accounts. Passwords are bcrypt-hashed.
 | `confirmation_token` | `VARCHAR(128)` | nullable | One-time confirmation token |
 | `confirmation_sent_at` | `TIMESTAMPTZ` | nullable | Last confirmation email send time |
 | `registration_email_send_total` | `INTEGER` | NOT NULL DEFAULT `0` | Successful confirmation emails while pending; **not** in public JSON; reset to `0` on confirm; cap **15** in app logic |
+| `phone` | `VARCHAR(32)` | NOT NULL DEFAULT `''` | Contact phone (roster list); added in **`000013`** |
 | `refresh_token_session` | `JSONB` | NOT NULL DEFAULT `'{}'` | Device sessions map (see below) |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
@@ -579,8 +599,24 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000010 | `role_modify_permissions` | Seed P38–P40 role-modify permissions and role matrix |
 | 000011 | `audit_timestamps_bigint` | `DROP DEFAULT` → convert audit columns to `BIGINT` Unix seconds (`USING EXTRACT(EPOCH…)`) → `SET DEFAULT` bigint epoch on all affected tables |
 | 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
+| 000013 | `instructor_management` | `users.phone`; tables `instructor_applications`, `instructor_profiles`, `instructor_expertise_topics`, `instructor_expertise_skills`, `instructor_tickets`, `instructor_ticket_messages`; seed P41–P58 + role grants |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
+
+---
+
+## Instructor management tables (`000013`)
+
+| Table | Notes |
+|-------|--------|
+| `instructor_applications` | `review_status`, `rejection_reason`, inline profile fields; unique active row per `user_id` |
+| `instructor_profiles` | Same profile shape as applications; unique active row per `user_id` |
+| `instructor_expertise_topics` | FK `topic_id` → `course_topics` |
+| `instructor_expertise_skills` | FK `skill_id` → `course_skills` |
+| `instructor_tickets` | `subject`, `status` (`open` / `closed`) |
+| `instructor_ticket_messages` | `author_user_id`, `body` |
+
+API and RBAC: **`docs/modules/instructor.md`**.
 
 ---
 
@@ -594,6 +630,12 @@ DROP TABLE IF EXISTS public.media_pending_cloud_cleanup;
 DROP TABLE IF EXISTS public.user_permissions;
 DROP TABLE IF EXISTS public.user_roles;
 DROP TABLE IF EXISTS public.role_permissions;
+DROP TABLE IF EXISTS public.instructor_ticket_messages;
+DROP TABLE IF EXISTS public.instructor_tickets;
+DROP TABLE IF EXISTS public.instructor_expertise_skills;
+DROP TABLE IF EXISTS public.instructor_expertise_topics;
+DROP TABLE IF EXISTS public.instructor_profiles;
+DROP TABLE IF EXISTS public.instructor_applications;
 DROP TABLE IF EXISTS public.course_skills;
 DROP TABLE IF EXISTS public.course_outcomes;
 DROP TABLE IF EXISTS public.course_topics;

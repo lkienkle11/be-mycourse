@@ -189,3 +189,4 @@ MCP resource `gitnexus://repo/be-mycourse/context` lists current graph stats and
 | [`docs/modules/media.md`](modules/media.md) | Media domain deep-dive |
 | [`docs/modules/rbac.md`](modules/rbac.md) | RBAC domain deep-dive |
 | [`docs/modules/taxonomy.md`](modules/taxonomy.md) | Taxonomy domain deep-dive |
+| [`docs/modules/instructor.md`](modules/instructor.md) | Instructor management deep-dive |

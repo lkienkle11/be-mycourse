@@ -54,9 +54,10 @@
 10. [Deprecated / Planned APIs](#10-deprecated--planned-apis)
 11. [Media API (`/api/v1/media/*`)](#11-media-api-apiv1media)
 12. [Taxonomy (`/api/v1/taxonomy/*`)](#12-taxonomy-apiv1taxonomy)
-13. [Webhooks (`/api/v1/webhook/*`)](#13-webhooks-apiv1webhook)
-14. [Error Code Reference](#14-error-code-reference)
-15. [Postman / API Dog](#15-postman--api-dog)
+13. [Instructor management (`/api/v1/instructors`, …)](#13-instructor-management)
+14. [Webhooks (`/api/v1/webhook/*`)](#14-webhooks-apiv1webhook)
+15. [Error Code Reference](#15-error-code-reference)
+16. [Postman / API Dog](#16-postman--api-dog)
 
 **Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
 
@@ -1547,11 +1548,39 @@ curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search_by=slug&search_value=react
 
 ---
 
-## 13. Webhooks (`/api/v1/webhook/*`)
+## 13. Instructor management
+
+> **Auth:** Bearer token. Permissions **P41–P58** (migration **`000013`**). Full matrix: **`docs/modules/instructor.md`**, **`docs/database.md`**.
+
+Requires `MIGRATE=1` (or applied `000013_instructor_management.up.sql`) and sync: `go run ./cmd/syncpermissions`, `go run ./cmd/syncrolepermissions`.
+
+| Area | Examples |
+|------|----------|
+| Roster | `GET/POST /api/v1/instructors`, `DELETE /api/v1/instructors/:userId` |
+| Applications | `GET/POST /api/v1/instructor-applications`, `POST …/:id/approve`, `POST …/:id/reject` |
+| Profiles | `GET/POST /api/v1/instructor-profiles`, `GET …/me` |
+| Expertise | `GET/POST /api/v1/instructors/:id/expertise/topics`, `…/skills` |
+| Tickets | `GET/POST /api/v1/instructor-tickets`, `POST …/:id/close`, `GET/POST …/:id/messages` |
+
+```bash
+# List roster (admin/sysadmin — instructor_roster:read)
+curl -sS "{{BASE_URL}}/api/v1/instructors?page=1&per_page=20" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Reject application (rejection_reason required)
+curl -sS -X POST "{{BASE_URL}}/api/v1/instructor-applications/1/reject" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"rejection_reason":"Incomplete CV"}'
+```
+
+---
+
+## 14. Webhooks (`/api/v1/webhook/*`)
 
 > **Auth:** none (public URL — protect at edge / signature if you add it). Mounted on the **no-filter** v1 group (same CORS as app).
 
-### 13.1 Bunny Stream video webhook
+### 14.1 Bunny Stream video webhook
 
 **`POST /api/v1/webhook/bunny`**
 
@@ -1573,7 +1602,7 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 
 ---
 
-## 14. Error Code Reference
+## 15. Error Code Reference
 
 | HTTP | `code` | Constant | Meaning |
 |------|--------|----------|---------|
@@ -1618,7 +1647,7 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 
 ---
 
-## 15. Postman / API Dog
+## 16. Postman / API Dog
 
 > **Import vào Apidog:** (1) [`docs/api-dog-import.json`](./api-dog-import.json) — **Import → Postman**; hoặc (2) [`docs/api_swagger.yaml`](./api_swagger.yaml) — **Import → OpenAPI** (script lưu token nằm trong `x-postman-event` trên Login / Confirm / Refresh / System login). Sau khi gọi **Login** / **Confirm** / **Refresh**, post-processor tự ghi `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (chọn **Environment** trước). Sinh lại collection Postman: `ruby scripts/generate-apidog-postman.rb` (đọc script từ swagger, không hardcode trong Ruby).
 
@@ -1655,9 +1684,9 @@ if (data && data.access_token) {
 
 Add to any authenticated request to auto-refresh when needed:
 
-## 15. Local smoke test (after migration `000011`)
+## 17. Local smoke test (migrations `000011` + `000013`)
 
-Run on **`http://localhost:8080`** only after `MIGRATE=1` (or manual `000011` SQL) and `go run .`. Expect `users.created_at` = `bigint` in Postgres — see **`docs/deploy.md`** (Troubleshooting).
+Run on **`http://localhost:8080`** only after `MIGRATE=1` (or manual SQL) and `go run .`. Expect `users.created_at` = `bigint` in Postgres (**`000011`**) — see **`docs/deploy.md`** (Troubleshooting). For instructor APIs, **`000013`** must be applied and permissions synced.
 
 **1. Login**
 
@@ -1679,6 +1708,16 @@ curl -sS 'http://localhost:8080/api/v1/taxonomy/outcomes?page=1&per_page=20&sort
 ```
 
 Pass: HTTP **200**, `code: 0`; each item’s `created_at` / `updated_at` are JSON **numbers** (Unix seconds).
+
+**3. Instructor roster** (admin/sysadmin token with P41)
+
+```bash
+curl -sS 'http://localhost:8080/api/v1/instructors?page=1&per_page=20' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **200**, `code: 0`, paginated `data` array (or empty list).
 
 ---
 

@@ -132,6 +132,17 @@ be-mycourse/
 | `infra/` | `repos.go`, `repos_crud_helper.go`, `jsonb_types.go` |
 | `delivery/` | `handler.go`, `handler_helpers.go` (shared list/mutation HTTP), `routes.go` |
 
+### `internal/instructor/`
+
+| Path | Purpose |
+|------|---------|
+| `domain/` | Applications, profiles, expertise, tickets; repository interface |
+| `application/` | `InstructorService` + roster/apps/profiles/expertise/tickets; ports for RBAC, auth cache, media |
+| `infra/` | `GormRepository`, rows, profile JSONB |
+| `delivery/` | Split handlers (`handler_expertise_*`, `handler_ticket`, …), `routes.go` |
+
+Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wire_core.go`, `router.go` (`instdelivery.RegisterRoutes`).
+
 ### `internal/system/`
 
 | Path | Purpose |

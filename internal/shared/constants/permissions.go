@@ -54,45 +54,86 @@ var AllPermissions = struct {
 	SysadminModify   string `perm_id:"P38"`
 	AdminModify      string `perm_id:"P39"`
 	InstructorModify string `perm_id:"P40"`
+	// Instructor roster
+	InstructorRosterRead   string `perm_id:"P41"`
+	InstructorRosterCreate string `perm_id:"P42"`
+	InstructorRosterDelete string `perm_id:"P43"`
+	// Instructor application
+	InstructorApplicationRead    string `perm_id:"P44"`
+	InstructorApplicationCreate  string `perm_id:"P45"`
+	InstructorApplicationUpdate  string `perm_id:"P46"`
+	InstructorApplicationDelete  string `perm_id:"P47"`
+	InstructorApplicationApprove string `perm_id:"P48"`
+	InstructorApplicationReject  string `perm_id:"P49"`
+	// Instructor profile
+	InstructorProfileRead   string `perm_id:"P50"`
+	InstructorProfileCreate string `perm_id:"P51"`
+	InstructorProfileUpdate string `perm_id:"P52"`
+	InstructorProfileDelete string `perm_id:"P53"`
+	// Instructor expertise
+	InstructorExpertiseRead   string `perm_id:"P54"`
+	InstructorExpertiseCreate string `perm_id:"P55"`
+	InstructorExpertiseUpdate string `perm_id:"P56"`
+	InstructorExpertiseDelete string `perm_id:"P57"`
+	// Instructor ticket
+	InstructorTicketClose string `perm_id:"P58"`
 }{
-	ProfileRead:          "profile:read",
-	ProfileUpdate:        "profile:update",
-	ProfileDelete:        "profile:delete",
-	ProfileCreate:        "profile:create",
-	CourseRead:           "course:read",
-	CourseUpdate:         "course:update",
-	CourseDelete:         "course:delete",
-	CourseCreate:         "course:create",
-	CourseInstructorRead: "course_instructor:read",
-	UserRead:             "user:read",
-	UserUpdate:           "user:update",
-	UserDelete:           "user:delete",
-	UserCreate:           "user:create",
-	CourseLevelRead:      "course_level:read",
-	CourseLevelCreate:    "course_level:create",
-	CourseLevelUpdate:    "course_level:update",
-	CourseLevelDelete:    "course_level:delete",
-	TopicRead:            "topic:read",
-	TopicCreate:          "topic:create",
-	TopicUpdate:          "topic:update",
-	TopicDelete:          "topic:delete",
-	CourseOutcomeRead:    "course_outcome:read",
-	CourseOutcomeCreate:  "course_outcome:create",
-	CourseOutcomeUpdate:  "course_outcome:update",
-	CourseOutcomeDelete:  "course_outcome:delete",
-	CourseSkillRead:      "course_skill:read",
-	CourseSkillCreate:    "course_skill:create",
-	CourseSkillUpdate:    "course_skill:update",
-	CourseSkillDelete:    "course_skill:delete",
-	TagRead:              "tag:read",
-	TagCreate:            "tag:create",
-	TagUpdate:            "tag:update",
-	TagDelete:            "tag:delete",
-	MediaFileRead:        "media_file:read",
-	MediaFileCreate:      "media_file:create",
-	MediaFileUpdate:      "media_file:update",
-	MediaFileDelete:      "media_file:delete",
-	SysadminModify:       "sysadmin:modify",
-	AdminModify:          "admin:modify",
-	InstructorModify:     "instructor:modify",
+	ProfileRead:                  "profile:read",
+	ProfileUpdate:                "profile:update",
+	ProfileDelete:                "profile:delete",
+	ProfileCreate:                "profile:create",
+	CourseRead:                   "course:read",
+	CourseUpdate:                 "course:update",
+	CourseDelete:                 "course:delete",
+	CourseCreate:                 "course:create",
+	CourseInstructorRead:         "course_instructor:read",
+	UserRead:                     "user:read",
+	UserUpdate:                   "user:update",
+	UserDelete:                   "user:delete",
+	UserCreate:                   "user:create",
+	CourseLevelRead:              "course_level:read",
+	CourseLevelCreate:            "course_level:create",
+	CourseLevelUpdate:            "course_level:update",
+	CourseLevelDelete:            "course_level:delete",
+	TopicRead:                    "topic:read",
+	TopicCreate:                  "topic:create",
+	TopicUpdate:                  "topic:update",
+	TopicDelete:                  "topic:delete",
+	CourseOutcomeRead:            "course_outcome:read",
+	CourseOutcomeCreate:          "course_outcome:create",
+	CourseOutcomeUpdate:          "course_outcome:update",
+	CourseOutcomeDelete:          "course_outcome:delete",
+	CourseSkillRead:              "course_skill:read",
+	CourseSkillCreate:            "course_skill:create",
+	CourseSkillUpdate:            "course_skill:update",
+	CourseSkillDelete:            "course_skill:delete",
+	TagRead:                      "tag:read",
+	TagCreate:                    "tag:create",
+	TagUpdate:                    "tag:update",
+	TagDelete:                    "tag:delete",
+	MediaFileRead:                "media_file:read",
+	MediaFileCreate:              "media_file:create",
+	MediaFileUpdate:              "media_file:update",
+	MediaFileDelete:              "media_file:delete",
+	SysadminModify:               "sysadmin:modify",
+	AdminModify:                  "admin:modify",
+	InstructorModify:             "instructor:modify",
+	InstructorRosterRead:         "instructor_roster:read",
+	InstructorRosterCreate:       "instructor_roster:create",
+	InstructorRosterDelete:       "instructor_roster:delete",
+	InstructorApplicationRead:    "instructor_application:read",
+	InstructorApplicationCreate:  "instructor_application:create",
+	InstructorApplicationUpdate:  "instructor_application:update",
+	InstructorApplicationDelete:  "instructor_application:delete",
+	InstructorApplicationApprove: "instructor_application:approve",
+	InstructorApplicationReject:  "instructor_application:reject",
+	InstructorProfileRead:        "instructor_profile:read",
+	InstructorProfileCreate:      "instructor_profile:create",
+	InstructorProfileUpdate:      "instructor_profile:update",
+	InstructorProfileDelete:      "instructor_profile:delete",
+	InstructorExpertiseRead:      "instructor_expertise:read",
+	InstructorExpertiseCreate:    "instructor_expertise:create",
+	InstructorExpertiseUpdate:    "instructor_expertise:update",
+	InstructorExpertiseDelete:    "instructor_expertise:delete",
+	InstructorTicketClose:        "instructor_ticket:close",
 }

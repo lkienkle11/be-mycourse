@@ -9,44 +9,44 @@ import (
 
 	authapp "mycourse-io-be/internal/auth/application"
 	authdelivery "mycourse-io-be/internal/auth/delivery"
-	authinfra "mycourse-io-be/internal/auth/infra"
 
 	mediaapp "mycourse-io-be/internal/media/application"
 	mediadelivery "mycourse-io-be/internal/media/delivery"
 	mediainfra "mycourse-io-be/internal/media/infra"
 	mediajobs "mycourse-io-be/internal/media/jobs"
+	mediadomain "mycourse-io-be/internal/media/domain"
 
 	taxapp "mycourse-io-be/internal/taxonomy/application"
 	taxdelivery "mycourse-io-be/internal/taxonomy/delivery"
-	taxinfra "mycourse-io-be/internal/taxonomy/infra"
 
 	rbacapp "mycourse-io-be/internal/rbac/application"
 	rbacdelivery "mycourse-io-be/internal/rbac/delivery"
-	rbacinfra "mycourse-io-be/internal/rbac/infra"
 
 	sysapp "mycourse-io-be/internal/system/application"
 	sysdelivery "mycourse-io-be/internal/system/delivery"
-	sysinfra "mycourse-io-be/internal/system/infra"
 
-	mediadomain "mycourse-io-be/internal/media/domain"
+	instapp "mycourse-io-be/internal/instructor/application"
+	instdelivery "mycourse-io-be/internal/instructor/delivery"
 )
 
 // Services holds all application services after wiring.
 type Services struct {
-	Auth     *authapp.AuthService
-	Media    *mediaapp.MediaService
-	Taxonomy *taxapp.TaxonomyService
-	RBAC     *rbacapp.RBACService
-	System   *sysapp.SystemService
+	Auth       *authapp.AuthService
+	Media      *mediaapp.MediaService
+	Taxonomy   *taxapp.TaxonomyService
+	RBAC       *rbacapp.RBACService
+	System     *sysapp.SystemService
+	Instructor *instapp.InstructorService
 }
 
 // Handlers holds all delivery handlers after wiring.
 type Handlers struct {
-	Auth     *authdelivery.Handler
-	Media    *mediadelivery.Handler
-	Taxonomy *taxdelivery.Handler
-	RBAC     *rbacdelivery.Handler
-	System   *sysdelivery.Handler
+	Auth       *authdelivery.Handler
+	Media      *mediadelivery.Handler
+	Taxonomy   *taxdelivery.Handler
+	RBAC       *rbacdelivery.Handler
+	System     *sysdelivery.Handler
+	Instructor *instdelivery.Handler
 }
 
 // --- adapters ----------------------------------------------------------------
@@ -107,70 +107,21 @@ func (t *taxOrphanEnqueuer) EnqueueOrphanCleanupForFileID(ctx context.Context, f
 
 // Wire constructs all services and handlers using the provided DB and Redis connections.
 func Wire(db *gorm.DB, rdb *redis.Client) (*Services, *Handlers, error) {
-	// --- RBAC (no further deps on other domains) ---------------------------------
-	permRepo := rbacinfra.NewGormPermissionRepository(db)
-	roleRepo := rbacinfra.NewGormRoleRepository(db)
-	userRoleRepo := rbacinfra.NewGormUserRoleRepository(db)
-	userPermRepo := rbacinfra.NewGormUserPermissionRepository(db)
-	rbacSvc := rbacapp.NewRBACService(permRepo, roleRepo, userRoleRepo, userPermRepo)
-
-	// --- System ------------------------------------------------------------------
-	appCfgRepo := sysinfra.NewGormAppConfigRepository(db)
-	privUserRepo := sysinfra.NewGormPrivilegedUserRepository(db)
-	permSyncer := sysinfra.NewGormPermissionSyncer(db)
-	roleSyncer := sysinfra.NewGormRolePermissionSyncer(db)
-	sysCrypto := sysinfra.NewSystemCryptoAdapter()
-	sysSvc := sysapp.NewSystemService(appCfgRepo, privUserRepo, permSyncer, roleSyncer, sysCrypto)
-
-	// --- Media -------------------------------------------------------------------
-	fileRepo := mediainfra.NewGormFileRepository(db)
-	cleanupRepo := mediainfra.NewGormPendingCleanupRepository(db)
-	orphanEnqueuer := mediajobs.NewOrphanEnqueuer(cleanupRepo)
+	core := wireCore(db, rdb)
+	instSvc, instHandler := wireInstructor(db, core.RBAC, core.Auth, core.UserRepo, core.FileRepo)
 	mediaGW := mediainfra.NewStorageGateway()
-	mediaSvc := mediaapp.NewMediaService(fileRepo, cleanupRepo, orphanEnqueuer, mediajobs.GlobalCounters, mediaGW)
-
-	// Non-fatal: if cloud clients can't be loaded, media uploads will fail at request time.
-	_, _ = mediainfra.NewCloudClientsFromSetting()
-
-	// --- Taxonomy ----------------------------------------------------------------
-	topicRepo := taxinfra.NewGormCourseTopicRepository(db)
-	outcomeRepo := taxinfra.NewGormCourseOutcomeRepository(db)
-	skillRepo := taxinfra.NewGormCourseSkillRepository(db)
-	tagRepo := taxinfra.NewGormTagRepository(db)
-	levelRepo := taxinfra.NewGormCourseLevelRepository(db)
-	taxSvc := taxapp.NewTaxonomyService(
-		topicRepo, outcomeRepo, skillRepo, tagRepo, levelRepo,
-		&taxMediaFileValidator{svc: mediaSvc},
-		&taxOrphanEnqueuer{fileRepo: fileRepo, cleanupRepo: cleanupRepo},
-	)
-
-	// --- Auth (depends on RBAC + Media) ------------------------------------------
-	userRepo := authinfra.NewGormUserRepository(db)
-	sessRepo := authinfra.NewGormRefreshSessionRepository(db)
-	authSvc := authapp.NewAuthService(
-		userRepo,
-		sessRepo,
-		&rbacPermissionReader{svc: rbacSvc},
-		&mediaProfileImageValidator{svc: mediaSvc},
-		&authOrphanEnqueuer{e: orphanEnqueuer},
-		rdb,
-	)
 
 	svcs := &Services{
-		Auth:     authSvc,
-		Media:    mediaSvc,
-		Taxonomy: taxSvc,
-		RBAC:     rbacSvc,
-		System:   sysSvc,
+		Auth: core.Auth, Media: core.Media, Taxonomy: core.Taxonomy,
+		RBAC: core.RBAC, System: core.System, Instructor: instSvc,
 	}
-
 	handlers := &Handlers{
-		Auth:     authdelivery.NewHandler(authSvc, &rbacPermissionUseCase{svc: rbacSvc}),
-		Media:    mediadelivery.NewHandler(mediaSvc, mediaGW),
-		Taxonomy: taxdelivery.NewHandler(taxSvc),
-		RBAC:     rbacdelivery.NewHandler(rbacSvc),
-		System:   sysdelivery.NewHandler(sysSvc),
+		Auth:       authdelivery.NewHandler(core.Auth, &rbacPermissionUseCase{svc: core.RBAC}),
+		Media:      mediadelivery.NewHandler(core.Media, mediaGW),
+		Taxonomy:   taxdelivery.NewHandler(core.Taxonomy),
+		RBAC:       rbacdelivery.NewHandler(core.RBAC),
+		System:     sysdelivery.NewHandler(core.System),
+		Instructor: instHandler,
 	}
-
 	return svcs, handlers, nil
 }

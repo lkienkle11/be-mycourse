@@ -51,6 +51,11 @@ func (s *AuthService) delCachedMe(ctx context.Context, userID uint) {
 	}
 }
 
+// InvalidateUserMeCache drops the cached /me payload for userID (e.g. after RBAC role change).
+func (s *AuthService) InvalidateUserMeCache(ctx context.Context, userID uint) {
+	s.delCachedMe(ctx, userID)
+}
+
 func (s *AuthService) getCachedLoginUserID(ctx context.Context, normEmail string) (uint, bool) {
 	if s.redis == nil || normEmail == "" {
 		return 0, false

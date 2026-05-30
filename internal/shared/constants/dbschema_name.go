@@ -40,3 +40,14 @@ const (
 // --- Application users (custom users table, BIGINT id) ---
 
 const TableAppUsers = "users"
+
+// --- Instructor ---
+
+const (
+	TableInstructorApplications    = "instructor_applications"
+	TableInstructorProfiles        = "instructor_profiles"
+	TableInstructorExpertiseTopics = "instructor_expertise_topics"
+	TableInstructorExpertiseSkills = "instructor_expertise_skills"
+	TableInstructorTickets         = "instructor_tickets"
+	TableInstructorTicketMessages  = "instructor_ticket_messages"
+)

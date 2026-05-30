@@ -115,6 +115,9 @@ List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL).
 | POST | `/instructor-applications/:id/reject` | `instructor_application:reject` — body `{ "rejection_reason": "..." }` |
 | DELETE | `/instructor-applications/:id` | `instructor_application:delete` |
 
+Application responses now include user identity fields for admin UI popups:
+`full_name` and `avatar` (hydrated URL, empty string when unavailable).
+
 ### Profiles (`instructor_profile:*`)
 
 | Method | Path | Permission |
@@ -125,6 +128,8 @@ List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL).
 | POST | `/instructor-profiles` | `instructor_profile:create` — upsert |
 | PATCH | `/instructor-profiles/:id` | `instructor_profile:update` |
 | DELETE | `/instructor-profiles/:id` | `instructor_profile:delete` |
+
+Profile responses include `full_name` and `avatar` alongside `profile` payload data.
 
 CV / intro video file IDs validated via media service (PDF/images/video policy in application layer).
 

@@ -1562,6 +1562,10 @@ Requires `MIGRATE=1` (or applied `000013_instructor_management.up.sql`) and sync
 | Expertise | `GET/POST /api/v1/instructors/:id/expertise/topics`, `…/skills` |
 | Tickets | `GET/POST /api/v1/instructor-tickets`, `POST …/:id/close`, `GET/POST …/:id/messages` |
 
+Identity fields for application/profile responses:
+- `full_name` (user display name)
+- `avatar` (hydrated URL; empty when no avatar is linked)
+
 ```bash
 # List roster (admin/sysadmin — instructor_roster:read)
 curl -sS "{{BASE_URL}}/api/v1/instructors?page=1&per_page=20" \

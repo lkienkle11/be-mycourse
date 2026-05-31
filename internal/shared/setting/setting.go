@@ -12,7 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 
-	"mycourse-io-be/pkg/envbool"
+	"mycourse-io-be/internal/shared/parsebool"
 )
 
 type App struct {
@@ -223,7 +223,7 @@ func Setup() error {
 // currentStage drives which .env.<stage> is merged and (with resolveYAMLPath) which app-*.yaml is used.
 // TEST=true forces stage "test" for both.
 func currentStage() string {
-	if envbool.Enabled("TEST") {
+	if parsebool.EnvEnabled("TEST") {
 		return "test"
 	}
 	return strings.TrimSpace(os.Getenv("STAGE"))

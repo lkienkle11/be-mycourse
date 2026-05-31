@@ -14,12 +14,12 @@ import (
 
 	"mycourse-io-be/internal/system/application"
 	sysinfra "mycourse-io-be/internal/system/infra"
-	"mycourse-io-be/pkg/envbool"
+	"mycourse-io-be/internal/shared/parsebool"
 )
 
 // MaybeRunRegisterNewSystemUser returns true if the process handled CLI registration and should exit.
 func MaybeRunRegisterNewSystemUser(db *gorm.DB) bool {
-	if !envbool.Enabled("CLI_REGISTER_NEW_SYSTEM_USER") {
+	if !parsebool.EnvEnabled("CLI_REGISTER_NEW_SYSTEM_USER") {
 		return false
 	}
 	runRegister(db)

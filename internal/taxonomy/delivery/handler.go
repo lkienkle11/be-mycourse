@@ -11,7 +11,7 @@ import (
 	"mycourse-io-be/internal/shared/validate"
 	"mycourse-io-be/internal/taxonomy/application"
 	"mycourse-io-be/internal/taxonomy/domain"
-	taxpkg "mycourse-io-be/pkg/taxonomy"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 // Handler holds all taxonomy HTTP handlers.

@@ -1,7 +1,7 @@
 // Package delivery contains the TAXONOMY bounded-context HTTP delivery layer.
 package delivery
 
-import taxpkg "mycourse-io-be/pkg/taxonomy"
+import taxpkg "mycourse-io-be/internal/shared/taxonomy"
 
 // TaxonomyBaseFilter is the shared pagination/search query params for taxonomy list endpoints.
 type TaxonomyBaseFilter struct {

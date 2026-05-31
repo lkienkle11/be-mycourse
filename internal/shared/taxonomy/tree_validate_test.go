@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"mycourse-io-be/pkg/taxonomy"
+	"mycourse-io-be/internal/shared/taxonomy"
 )
 
 func TestValidateTree_ok(t *testing.T) {

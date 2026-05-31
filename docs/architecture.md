@@ -85,6 +85,9 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/timex/` | Unix epoch second helpers for audit columns (`NowUnix`, `PtrUnix`) |
 | `internal/shared/cryptox/` | Shared HMAC/JWT helpers (used by auth/system infra) |
 | `internal/shared/httpx/` | Shared HTTP handler helpers (`ListPaginated`) |
+| `internal/shared/taxonomy/` | Taxonomy JSONB tree nodes and validators (used by `internal/taxonomy`) |
+| `internal/shared/httperr/` | Global Gin error middleware, panic recovery, `HTTPError` helpers |
+| `internal/shared/parsebool/` | Loose boolean parsing for env vars and YAML flags |
 
 ---
 
@@ -123,8 +126,8 @@ main.go
   └── server.InitRouter(svcs, handlers)
         └── gin.New()
         └── middleware.RequestLogger()  — structured access log + X-Request-ID
-        └── httperr.Middleware()        — centralized error handling
-        └── httperr.Recovery()          — panic recovery
+        └── shared/httperr.Middleware() — centralized error handling
+        └── shared/httperr.Recovery()   — panic recovery
         └── cors.New(...)               — CORS
         └── gzip.Gzip(...)             — response compression
         └── /api/system  ← privileged ops (system JWT, rate limit by IP)

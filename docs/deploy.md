@@ -685,8 +685,8 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | Settings | `config/app.yaml`, `internal/shared/setting/` | YAML + `.env` merge via `STAGE` |
 | DB / migrate | `internal/shared/db/`, `migrations/*.sql` | `MIGRATE=1` → `MigrateDatabase()` on startup |
 | Cache | `internal/shared/cache/` | Redis; auth/taxonomy helpers in module `application` |
-| Error codes | `internal/shared/errcode/` | App `code` values for JSON envelope |
-| HTTP errors | `pkg/httperr/` | Global Gin error handler |
+| Error codes | `internal/shared/errors/` | App `code` values and default messages for JSON envelope |
+| HTTP errors | `internal/shared/httperr/` | Global Gin error handler |
 | CI/CD | `.github/workflows/deploy-dev.yml` | Active workflow: **test** → **build** → **deploy** on **`master`** |
 | Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |

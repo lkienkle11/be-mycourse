@@ -419,7 +419,7 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 - The system **MUST** persist media cloud metadata in local DB (`media_files`) after successful create/update/delete sync while keeping provider upload execution in cloud services.
 - The system **MUST** select provider from server configuration (`setting.MediaSetting.AppMediaProvider`), not client request fields.
 - The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
-- The system **MUST** keep **media** feature helpers in **`pkg/media`**, **taxonomy** helpers in **`pkg/taxonomy`**, transport param helpers in **`pkg/requestutil`**, and generic reusable primitives in **`pkg/logic/utils`**. The former **`pkg/logic/helper`** tree **MUST NOT** be reintroduced.
+- The system **MUST** keep **media** feature logic under **`internal/media/{application,infra}`**, **taxonomy** JSONB validators under **`internal/shared/taxonomy`**, Gin/HTTP helpers under **`internal/shared/{httperr,response,validate,utils}`**, and cross-domain primitives under **`internal/shared/*`**. The legacy **`pkg/logic/*`**, **`pkg/media`**, **`pkg/taxonomy`**, and **`pkg/requestutil`** trees **MUST NOT** be reintroduced.
 - The system **MUST** restrict direct runtime `os.Getenv` reads in media runtime paths and use `setting.MediaSetting` as source-of-truth after `setting.Setup()`.
 - The system **MUST** expose Bunny Stream parity fields on successful media responses when available: **`video_id`**, **`thumbnail_url`**, **`embeded_html`** on `dto.UploadFileResponse`, persisted on **`media_files`** (migration **`000005_media_bunny_response_fields`**) and in **`metadata_json`** using keys from **`constants/media_meta_keys.go`** — see **`docs/modules/media.md`**.
 - The system **MUST** reject a single uploaded file larger than **2 GiB** (`2×1024×1024×1024` bytes) on media create/update (handler + service), returning HTTP **413** and application code **2003** (`FileTooLarge`). The byte cap and the **single** oversize message constant **`constants.MsgFileTooLargeUpload`** **MUST** live in **`constants/error_msg.go`** and **MUST** be the same string used for the default JSON `message` for `FileTooLarge` in `pkg/errcode/messages.go` and for `pkg/errors.ErrFileExceedsMaxUploadSize` (no duplicate literals). See `docs/architecture.md` directory map. Deployment **MUST** configure reverse proxies / load balancers with a body limit **at least** that large on API routes so requests are not dropped before the application (see `docs/deploy.md`).
@@ -545,8 +545,8 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 #### NFR-3.2.2 Helper vs Util Placement
 
 - Cross-feature generic logic/functions (e.g. parse/url/normalize/general transformers) **MUST** be implemented under `pkg/logic/utils`.
-- Feature-specific logic tied to **media** (resolver, metadata, multipart bind, orphan URL policy, …) **MUST** live under **`pkg/media`** (not under `pkg/logic/*`). Feature-specific logic tied to **taxonomy** **MUST** live under **`pkg/taxonomy`** when small and shared by `services/taxonomy`.
-- For functions created inside `services/*` / `repository/*`: if the logic is standalone or expected to be reused/expanded, it **MUST** be extracted to `pkg/logic/utils` (generic), **`pkg/media`** (media domain), **`pkg/taxonomy`** (taxonomy), or **`pkg/requestutil`** (HTTP parsing), as appropriate.
+- Feature-specific logic tied to **media** (resolver, metadata, multipart bind, orphan URL policy, …) **MUST** live under **`internal/media/`** layers. Taxonomy tree/description validation **MUST** live in **`internal/shared/taxonomy`** and be consumed by **`internal/taxonomy`**.
+- For functions created inside `application/` or `infra/`: if the logic is standalone or expected to be reused across modules, extract to **`internal/shared/utils`** (generic), **`internal/shared/taxonomy`** (taxonomy JSONB), or the owning domain’s `application`/`infra` package, as appropriate.
 
 #### NFR-3.3 Structured Logging
 
@@ -555,7 +555,7 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 
 #### NFR-3.4 Panic Recovery
 
-- The `pkg/httperr.Recovery()` middleware **MUST** catch unhandled panics, log them, and return `HTTP 500` with app code `9998 Panic` rather than crashing the process.
+- The `internal/shared/httperr.Recovery()` middleware **MUST** catch unhandled panics, log them, and return `HTTP 500` with app code `9998 Panic` rather than crashing the process.
 
 #### NFR-3.5 Configuration Management
 

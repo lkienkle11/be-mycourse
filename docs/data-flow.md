@@ -127,7 +127,7 @@ Default list/get: active rows only (`gormx.ScopeActiveOnly`). Soft delete: `DELE
 POST /api/v1/taxonomy/topics  (JWT + topic:create required)
   └─ internal/taxonomy/delivery/handler.go
        └─ TaxonomyService.CreateTopic
-            ├─ pkg/taxonomy.ValidateTree(child_topics)
+            ├─ shared/taxonomy.ValidateTree(child_topics)
             ├─ Validate image_file_id via MediaFileValidator interface
             ├─ Create row via GormCourseTopicRepository
             └─ Return CourseTopicResponse DTO

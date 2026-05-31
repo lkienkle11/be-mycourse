@@ -3,13 +3,13 @@
 
 ## Architecture (current)
 
-Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,constants,setting,cache,logger}`. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
+Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,constants,setting,cache,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
 
 **Domain types** live in `internal/<domain>/domain/` (no GORM tags). **HTTP DTOs** in `internal/<domain>/delivery/`. **GORM rows** in `internal/<domain>/infra/`. Auth refresh-session JSONB: `internal/auth/infra/gormjsonb.go`.
 
 ## Constants (mandatory)
 
-Business constants, permissions, Redis key prefixes, and user-facing messages: **`internal/shared/internal/shared/constants/`**. Do not add new business constants under `application/` or `delivery/` except re-exports for tests.
+Business constants, permissions, Redis key prefixes, and user-facing messages: **`internal/shared/constants/`**. Do not add new business constants under `application/` or `delivery/` except re-exports for tests.
 
 ## Function / Method Assets
 
@@ -19,8 +19,8 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - **Path:** `internal/shared/logger/`
 - **Purpose:** Single process-wide logger (via `zap.ReplaceGlobals`), optional JSON file tee for ELK/Filebeat, request correlation fields, optional `zap.RedirectStdLog`.
 - **Scope:** All layers after `main` bootstrap; HTTP handlers use `FromContext` for `request_id`. Context correlation uses an **unexported sentinel + `var` in `internal/shared/logger`** (Rule 1 / staticcheck SA1029 — not a `const` in `pkg/`, not a string `context` key).
-- **Dependencies:** `go.uber.org/zap`, `mycourse-io-be/pkg/setting` (`LogSetting`), `zapcore.NewTee` when `LOG_FILE_PATH` set.
-- **Current usage:** `main.go`, `middleware/request_logger.go`, `pkg/httperr`, `internal/jobs/*`, `pkg/cache_clients`, `internal/*/delivery/media/webhook_handler.go`.
+- **Dependencies:** `go.uber.org/zap`, `internal/shared/setting` (`LogSetting`), `zapcore.NewTee` when `LOG_FILE_PATH` set.
+- **Current usage:** `main.go`, `middleware/request_logger.go`, `internal/shared/httperr`, `internal/media/jobs/*`, `internal/shared/cache`, media webhook handlers.
 - **Reuse:** Prefer `logger.FromContext(ctx)` in new handlers/services; use `zap.L()` only where no context exists.
 
 ### Asset: timex (audit epoch seconds)
@@ -484,25 +484,28 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 ### Asset: Generic parsing / metadata primitives (utils)
 - Name: `DetectExtension`, `ImageSizeFromPayload`, `StringFromRaw`, `IntFromRaw`, `FloatFromRaw`, `NonEmpty`, `ParseBoolLoose`, `ContentFingerprint`
 - Type: Util
-- Path: `pkg/logic/utils/parsing.go`
+- Path: `internal/shared/utils/parsing.go` (bool: `ParseBoolLoose` → `internal/shared/parsebool.Loose`)
 - Purpose: Raw-metadata helpers, loose bool parsing for multipart text fields, SHA-256 hex fingerprint of byte payloads.
 - Scope: Any module needing generic conversion/parsing without domain coupling.
-- Dependencies: `internal/<domain>/domain`, Go stdlib (`image`, `bytes`, `strings`, `fmt`, `crypto/sha256`, `encoding/hex`).
-- Current Usage: `pkg/media/media_metadata.go`, `pkg/media/media_multipart.go`, `internal/media/application/file_service.go`.
-- Integration Note (2026-04-27): **`pkg/media`** `FileKindFile` branch uses `utils.ImageSizeFromPayload` and `utils.IntFromRaw`; alias mismatch (`util.*`) is a compile-time risk.
+- Dependencies: Go stdlib (`image`, `bytes`, `strings`, `fmt`, `crypto/sha256`, `encoding/hex`), `internal/shared/parsebool`.
+- Current Usage: `internal/media/delivery/mapping.go`, `internal/media/application/*`.
 - Reuse Opportunity:
   - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.
 
-### Asset: Taxonomy status normalization
-- Name: `NormalizeTaxonomyStatus`
-- Type: Util/Helper
-- Path: `pkg/taxonomy/status.go`
-- Purpose: Map request status strings to taxonomy status string constants (`constants.TaxonomyStatusActive` / `constants.TaxonomyStatusInactive`) with a single default-to-active rule.
-- Scope: Taxonomy create/update flows and any future domain using the same enum.
-- Dependencies: `strings`, `internal/shared/constants/taxonomy.go`.
-- Current Usage: `internal/taxonomy/application/category_service.go`, `internal/taxonomy/application/tag_course_level_services.go`, `internal/taxonomy/application/fields.go`.
-- Reuse Opportunity:
-  - Reuse whenever another module accepts taxonomy status as raw text.
+### Asset: Taxonomy tree + description validators
+- Name: `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs`
+- Type: Package (`internal/shared/taxonomy`)
+- Path: `internal/shared/taxonomy/`
+- Purpose: Validate nested JSONB trees (`child_topics`, `children`) and outcome description arrays.
+- Scope: `internal/taxonomy` application + infra layers.
+- Current Usage: `internal/taxonomy/application/service.go`, `internal/taxonomy/infra/jsonb_types.go`, domain/DTO types embedding `TreeNode`.
+
+### Asset: parsebool (env / YAML booleans)
+- Name: `Loose`, `EnvEnabled`
+- Type: Package (`internal/shared/parsebool`)
+- Path: `internal/shared/parsebool/parsebool.go`
+- Purpose: Single implementation for loose truthy strings (`true`, `1`, `yes`, `y`, `on`).
+- Current Usage: `internal/shared/setting`, `internal/appcli/register_system_user.go`; multipart forms use `utils.ParseBoolLoose` (delegates here).
 
 ### Asset: sqlnamed.Postgres
 - Name: `Postgres`
@@ -518,10 +521,10 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 ### Asset: setting.Setup
 - Name: `Setup`
 - Type: Util/Helper
-- Path: `pkg/setting/setting.go`
+- Path: `internal/shared/setting/setting.go`
 - Purpose: Unified env + stage YAML config loading.
 - Scope: Application and CLI startup.
-- Dependencies: env parser, YAML loader, envbool.
+- Dependencies: env parser, YAML loader, `internal/shared/parsebool`.
 - Current Usage: `main.go`, `cmd/syncpermissions/main.go`, `cmd/syncrolepermissions/main.go`.
 - Reuse Opportunity:
   - Reuse unchanged for any new command/service modules.
@@ -623,12 +626,12 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
   - Extend only by adding new `perm_id` tags; keep role set stable.
 
 ### Asset: Error code taxonomy
-- Name: `pkg/errcode` internal/shared/constants/messages
+- Name: `internal/shared/errors` (codes + default messages)
 - Type: Constant/ErrorCode
-- Path: `pkg/errcode/codes.go`, `pkg/errcode/messages.go`
+- Path: `internal/shared/errors/errcode_codes.go`, `errcode_messages.go`, sentinels in `*.go`
 - Purpose: Stable application error contract.
 - Scope: All handlers and middleware.
-- Dependencies: `pkg/response`, `pkg/httperr`.
+- Dependencies: `internal/shared/response`, `internal/shared/httperr`.
 - Current Usage: Auth, RBAC, middleware, error pipeline.
 - Reuse Opportunity:
   - Reuse for all new CRUD failure conditions.
@@ -645,7 +648,7 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Path: `middleware/auth_jwt.go`
 - Purpose: Access token validation and context projection.
 - Scope: All authenticated API groups.
-- Dependencies: `pkg/token`, `pkg/setting`, `pkg/response`.
+- Dependencies: `internal/shared/token`, `internal/shared/setting`, `internal/shared/response`.
 - Current Usage: `/api/v1` authenticated subgroup.
 - Reuse Opportunity:
   - Reuse without modification for new authenticated domains.
@@ -664,13 +667,11 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 ### Asset: httperr middleware
 - Name: `Middleware`, `Recovery`, `Abort`, `HTTPError`
 - Type: Middleware/Validator
-- Path: `pkg/httperr/*`
-- Purpose: Centralize parse/validation/runtime error mapping to response envelope.
-- Scope: Global API behavior.
-- Dependencies: `pkg/errcode`, `pkg/response`, `pkg/validate`.
-- Current Usage: router global middleware + selected handlers.
-- Reuse Opportunity:
-  - Reuse as standard error strategy across new CRUD handlers.
+- Path: `internal/shared/httperr/*`
+- Purpose: Centralize parse/validation/runtime error mapping to response envelope after handlers return.
+- Scope: Global API behavior (`internal/server/router.go`).
+- Dependencies: `internal/shared/errors`, `internal/shared/response`, `internal/shared/validate`, `internal/shared/logger`.
+- Current Usage: global middleware stack; handlers typically use `response.AbortFail` or `c.Error(err)` + `httperr.Abort`.
 
 ## Reusable Query/Template Assets
 

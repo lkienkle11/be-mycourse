@@ -20,7 +20,7 @@
 
 ## Implemented Endpoint Inventory
 
-For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`pkg/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, **`pkg/media`** (resolver, metadata, multipart); **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise, tickets (migration **`000013`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`internal/shared/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise, tickets (migration **`000013`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
 
 ### `/api/system`
 - `POST /login`

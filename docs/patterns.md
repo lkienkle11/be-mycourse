@@ -51,7 +51,7 @@ server/wire    → all layers (composition root)
 
 - Domain errors (not reused cross-domain) live in `internal/<domain>/domain/errors.go`.
 - Shared/cross-domain sentinel errors live in `internal/shared/errors/`.
-- Every user-facing error must have a numeric code in `internal/shared/errors/` (or `pkg/httperr`).
+- Every user-facing error must have a numeric code in `internal/shared/errors/`. HTTP transport mapping uses `internal/shared/httperr` middleware and optional `HTTPError` values.
 
 ### Error propagation
 

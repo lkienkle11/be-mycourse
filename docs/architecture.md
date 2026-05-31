@@ -73,7 +73,7 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/setting/` | YAML config loading with env-var substitution |
 | `internal/shared/logger/` | Uber Zap bootstrap, `WithRequestID`, `FromContext` |
 | `internal/shared/token/` | JWT generation and validation |
-| `internal/shared/middleware/` | Gin middleware: CORS, auth JWT, **active-user guard**, RBAC permission checks, rate limiting, request logger |
+| `internal/shared/middleware/` | Gin middleware: CORS, auth JWT, **active-user guard**, RBAC permission checks, rate limiting, **circuit breaker**, request logger |
 | `internal/shared/response/` | Unified `{ code, message, data }` response envelope |
 | `internal/shared/validate/` | Request validation helpers |
 | `internal/shared/brevo/` | Brevo SMTP email client |
@@ -117,15 +117,18 @@ main.go
   └── setting.Setup()         — load YAML + env vars
   └── logger.InitFromSettings() — init Uber Zap global logger
   └── shareddb.Setup()        — connect PostgreSQL (GORM)
+  └── cache.SetupRedis()      — connect Redis (before APPCLI branch)
+  └── resilience.ConfigureFromSettings() + StartDBProbe()
+  └── appcli MaybeRun*        — optional CLI short-circuit (register / login)
   └── supabasepkg.Setup()     — Supabase HTTP client (optional)
-  └── cache.SetupRedis()      — connect Redis
-  └── mediainfra.NewCloudClientsFromSetting() — init B2/Bunny SDK
+  └── mediainfra.Setup()      — init B2/Bunny SDK
   └── maybeMigrateFromEnv()   — apply SQL migrations if MIGRATE=1
   └── server.Wire(db, redis)  — dependency injection
   └── mediajobs.StartMediaPendingCleanupJob() — background worker
   └── server.InitRouter(svcs, handlers)
         └── gin.New()
         └── middleware.RequestLogger()  — structured access log + X-Request-ID
+        └── middleware.CircuitBreakerMiddleware() — circuit breaker + load tracking
         └── shared/httperr.Middleware() — centralized error handling
         └── shared/httperr.Recovery()   — panic recovery
         └── cors.New(...)               — CORS

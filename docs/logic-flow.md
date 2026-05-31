@@ -8,16 +8,17 @@
 - Use `pkg/entities` for both new and reused domain types (create a new entity module file or extend an existing one), then import those types where needed.
 
 ## Application Startup
-1. Load settings (`pkg/setting`).
-2. Initialize primary DB (`models.Setup`).
-3. Bind RBAC DB (`services.SetRBACDB`).
-4. Optional CLI branch (`internal/appcli`) can short-circuit server startup.
-5. Setup Supabase clients.
-6. Setup Redis.
-7. Optional SQL migration if `MIGRATE=1`.
-8. Init system defaults (`config.InitSystem`).
-9. Start queue consume placeholder.
-10. Build router and serve HTTP.
+1. Load settings (`setting.Setup()`).
+2. Initialize primary DB (`shareddb.Setup()`).
+3. Setup Redis (`cache.SetupRedis()`).
+4. Configure circuit breaker + start DB probe (`resilience.ConfigureFromSettings`, `resilience.StartDBProbe`).
+5. Optional CLI branch (`internal/appcli`) can short-circuit server startup (guarded by `cli_guard.go`).
+6. Setup Supabase clients.
+7. Setup media SDK clients.
+8. Optional SQL migration if `MIGRATE=1`.
+9. Wire dependencies (`server.Wire`).
+10. Start background jobs (media pending cleanup).
+11. Build router and serve HTTP.
 
 ## Auth Flow Logic
 - Register: validate input -> check uniqueness -> create user -> send confirmation email.

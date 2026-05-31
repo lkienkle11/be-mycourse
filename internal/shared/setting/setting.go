@@ -73,6 +73,18 @@ type Logging struct {
 	RedirectStdLog bool
 }
 
+// Resilience holds circuit breaker and load-shedding thresholds (YAML resilience: block).
+type Resilience struct {
+	DBProbeIntervalSec     int
+	DBFailuresToOpen       int
+	MaxInFlight            int
+	HalfOpenProbeQuota     int
+	OpenCooldownSec        int
+	ErrorWindowSec         int
+	ErrorCountToOpen       int
+	DegradedAttemptsFactor float64
+}
+
 type Media struct {
 	AppMediaProvider          string
 	B2KeyID                   string
@@ -101,7 +113,8 @@ var (
 	SupabaseSetting = &Supabase{}
 	BrevoSetting    = &Brevo{}
 	MediaSetting    = &Media{}
-	LogSetting      = &Logging{}
+	LogSetting        = &Logging{}
+	ResilienceSetting = &Resilience{}
 )
 
 type yamlConfig struct {
@@ -112,7 +125,8 @@ type yamlConfig struct {
 	Supabase yamlSupabase `yaml:"supabase"`
 	Brevo    yamlBrevo    `yaml:"brevo"`
 	Media    yamlMedia    `yaml:"media"`
-	Logging  yamlLogging  `yaml:"logging"`
+	Logging     yamlLogging     `yaml:"logging"`
+	Resilience  yamlResilience  `yaml:"resilience"`
 }
 
 type yamlLogging struct {
@@ -123,6 +137,17 @@ type yamlLogging struct {
 	Environment    string `yaml:"environment"`
 	Version        string `yaml:"version"`
 	RedirectStdlog string `yaml:"redirect_stdlog"`
+}
+
+type yamlResilience struct {
+	DBProbeIntervalSec     int     `yaml:"db_probe_interval_sec"`
+	DBFailuresToOpen       int     `yaml:"db_failures_to_open"`
+	MaxInFlight            int     `yaml:"max_in_flight"`
+	HalfOpenProbeQuota     int     `yaml:"half_open_probe_quota"`
+	OpenCooldownSec        int     `yaml:"open_cooldown_sec"`
+	ErrorWindowSec         int     `yaml:"error_window_sec"`
+	ErrorCountToOpen       int     `yaml:"error_count_to_open"`
+	DegradedAttemptsFactor float64 `yaml:"degraded_attempts_factor"`
 }
 
 type yamlServer struct {

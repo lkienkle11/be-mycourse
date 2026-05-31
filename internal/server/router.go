@@ -44,6 +44,7 @@ func InitRouter(svc *Services, h *Handlers) *gin.Engine {
 	router := gin.New()
 	router.MaxMultipartMemory = constants.MediaMultipartParseMemoryBytes
 	router.Use(middleware.RequestLogger())
+	router.Use(middleware.CircuitBreakerMiddleware())
 	router.Use(httperr.Middleware())
 	router.Use(httperr.Recovery())
 	router.Use(cors.New(ginDefaultCORS()))

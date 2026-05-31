@@ -66,3 +66,13 @@ logging:
   environment: "${LOG_ENVIRONMENT}"
   version: "${APP_VERSION}"
   redirect_stdlog: "${LOG_REDIRECT_STDLOG}"
+
+resilience:
+  db_probe_interval_sec: 5
+  db_failures_to_open: 3
+  max_in_flight: 200
+  half_open_probe_quota: 3
+  open_cooldown_sec: 30
+  error_window_sec: 60
+  error_count_to_open: 50
+  degraded_attempts_factor: 0.5

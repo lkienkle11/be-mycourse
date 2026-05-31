@@ -104,12 +104,14 @@ Every response is JSON in one of two shapes:
 
 | Route Group | Limit |
 |-------------|-------|
-| `/api/system` | 10 requests / 3 seconds per IP |
+| `/api/system` | 10 requests / 3 minutes per IP |
 | `/api/v1` (unauthenticated) | 60 requests / 1 minute |
 | `/api/v1` (authenticated) | 120 requests / 1 minute |
 | `/api/internal-v1` | 60 requests / 1 minute |
+| APPCLI (`CLI_SYSTEM_LOGIN`, `CLI_REGISTER_NEW_SYSTEM_USER`) | 5 operations / 3 minutes per host (file: `$XDG_CONFIG_HOME/mycourse/cli_rate_limit.json`) |
 
-Rate limit exceeded returns `HTTP 429` with `code: 3006`.
+Rate limit exceeded returns `HTTP 429` with `code: 3006`.  
+Circuit breaker open returns `HTTP 503` with `code: 9018`.
 
 ### Pagination Query Parameters
 
@@ -1587,6 +1589,7 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 | 404 | 3004 | `NotFound` | Resource not found |
 | 409 | 3005 | `Conflict` | Duplicate resource (e.g. email already exists) |
 | 429 | 3006 | `TooManyRequests` | Rate limit exceeded |
+| 503 | 9018 | `ServiceUnavailable` | Circuit breaker open / service degraded |
 | 400 | 4001 | `EmailAlreadyExists` | Email address already registered |
 | 401 | 4002 | `InvalidCredentials` | Wrong email/password or system credentials |
 | 400 | 4003 | `WeakPassword` | Password does not meet strength requirements |

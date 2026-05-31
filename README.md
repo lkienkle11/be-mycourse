@@ -272,6 +272,7 @@ All responses are JSON objects with a standard envelope:
 | `9010` | `B2BucketNotConfigured` | B2 storage not configured |
 | `9011` | `BunnyStreamNotConfigured` | Bunny Stream not configured |
 | `9017` | `ImageEncodeBusy` | WebP encode gate at capacity |
+| `9018` | `ServiceUnavailable` | Circuit breaker open / service degraded |
 | `9998` | `Panic` | Unhandled panic |
 | `9999` | `Unknown` | Unknown error |
 

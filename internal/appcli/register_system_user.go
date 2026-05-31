@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	authinfra "mycourse-io-be/internal/auth/infra"
+	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/parsebool"
 	sysinfra "mycourse-io-be/internal/system/infra"
 )
@@ -23,6 +24,10 @@ func MaybeRunRegisterNewSystemUser(db *gorm.DB) bool {
 }
 
 func runRegister(db *gorm.DB) {
+	if err := guardCLIOperation(context.Background(), constants.CLIOpRegister); err != nil {
+		printCLIGuardFailure(err)
+		return
+	}
 	if !cliVerifyAppPassword(db) {
 		return
 	}

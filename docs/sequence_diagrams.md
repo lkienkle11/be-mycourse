@@ -474,6 +474,10 @@ sequenceDiagram
     participant ID as Enrollment file + OS fingerprint
 
     Op->>CLI: CLI_SYSTEM_LOGIN=1 go run .
+    CLI->>CLI: guardCLIOperation (circuit breaker + file rate limit 5/3min)
+    alt guard denied
+        CLI-->>Op: stderr Failure (rate limit or service unavailable)
+    end
     CLI->>Op: prompt username/password (stderr, hidden)
     CLI->>ID: load file secret + read machine-id, hw UUID, hostname, platform
     alt file missing

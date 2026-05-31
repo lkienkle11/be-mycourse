@@ -284,6 +284,8 @@
 | Machine binding mismatch | `Failure: system account is bound to another machine.` |
 | Missing machine identity file | `Failure: machine identity file not found: ...` |
 | `app_system_env` or `app_token_env` not configured | `Failure: system token secrets are not configured in database.` |
+| CLI rate limit exceeded (5 ops / 3 min per host) | `Failure: too many CLI attempts; try again in a few minutes.` |
+| Circuit breaker open (DB/load degraded) | `Failure: service temporarily unavailable; try again later.` |
 
 #### FR-4.2 Privileged User Registration (CLI)
 
@@ -453,13 +455,24 @@ The system **MUST** enforce per-IP rate limits at the middleware layer:
 
 | Route Group | Limit | Window |
 |-------------|-------|--------|
-| `/api/system` (`RateLimitSystemIP`) | 10 requests | 3 seconds |
+| `/api/system` (`RateLimitSystemIP`) | 10 requests | 3 minutes |
 | `/api/v1` unauthenticated (`RateLimitLocal`) | 60 requests | 1 minute |
 | `/api/v1` authenticated (`RateLimitLocal`) | 120 requests | 1 minute |
 | `/api/internal-v1` (`RateLimitLocal`) | 60 requests | 1 minute |
+| APPCLI (`CLI_SYSTEM_LOGIN` + `CLI_REGISTER_NEW_SYSTEM_USER`, file-backed) | 5 operations | 3 minutes (shared per host) |
 
 Rate-limit overrides can be set per IP via `middleware.SetSystemRateLimitOverride`.  
-Exceeded limits return `HTTP 429` with app code `3006 TooManyRequests`.
+Exceeded HTTP limits return `HTTP 429` with app code `3006 TooManyRequests`.
+
+#### NFR-1.1b Circuit Breaker
+
+- A global circuit breaker (`internal/shared/resilience`) **MUST** protect HTTP ingress and APPCLI entry.
+- **DB probe:** background `PingContext` on the primary pool; after `resilience.db_failures_to_open` consecutive failures (default 3) the circuit opens.
+- **Load probe:** in-flight HTTP requests and rolling 5xx count can open the circuit when thresholds are exceeded.
+- **Open state:** HTTP returns `503` + app code `9018 ServiceUnavailable`; APPCLI prints `Failure: service temporarily unavailable; try again later.`
+- **Half-open:** allows a small probe quota; success closes the circuit; failure re-opens.
+- Optional Redis key `mycourse:resilience:circuit` shares state when Redis is available; degrades to in-process only when Redis is down.
+- Configuration: YAML `resilience:` block in `config/app.yaml` (see `setting.ResilienceSetting`).
 
 #### NFR-1.2 Response Compression
 

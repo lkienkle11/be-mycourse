@@ -3,7 +3,7 @@
 
 ## Architecture (current)
 
-Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,constants,setting,cache,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
+Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,constants,setting,cache,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
 
 **Domain types** live in `internal/<domain>/domain/` (no GORM tags). **HTTP DTOs** in `internal/<domain>/delivery/`. **GORM rows** in `internal/<domain>/infra/`. Auth refresh-session JSONB: `internal/auth/infra/gormjsonb.go`.
 
@@ -22,6 +22,24 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - **Dependencies:** `go.uber.org/zap`, `internal/shared/setting` (`LogSetting`), `zapcore.NewTee` when `LOG_FILE_PATH` set.
 - **Current usage:** `main.go`, `middleware/request_logger.go`, `internal/shared/httperr`, `internal/media/jobs/*`, `internal/shared/cache`, media webhook handlers.
 - **Reuse:** Prefer `logger.FromContext(ctx)` in new handlers/services; use `zap.L()` only where no context exists.
+
+### Asset: internal/shared/ratelimit (fixed-window counters)
+- **Name:** `AllowFixedWindow`, `InMemoryStore`, `FileStore`, `AllowCLI`
+- **Type:** Package (`internal/shared/ratelimit`)
+- **Path:** `internal/shared/ratelimit/`
+- **Purpose:** Single fixed-window implementation for HTTP middleware (`InMemoryStore`) and APPCLI (`FileStore` at `$XDG_CONFIG_HOME/mycourse/cli_rate_limit.json`).
+- **Scope:** `middleware.RateLimitLocal`, `middleware.RateLimitSystemIP`, `appcli.guardCLIOperation`.
+- **Dependencies:** `internal/shared/constants` (`CLIAttempts`, `CLIMinutes`).
+- **Reuse:** Do not add parallel bucket types in middleware or appcli.
+
+### Asset: internal/shared/resilience (circuit breaker)
+- **Name:** `Global`, `ConfigureFromSettings`, `StartDBProbe`, `CircuitBreaker.Allow`, `RecordRequestStart`
+- **Type:** Package (`internal/shared/resilience`)
+- **Path:** `internal/shared/resilience/`
+- **Purpose:** DB probe + HTTP load tracking; optional Redis key `mycourse:resilience:circuit`.
+- **Scope:** `middleware.CircuitBreakerMiddleware`, `appcli.guardCLIOperation`, `main` bootstrap.
+- **Dependencies:** `shareddb.StdDB`, `cache.Redis`, `setting.ResilienceSetting`.
+- **Reuse:** Single global instance; HTTP 503 + `9018 ServiceUnavailable`, APPCLI stderr guard message.
 
 ### Asset: timex (audit epoch seconds)
 - **Name:** `NowUnix`, `PtrUnix`, `UnixOrZero`

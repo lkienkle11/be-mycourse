@@ -15,7 +15,8 @@ Key setup:
 Applied to all routes in this order:
 
 1. `middleware.RequestLogger()` — structured access log + `X-Request-ID` propagation
-2. `internal/shared/httperr.Middleware()` — centralized error handling
+2. `middleware.CircuitBreakerMiddleware()` — global circuit breaker + load tracking
+3. `internal/shared/httperr.Middleware()` — centralized error handling
 3. `internal/shared/httperr.Recovery()` — panic recovery + stack log
 4. `cors.New(ginDefaultCORS())` — CORS with `AllowCredentials: true`
 5. `gzip.Gzip(gzip.DefaultCompression)` — response compression
@@ -28,7 +29,7 @@ Applied to all routes in this order:
 ### `/api/system` — Privileged system operations
 
 ```
-Middleware: BeforeInterceptor, RateLimitSystemIP(10 req/s, burst 3)
+Middleware: BeforeInterceptor, RateLimitSystemIP(10 req / 3 min per IP)
 ```
 
 | Method | Path | Auth | Description |
@@ -57,7 +58,7 @@ Middleware: none (mounted before BeforeInterceptor)
 ### `/api/v1` unauthenticated — Public endpoints
 
 ```
-Middleware: BeforeInterceptor, RateLimitLocal(60 req/s, burst 1)
+Middleware: BeforeInterceptor, RateLimitLocal(60 req / 1 min)
 ```
 
 | Method | Path | Description |
@@ -75,7 +76,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req/s, burst 1)
 ### `/api/v1` authenticated — Protected user endpoints
 
 ```
-Middleware: BeforeInterceptor, RateLimitLocal(120 req/s, burst 1), AuthJWT
+Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 ```
 
 #### Auth / Me
@@ -146,7 +147,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req/s, burst 1), AuthJWT
 ### `/api/internal-v1` — Internal RBAC administration
 
 ```
-Middleware: RateLimitLocal(60 req/s, burst 1), BeforeInterceptor, RequireInternalAPIKey
+Middleware: RateLimitLocal(60 req / 1 min), BeforeInterceptor, RequireInternalAPIKey
 ```
 
 #### RBAC Permissions

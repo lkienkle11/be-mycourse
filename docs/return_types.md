@@ -1118,6 +1118,7 @@ All error responses use the standard `Response` envelope with a non-zero `code` 
 | 404 | 3004 | `NotFound` | Resource not found |
 | 409 | 3005 | `Conflict` | Duplicate resource |
 | 429 | 3006 | `TooManyRequests` | Rate limit exceeded |
+| 503 | 9018 | `ServiceUnavailable` | Circuit breaker open / service degraded |
 | 400 | 4001 | `EmailAlreadyExists` | Email already registered |
 | 401 | 4002 | `InvalidCredentials` | Wrong email/password or system creds |
 | 400 | 4003 | `WeakPassword` | Password fails strength requirements |

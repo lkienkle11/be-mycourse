@@ -163,7 +163,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `cache/` | `cache.SetupRedis()`, `cache.Redis` global Redis client |
 | `setting/` | `setting.Setup()`, config structs (`ServerSetting`, `DatabaseSetting`, `MediaSetting`, `LogSetting`, …) |
 | `logger/` | `logger.InitFromSettings()`, `logger.Sync()`, `logger.FromContext()`, `logger.WithRequestID()` |
-| `middleware/` | `AuthJWT`, `RequirePermission`, `RequireInternalAPIKey`, `RequireSystemAccessToken`, `RateLimitLocal`, `RateLimitSystemIP`, `BeforeInterceptor`, `RequestLogger` |
+| `middleware/` | `AuthJWT`, `RequirePermission`, `RequireInternalAPIKey`, `RequireSystemAccessToken`, `RateLimitLocal`, `RateLimitSystemIP`, `CircuitBreakerMiddleware`, `BeforeInterceptor`, `RequestLogger` |
 | `response/` | `response.OK`, `response.Created`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |
 | `token/` | JWT sign/parse for access and refresh tokens |
 | `validate/` | Validator setup, error flattening for Gin binding |
@@ -174,6 +174,12 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `brevo/` | Brevo SMTP HTTP wrapper + `constants.go` |
 | `mailtmpl/` | HTML email template rendering + `constants.go` |
 | `errors/` | Sentinel `Err*` vars and error code constants |
+| `ratelimit/` | Fixed-window counters: `InMemoryStore` (HTTP), `FileStore` (APPCLI) |
+| `resilience/` | Global circuit breaker, DB probe, optional Redis state |
+
+### `internal/appcli/`
+
+CLI flows for system administration: register privileged user (`CLI_REGISTER_NEW_SYSTEM_USER=1`) and obtain system JWT (`CLI_SYSTEM_LOGIN=1`). `cli_guard.go` enforces circuit breaker + file-backed rate limit (5 ops / 3 min) before credential prompts.
 
 ### `internal/server/`
 
@@ -181,10 +187,6 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 |------|---------|
 | `wire.go` | Constructs all repos, services, handlers, and cross-domain adapters |
 | `router.go` | Builds Gin engine, attaches global middleware, mounts all route groups |
-
-### `internal/appcli/`
-
-CLI flows for system administration: register privileged user (`CLI_REGISTER_NEW_SYSTEM_USER=1`) and obtain system JWT (`CLI_SYSTEM_LOGIN=1`).
 
 ### `pkg/`
 

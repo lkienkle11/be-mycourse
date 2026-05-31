@@ -256,7 +256,8 @@ Set at least:
 - **Machine identity file:** `$XDG_CONFIG_HOME/mycourse/machine_identity` (or `~/.config/mycourse/machine_identity`) — stores enrollment secret only; backup with host. Losing the file requires re-register.
 - **After migration `000014` or hybrid binding change:** re-register privileged users on each host (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
 - `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register a privileged system user (process exits afterward). Creates machine identity if missing. Requires bcrypt-hashed `app_cli_system_password` in DB.
-- `CLI_SYSTEM_LOGIN` — optional one-shot CLI to mint a system JWT to stdout (process exits afterward). Requires prior register on the same host.
+- `CLI_SYSTEM_LOGIN` — optional one-shot CLI to mint a system JWT to stdout (process exits afterward). Requires prior register on the same host. Rate-limited to **5 operations / 3 minutes** per host (file `$XDG_CONFIG_HOME/mycourse/cli_rate_limit.json`).
+- **Circuit breaker:** optional Redis key `mycourse:resilience:circuit` shares open state across instances; falls back to in-process when Redis is unavailable. Tune thresholds via `resilience:` in `config/app.yaml`.
 - `API_KEY` if you use `/api/internal-v1`.
 
 **`MIGRATE=1` behavior:** With the current `main.go`, enabling `MIGRATE=1` still runs `router.Run` after migrations (HTTP server starts). Typical approaches:

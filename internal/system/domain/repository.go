@@ -10,7 +10,7 @@ type AppConfigRepository interface {
 // PrivilegedUserRepository manages system privileged-user credentials.
 type PrivilegedUserRepository interface {
 	Create(ctx context.Context, u *PrivilegedUser) error
-	MatchCount(ctx context.Context, usernameSecret, passwordSecret string) (int64, error)
+	FindByCredentials(ctx context.Context, usernameSecret, passwordSecret string) (*PrivilegedUser, error)
 }
 
 // PermissionSyncer syncs permission catalog rows from constants to the database.

@@ -16,8 +16,6 @@ func RegisterRoutes(g *gin.RouterGroup, svc *application.SystemService) {
 	}
 	h := NewHandler(svc)
 
-	g.POST("/login", h.systemLogin)
-
 	authd := g.Group("")
 	authd.Use(middleware.RequireSystemAccessToken(svc))
 

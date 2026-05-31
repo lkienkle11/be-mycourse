@@ -11,5 +11,6 @@ var (
 	ErrSystemAppConfigMissing         = stderrors.New(constants.MsgSystemAppConfigMissing)
 	ErrSystemSecretsNotReady          = stderrors.New(constants.MsgSystemSecretsNotReady)
 	ErrSystemLoginFailed              = stderrors.New(constants.MsgSystemLoginFailed)
+	ErrSystemMachineBindingFailed     = stderrors.New(constants.MsgSystemMachineBindingFailed)
 	ErrSystemUsernamePasswordRequired = stderrors.New(constants.MsgSystemUsernamePasswordRequired)
 )

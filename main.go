@@ -27,6 +27,9 @@ func mustCoreSettingsAndDB() {
 	if appcli.MaybeRunRegisterNewSystemUser(shareddb.Conn()) {
 		os.Exit(0)
 	}
+	if appcli.MaybeRunSystemLogin(shareddb.Conn()) {
+		os.Exit(0)
+	}
 }
 
 func mustSupabaseRedisAndMedia() {

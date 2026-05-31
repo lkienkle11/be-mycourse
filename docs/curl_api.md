@@ -98,7 +98,7 @@ Every response is JSON in one of two shapes:
 | `X-Refresh-Token: <refresh_jwt>` | `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout` |
 | `X-Session-Id: <128-hex>` | `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout` |
 | `X-API-Key: <key>` | All `/api/internal-v1` endpoints |
-| `Authorization: Bearer <system_token>` | All `/api/system` endpoints (except `/login`) |
+| `Authorization: Bearer <system_token>` | All `/api/system` endpoints |
 
 ### Rate Limits
 
@@ -550,64 +550,31 @@ curl -X GET {{BASE_URL}}/api/v1/health
 ## 5. System Admin (`/api/system`)
 
 > Rate limit: **10 requests / 3 seconds** per IP.  
-> All routes except `/login` require `Authorization: Bearer <system_token>`.
+> All routes require `Authorization: Bearer <system_token>`.
 
-### 5.1 System Login
+### 5.0 CLI — obtain system token
 
-**`POST /api/system/login`**
-
-Authenticates a privileged system operator and returns a short-lived system access token.
-
-**Request body:**
-
-| Field | Type | Required |
-|-------|------|----------|
-| `username` | string | ✅ |
-| `password` | string | ✅ |
+System login is **CLI-only** (no HTTP endpoint). After DB init, run interactively:
 
 ```bash
-curl -X POST {{BASE_URL}}/api/system/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "sysop",
-    "password": "SecurePass!1"
-  }'
+SYSTEM_TOKEN=$(CLI_SYSTEM_LOGIN=1 go run .)
 ```
 
-**Success (200):**
-```json
-{
-  "code": 0,
-  "message": "system_login_ok",
-  "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "expires_in":   3600
-  }
-}
-```
+- Prompts for username and password on stderr (hidden input).
+- Requires hybrid machine binding on the same host: enrollment file + matching OS fingerprint (see FR-4.4).
+- **Success:** stdout prints **only** the raw JWT string (one line). No JSON envelope.
+- **Failure:** human-readable message on stderr only.
+- Token TTL: **90 seconds** (`SystemAccessTokenTTL()`).
 
-> `expires_in` is in **seconds**.
+Register a privileged user first (once per host):
 
-**Store the token for subsequent calls:**
 ```bash
-SYSTEM_TOKEN=$(curl -s -X POST {{BASE_URL}}/api/system/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"sysop","password":"SecurePass!1"}' \
-  | jq -r '.data.access_token')
-```
-
-**Error examples:**
-```json
-// 401 — wrong credentials
-{ "code": 4002, "message": "Invalid email or password", "data": null }
-
-// 503 — secrets not configured in DB
-{ "code": 9001, "message": "system token secrets are not configured", "data": null }
+CLI_REGISTER_NEW_SYSTEM_USER=1 go run .
 ```
 
 ---
 
-### 5.2 Permission Sync Now
+### 5.1 Permission Sync Now
 
 **`POST /api/system/permission-sync-now`**
 
@@ -625,7 +592,7 @@ curl -X POST {{BASE_URL}}/api/system/permission-sync-now \
 
 ---
 
-### 5.3 Role-Permission Sync Now
+### 5.2 Role-Permission Sync Now
 
 **`POST /api/system/role-permission-sync-now`**
 
@@ -643,7 +610,7 @@ curl -X POST {{BASE_URL}}/api/system/role-permission-sync-now \
 
 ---
 
-### 5.4 Create Permission Sync Job
+### 5.3 Create Permission Sync Job
 
 **`POST /api/system/create-permission-sync-job`**
 
@@ -661,7 +628,7 @@ curl -X POST {{BASE_URL}}/api/system/create-permission-sync-job \
 
 ---
 
-### 5.5 Create Role-Permission Sync Job
+### 5.4 Create Role-Permission Sync Job
 
 **`POST /api/system/create-role-permission-sync-job`**
 
@@ -679,7 +646,7 @@ curl -X POST {{BASE_URL}}/api/system/create-role-permission-sync-job \
 
 ---
 
-### 5.6 Delete Permission Sync Job
+### 5.5 Delete Permission Sync Job
 
 **`POST /api/system/delete-permission-sync-job`**
 
@@ -697,7 +664,7 @@ curl -X POST {{BASE_URL}}/api/system/delete-permission-sync-job \
 
 ---
 
-### 5.7 Delete Role-Permission Sync Job
+### 5.6 Delete Role-Permission Sync Job
 
 **`POST /api/system/delete-role-permission-sync-job`**
 

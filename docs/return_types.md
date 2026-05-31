@@ -263,14 +263,21 @@ type LoginRequest struct {
 }
 ```
 
-### `dto.SystemLoginRequest`
+### System CLI login (no HTTP endpoint)
 
-```go
-type SystemLoginRequest struct {
-    Username string `json:"username" binding:"required"`
-    Password string `json:"password" binding:"required"`
-}
+Obtain token:
+
+```bash
+SYSTEM_TOKEN=$(CLI_SYSTEM_LOGIN=1 go run .)
 ```
+
+Register (once per host, before login):
+
+```bash
+CLI_REGISTER_NEW_SYSTEM_USER=1 go run .
+```
+
+---
 
 ### `dto.PermissionFilter` (query params)
 
@@ -420,12 +427,11 @@ type ListPermissionsParams struct {
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `GetSystemAppConfig` | `GetSystemAppConfig(db *gorm.DB) (*models.SystemAppConfig, error)` | `*SystemAppConfig`; `ErrSystemAppConfigMissing` if row `id=1` absent |
-| `RegisterSystemPrivilegedUser` | `RegisterSystemPrivilegedUser(db *gorm.DB, username, password string) error` | `nil` on success; `ErrSystemSecretsNotReady` if `app_system_env` not set |
-| `SystemLogin` | `SystemLogin(db *gorm.DB, username, password string) (accessToken string, err error)` | `string` (JWT) on success; `ErrSystemLoginFailed`, `ErrSystemSecretsNotReady`, or DB error |
-| `VerifySystemAccessToken` | `VerifySystemAccessToken(db *gorm.DB, tokenStr string) error` | `nil` if valid; JWT parse error or `ErrSystemSecretsNotReady` |
+| `RegisterPrivilegedUser` | `RegisterPrivilegedUser(ctx, username, password, machineSecret string) error` | `nil` on success; `ErrSystemSecretsNotReady`, `ErrSystemUsernamePasswordRequired` |
+| `SystemLogin` | `SystemLogin(ctx, username, password, machineSecret string) (accessToken string, err error)` | JWT on success (TTL **90s**); `ErrSystemLoginFailed`, `ErrSystemMachineBindingFailed`, `ErrSystemSecretsNotReady`, or DB error |
+| `VerifySystemAccessToken` | `VerifySystemAccessToken(tokenStr string) error` | `nil` if valid; JWT parse error or `ErrSystemSecretsNotReady` |
 
-**Sentinel errors:** defined in **`pkg/errors/system.go`** using **`constants.MsgSystem*`** text. **`internal/*/application/system.go`** assigns the same error values to **`services.ErrSystem*`** so existing **`errors.Is(err, services.ErrSystemLoginFailed)`** checks (e.g. in `api/system`) keep working.
+**Sentinel errors:** `internal/shared/errors/system.go` using `constants.MsgSystem*`.
 
 ---
 
@@ -769,36 +775,7 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
 ### System API `/api/system`
 
 **Rate limit:** 10 requests / 3 seconds per IP.  
-All routes except `/login` require `Authorization: Bearer <system_token>`.
-
----
-
-#### `POST /api/system/login`
-
-**Request body:** `dto.SystemLoginRequest`
-
-| Status | `code` | `data` |
-|--------|--------|--------|
-| 200 | 0 | `{ access_token: string, expires_in: number }` |
-| 400 | 2001 | `null` — validation |
-| 401 | 4002 | `null` — invalid credentials |
-| 503 | 9001 | `null` — secrets not configured |
-| 500 | 9001 | `null` |
-
-**Success response:**
-
-```json
-{
-  "code": 0,
-  "message": "system_login_ok",
-  "data": {
-    "access_token": "<system JWT>",
-    "expires_in":   3600
-  }
-}
-```
-
-> `expires_in` is in **seconds** (`system/application.SystemAccessTokenTTL`).
+All routes require `Authorization: Bearer <system_token>`. Obtain token via CLI (`CLI_SYSTEM_LOGIN=1 go run .`).
 
 ---
 

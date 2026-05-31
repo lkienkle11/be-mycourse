@@ -267,26 +267,30 @@
 
 > **Source:** `internal/system/delivery/`, `internal/system/application/service.go`, `internal/system/infra/crypto.go`, `internal/shared/cryptox/`
 
-#### FR-4.1 System Login
+#### FR-4.1 System Login (CLI)
 
-- A privileged operator **MUST** authenticate via `POST /api/system/login` using `username` and `password`.
+- A privileged operator **MUST** obtain a system access token via the CLI, not HTTP.
+- When `CLI_SYSTEM_LOGIN` env var is truthy (`true`, `1`, `yes`, `y`, `on`), the binary **MUST** run a CLI flow after DB init, prompt for `username` and `password`, verify credentials and machine binding, mint a JWT, print **only** the raw token to **stdout** (one line + newline), then **exit**.
 - Credentials are HMAC-SHA256 derived using `system_app_config.app_system_env` (never stored in plaintext).
-- On success the system **MUST** issue a short-lived system access token (JWT signed with `system_app_config.app_token_env`).
-- The system access token is required for all `/api/system/*` routes except `/api/system/login`.
+- On success the system **MUST** issue a short-lived system access token (JWT signed with `system_app_config.app_token_env`; TTL **90 seconds**).
+- The system access token is required for **all** `/api/system/*` routes via `Authorization: Bearer <token>`.
+- Example: `SYSTEM_TOKEN=$(CLI_SYSTEM_LOGIN=1 go run .)`
 
-**Error cases:**
+**CLI error cases (stderr only):**
 
-| Condition | HTTP | App Code |
-|-----------|------|----------|
-| Wrong username or password | 401 | 4002 `InvalidCredentials` |
-| `app_system_env` or `app_token_env` not configured | 503 | 9001 `InternalError` |
-| Request body invalid | 400 | 2001 `ValidationFailed` |
+| Condition | Message |
+|-----------|---------|
+| Wrong username or password | `Failure: invalid system credentials.` |
+| Machine binding mismatch | `Failure: system account is bound to another machine.` |
+| Missing machine identity file | `Failure: machine identity file not found: ...` |
+| `app_system_env` or `app_token_env` not configured | `Failure: system token secrets are not configured in database.` |
 
 #### FR-4.2 Privileged User Registration (CLI)
 
-- When `CLI_REGISTER_NEW_SYSTEM_USER` env var is truthy (`true`, `1`, `yes`, `y`, `on`), the binary **MUST** run a CLI flow after DB init, prompt for credentials, write to `system_privileged_users`, print success, then **exit**.
+- When `CLI_REGISTER_NEW_SYSTEM_USER` env var is truthy (`true`, `1`, `yes`, `y`, `on`), the binary **MUST** run a CLI flow after DB init, prompt for credentials, bind the account to the local machine, write to `system_privileged_users`, print success, then **exit**.
 - Before registering, the CLI **MUST** verify the operator-entered app password against `system_app_config.app_cli_system_password` using bcrypt (`auth/infra.CheckPassword`).
-- Source: `internal/appcli/register_system_user.go`.
+- The CLI **MUST** read or create a local enrollment secret file and combine it with a live OS machine fingerprint (machine-id / hardware UUID, hostname, platform) into hybrid binding material, then derive `machine_secret = CredentialHMACHex(app_system_env, hybridMaterial)` stored on the user row.
+- Source: `internal/appcli/register_system_user.go`, `internal/appcli/machine_identity.go`, `internal/appcli/machine_fingerprint*.go`.
 
 #### FR-4.3 System Configuration
 
@@ -295,6 +299,15 @@
 - `app_system_env` provides HMAC key material for deriving privileged user credentials (`CredentialHMACHex`).
 - `app_token_env` provides JWT signing key material for system access tokens (`MintSystemAccessToken` / `ParseSystemAccessToken`).
 - Rotating `app_system_env` invalidates existing `system_privileged_users` rows — re-run the CLI registration flow after rotation.
+
+#### FR-4.4 Machine Identity (hybrid binding)
+
+- **Enrollment file** (random 32-byte secret, mode `0600`): `$XDG_CONFIG_HOME/mycourse/machine_identity` (fallback: `~/.config/mycourse/machine_identity`). Created on first register on that host.
+- **OS fingerprint** (read on each register/login): platform machine-id / hardware UUID, hostname, `GOOS/GOARCH`.
+- **Hybrid HMAC input** (canonical, versioned): `v1|file:<secret>|mid:<id>|hw:<uuid>|host:<name>|plat:<os/arch>` → `CredentialHMACHex(app_system_env, ...)`.
+- Copying only the DB row or only the file to another host **MUST** fail login (fingerprint mismatch).
+- Login **MUST NOT** create the enrollment file — register on the host first.
+- Changing hostname or OS machine-id **requires re-register** on that host.
 
 ---
 

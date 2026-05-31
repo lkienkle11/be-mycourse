@@ -460,49 +460,50 @@ sequenceDiagram
 
 ---
 
-## 8. System Login
+## 8. System Login (CLI)
 
-**Description:** `POST /api/system/login` — HMAC-derived credential check against bcrypt-stored config secrets, issues short-lived system JWT.
+**Description:** `CLI_SYSTEM_LOGIN=1` — HMAC-derived credential check, machine binding verification, issues short-lived system JWT to stdout only.
 
 ```mermaid
 sequenceDiagram
     participant Op as System Operator
-    participant H as Handler (system/delivery/handler.go)
+    participant CLI as appcli/login_system_user.go
     participant SVC as system/application.SystemService
     participant DB as PostgreSQL (system tables)
     participant Crypto as system/infra + shared/cryptox
+    participant ID as Enrollment file + OS fingerprint
 
-    Op->>H: POST /api/system/login<br/>{username, password}
-    H->>H: ShouldBindJSON → dto.SystemLoginRequest
-    alt binding error
-        H-->>Op: 400 {code:2001}
+    Op->>CLI: CLI_SYSTEM_LOGIN=1 go run .
+    CLI->>Op: prompt username/password (stderr, hidden)
+    CLI->>ID: load file secret + read machine-id, hw UUID, hostname, platform
+    alt file missing
+        CLI-->>Op: stderr Failure
     end
 
-    H->>SVC: SystemLogin(ctx, username, password)
+    CLI->>SVC: SystemLogin(ctx, username, password, machineSecret)
     SVC->>DB: SELECT * FROM system_app_config WHERE id=1
-    alt not found
-        SVC-->>H: ErrSystemAppConfigMissing
-        H-->>Op: 500
-    end
     alt app_system_env or app_token_env empty
-        SVC-->>H: ErrSystemSecretsNotReady
-        H-->>Op: 503 {code:9001, message:"system token secrets are not configured"}
+        SVC-->>CLI: ErrSystemSecretsNotReady
+        CLI-->>Op: stderr Failure
     end
 
     Note over SVC,Crypto: app_system_env / app_token_env are bcrypt-14 hashes used as key material
     SVC->>Crypto: CredentialHMACHex(app_system_env, username) → uh
     SVC->>Crypto: CredentialHMACHex(app_system_env, password) → ph
-    SVC->>DB: SELECT COUNT(*) FROM system_privileged_users WHERE username_secret=uh AND password_secret=ph
-    alt count == 0
-        SVC-->>H: ErrSystemLoginFailed
-        H-->>Op: 401 {code:4002}
+    SVC->>DB: SELECT * FROM system_privileged_users WHERE username_secret=uh AND password_secret=ph
+    alt not found
+        SVC-->>CLI: ErrSystemLoginFailed
+        CLI-->>Op: stderr Failure: invalid system credentials
+    end
+    alt row.machine_secret != machineSecret
+        SVC-->>CLI: ErrSystemMachineBindingFailed
+        CLI-->>Op: stderr Failure: bound to another machine
     end
 
     SVC->>Crypto: MintSystemAccessToken(app_token_env, uh)
-    Crypto-->>SVC: accessToken (JWT)
-    SVC-->>H: accessToken
-
-    H-->>Op: 200 {code:0, message:"system_login_ok",<br/>data:{access_token, expires_in: <seconds>}}
+    Crypto-->>SVC: accessToken (JWT, TTL 90s)
+    SVC-->>CLI: accessToken
+    CLI-->>Op: stdout only: raw JWT + newline
 ```
 
 ---

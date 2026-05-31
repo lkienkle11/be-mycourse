@@ -251,8 +251,12 @@ Set at least:
 - `REDIS_ADDR` — **managed Redis** URL/host:port from your cloud provider, or `127.0.0.1:6379` only if you installed Redis on this host (Step 8.3). Omit or leave empty only if you accept cache falling back to DB-only behaviour.
 - RBAC sync from constants is driven by **`/api/system`** (authenticated system JWT), not startup env flags. Populate **`system_app_config`** and **`system_privileged_users`** in Postgres as documented in `docs/architecture.md`.
 - **`system_app_config` secrets:** store `app_cli_system_password`, `app_system_env`, and `app_token_env` as **bcrypt hashes (cost 14)**, not plaintext. Generate out-of-band, e.g. `python3 -c "import bcrypt; print(bcrypt.hashpw(b'your-secret', bcrypt.gensalt(rounds=14)).decode())"`, then `UPDATE system_app_config SET ... WHERE id=1`.
-- **After rotating `app_system_env`:** existing `system_privileged_users` rows become invalid — re-run CLI registration (`CLI_REGISTER_NEW_SYSTEM_USER=true`) or insert new privileged users manually.
-- `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register the first privileged system user (process exits afterward). Requires bcrypt-hashed `app_cli_system_password` in DB.
+- **After rotating `app_system_env`:** existing `system_privileged_users` rows become invalid — re-run CLI registration (`CLI_REGISTER_NEW_SYSTEM_USER=true`) on each host.
+- **Hybrid machine binding:** enrollment file + OS fingerprint (machine-id, hardware UUID, hostname, platform). See FR-4.4 in `docs/requirements.md`.
+- **Machine identity file:** `$XDG_CONFIG_HOME/mycourse/machine_identity` (or `~/.config/mycourse/machine_identity`) — stores enrollment secret only; backup with host. Losing the file requires re-register.
+- **After migration `000014` or hybrid binding change:** re-register privileged users on each host (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
+- `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register a privileged system user (process exits afterward). Creates machine identity if missing. Requires bcrypt-hashed `app_cli_system_password` in DB.
+- `CLI_SYSTEM_LOGIN` — optional one-shot CLI to mint a system JWT to stdout (process exits afterward). Requires prior register on the same host.
 - `API_KEY` if you use `/api/internal-v1`.
 
 **`MIGRATE=1` behavior:** With the current `main.go`, enabling `MIGRATE=1` still runs `router.Run` after migrations (HTTP server starts). Typical approaches:

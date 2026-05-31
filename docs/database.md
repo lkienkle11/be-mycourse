@@ -551,6 +551,7 @@ Privileged system operators. Username/password are stored as HMAC-hex derived wi
 | `id` | `BIGSERIAL` PK | |
 | `username_secret` | `TEXT` NOT NULL UNIQUE | HMAC-hex(username, `app_system_env`) |
 | `password_secret` | `TEXT` NOT NULL | HMAC-hex(password, `app_system_env`) |
+| `machine_secret` | `TEXT` NOT NULL DEFAULT `''` | HMAC-hex(hybrid binding material, `app_system_env`); hybrid = enrollment file secret + OS fingerprint (machine-id, hardware UUID, hostname, platform) |
 | `created_at` | `BIGINT` NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
 **Index:** `uix_system_privileged_users_username_secret`.
@@ -600,6 +601,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000011 | `audit_timestamps_bigint` | `DROP DEFAULT` → convert audit columns to `BIGINT` Unix seconds (`USING EXTRACT(EPOCH…)`) → `SET DEFAULT` bigint epoch on all affected tables |
 | 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
 | 000013 | `instructor_management` | `users.phone`; tables `instructor_applications`, `instructor_profiles`, `instructor_expertise_topics`, `instructor_expertise_skills`, `instructor_tickets`, `instructor_ticket_messages`; seed P41–P58 + role grants |
+| 000014 | `system_user_machine_binding` | `system_privileged_users.machine_secret` — CLI machine binding; existing rows default `''` (re-register after deploy) |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

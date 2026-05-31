@@ -132,7 +132,7 @@ Privileged operations for system administrators.
 - Role-permission sync (immediate or scheduled — reads `constants.RolePermissions`)
 - Scheduler control: create/stop permission sync job and role-permission sync job
 
-**Exposed under:** `/api/system/...` (requires system access token after login)
+**Exposed under:** `/api/system/...` (requires system access token from CLI login)
 
 **Key files:**
 - `domain/ports.go` — `SystemCrypto` port (HMAC credentials + system JWT mint/parse)

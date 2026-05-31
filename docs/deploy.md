@@ -250,7 +250,9 @@ Set at least:
 - `CORS_ALLOWED_ORIGINS` — comma-separated **browser origins** for the frontend, e.g. `https://yourdomain.net,https://www.yourdomain.net` (no trailing slashes).
 - `REDIS_ADDR` — **managed Redis** URL/host:port from your cloud provider, or `127.0.0.1:6379` only if you installed Redis on this host (Step 8.3). Omit or leave empty only if you accept cache falling back to DB-only behaviour.
 - RBAC sync from constants is driven by **`/api/system`** (authenticated system JWT), not startup env flags. Populate **`system_app_config`** and **`system_privileged_users`** in Postgres as documented in `docs/architecture.md`.
-- `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register the first privileged system user (process exits afterward).
+- **`system_app_config` secrets:** store `app_cli_system_password`, `app_system_env`, and `app_token_env` as **bcrypt hashes (cost 14)**, not plaintext. Generate out-of-band, e.g. `python3 -c "import bcrypt; print(bcrypt.hashpw(b'your-secret', bcrypt.gensalt(rounds=14)).decode())"`, then `UPDATE system_app_config SET ... WHERE id=1`.
+- **After rotating `app_system_env`:** existing `system_privileged_users` rows become invalid — re-run CLI registration (`CLI_REGISTER_NEW_SYSTEM_USER=true`) or insert new privileged users manually.
+- `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register the first privileged system user (process exits afterward). Requires bcrypt-hashed `app_cli_system_password` in DB.
 - `API_KEY` if you use `/api/internal-v1`.
 
 **`MIGRATE=1` behavior:** With the current `main.go`, enabling `MIGRATE=1` still runs `router.Run` after migrations (HTTP server starts). Typical approaches:

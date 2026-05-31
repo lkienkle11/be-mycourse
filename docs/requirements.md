@@ -265,7 +265,7 @@
 
 ### FR-4 System Administration
 
-> **Source:** `api/system/routes.go`, `services/system.go`, `internal/systemauth/crypto.go`
+> **Source:** `internal/system/delivery/`, `internal/system/application/service.go`, `internal/system/infra/crypto.go`, `internal/shared/cryptox/`
 
 #### FR-4.1 System Login
 
@@ -285,14 +285,16 @@
 #### FR-4.2 Privileged User Registration (CLI)
 
 - When `CLI_REGISTER_NEW_SYSTEM_USER` env var is truthy (`true`, `1`, `yes`, `y`, `on`), the binary **MUST** run a CLI flow after DB init, prompt for credentials, write to `system_privileged_users`, print success, then **exit**.
+- Before registering, the CLI **MUST** verify the operator-entered app password against `system_app_config.app_cli_system_password` using bcrypt (`auth/infra.CheckPassword`).
 - Source: `internal/appcli/register_system_user.go`.
 
 #### FR-4.3 System Configuration
 
 - `system_app_config` is a **singleton** row (always `id = 1`).
-- `app_system_env` is the HMAC key for deriving privileged user credentials.
-- `app_token_env` is the JWT signing secret for system access tokens.
-- These secrets are managed out-of-band (direct SQL UPDATE).
+- `app_cli_system_password`, `app_system_env`, and `app_token_env` **MUST** be stored as **bcrypt hashes (cost 14)**, managed out-of-band (direct SQL UPDATE). They are never plaintext in the database.
+- `app_system_env` provides HMAC key material for deriving privileged user credentials (`CredentialHMACHex`).
+- `app_token_env` provides JWT signing key material for system access tokens (`MintSystemAccessToken` / `ParseSystemAccessToken`).
+- Rotating `app_system_env` invalidates existing `system_privileged_users` rows — re-run the CLI registration flow after rotation.
 
 ---
 
@@ -506,6 +508,7 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 #### NFR-2.5 System Credential Security
 
 - System privileged user credentials **MUST** be stored as HMAC-hex derivations using `app_system_env`, never as plaintext.
+- `system_app_config.app_cli_system_password`, `app_system_env`, and `app_token_env` **MUST** be bcrypt hashes (cost 14) at rest; the hash strings are used as HMAC/JWT key material.
 - System access tokens are short-lived JWTs signed with `app_token_env` (stored in the `system_app_config` singleton row).
 
 #### NFR-2.6 Internal API Protection

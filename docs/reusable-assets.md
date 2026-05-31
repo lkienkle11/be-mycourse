@@ -500,6 +500,13 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Scope: `internal/taxonomy` application + infra layers.
 - Current Usage: `internal/taxonomy/application/service.go`, `internal/taxonomy/infra/jsonb_types.go`, domain/DTO types embedding `TreeNode`.
 
+### Asset: auth/infra.CheckPassword (bcrypt verify)
+- Name: `CheckPassword`
+- Type: Function (`internal/auth/infra/crypto.go`)
+- Purpose: Verify a plain-text password against a bcrypt hash (`bcrypt.CompareHashAndPassword`).
+- Current Usage: `internal/appcli/register_system_user.go` (CLI app password gate against `system_app_config.app_cli_system_password`).
+- Reuse: Do not add duplicate bcrypt compare helpers in `appcli` or `system/infra`.
+
 ### Asset: parsebool (env / YAML booleans)
 - Name: `Loose`, `EnvEnabled`
 - Type: Package (`internal/shared/parsebool`)

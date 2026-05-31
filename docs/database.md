@@ -531,12 +531,12 @@ Singleton configuration row (`id` must be `1`).
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | `INTEGER` PK, `CHECK (id = 1)` | Always `1` |
-| `app_cli_system_password` | `TEXT` NOT NULL DEFAULT `''` | CLI registration password (plaintext) |
-| `app_system_env` | `TEXT` NOT NULL DEFAULT `''` | HMAC key for system credential derivation |
-| `app_token_env` | `TEXT` NOT NULL DEFAULT `''` | JWT secret for system access tokens |
+| `app_cli_system_password` | `TEXT` NOT NULL DEFAULT `''` | Bcrypt hash (cost 14) of CLI registration gate password — verify via `CheckPassword`, never plaintext |
+| `app_system_env` | `TEXT` NOT NULL DEFAULT `''` | Bcrypt hash (cost 14) used as HMAC key material for privileged user credential derivation |
+| `app_token_env` | `TEXT` NOT NULL DEFAULT `''` | Bcrypt hash (cost 14) used as JWT signing key material for system access tokens |
 | `updated_at` | `BIGINT` NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 
-Seeded with one empty row in `000001_schema`.
+Seeded with one empty row in `000001_schema`. Operators must populate all three secret columns with **bcrypt-14 hashes** before CLI registration or system login.
 
 **GORM model:** `internal/system/infra/repos.go` (`appConfigRow`).
 

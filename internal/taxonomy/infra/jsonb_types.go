@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	taxpkg "mycourse-io-be/pkg/taxonomy"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 type treeNodesJSONB []taxpkg.TreeNode

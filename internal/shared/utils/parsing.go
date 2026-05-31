@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	_ "golang.org/x/image/webp"
+
+	"mycourse-io-be/internal/shared/parsebool"
 )
 
 func DetectExtension(filename, mimeType string) string {
@@ -90,10 +92,9 @@ func NonEmpty(candidates ...string) string {
 	return ""
 }
 
-// ParseBoolLoose treats "1", "true", "yes" (case-insensitive) as true; anything else as false.
+// ParseBoolLoose delegates to parsebool.Loose (env, YAML, multipart form fields).
 func ParseBoolLoose(s string) bool {
-	v := strings.ToLower(strings.TrimSpace(s))
-	return v == "1" || v == "true" || v == "yes"
+	return parsebool.Loose(s)
 }
 
 // ContentFingerprint returns SHA-256 hex of payload (e.g. media skip-upload dedupe).

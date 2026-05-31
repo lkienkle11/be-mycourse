@@ -16,7 +16,7 @@ import (
 	"mycourse-io-be/internal/shared/middleware"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/setting"
-	"mycourse-io-be/pkg/httperr"
+	"mycourse-io-be/internal/shared/httperr"
 )
 
 func ginDefaultCORS() cors.Config {

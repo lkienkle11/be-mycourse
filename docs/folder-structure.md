@@ -67,6 +67,9 @@ be-mycourse/
 │   │   ├── cryptox/                # Credential HMAC, system JWT helpers
 │   │   ├── httpx/                  # Paginated list handler helper
 │   │   ├── token/                  # JWT generation and validation
+│   │   ├── taxonomy/               # TreeNode + tree/description validators (taxonomy JSONB)
+│   │   ├── httperr/                # Gin error middleware + panic recovery
+│   │   ├── parsebool/              # Loose bool parsing (env, YAML, forms)
 │   │   ├── utils/                  # Generic utilities: image encode, random, fingerprint
 │   │   │   └── webp_test.go
 │   │   └── validate/               # Request validation helpers
@@ -75,9 +78,7 @@ be-mycourse/
 │       └── router.go               # Gin router setup, route group mounting
 ├── migrations/                     # Versioned SQL migration files (embedded)
 ├── pkg/
-│   ├── envbool/                    # Environment bool parsing (true/1/yes/on)
-│   ├── httperr/                    # Gin error middleware, panic recovery
-│   └── supabase/                   # Supabase HTTP client + DB helpers
+│   └── supabase/                   # Supabase HTTP client + DB helpers (optional integration)
 ├── scripts/                        # Deploy helper scripts (pm2-reload-with-binary-rollback.sh)
 ├── go.mod
 ├── go.sum
@@ -166,7 +167,10 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `response/` | `response.OK`, `response.Created`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |
 | `token/` | JWT sign/parse for access and refresh tokens |
 | `validate/` | Validator setup, error flattening for Gin binding |
-| `utils/` | `EncodeWebP`, `ContentFingerprint`, random helpers |
+| `taxonomy/` | `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs` |
+| `httperr/` | `Middleware`, `Recovery`, `HTTPError`, `Abort` |
+| `parsebool/` | `Loose`, `EnvEnabled` — env/YAML boolean strings |
+| `utils/` | `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`) |
 | `brevo/` | Brevo SMTP HTTP wrapper + `constants.go` |
 | `mailtmpl/` | HTML email template rendering + `constants.go` |
 | `errors/` | Sentinel `Err*` vars and error code constants |
@@ -186,8 +190,6 @@ CLI flow for registering the first system user (`CLI_REGISTER_NEW_SYSTEM_USER=1`
 
 | Path | Purpose |
 |------|---------|
-| `pkg/envbool/` | Parse environment booleans (`true`, `1`, `yes`, `on`, …) |
-| `pkg/httperr/` | Gin middleware for centralized error handling and panic recovery |
 | `pkg/supabase/` | Supabase client initialization and DB helpers |
 
 ### `cmd/`

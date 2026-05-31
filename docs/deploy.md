@@ -250,7 +250,9 @@ Set at least:
 - `CORS_ALLOWED_ORIGINS` — comma-separated **browser origins** for the frontend, e.g. `https://yourdomain.net,https://www.yourdomain.net` (no trailing slashes).
 - `REDIS_ADDR` — **managed Redis** URL/host:port from your cloud provider, or `127.0.0.1:6379` only if you installed Redis on this host (Step 8.3). Omit or leave empty only if you accept cache falling back to DB-only behaviour.
 - RBAC sync from constants is driven by **`/api/system`** (authenticated system JWT), not startup env flags. Populate **`system_app_config`** and **`system_privileged_users`** in Postgres as documented in `docs/architecture.md`.
-- `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register the first privileged system user (process exits afterward).
+- **`system_app_config` secrets:** store `app_cli_system_password`, `app_system_env`, and `app_token_env` as **bcrypt hashes (cost 14)**, not plaintext. Generate out-of-band, e.g. `python3 -c "import bcrypt; print(bcrypt.hashpw(b'your-secret', bcrypt.gensalt(rounds=14)).decode())"`, then `UPDATE system_app_config SET ... WHERE id=1`.
+- **After rotating `app_system_env`:** existing `system_privileged_users` rows become invalid — re-run CLI registration (`CLI_REGISTER_NEW_SYSTEM_USER=true`) or insert new privileged users manually.
+- `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register the first privileged system user (process exits afterward). Requires bcrypt-hashed `app_cli_system_password` in DB.
 - `API_KEY` if you use `/api/internal-v1`.
 
 **`MIGRATE=1` behavior:** With the current `main.go`, enabling `MIGRATE=1` still runs `router.Run` after migrations (HTTP server starts). Typical approaches:
@@ -685,8 +687,8 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | Settings | `config/app.yaml`, `internal/shared/setting/` | YAML + `.env` merge via `STAGE` |
 | DB / migrate | `internal/shared/db/`, `migrations/*.sql` | `MIGRATE=1` → `MigrateDatabase()` on startup |
 | Cache | `internal/shared/cache/` | Redis; auth/taxonomy helpers in module `application` |
-| Error codes | `internal/shared/errcode/` | App `code` values for JSON envelope |
-| HTTP errors | `pkg/httperr/` | Global Gin error handler |
+| Error codes | `internal/shared/errors/` | App `code` values and default messages for JSON envelope |
+| HTTP errors | `internal/shared/httperr/` | Global Gin error handler |
 | CI/CD | `.github/workflows/deploy-dev.yml` | Active workflow: **test** → **build** → **deploy** on **`master`** |
 | Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |

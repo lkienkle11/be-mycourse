@@ -15,8 +15,8 @@ Key setup:
 Applied to all routes in this order:
 
 1. `middleware.RequestLogger()` — structured access log + `X-Request-ID` propagation
-2. `httperr.Middleware()` — centralized error handling
-3. `httperr.Recovery()` — panic recovery + stack log
+2. `internal/shared/httperr.Middleware()` — centralized error handling
+3. `internal/shared/httperr.Recovery()` — panic recovery + stack log
 4. `cors.New(ginDefaultCORS())` — CORS with `AllowCredentials: true`
 5. `gzip.Gzip(gzip.DefaultCompression)` — response compression
 6. CSRF middleware logic exists in codebase, but enforcement is temporarily disabled at router level

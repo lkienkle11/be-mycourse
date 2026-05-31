@@ -62,7 +62,7 @@ internal/<domain>/application/  → internal/<domain>/domain/, internal/<domain>
 internal/<domain>/infra/        → internal/<domain>/domain/, internal/shared/*
 internal/<domain>/domain/       → (no internal imports)
 internal/shared/middleware/     → internal/shared/response, internal/shared/token, internal/shared/errors
-pkg/*             → (no internal imports — standalone utilities)
+pkg/*             → stdlib + third-party only (currently `pkg/supabase`)
 ```
 
 Cross-domain dependencies (e.g. Auth calling RBAC) use **interface adapters** defined at the consuming domain and wired in `internal/server/wire.go`.
@@ -81,8 +81,9 @@ Cross-domain dependencies (e.g. Auth calling RBAC) use **interface adapters** de
 | `internal/shared/logger` | Uber Zap bootstrap and per-request context |
 | `internal/shared/db` | PostgreSQL GORM setup and migration runner |
 | `internal/shared/cache` | Redis client |
-| `pkg/httperr` | Gin error middleware and panic recovery |
-| `pkg/envbool` | Parse environment boolean strings |
+| `internal/shared/httperr` | Gin error middleware and panic recovery |
+| `internal/shared/parsebool` | Parse loose boolean strings (`Loose`, `EnvEnabled`) |
+| `internal/shared/taxonomy` | Taxonomy tree/description validators and `TreeNode` type |
 | `pkg/supabase` | Supabase client init and helpers |
 
 ---

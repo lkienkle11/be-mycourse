@@ -2,7 +2,7 @@
 package domain
 
 import (
-	taxpkg "mycourse-io-be/pkg/taxonomy"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 // CourseTopic is the aggregate root for a taxonomy course topic (formerly category).

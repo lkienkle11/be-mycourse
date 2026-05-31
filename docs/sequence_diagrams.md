@@ -72,6 +72,7 @@ sequenceDiagram
 
     Main->>CLI: MaybeRunRegisterNewSystemUser(DB)
     alt CLI_REGISTER_NEW_SYSTEM_USER = true
+        CLI->>DB: verify app_cli_system_password (bcrypt CheckPassword)
         CLI->>DB: prompt + write system_privileged_users
         CLI-->>Main: true (exit)
         Main->>OS: os.Exit(0)
@@ -461,15 +462,15 @@ sequenceDiagram
 
 ## 8. System Login
 
-**Description:** `POST /api/system/login` — HMAC-derived credential check, issues short-lived system JWT.
+**Description:** `POST /api/system/login` — HMAC-derived credential check against bcrypt-stored config secrets, issues short-lived system JWT.
 
 ```mermaid
 sequenceDiagram
     participant Op as System Operator
-    participant H as Handler (system/routes.go systemLogin)
-    participant SVC as services.SystemLogin
+    participant H as Handler (system/delivery/handler.go)
+    participant SVC as system/application.SystemService
     participant DB as PostgreSQL (system tables)
-    participant Crypto as internal/systemauth
+    participant Crypto as system/infra + shared/cryptox
 
     Op->>H: POST /api/system/login<br/>{username, password}
     H->>H: ShouldBindJSON → dto.SystemLoginRequest
@@ -477,7 +478,7 @@ sequenceDiagram
         H-->>Op: 400 {code:2001}
     end
 
-    H->>SVC: SystemLogin(db, username, password)
+    H->>SVC: SystemLogin(ctx, username, password)
     SVC->>DB: SELECT * FROM system_app_config WHERE id=1
     alt not found
         SVC-->>H: ErrSystemAppConfigMissing
@@ -488,6 +489,7 @@ sequenceDiagram
         H-->>Op: 503 {code:9001, message:"system token secrets are not configured"}
     end
 
+    Note over SVC,Crypto: app_system_env / app_token_env are bcrypt-14 hashes used as key material
     SVC->>Crypto: CredentialHMACHex(app_system_env, username) → uh
     SVC->>Crypto: CredentialHMACHex(app_system_env, password) → ph
     SVC->>DB: SELECT COUNT(*) FROM system_privileged_users WHERE username_secret=uh AND password_secret=ph

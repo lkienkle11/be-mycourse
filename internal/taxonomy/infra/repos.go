@@ -13,7 +13,7 @@ import (
 	"mycourse-io-be/internal/shared/gormx"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
-	taxpkg "mycourse-io-be/pkg/taxonomy"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 // --- GORM row types ----------------------------------------------------------

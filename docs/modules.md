@@ -140,6 +140,8 @@ Privileged operations for system administrators.
 - `infra/crypto.go` + `infra/crypto_ports.go` — adapter wired in `server/wire.go`
 - `jobs/sync_schedulers.go` — RBAC catalog sync tickers
 
+**Crypto semantics:** `system_app_config.app_cli_system_password`, `app_system_env`, and `app_token_env` are **bcrypt hashes (cost 14)** at rest. CLI registration verifies the app password via `auth/infra.CheckPassword`. Login/register use the hash strings as HMAC/JWT key material through `SystemCrypto` → `shared/cryptox`.
+
 ---
 
 ## Planned But Not Implemented

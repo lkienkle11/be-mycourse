@@ -24,7 +24,7 @@ internal/taxonomy/
     ├── routes.go
     └── dto.go
 
-pkg/taxonomy/
+internal/shared/taxonomy/
 ├── tree_node.go             # TreeNode JSON shape
 ├── tree_validate.go         # Depth, node count, UUID id, duplicate slug checks
 └── description_validate.go  # Outcome description paragraph limits

@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"mycourse-io-be/pkg/envbool"
+	"mycourse-io-be/internal/shared/parsebool"
 )
 
 func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
@@ -109,7 +109,7 @@ func applyYAMLLoggingGlobals(c *yamlConfig) {
 	LogSetting.ServiceName = effectiveLogServiceName(c.Logging.ServiceName)
 	LogSetting.Environment = effectiveLogEnvironment(c.Logging.Environment)
 	LogSetting.Version = effectiveLogVersion(c.Logging.Version)
-	LogSetting.RedirectStdLog = envbool.ParseTrue(c.Logging.RedirectStdlog)
+	LogSetting.RedirectStdLog = parsebool.Loose(c.Logging.RedirectStdlog)
 }
 
 func defaultLogFormatFromRunMode() string {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"mycourse-io-be/pkg/taxonomy"
+	"mycourse-io-be/internal/shared/taxonomy"
 )
 
 func TestValidateDescriptionParagraphs_ok(t *testing.T) {

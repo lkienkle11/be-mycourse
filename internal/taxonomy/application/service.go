@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/taxonomy/domain"
-	taxpkg "mycourse-io-be/pkg/taxonomy"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 // MediaFileValidator validates and loads a profile-image file by ID.

@@ -798,7 +798,7 @@ All routes except `/login` require `Authorization: Bearer <system_token>`.
 }
 ```
 
-> `expires_in` is in **seconds** (`systemauth.SystemAccessTokenTTL`).
+> `expires_in` is in **seconds** (`system/application.SystemAccessTokenTTL`).
 
 ---
 

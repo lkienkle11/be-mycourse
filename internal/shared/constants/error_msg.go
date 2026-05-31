@@ -88,6 +88,7 @@ const (
 	// --- Sub 11 ---
 	MsgExecutableUploadRejected = "file type is not allowed: executable and script files cannot be uploaded"
 	MsgImageEncodeBusy          = "image encoder is at capacity; please retry (concurrent encode limit reached)"
+	MsgServiceUnavailable       = "service temporarily unavailable; try again later"
 )
 
 // MsgInvalidProfileMediaFile is the sentinel text for pkg/errors.ErrInvalidProfileMediaFile

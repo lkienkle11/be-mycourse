@@ -61,4 +61,5 @@ const (
 	BunnyVideoNotFound       = 9015
 	BunnyGetVideoFailed      = 9016
 	ImageEncodeBusy          = 9017 // CGO/libvips encode gate full or encode failed; HTTP 503
+	ServiceUnavailable       = 9018 // circuit breaker open or service degraded; HTTP 503
 )

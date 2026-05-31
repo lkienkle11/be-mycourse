@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/ratelimit"
 	"mycourse-io-be/internal/shared/response"
 )
 
@@ -20,32 +21,10 @@ type SystemIPQuota struct {
 }
 
 var (
-	systemRLMu       sync.RWMutex
-	systemRLExtra    = map[string]SystemIPQuota{} // client IP → relaxed quota (optional)
-	systemRLBucketMu sync.Mutex
-	systemRLBuckets  = make(map[string]*rateBucket)
-	systemRLNextID   uint64
+	systemRLMu    sync.RWMutex
+	systemRLExtra = map[string]SystemIPQuota{} // client IP → relaxed quota (optional)
+	systemRLStore = ratelimit.NewInMemoryStore(true)
 )
-
-func init() {
-	t := time.NewTicker(5 * time.Minute)
-	go func() {
-		for range t.C {
-			cleanupSystemRateBuckets()
-		}
-	}()
-}
-
-func cleanupSystemRateBuckets() {
-	now := time.Now().Unix()
-	systemRLBucketMu.Lock()
-	defer systemRLBucketMu.Unlock()
-	for k, b := range systemRLBuckets {
-		if now-b.windowStart > 2*b.windowSec {
-			delete(systemRLBuckets, k)
-		}
-	}
-}
 
 // SetSystemRateLimitOverride registers a custom quota for an IP (attempts per rolling window of minutes).
 // Pass attempts < 1 or minutes < 1 to remove an override. Safe for hot-reload from config later.
@@ -76,7 +55,7 @@ func RateLimitSystemIP(defaultAttempts, defaultMinutes int) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	}
 
-	id := atomic.AddUint64(&systemRLNextID, 1)
+	id := atomic.AddUint64(&systemRateLimiterSeq, 1)
 	keyPrefix := strconv.FormatUint(id, 10) + "|"
 
 	return func(c *gin.Context) {
@@ -89,9 +68,10 @@ func RateLimitSystemIP(defaultAttempts, defaultMinutes int) gin.HandlerFunc {
 		windowSec := int64(minutes) * 60
 		key := keyPrefix + ip + "|" + strconv.Itoa(attempts) + "|" + strconv.Itoa(minutes)
 		now := time.Now().Unix()
-		windowStart := now - (now % windowSec)
+		windowStart := ratelimit.WindowStart(now, windowSec)
+		effectiveAttempts := effectiveRateAttempts(attempts)
 
-		if !systemRateAllow(key, windowSec, windowStart, attempts) {
+		if !systemRLStore.Allow(key, windowSec, windowStart, effectiveAttempts) {
 			response.AbortFail(c, http.StatusTooManyRequests, errors.TooManyRequests, errors.DefaultMessage(errors.TooManyRequests), nil)
 			return
 		}
@@ -99,20 +79,4 @@ func RateLimitSystemIP(defaultAttempts, defaultMinutes int) gin.HandlerFunc {
 	}
 }
 
-func systemRateAllow(key string, windowSec, windowStart int64, attempts int) bool {
-	systemRLBucketMu.Lock()
-	b := systemRLBuckets[key]
-	if b == nil || b.windowStart != windowStart || b.windowSec != windowSec {
-		systemRLBuckets[key] = &rateBucket{
-			windowStart: windowStart,
-			windowSec:   windowSec,
-			count:       1,
-		}
-		systemRLBucketMu.Unlock()
-		return true
-	}
-	b.count++
-	n := b.count
-	systemRLBucketMu.Unlock()
-	return n <= attempts
-}
+var systemRateLimiterSeq uint64

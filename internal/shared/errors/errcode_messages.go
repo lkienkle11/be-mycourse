@@ -62,4 +62,5 @@ var defaultMessages = map[int]string{
 	BunnyVideoNotFound:       constants.MsgMediaBunnyVideoNotFound,
 	BunnyGetVideoFailed:      constants.MsgMediaBunnyGetVideoFailed,
 	ImageEncodeBusy:          constants.MsgImageEncodeBusy,
+	ServiceUnavailable:       constants.MsgServiceUnavailable,
 }

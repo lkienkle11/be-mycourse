@@ -3,47 +3,16 @@ package middleware
 import (
 	"net/http"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/ratelimit"
 	"mycourse-io-be/internal/shared/response"
 )
 
-type rateBucket struct {
-	windowStart int64 // unix seconds, aligned to window of windowSec
-	windowSec   int64
-	count       int
-}
-
-var (
-	rateMu        sync.Mutex
-	rateBuckets   = make(map[string]*rateBucket) // key: limiter instance + "|" + client IP
-	nextLimiterID uint64
-)
-
-func init() {
-	t := time.NewTicker(5 * time.Minute)
-	go func() {
-		for range t.C {
-			cleanupRateBuckets()
-		}
-	}()
-}
-
-func cleanupRateBuckets() {
-	now := time.Now().Unix()
-	rateMu.Lock()
-	defer rateMu.Unlock()
-	for k, b := range rateBuckets {
-		if now-b.windowStart > 2*b.windowSec {
-			delete(rateBuckets, k)
-		}
-	}
-}
+var localRateStore = ratelimit.NewInMemoryStore(false)
 
 // RateLimitLocal limits each client IP to at most attempts requests per rolling calendar-aligned
 // window of minutes minutes. State is in-process only (global map). Each call returns an
@@ -57,35 +26,18 @@ func RateLimitLocal(attempts, minutes int) gin.HandlerFunc {
 	}
 
 	windowSec := int64(minutes) * 60
-	id := atomic.AddUint64(&nextLimiterID, 1)
+	id := ratelimit.NextStoreID()
 	keyPrefix := strconv.FormatUint(id, 10) + "|"
 
 	return func(c *gin.Context) {
 		key := keyPrefix + c.ClientIP()
 		now := time.Now().Unix()
-		windowStart := now - (now % windowSec)
-		if !rateLocalAllow(key, windowSec, windowStart, attempts) {
+		windowStart := ratelimit.WindowStart(now, windowSec)
+		effectiveAttempts := effectiveRateAttempts(attempts)
+		if !localRateStore.Allow(key, windowSec, windowStart, effectiveAttempts) {
 			response.AbortFail(c, http.StatusTooManyRequests, errors.TooManyRequests, errors.DefaultMessage(errors.TooManyRequests), nil)
 			return
 		}
 		c.Next()
 	}
-}
-
-func rateLocalAllow(key string, windowSec, windowStart int64, attempts int) bool {
-	rateMu.Lock()
-	b := rateBuckets[key]
-	if b == nil || b.windowStart != windowStart {
-		rateBuckets[key] = &rateBucket{
-			windowStart: windowStart,
-			windowSec:   windowSec,
-			count:       1,
-		}
-		rateMu.Unlock()
-		return true
-	}
-	b.count++
-	n := b.count
-	rateMu.Unlock()
-	return n <= attempts
 }

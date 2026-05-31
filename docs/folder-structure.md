@@ -184,7 +184,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 
 ### `internal/appcli/`
 
-CLI flow for registering the first system user (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
+CLI flows for system administration: register privileged user (`CLI_REGISTER_NEW_SYSTEM_USER=1`) and obtain system JWT (`CLI_SYSTEM_LOGIN=1`).
 
 ### `pkg/`
 

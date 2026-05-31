@@ -30,6 +30,7 @@ type privilegedUserRow struct {
 	ID             uint   `gorm:"column:id;primaryKey"`
 	UsernameSecret string `gorm:"column:username_secret;not null;uniqueIndex"`
 	PasswordSecret string `gorm:"column:password_secret;not null"`
+	MachineSecret  string `gorm:"column:machine_secret;not null"`
 	CreatedAt      int64  `gorm:"column:created_at;not null"`
 }
 
@@ -96,7 +97,11 @@ func NewGormPrivilegedUserRepository(db *gorm.DB) *GormPrivilegedUserRepository 
 }
 
 func (r *GormPrivilegedUserRepository) Create(ctx context.Context, u *domain.PrivilegedUser) error {
-	row := &privilegedUserRow{UsernameSecret: u.UsernameSecret, PasswordSecret: u.PasswordSecret}
+	row := &privilegedUserRow{
+		UsernameSecret: u.UsernameSecret,
+		PasswordSecret: u.PasswordSecret,
+		MachineSecret:  u.MachineSecret,
+	}
 	gormx.TouchCreatedUpdated(&row.CreatedAt, nil)
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
 		return err
@@ -106,12 +111,24 @@ func (r *GormPrivilegedUserRepository) Create(ctx context.Context, u *domain.Pri
 	return nil
 }
 
-func (r *GormPrivilegedUserRepository) MatchCount(ctx context.Context, usernameSecret, passwordSecret string) (int64, error) {
-	var n int64
-	err := r.db.WithContext(ctx).Model(&privilegedUserRow{}).
+func (r *GormPrivilegedUserRepository) FindByCredentials(ctx context.Context, usernameSecret, passwordSecret string) (*domain.PrivilegedUser, error) {
+	var row privilegedUserRow
+	err := r.db.WithContext(ctx).
 		Where("username_secret = ? AND password_secret = ?", usernameSecret, passwordSecret).
-		Count(&n).Error
-	return n, err
+		First(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &domain.PrivilegedUser{
+		ID:             row.ID,
+		UsernameSecret: row.UsernameSecret,
+		PasswordSecret: row.PasswordSecret,
+		MachineSecret:  row.MachineSecret,
+		CreatedAt:      row.CreatedAt,
+	}, nil
 }
 
 // --- GormPermissionSyncer ----------------------------------------------------

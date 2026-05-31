@@ -38,7 +38,7 @@ func NewSystemService(
 // SystemLogin validates privileged user credentials and returns a short-lived system access token.
 // app_system_env and app_token_env in system_app_config must be bcrypt hashes (cost 14), not plaintext;
 // the hash strings are used as HMAC/JWT key material via SystemCrypto.
-func (s *SystemService) SystemLogin(ctx context.Context, username, password string) (string, error) {
+func (s *SystemService) SystemLogin(ctx context.Context, username, password, machineSecret string) (string, error) {
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
 	if username == "" || password == "" {
@@ -53,12 +53,15 @@ func (s *SystemService) SystemLogin(ctx context.Context, username, password stri
 	}
 	uh := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, username)
 	ph := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, password)
-	n, err := s.privUserRepo.MatchCount(ctx, uh, ph)
+	row, err := s.privUserRepo.FindByCredentials(ctx, uh, ph)
 	if err != nil {
 		return "", err
 	}
-	if n == 0 {
+	if row == nil {
 		return "", apperrors.ErrSystemLoginFailed
+	}
+	if row.MachineSecret != machineSecret {
+		return "", apperrors.ErrSystemMachineBindingFailed
 	}
 	return s.crypto.MintSystemAccessToken(cfg.AppTokenEnv, uh)
 }
@@ -80,7 +83,7 @@ func (s *SystemService) VerifySystemAccessToken(tokenStr string) error {
 
 // RegisterPrivilegedUser stores HMAC-derived secrets.
 // app_system_env must be a bcrypt hash (cost 14) used as HMAC key material for username/password derivation.
-func (s *SystemService) RegisterPrivilegedUser(ctx context.Context, username, password string) error {
+func (s *SystemService) RegisterPrivilegedUser(ctx context.Context, username, password, machineSecret string) error {
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
 	if username == "" || password == "" {
@@ -95,7 +98,11 @@ func (s *SystemService) RegisterPrivilegedUser(ctx context.Context, username, pa
 	}
 	uh := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, username)
 	ph := s.crypto.CredentialHMACHex(cfg.AppSystemEnv, password)
-	u := &domain.PrivilegedUser{UsernameSecret: uh, PasswordSecret: ph}
+	u := &domain.PrivilegedUser{
+		UsernameSecret: uh,
+		PasswordSecret: ph,
+		MachineSecret:  machineSecret,
+	}
 	return s.privUserRepo.Create(ctx, u)
 }
 

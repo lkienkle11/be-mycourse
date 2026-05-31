@@ -148,7 +148,7 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Current Usage: `internal/*/delivery/media/file_handler.go`.
 
 ### Asset: System API response mappers
-- Name: `ToSystemLoginResponse`, `ToPermissionSyncNowResponse`, `ToRolePermissionSyncNowResponse`
+- Name: `ToPermissionSyncNowResponse`, `ToRolePermissionSyncNowResponse`
 - Type: Function (mapping)
 - Path: `pkg/logic/mapping/system_response_mapping.go`
 - Purpose: System lane JSON payloads (`internal/system/delivery/routes.go`).

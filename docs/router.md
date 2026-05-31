@@ -33,7 +33,6 @@ Middleware: BeforeInterceptor, RateLimitSystemIP(10 req/s, burst 3)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/system/login` | None | Obtain system access token |
 | POST | `/api/system/permission-sync-now` | System token | Immediate permission sync |
 | POST | `/api/system/role-permission-sync-now` | System token | Immediate role-permission sync |
 | POST | `/api/system/create-permission-sync-job` | System token | Start 12h periodic permission sync job |

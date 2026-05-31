@@ -15,6 +15,7 @@ type PrivilegedUser struct {
 	ID             uint
 	UsernameSecret string
 	PasswordSecret string
+	MachineSecret  string
 	CreatedAt      int64
 }
 

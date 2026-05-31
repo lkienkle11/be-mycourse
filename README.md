@@ -131,12 +131,12 @@ go run ./cmd/syncpermissions
 go run ./cmd/syncrolepermissions
 ```
 
-Alternatively, use the system API after startup:
+Alternatively, use the system API after startup (obtain token via CLI first):
 
-```
-POST /api/system/login
-POST /api/system/permission-sync-now
-POST /api/system/role-permission-sync-now
+```bash
+SYSTEM_TOKEN=$(CLI_SYSTEM_LOGIN=1 go run .)
+curl -H "Authorization: Bearer $SYSTEM_TOKEN" -X POST http://localhost:8080/api/system/permission-sync-now
+curl -H "Authorization: Bearer $SYSTEM_TOKEN" -X POST http://localhost:8080/api/system/role-permission-sync-now
 ```
 
 ---

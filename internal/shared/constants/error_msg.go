@@ -103,7 +103,8 @@ const MsgNotFound = "not found"
 const (
 	MsgSystemAppConfigMissing = "system_app_config row missing"
 	MsgSystemSecretsNotReady  = "system secrets are not configured in database"
-	MsgSystemLoginFailed      = "invalid system credentials"
+	MsgSystemLoginFailed              = "invalid system credentials"
+	MsgSystemMachineBindingFailed     = "system account is bound to another machine"
 )
 
 // Auth user/session sentinels (pkg/errors/auth.go); wording kept aligned with prior services/auth strings.

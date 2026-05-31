@@ -23,7 +23,7 @@
 For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`internal/shared/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise, tickets (migration **`000013`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
 
 ### `/api/system`
-- `POST /login`
+- System token: obtain via CLI (`CLI_SYSTEM_LOGIN=1 go run .` — JWT on stdout); set `SYSTEM_TOKEN` for HTTP calls.
 - `POST /permission-sync-now`
 - `POST /role-permission-sync-now`
 - `POST /create-permission-sync-job`
@@ -95,7 +95,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - CSRF: implementation is present in codebase, but middleware enforcement is temporarily disabled at router level for rollout safety.
 - `/api/v1` auth subgroup: local rate limit + JWT auth.
 - `/api/internal-v1`: local rate limit + internal API key middleware.
-- `/api/system`: interceptor + system-IP rate limit + system access token (except `/login`).
+- `/api/system`: interceptor + system-IP rate limit + system access token on all routes.
 
 ## Gaps vs Planned E-learning Domains
 - Taxonomy domain is implemented.

@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/parsebool"
 	sysinfra "mycourse-io-be/internal/system/infra"
@@ -24,6 +25,10 @@ func MaybeRunSystemLogin(db *gorm.DB) bool {
 }
 
 func runLogin(db *gorm.DB) {
+	if err := guardCLIOperation(context.Background(), constants.CLIOpSystemLogin); err != nil {
+		printCLIGuardFailure(err)
+		return
+	}
 	username, userPw, ok := cliReadSystemUserCredentials()
 	if !ok {
 		return

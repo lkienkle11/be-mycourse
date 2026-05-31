@@ -4,6 +4,7 @@ package main
 //go:generate go run ./cmd/syncrolepermissions
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -16,6 +17,7 @@ import (
 	"mycourse-io-be/internal/shared/cache"
 	shareddb "mycourse-io-be/internal/shared/db"
 	"mycourse-io-be/internal/shared/logger"
+	"mycourse-io-be/internal/shared/resilience"
 	"mycourse-io-be/internal/shared/setting"
 	supabasepkg "mycourse-io-be/pkg/supabase"
 )
@@ -23,6 +25,13 @@ import (
 func mustCoreSettingsAndDB() {
 	if err := shareddb.Setup(); err != nil {
 		zap.L().Fatal("setup postgres ([database]) failed", zap.Error(err))
+	}
+	cache.SetupRedis()
+	resilience.ConfigureFromSettings()
+	if stdDB, err := shareddb.StdDB(); err == nil {
+		resilience.StartDBProbe(context.Background(), stdDB)
+	} else {
+		zap.L().Warn("circuit breaker DB probe not started", zap.Error(err))
 	}
 	if appcli.MaybeRunRegisterNewSystemUser(shareddb.Conn()) {
 		os.Exit(0)
@@ -39,7 +48,6 @@ func mustSupabaseRedisAndMedia() {
 	if err := supabasepkg.Setup(); err != nil {
 		zap.L().Warn("supabase HTTP client is not initialized", zap.Error(err))
 	}
-	cache.SetupRedis()
 	if err := mediainfra.Setup(); err != nil {
 		zap.L().Fatal("setup media sdk clients failed", zap.Error(err))
 	}

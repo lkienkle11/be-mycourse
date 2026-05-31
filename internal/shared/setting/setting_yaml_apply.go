@@ -90,6 +90,7 @@ func applyYAMLToGlobals(c *yamlConfig) {
 	applyYAMLRedisSupabaseGlobals(c)
 	applyYAMLMediaGlobals(c)
 	applyYAMLLoggingGlobals(c)
+	applyYAMLResilienceGlobals(c)
 }
 
 func applyYAMLLoggingGlobals(c *yamlConfig) {
@@ -246,4 +247,15 @@ func applyYAMLMediaGlobals(c *yamlConfig) {
 	MediaSetting.BunnyStorageEndpoint = c.Media.BunnyStorageEndpoint
 	MediaSetting.BunnyStoragePassword = c.Media.BunnyStoragePassword
 	MediaSetting.LocalFileURLSecret = c.Media.LocalFileURLSecret
+}
+
+func applyYAMLResilienceGlobals(c *yamlConfig) {
+	ResilienceSetting.DBProbeIntervalSec = c.Resilience.DBProbeIntervalSec
+	ResilienceSetting.DBFailuresToOpen = c.Resilience.DBFailuresToOpen
+	ResilienceSetting.MaxInFlight = c.Resilience.MaxInFlight
+	ResilienceSetting.HalfOpenProbeQuota = c.Resilience.HalfOpenProbeQuota
+	ResilienceSetting.OpenCooldownSec = c.Resilience.OpenCooldownSec
+	ResilienceSetting.ErrorWindowSec = c.Resilience.ErrorWindowSec
+	ResilienceSetting.ErrorCountToOpen = c.Resilience.ErrorCountToOpen
+	ResilienceSetting.DegradedAttemptsFactor = c.Resilience.DegradedAttemptsFactor
 }

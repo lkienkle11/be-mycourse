@@ -2,7 +2,6 @@ package appcli
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"os"
@@ -12,9 +11,10 @@ import (
 	"golang.org/x/term"
 	"gorm.io/gorm"
 
+	authinfra "mycourse-io-be/internal/auth/infra"
+	"mycourse-io-be/internal/shared/parsebool"
 	"mycourse-io-be/internal/system/application"
 	sysinfra "mycourse-io-be/internal/system/infra"
-	"mycourse-io-be/internal/shared/parsebool"
 )
 
 // MaybeRunRegisterNewSystemUser returns true if the process handled CLI registration and should exit.
@@ -58,9 +58,8 @@ func cliVerifyAppPassword(db *gorm.DB) bool {
 		fmt.Fprintln(os.Stderr, "Failure: APP_CLI_SYSTEM_PASSWORD is not set in database (system_app_config).")
 		return false
 	}
-	want := []byte(strings.TrimSpace(cfg.AppCLISystemPassword))
-	got := []byte(strings.TrimSpace(appPw))
-	if subtle.ConstantTimeCompare(got, want) != 1 {
+	storedHash := strings.TrimSpace(cfg.AppCLISystemPassword)
+	if !authinfra.CheckPassword(appPw, storedHash) {
 		fmt.Fprintln(os.Stderr, "Failure: invalid app password.")
 		return false
 	}

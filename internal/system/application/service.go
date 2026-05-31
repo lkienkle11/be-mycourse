@@ -36,6 +36,8 @@ func NewSystemService(
 }
 
 // SystemLogin validates privileged user credentials and returns a short-lived system access token.
+// app_system_env and app_token_env in system_app_config must be bcrypt hashes (cost 14), not plaintext;
+// the hash strings are used as HMAC/JWT key material via SystemCrypto.
 func (s *SystemService) SystemLogin(ctx context.Context, username, password string) (string, error) {
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
@@ -62,6 +64,7 @@ func (s *SystemService) SystemLogin(ctx context.Context, username, password stri
 }
 
 // VerifySystemAccessToken checks the bearer token against app_token_env in DB.
+// app_token_env must be a bcrypt hash (cost 14) used as JWT signing key material.
 // Implements middleware.SystemTokenVerifier.
 func (s *SystemService) VerifySystemAccessToken(tokenStr string) error {
 	cfg, err := s.appCfgRepo.Get(context.Background())
@@ -76,6 +79,7 @@ func (s *SystemService) VerifySystemAccessToken(tokenStr string) error {
 }
 
 // RegisterPrivilegedUser stores HMAC-derived secrets.
+// app_system_env must be a bcrypt hash (cost 14) used as HMAC key material for username/password derivation.
 func (s *SystemService) RegisterPrivilegedUser(ctx context.Context, username, password string) error {
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)

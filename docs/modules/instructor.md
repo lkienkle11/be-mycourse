@@ -54,7 +54,7 @@ Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, 
 
 ---
 
-## Database (migration `000013`)
+## Database (migrations `000013` + compatibility `000015`)
 
 | Table | Purpose |
 |-------|---------|
@@ -65,6 +65,8 @@ Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, 
 | `instructor_expertise_skills` | `(user_id, skill_id)` → `course_skills` |
 | `instructor_tickets` | `status` open/closed |
 | `instructor_ticket_messages` | Thread messages; blocked when ticket closed |
+
+Compatibility note: migration `000015_instructor_expertise_soft_delete_compat` backfills `deleted_at` on expertise junction tables and recreates active-only unique indexes for drifted environments.
 
 Permissions **P41–P58** seeded in the same migration. Role grants:
 

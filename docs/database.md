@@ -602,6 +602,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
 | 000013 | `instructor_management` | `users.phone`; tables `instructor_applications`, `instructor_profiles`, `instructor_expertise_topics`, `instructor_expertise_skills`, `instructor_tickets`, `instructor_ticket_messages`; seed P41–P58 + role grants |
 | 000014 | `system_user_machine_binding` | `system_privileged_users.machine_secret` — CLI machine binding; existing rows default `''` (re-register after deploy) |
+| 000015 | `instructor_expertise_soft_delete_compat` | Compatibility migration for older DBs: ensure `deleted_at` exists on `instructor_expertise_topics` / `instructor_expertise_skills`, then recreate active-only unique indexes (`WHERE deleted_at IS NULL`) |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

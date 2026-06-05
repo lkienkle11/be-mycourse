@@ -51,3 +51,24 @@ const (
 	TableInstructorTickets         = "instructor_tickets"
 	TableInstructorTicketMessages  = "instructor_ticket_messages"
 )
+
+// --- Course ---
+
+const (
+	TableCourses                    = "courses"
+	TableCourseVersions             = "course_versions"
+	TableCourseVersionTags          = "course_version_tags"
+	TableCourseVersionSkills        = "course_version_skills"
+	TableCourseVersionOutcomes      = "course_version_outcomes"
+	TableCourseCollaborators        = "course_collaborators"
+	TableCourseSections             = "course_sections"
+	TableCourseLessons              = "course_lessons"
+	TableCourseSubLessons           = "course_sub_lessons"
+	TableCourseSubLessonVideos      = "course_sub_lesson_videos"
+	TableCourseSubLessonTexts       = "course_sub_lesson_texts"
+	TableCourseSubLessonQuizzes     = "course_sub_lesson_quizzes"
+	TableCourseSubLessonQuizOptions = "course_sub_lesson_quiz_options"
+	TableCourseEditLeases           = "course_edit_leases"
+	TableCourseEnrollments          = "course_enrollments"
+	TableCourseProgressItems        = "course_progress_items"
+)

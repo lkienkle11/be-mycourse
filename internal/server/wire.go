@@ -9,12 +9,14 @@ import (
 
 	authapp "mycourse-io-be/internal/auth/application"
 	authdelivery "mycourse-io-be/internal/auth/delivery"
+	courseapp "mycourse-io-be/internal/course/application"
+	coursedelivery "mycourse-io-be/internal/course/delivery"
 
 	mediaapp "mycourse-io-be/internal/media/application"
 	mediadelivery "mycourse-io-be/internal/media/delivery"
+	mediadomain "mycourse-io-be/internal/media/domain"
 	mediainfra "mycourse-io-be/internal/media/infra"
 	mediajobs "mycourse-io-be/internal/media/jobs"
-	mediadomain "mycourse-io-be/internal/media/domain"
 
 	taxapp "mycourse-io-be/internal/taxonomy/application"
 	taxdelivery "mycourse-io-be/internal/taxonomy/delivery"
@@ -32,6 +34,7 @@ import (
 // Services holds all application services after wiring.
 type Services struct {
 	Auth       *authapp.AuthService
+	Course     *courseapp.CourseService
 	Media      *mediaapp.MediaService
 	Taxonomy   *taxapp.TaxonomyService
 	RBAC       *rbacapp.RBACService
@@ -42,6 +45,7 @@ type Services struct {
 // Handlers holds all delivery handlers after wiring.
 type Handlers struct {
 	Auth       *authdelivery.Handler
+	Course     *coursedelivery.Handler
 	Media      *mediadelivery.Handler
 	Taxonomy   *taxdelivery.Handler
 	RBAC       *rbacdelivery.Handler
@@ -109,14 +113,16 @@ func (t *taxOrphanEnqueuer) EnqueueOrphanCleanupForFileID(ctx context.Context, f
 func Wire(db *gorm.DB, rdb *redis.Client) (*Services, *Handlers, error) {
 	core := wireCore(db, rdb)
 	instSvc, instHandler := wireInstructor(db, core.RBAC, core.Auth, core.UserRepo, core.FileRepo)
+	courseSvc, courseHandler := wireCourse(db)
 	mediaGW := mediainfra.NewStorageGateway()
 
 	svcs := &Services{
-		Auth: core.Auth, Media: core.Media, Taxonomy: core.Taxonomy,
+		Auth: core.Auth, Course: courseSvc, Media: core.Media, Taxonomy: core.Taxonomy,
 		RBAC: core.RBAC, System: core.System, Instructor: instSvc,
 	}
 	handlers := &Handlers{
 		Auth:       authdelivery.NewHandler(core.Auth, &rbacPermissionUseCase{svc: core.RBAC}),
+		Course:     courseHandler,
 		Media:      mediadelivery.NewHandler(core.Media, mediaGW),
 		Taxonomy:   taxdelivery.NewHandler(core.Taxonomy),
 		RBAC:       rbacdelivery.NewHandler(core.RBAC),

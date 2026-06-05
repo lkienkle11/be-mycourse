@@ -8,43 +8,21 @@ ALTER TABLE instructor_expertise_topics
 ALTER TABLE instructor_expertise_skills
     ADD COLUMN IF NOT EXISTS deleted_at BIGINT;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'instructor_expertise_topics' AND column_name = 'topic_id'
-    ) THEN
-        ALTER TABLE instructor_expertise_topics ADD COLUMN topic_id BIGINT;
-    END IF;
+-- Avoid DO $$ blocks because golang-migrate is configured with
+-- MultiStatementEnabled, which can split PL/pgSQL blocks by semicolons.
+ALTER TABLE instructor_expertise_topics
+    ADD COLUMN IF NOT EXISTS topic_id BIGINT;
+UPDATE instructor_expertise_topics
+SET topic_id = (to_jsonb(instructor_expertise_topics) ->> 'course_topic_id')::BIGINT
+WHERE topic_id IS NULL
+  AND (to_jsonb(instructor_expertise_topics) ->> 'course_topic_id') IS NOT NULL;
 
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'instructor_expertise_topics' AND column_name = 'course_topic_id'
-    ) THEN
-        UPDATE instructor_expertise_topics
-        SET topic_id = course_topic_id
-        WHERE topic_id IS NULL;
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'instructor_expertise_skills' AND column_name = 'skill_id'
-    ) THEN
-        ALTER TABLE instructor_expertise_skills ADD COLUMN skill_id BIGINT;
-    END IF;
-
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'instructor_expertise_skills' AND column_name = 'course_skill_id'
-    ) THEN
-        UPDATE instructor_expertise_skills
-        SET skill_id = course_skill_id
-        WHERE skill_id IS NULL;
-    END IF;
-END $$;
+ALTER TABLE instructor_expertise_skills
+    ADD COLUMN IF NOT EXISTS skill_id BIGINT;
+UPDATE instructor_expertise_skills
+SET skill_id = (to_jsonb(instructor_expertise_skills) ->> 'course_skill_id')::BIGINT
+WHERE skill_id IS NULL
+  AND (to_jsonb(instructor_expertise_skills) ->> 'course_skill_id') IS NOT NULL;
 
 ALTER TABLE instructor_expertise_topics
     DROP CONSTRAINT IF EXISTS uix_instructor_expertise_topics_user_topic;

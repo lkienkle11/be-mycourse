@@ -122,7 +122,7 @@ main.go
   └── appcli MaybeRun*        — optional CLI short-circuit (register / login)
   └── supabasepkg.Setup()     — Supabase HTTP client (optional)
   └── mediainfra.Setup()      — init B2/Bunny SDK
-  └── maybeMigrateFromEnv()   — apply SQL migrations if MIGRATE=1
+  └── maybeMigrateFromEnv()   — SQL migration mode (`MIGRATE=1` up then continue startup; `MIGRATE=2` down by file then exit)
   └── server.Wire(db, redis)  — dependency injection
   └── mediajobs.StartMediaPendingCleanupJob() — background worker
   └── server.InitRouter(svcs, handlers)
@@ -158,7 +158,7 @@ main.go
 
 - YAML files under `config/` (`app.yaml`, `app-<STAGE>.yaml`) with values replaced from environment variables.
 - `STAGE` environment variable selects the config file (e.g. `STAGE=prod` loads `app-prod.yaml`).
-- Key environment variables: `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_BASE_URL`, `APP_CLIENT_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `MIGRATE`, `CLI_REGISTER_NEW_SYSTEM_USER`, `CLI_SYSTEM_LOGIN`.
+- Key environment variables: `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_BASE_URL`, `APP_CLIENT_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `MIGRATE`, `MIGRATE_VERSION_FILE`, `CLI_REGISTER_NEW_SYSTEM_USER`, `CLI_SYSTEM_LOGIN`.
 
 ---
 

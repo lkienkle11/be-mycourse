@@ -15,8 +15,8 @@
 5. Optional CLI branch (`internal/appcli`) can short-circuit server startup (guarded by `cli_guard.go`).
 6. Setup Supabase clients.
 7. Setup media SDK clients.
-8. Optional SQL migration if `MIGRATE=1`.
-9. Wire dependencies (`server.Wire`).
+8. Optional SQL migration mode: `MIGRATE=1` runs up migration then continues startup; `MIGRATE=2` runs down by `MIGRATE_VERSION_FILE` then exits.
+9. Wire dependencies (`server.Wire`) unless startup exited in `MIGRATE=2`.
 10. Start background jobs (media pending cleanup).
 11. Build router and serve HTTP.
 

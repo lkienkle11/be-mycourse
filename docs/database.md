@@ -8,6 +8,12 @@ Run pending migrations:
 MIGRATE=1 go run .
 ```
 
+Rollback by specific migration file (down):
+
+```bash
+MIGRATE=2 MIGRATE_VERSION_FILE=000016_course_management.down.sql go run .
+```
+
 See `migrations/README.md` for migration conventions (semicolon splitting, `COMMENT` rules, rollback).
 
 ## Code ↔ table names

@@ -69,8 +69,10 @@ SUPABASE_SERVICE_ROLE_KEY=... # Supabase service role key
 APP_BASE_URL=https://api.mycourse.io   # Public base URL (no trailing slash)
 CORS_ALLOWED_ORIGINS=http://localhost:3000,https://mycourse.io
 
-# Optional: run DB migrations on startup
-# MIGRATE=1
+# Optional: DB migrations
+# MIGRATE=1  # apply pending up migrations, then continue normal server startup
+# MIGRATE=2  # apply down migration target from MIGRATE_VERSION_FILE
+# MIGRATE_VERSION_FILE=000016_course_management.down.sql
 
 # Optional: register first system user then exit
 # CLI_REGISTER_NEW_SYSTEM_USER=1
@@ -105,7 +107,14 @@ After pulling commits that add files under `migrations/`, apply them on **every*
 MIGRATE=1 go run .
 ```
 
-The server still starts HTTP after migrate (see **`docs/deploy.md`** — Troubleshooting). Prefer: stop PM2 → `MIGRATE=1 go run .` once → restart without `MIGRATE` on every boot unless you accept migrate-on-start.
+`MIGRATE=1` runs pending up migrations, then continues normal server startup.  
+For rollback by a specific migration file:
+
+```bash
+MIGRATE=2 MIGRATE_VERSION_FILE=000016_course_management.down.sql go run .
+```
+
+`MIGRATE=2` requires a valid `*.down.sql` filename in `MIGRATE_VERSION_FILE`, migrates to `version(file)-1`, then exits. It refuses to run when `schema_migrations` is dirty or when target is not below current version.
 
 **Verify** (requires `psql`; Homebrew: `brew install libpq` then `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"`):
 

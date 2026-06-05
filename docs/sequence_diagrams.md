@@ -89,8 +89,12 @@ sequenceDiagram
     Redis-->>Main: ok
 
     alt MIGRATE=1
-        Main->>DB: models.MigrateDatabase() — apply pending SQL files
+        Main->>DB: shareddb.MigrateDatabase() — apply pending SQL files
         DB-->>Main: migrations applied
+    else MIGRATE=2 + MIGRATE_VERSION_FILE
+        Main->>DB: shareddb.MigrateDatabaseDownByFile() — down to version(file)-1
+        DB-->>Main: rollback applied
+        Main->>OS: os.Exit(0)
     end
 
     Main->>Config: config.InitSystem() — load system_app_config

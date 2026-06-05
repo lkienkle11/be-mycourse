@@ -1,65 +1,86 @@
 # PostgreSQL migrations
 
-Các file `*_up.sql` được **nhúng (embed)** vào binary (`migrations/embed.go`) và chạy theo **số version** ở đầu tên file (`000001`, `000002`, …). Bảng `schema_migrations` trên Postgres ghi version đã áp dụng.
+`*_up.sql` files are embedded into the binary (`migrations/embed.go`) and executed by version number prefix (`000001`, `000002`, ...). PostgreSQL stores the applied version in `schema_migrations`.
 
-## Chuỗi hiện tại
+## Current migration chain
 
-| File | Nội dung |
+| File | Description |
 |------|----------|
-| `000001_schema` | RBAC + `users` (kể cả `refresh_token_session`), seed quyền/role. |
-| `000002_taxonomy_domain` | Taxonomy: `course_levels`, `categories`, `tags`, … |
-| `000003_media_metadata` | Bảng **`media_files`** (upload gateway), index. |
-| `000004_media_orphan_safety` | Cột `media_files.row_version`, `content_fingerprint`; bảng **`media_pending_cloud_cleanup`**. |
-| `000005_media_bunny_response_fields` | Cột **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** (Bunny parity / API `UploadFileResponse` — xem `docs/modules/media.md`). |
-| `000006_taxonomy_user_media_refs` | `categories.image_file_id` + `users.avatar_file_id` (FK → `media_files.id`); drop cột URL thuần `image_url` / `avatar_url`; backfill FK từ URL khớp `media_files.url` / `origin_url`. |
-| `000007_registration_email_limits` | Cột **`users.registration_email_send_total`** (đếm email xác nhận gửi thành công khi pending; reset khi confirm). |
-| `000008_media_metadata_json_storage` | Đảm bảo **`media_files.metadata_json`** là JSONB server-side metadata store, backfill typed keys như **`duration_seconds`**, **`width_bytes`**, **`height_bytes`**, **`fps`**, và thêm GIN index **`idx_media_files_metadata_json_gin`** để query provider metadata khi cần. |
-| `000009_taxonomy_topics_outcomes_skills` | Đổi `categories` → **`course_topics`** + `child_topics` JSONB, bảng **`course_outcomes`** / **`course_skills`**, đổi P18–P21 thành **`topic:*`**, seed P30–P37 **`course_outcome:*`** / **`course_skill:*`**. |
-| `000010_role_modify_permissions` | Seed P38–P40 **`sysadmin:modify`** / **`admin:modify`** / **`instructor:modify`** và gán theo role tier (sysadmin → cả ba, admin → P39–P40, instructor → P40). |
-| `000011_audit_timestamps_bigint` | Đổi cột audit **`created_at`**, **`updated_at`**, **`deleted_at`** (nơi có) từ `TIMESTAMPTZ` sang **`BIGINT`** Unix epoch seconds. **Bắt buộc `DROP DEFAULT` trước `ALTER TYPE`** (Postgres không cast `DEFAULT NOW()` sang `BIGINT` tự động), rồi `SET DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)`. |
-| `000012_soft_delete_taxonomy_users_ban` | **`deleted_at`** trên 5 bảng taxonomy + partial unique slug indexes, cột **`users.banned_until`** (Unix seconds, thời điểm hết ban). |
-| `000013_instructor_management` | **`users.phone`**; bảng instructor (applications, profiles, expertise, tickets, messages); seed **P41–P58** + gán role. Xem **`docs/modules/instructor.md`**. |
+| `000001_schema` | RBAC + `users` (including `refresh_token_session`), seed permissions/roles. |
+| `000002_taxonomy_domain` | Taxonomy: `course_levels`, `categories`, `tags`, etc. |
+| `000003_media_metadata` | Creates **`media_files`** (upload gateway) + indexes. |
+| `000004_media_orphan_safety` | Adds `media_files.row_version`, `content_fingerprint`; creates **`media_pending_cloud_cleanup`**. |
+| `000005_media_bunny_response_fields` | Adds **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** (Bunny parity / API `UploadFileResponse`, see `docs/modules/media.md`). |
+| `000006_taxonomy_user_media_refs` | Adds `categories.image_file_id` + `users.avatar_file_id` (FK → `media_files.id`); drops plain URL columns `image_url` / `avatar_url`; backfills FKs from matching URLs (`media_files.url` / `origin_url`). |
+| `000007_registration_email_limits` | Adds **`users.registration_email_send_total`** (successful confirmation-email count while pending; reset on confirm). |
+| `000008_media_metadata_json_storage` | Ensures **`media_files.metadata_json`** is JSONB server-side metadata storage; backfills typed keys such as **`duration_seconds`**, **`width_bytes`**, **`height_bytes`**, **`fps`**; adds GIN index **`idx_media_files_metadata_json_gin`**. |
+| `000009_taxonomy_topics_outcomes_skills` | Renames `categories` → **`course_topics`** + `child_topics` JSONB, adds **`course_outcomes`** / **`course_skills`**, renames P18–P21 to **`topic:*`**, seeds P30–P37 **`course_outcome:*`** / **`course_skill:*`**. |
+| `000010_role_modify_permissions` | Seeds P38–P40 **`sysadmin:modify`** / **`admin:modify`** / **`instructor:modify`** and grants by role tier (sysadmin -> all three, admin -> P39–P40, instructor -> P40). |
+| `000011_audit_timestamps_bigint` | Converts audit columns **`created_at`**, **`updated_at`**, **`deleted_at`** (where present) from `TIMESTAMPTZ` to **`BIGINT`** Unix epoch seconds. **Must `DROP DEFAULT` before `ALTER TYPE`**, then `SET DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)`. |
+| `000012_soft_delete_taxonomy_users_ban` | Adds **`deleted_at`** to 5 taxonomy tables + partial unique slug indexes; adds **`users.banned_until`** (Unix seconds ban-lift timestamp). |
+| `000013_instructor_management` | Adds **`users.phone`**; creates instructor tables (applications, profiles, expertise, tickets, messages); seeds **P41–P58** + role grants. See **`docs/modules/instructor.md`**. |
 
-**Xóa toàn bộ bảng bằng SQL (đúng thứ tự FK):** xem `docs/database.md` — mục **Drop All Tables**; khi thêm bảng mới cập nhật danh sách `DROP TABLE` tương ứng.
+**Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 
-**Quy ước:** `permission_id` dạng `P{number}`; `permission_name` dạng `resource:action` (JWT / `RequirePermission`). Catalog đầy đủ **P1–P58** nằm trong `internal/shared/constants/permissions.go`. Khi thêm quyền mới: cập nhật file đó, (tuỳ chọn) migration seed, rồi `go run ./cmd/syncpermissions` trên môi trường đã có dữ liệu. Ma trận role: `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Chi tiết bảng/cột: **`docs/database.md`**.
+**Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P58** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/database.md`**.
 
-**COMMENT / chuỗi SQL và `golang-migrate`:** runner tách file theo **mọi** dấu `;` (không hiểu cú pháp SQL). Vì vậy **không** được có `;` bên trong chuỗi (`'…'`), trong **`$$…$$`**, v.v. — chỉ dùng `;` làm kết thúc từng câu lệnh. Trong `COMMENT ON … IS '…'`, viết mô tả bằng dấu chấm/phẩy thay cho `;` — ví dụ `000007_registration_email_limits.up.sql`.
+**COMMENT / SQL strings with `golang-migrate`:** the runner splits files by **every** `;` (no SQL parser). Therefore, do **not** place `;` inside strings (`'...'`), inside **`$$...$$`**, etc. Use `;` only to terminate statements. In `COMMENT ON ... IS '...'`, avoid `;` in comment text (use punctuation like commas or periods), e.g. `000007_registration_email_limits.up.sql`.
 
-**Đổi kiểu cột có DEFAULT:** khi `ALTER COLUMN … TYPE` mà default cũ không cast được (ví dụ `TIMESTAMPTZ DEFAULT NOW()` → `BIGINT`), chạy theo thứ tự: `DROP DEFAULT` → `ALTER TYPE … USING …` → `SET DEFAULT` mới. Lỗi `default for column "created_at" cannot be cast automatically to type bigint` nghĩa là thiếu bước `DROP DEFAULT` — xem `000011_audit_timestamps_bigint.up.sql`.
+**Changing column type with DEFAULT:** when `ALTER COLUMN ... TYPE` cannot cast the old default (e.g. `TIMESTAMPTZ DEFAULT NOW()` -> `BIGINT`), run in this order: `DROP DEFAULT` -> `ALTER TYPE ... USING ...` -> `SET DEFAULT` (new value). Error `default for column "created_at" cannot be cast automatically to type bigint` means `DROP DEFAULT` was skipped; see `000011_audit_timestamps_bigint.up.sql`.
 
-**Version ≥ 11 nhưng cột vẫn `timestamptz`:** `schema_migrations` có thể đã tăng version mà SQL `000011` chưa chạy hết. Verify bằng `information_schema` (xem **`docs/deploy.md`** — Troubleshooting), rồi chạy lại `psql … -f migrations/000011_audit_timestamps_bigint.up.sql`.
+**Version >= 11 but column still `timestamptz`:** `schema_migrations` may have advanced while SQL `000011` did not fully apply. Verify via `information_schema` (see **`docs/deploy.md`** -> Troubleshooting), then re-run `psql ... -f migrations/000011_audit_timestamps_bigint.up.sql`.
 
-## Cách chạy migration với Gin / server hiện tại
+## How to run migrations in current server flow
 
-1. Cấu hình Postgres giống lúc chạy app (`config/app.yaml` + `.env` — mục `[database]`).
-2. Trong **PowerShell**:
+1. Configure PostgreSQL exactly like the running app (`config/app.yaml` + `.env` -> `[database]` section).
+2. In **PowerShell**:
 
 ```powershell
 $env:MIGRATE = "1"
 go run .
 ```
 
-Hoặc build rồi chạy:
+Or run the built binary:
 
 ```powershell
 $env:MIGRATE = "1"
 .\mycourse-io-be.exe
 ```
 
-3. App sẽ migrate rồi khởi động Gin. Muốn chỉ migrate rồi thoát, có thể `Ctrl+C` sau log thành công.
+3. With `MIGRATE=1`, the app runs **up migration and then continues normal startup** (Gin still starts).
 
-## Thêm migration mới
+4. Roll back by a specific migration file (PowerShell):
 
-1. Tạo cặp `00000N_mô_tả.up.sql` và `00000N_mô_tả.down.sql` (tăng số so với bản mới nhất).
-2. **golang-migrate** tách lệnh theo `;` và **không** bỏ qua comment `--` — **không đặt `;` trong cùng dòng `-- ...`** (sẽ cắt nhầm). Tránh mọi `;` “thừa” trong file (kể cả trong chuỗi / dollar-quote); xem mục **COMMENT** ở trên.
-3. `go build` để embed file mới.
-4. Cập nhật bảng trên trong **`migrations/README.md`** và **`docs/database.md`** (Migration history + bảng chi tiết nếu cần).
+```powershell
+$env:MIGRATE = "2"
+$env:MIGRATE_VERSION_FILE = "000016_course_management.down.sql"
+go run .
+```
+
+`MIGRATE=2` is rollback-only: the app parses version from `MIGRATE_VERSION_FILE`, migrates DB to `version-1`, then exits.
+
+## Add a new migration
+
+1. Create a pair: `00000N_description.up.sql` and `00000N_description.down.sql` (increment from latest version).
+2. **golang-migrate** splits on `;` and does **not** safely ignore inline comment content — do **not** put `;` in `-- ...` comment lines. Avoid extra `;` anywhere (including strings / dollar-quoted blocks); see **COMMENT** note above.
+3. Run `go build` to embed the new SQL files.
+4. Update this table in **`migrations/README.md`** and **`docs/database.md`** (migration history + detailed table notes when needed).
 
 ## Rollback (down)
 
-App **không** tự chạy `.down.sql`. Rollback: chạy tay SQL down theo thứ tự ngược version, hoặc chỉnh `schema_migrations` khi hiểu rủi ro.
+App supports rollback via env:
 
-## RBAC phẳng
+- `MIGRATE=2`
+- `MIGRATE_VERSION_FILE=<file>.down.sql`
 
-Không có hierarchy role. Quyền hiệu lực = hợp quyền từ mọi role của user + `user_permissions`. Sau khi user xác nhận email, app gán role `learner` (cần đã chạy `000001`).
+Rules:
+
+- Accepts only `.down.sql` filenames.
+- Reads version from the numeric filename prefix (e.g. `000016_*`).
+- Down target = `version - 1` (e.g. `000016...down.sql` targets version 15).
+- Refuses rollback when `schema_migrations` is `dirty`.
+- Refuses rollback when current version is not greater than target.
+
+## Flat RBAC model
+
+No role hierarchy. Effective permissions = union of all role permissions for the user + `user_permissions`. After email confirmation, the app assigns role `learner` (requires `000001` to be applied).

@@ -41,6 +41,34 @@
 22. [JWT Auth Middleware Flow](#22-jwt-auth-middleware-flow)
 23. [RequirePermission Middleware Flow](#23-requirepermission-middleware-flow)
 
+---
+
+## 24. Course Draft Review (high-level)
+
+**Description:** Instructor submits a draft for review; admin approves or rejects.
+
+```mermaid
+sequenceDiagram
+    participant Inst as Instructor
+    participant CourseAPI as /api/v1/courses
+    participant CourseSvc as internal/course/application
+    participant DB as PostgreSQL
+    participant Admin as Admin
+    participant ReviewAPI as /api/v1/course-reviews
+
+    Inst->>CourseAPI: POST /courses/:courseId/submit-review
+    CourseAPI->>CourseSvc: SubmitForReview(courseId, actor)
+    CourseSvc->>DB: validate collaborator + draft state
+    CourseSvc->>DB: update course_versions.status DRAFT -> IN_REVIEW
+    CourseSvc-->>Inst: updated course detail
+
+    Admin->>ReviewAPI: POST /course-reviews/:courseId/approve
+    ReviewAPI->>CourseSvc: ApproveDraft(courseId, admin)
+    CourseSvc->>DB: update status -> APPROVED
+    CourseSvc->>DB: update courses.current_published_version_id
+    CourseSvc-->>Admin: updated course detail
+```
+
 **Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
 
 ---

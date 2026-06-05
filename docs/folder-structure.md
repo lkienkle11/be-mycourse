@@ -164,13 +164,13 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `setting/` | `setting.Setup()`, config structs (`ServerSetting`, `DatabaseSetting`, `MediaSetting`, `LogSetting`, …) |
 | `logger/` | `logger.InitFromSettings()`, `logger.Sync()`, `logger.FromContext()`, `logger.WithRequestID()` |
 | `middleware/` | `AuthJWT`, `RequirePermission`, `RequireInternalAPIKey`, `RequireSystemAccessToken`, `RateLimitLocal`, `RateLimitSystemIP`, `CircuitBreakerMiddleware`, `BeforeInterceptor`, `RequestLogger` |
-| `response/` | `response.OK`, `response.Created`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |
+| `response/` | `response.OK`, `response.Created`, `response.WriteByStatus`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |
 | `token/` | JWT sign/parse for access and refresh tokens |
 | `validate/` | Validator setup, error flattening for Gin binding |
 | `taxonomy/` | `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs` |
 | `httperr/` | `Middleware`, `Recovery`, `HTTPError`, `Abort` |
 | `parsebool/` | `Loose`, `EnvEnabled` — env/YAML boolean strings |
-| `utils/` | `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`) |
+| `utils/` | `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`), `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON` |
 | `brevo/` | Brevo SMTP HTTP wrapper + `constants.go` |
 | `mailtmpl/` | HTML email template rendering + `constants.go` |
 | `errors/` | Sentinel `Err*` vars and error code constants |

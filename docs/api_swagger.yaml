@@ -94,6 +94,8 @@ tags:
   - name: Me
   - name: Taxonomy
   - name: Media
+  - name: Course
+  - name: Instructor
   - name: Webhooks
   - name: System
   - name: Internal RBAC
@@ -709,6 +711,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/LoginSessionTokensResponse"
 
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (revoke refresh session)
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+        - name: X-Refresh-Token
+          in: header
+          required: true
+          schema: { type: string }
+          example: "{{REFRESH_TOKEN}}"
+        - name: X-Session-Id
+          in: header
+          required: true
+          schema: { type: string }
+          example: "{{SESSION_ID}}"
+      responses:
+        "200":
+          description: Session revoked and auth cookies cleared
+        "400":
+          description: Missing required headers
+        "401":
+          description: Invalid session
+
   /api/v1/me:
     get:
       tags: [Me]
@@ -798,6 +825,16 @@ paths:
         "201":
           description: Created
 
+  /api/v1/taxonomy/levels/full:
+    get:
+      tags: [Taxonomy]
+      summary: List course levels including soft-deleted rows
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Paginated list including deleted rows
+
   /api/v1/taxonomy/levels/{id}:
     parameters:
       - name: id
@@ -825,6 +862,21 @@ paths:
       responses:
         "200":
           description: OK
+
+  /api/v1/taxonomy/levels/{id}/hard:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      tags: [Taxonomy]
+      summary: Hard delete course level
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Hard deleted
 
   /api/v1/taxonomy/topics:
     get:
@@ -868,6 +920,16 @@ paths:
         "201":
           description: Created
 
+  /api/v1/taxonomy/topics/full:
+    get:
+      tags: [Taxonomy]
+      summary: List course topics including soft-deleted rows
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Paginated list including deleted rows
+
   /api/v1/taxonomy/topics/{id}:
     parameters:
       - name: id
@@ -897,6 +959,21 @@ paths:
       responses:
         "200":
           description: OK
+
+  /api/v1/taxonomy/topics/{id}/hard:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      tags: [Taxonomy]
+      summary: Hard delete course topic
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Hard deleted
 
   /api/v1/taxonomy/outcomes:
     get:
@@ -940,6 +1017,16 @@ paths:
         "201":
           description: Created
 
+  /api/v1/taxonomy/outcomes/full:
+    get:
+      tags: [Taxonomy]
+      summary: List course outcomes including soft-deleted rows
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Paginated list including deleted rows
+
   /api/v1/taxonomy/outcomes/{id}:
     parameters:
       - name: id
@@ -969,6 +1056,21 @@ paths:
       responses:
         "200":
           description: OK
+
+  /api/v1/taxonomy/outcomes/{id}/hard:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      tags: [Taxonomy]
+      summary: Hard delete course outcome
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Hard deleted
 
   /api/v1/taxonomy/skills:
     get:
@@ -1012,6 +1114,16 @@ paths:
         "201":
           description: Created
 
+  /api/v1/taxonomy/skills/full:
+    get:
+      tags: [Taxonomy]
+      summary: List course skills including soft-deleted rows
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Paginated list including deleted rows
+
   /api/v1/taxonomy/skills/{id}:
     parameters:
       - name: id
@@ -1041,6 +1153,21 @@ paths:
       responses:
         "200":
           description: OK
+
+  /api/v1/taxonomy/skills/{id}/hard:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      tags: [Taxonomy]
+      summary: Hard delete course skill
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Hard deleted
 
   /api/v1/taxonomy/tags:
     get:
@@ -1084,6 +1211,16 @@ paths:
         "201":
           description: Created
 
+  /api/v1/taxonomy/tags/full:
+    get:
+      tags: [Taxonomy]
+      summary: List tags including soft-deleted rows
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Paginated list including deleted rows
+
   /api/v1/taxonomy/tags/{id}:
     parameters:
       - name: id
@@ -1111,6 +1248,21 @@ paths:
       responses:
         "200":
           description: OK
+
+  /api/v1/taxonomy/tags/{id}/hard:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      tags: [Taxonomy]
+      summary: Hard delete tag
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Hard deleted
 
   /api/v1/media/files:
     get:
@@ -1183,6 +1335,27 @@ paths:
                 $ref: "#/components/schemas/EnvelopeOK"
         "413":
           description: File too large
+
+  /api/v1/media/files/batch-delete:
+    post:
+      tags: [Media]
+      summary: Batch delete media files
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [object_keys]
+              properties:
+                object_keys:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Deleted
 
   /api/v1/media/files/cleanup-metrics:
     get:
@@ -1298,6 +1471,1238 @@ paths:
       responses:
         "200":
           description: OK
+
+  /api/v1/courses/my:
+    get:
+      tags: [Course]
+      summary: List editable courses for current instructor
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/courses:
+    post:
+      tags: [Course]
+      summary: Create course root
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, title]
+              properties:
+                slug: { type: string, minLength: 3, maxLength: 255 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/courses/{courseId}:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Course]
+      summary: Get course detail (published + draft context)
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Course]
+      summary: Delete course (owner only)
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/courses/{courseId}/draft/prepare:
+    post:
+      tags: [Course]
+      summary: Ensure active draft exists for course
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/courses/{courseId}/basic-info:
+    patch:
+      tags: [Course]
+      summary: Update draft basic info
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_row_version]
+              properties:
+                expected_row_version: { type: integer, format: int64, minimum: 1 }
+                title: { type: string }
+                short_description: { type: string }
+                about_course: { type: string }
+                thumbnail_file_id: { type: string, format: uuid }
+                preview_video_file_id: { type: string, format: uuid }
+                course_level_id: { type: integer }
+                course_topic_id: { type: integer }
+                tag_ids:
+                  type: array
+                  items: { type: integer }
+                skill_ids:
+                  type: array
+                  items: { type: integer }
+                outcome_ids:
+                  type: array
+                  items: { type: integer }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/courses/{courseId}/collaborators:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Course]
+      summary: List collaborators
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Course]
+      summary: Add collaborator
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: integer }
+                role: { type: string, enum: [OWNER, EDITOR] }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/courses/{courseId}/collaborators/{userId}:
+    delete:
+      tags: [Course]
+      summary: Remove collaborator
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/courses/{courseId}/sections:
+    post:
+      tags: [Course]
+      summary: Create section
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                expected_row_version: { type: integer, format: int64 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+                description: { type: string }
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/courses/{courseId}/sections/{sectionId}:
+    patch:
+      tags: [Course]
+      summary: Update section
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: sectionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                expected_row_version: { type: integer, format: int64 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+                description: { type: string }
+      responses:
+        "200":
+          description: Updated
+    delete:
+      tags: [Course]
+      summary: Delete section
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: sectionId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/courses/{courseId}/sections/reorder:
+    post:
+      tags: [Course]
+      summary: Reorder sections by stable id
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ordered_stable_ids]
+              properties:
+                ordered_stable_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/courses/{courseId}/lessons:
+    post:
+      tags: [Course]
+      summary: Create lesson
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [section_id, title]
+              properties:
+                section_id: { type: integer }
+                expected_row_version: { type: integer, format: int64 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+                summary: { type: string }
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/courses/{courseId}/lessons/{lessonId}:
+    patch:
+      tags: [Course]
+      summary: Update lesson
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: lessonId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [section_id, title]
+              properties:
+                section_id: { type: integer }
+                expected_row_version: { type: integer, format: int64 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+                summary: { type: string }
+      responses:
+        "200":
+          description: Updated
+    delete:
+      tags: [Course]
+      summary: Delete lesson
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: lessonId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/courses/{courseId}/sections/{sectionId}/lessons/reorder:
+    post:
+      tags: [Course]
+      summary: Reorder lessons in section
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: sectionId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ordered_stable_ids]
+              properties:
+                ordered_stable_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/courses/{courseId}/sub-lessons:
+    post:
+      tags: [Course]
+      summary: Create sub-lesson
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lesson_id, title, kind]
+              properties:
+                lesson_id: { type: integer }
+                expected_row_version: { type: integer, format: int64 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+                kind: { type: string, enum: [VIDEO, QUIZ, TEXT] }
+                is_preview: { type: boolean }
+                video:
+                  type: object
+                  properties:
+                    media_file_id: { type: string, format: uuid }
+                text:
+                  type: object
+                  properties:
+                    content_delta: { type: string }
+                quiz:
+                  type: object
+                  properties:
+                    prompt: { type: string }
+                    allow_multiple: { type: boolean }
+                    options:
+                      type: array
+                      items:
+                        type: object
+                        required: [body]
+                        properties:
+                          option_key: { type: string, format: uuid }
+                          body: { type: string }
+                          is_correct: { type: boolean }
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/courses/{courseId}/sub-lessons/{subLessonId}:
+    patch:
+      tags: [Course]
+      summary: Update sub-lesson
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: subLessonId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lesson_id, title, kind]
+              properties:
+                lesson_id: { type: integer }
+                expected_row_version: { type: integer, format: int64 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+                kind: { type: string, enum: [VIDEO, QUIZ, TEXT] }
+                is_preview: { type: boolean }
+                video:
+                  type: object
+                  properties:
+                    media_file_id: { type: string, format: uuid }
+                text:
+                  type: object
+                  properties:
+                    content_delta: { type: string }
+                quiz:
+                  type: object
+                  properties:
+                    prompt: { type: string }
+                    allow_multiple: { type: boolean }
+                    options:
+                      type: array
+                      items:
+                        type: object
+                        required: [body]
+                        properties:
+                          option_key: { type: string, format: uuid }
+                          body: { type: string }
+                          is_correct: { type: boolean }
+      responses:
+        "200":
+          description: Updated
+    delete:
+      tags: [Course]
+      summary: Delete sub-lesson
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: subLessonId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/courses/{courseId}/lessons/{lessonId}/sub-lessons/reorder:
+    post:
+      tags: [Course]
+      summary: Reorder sub-lessons in lesson
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: lessonId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ordered_stable_ids]
+              properties:
+                ordered_stable_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/courses/{courseId}/leases/acquire:
+    post:
+      tags: [Course]
+      summary: Acquire edit lease
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [course_version_id, resource_type, resource_stable_id]
+              properties:
+                course_version_id: { type: integer }
+                resource_type: { type: string, enum: [OUTLINE_ROOT, SECTION, LESSON, SUB_LESSON] }
+                resource_stable_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Lease acquired
+
+  /api/v1/courses/{courseId}/leases/heartbeat:
+    post:
+      tags: [Course]
+      summary: Refresh lease TTL
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lease_token]
+              properties:
+                lease_token: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Lease refreshed
+
+  /api/v1/courses/{courseId}/leases/release:
+    post:
+      tags: [Course]
+      summary: Release lease
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lease_token]
+              properties:
+                lease_token: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Lease released
+
+  /api/v1/courses/{courseId}/submit-review:
+    post:
+      tags: [Course]
+      summary: Submit draft for admin review
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/courses/{courseId}/reopen-draft:
+    post:
+      tags: [Course]
+      summary: Reopen rejected draft
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/course-reviews/pending:
+    get:
+      tags: [Course]
+      summary: List pending course drafts for review
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/course-reviews/{courseId}/approve:
+    post:
+      tags: [Course]
+      summary: Approve draft and publish
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/course-reviews/{courseId}/reject:
+    post:
+      tags: [Course]
+      summary: Reject draft with reason
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/learner-courses:
+    get:
+      tags: [Course]
+      summary: List published courses for learners
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/learner-courses/{courseId}:
+    get:
+      tags: [Course]
+      summary: Get learning course detail
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/learner-courses/{courseId}/enroll:
+    post:
+      tags: [Course]
+      summary: Enroll learner into published course
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/learner-courses/{courseId}/progress:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Course]
+      summary: Get learner progress for course
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Course]
+      summary: Save learner progress item
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stable_content_id, content_type, status]
+              properties:
+                stable_content_id: { type: string, format: uuid }
+                content_type: { type: string }
+                status: { type: string, enum: [NOT_STARTED, IN_PROGRESS, COMPLETED] }
+                score: { type: number, format: double }
+                quiz_attempt: { type: string }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/instructors:
+    get:
+      tags: [Instructor]
+      summary: List instructor roster
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated roster
+    post:
+      tags: [Instructor]
+      summary: Add instructor by email
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/instructors/{id}:
+    delete:
+      tags: [Instructor]
+      summary: Remove instructor role from user
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/instructors/{id}/expertise/topics:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Instructor]
+      summary: List expertise topics by user
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Instructor]
+      summary: Add expertise topic
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic_id]
+              properties:
+                topic_id: { type: integer }
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/instructors/{id}/expertise/topics/{topicRowId}:
+    delete:
+      tags: [Instructor]
+      summary: Remove expertise topic row
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: topicRowId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/instructors/{id}/expertise/skills:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Instructor]
+      summary: List expertise skills by user
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Instructor]
+      summary: Add expertise skill
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skill_id]
+              properties:
+                skill_id: { type: integer }
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/instructors/{id}/expertise/skills/{skillRowId}:
+    delete:
+      tags: [Instructor]
+      summary: Remove expertise skill row
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: skillRowId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/instructor-applications:
+    get:
+      tags: [Instructor]
+      summary: List instructor applications
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, approved, rejected] }
+        - name: has_profile
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Paginated applications
+    post:
+      tags: [Instructor]
+      summary: Submit instructor application
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                headline: { type: string }
+                bio: { type: string }
+                years_of_experience: { type: integer }
+                current_job_title: { type: string }
+                current_company: { type: string }
+                cv_file_id: { type: string }
+                linkedin_url: { type: string }
+                github_url: { type: string }
+                portfolio_links:
+                  type: array
+                  items: { type: string }
+                certificates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title: { type: string }
+                      issuer: { type: string }
+                      issued_year: { type: integer }
+                      credential_url: { type: string }
+                intro_video_file_id: { type: string }
+      responses:
+        "200":
+          description: Submitted
+
+  /api/v1/instructor-applications/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Instructor]
+      summary: Get instructor application detail
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Instructor]
+      summary: Delete instructor application
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/instructor-applications/{id}/approve:
+    post:
+      tags: [Instructor]
+      summary: Approve instructor application
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Approved
+
+  /api/v1/instructor-applications/{id}/reject:
+    post:
+      tags: [Instructor]
+      summary: Reject instructor application
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejection_reason]
+              properties:
+                rejection_reason: { type: string }
+      responses:
+        "200":
+          description: Rejected
+
+  /api/v1/instructor-profiles:
+    get:
+      tags: [Instructor]
+      summary: List instructor profiles
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated profiles
+    post:
+      tags: [Instructor]
+      summary: Upsert own instructor profile
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                headline: { type: string }
+                bio: { type: string }
+                years_of_experience: { type: integer }
+                current_job_title: { type: string }
+                current_company: { type: string }
+                cv_file_id: { type: string }
+                linkedin_url: { type: string }
+                github_url: { type: string }
+                portfolio_links:
+                  type: array
+                  items: { type: string }
+                certificates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title: { type: string }
+                      issuer: { type: string }
+                      issued_year: { type: integer }
+                      credential_url: { type: string }
+                intro_video_file_id: { type: string }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/instructor-profiles/me:
+    get:
+      tags: [Instructor]
+      summary: Get own instructor profile
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/instructor-profiles/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Instructor]
+      summary: Get instructor profile by user id
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Instructor]
+      summary: Upsert instructor profile by user id
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                headline: { type: string }
+                bio: { type: string }
+                years_of_experience: { type: integer }
+                current_job_title: { type: string }
+                current_company: { type: string }
+                cv_file_id: { type: string }
+                linkedin_url: { type: string }
+                github_url: { type: string }
+                portfolio_links:
+                  type: array
+                  items: { type: string }
+                certificates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title: { type: string }
+                      issuer: { type: string }
+                      issued_year: { type: integer }
+                      credential_url: { type: string }
+                intro_video_file_id: { type: string }
+      responses:
+        "200":
+          description: Updated
+    delete:
+      tags: [Instructor]
+      summary: Delete instructor profile by user id
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Deleted
+
+  /api/v1/instructor-tickets:
+    get:
+      tags: [Instructor]
+      summary: List instructor tickets
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, closed] }
+        - name: scope
+          in: query
+          schema: { type: string, enum: [mine, all], default: mine }
+      responses:
+        "200":
+          description: Paginated tickets
+    post:
+      tags: [Instructor]
+      summary: Create instructor ticket
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject]
+              properties:
+                subject: { type: string }
+      responses:
+        "200":
+          description: Created
+
+  /api/v1/instructor-tickets/{id}/close:
+    post:
+      tags: [Instructor]
+      summary: Close ticket
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Closed
+
+  /api/v1/instructor-tickets/{id}/messages:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Instructor]
+      summary: List ticket messages
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Instructor]
+      summary: Add ticket message
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        "200":
+          description: Created
+
+  /api/v1/instructor-stubs/assignments:
+    get:
+      tags: [Instructor]
+      summary: Placeholder assignments endpoint
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Coming soon
+
+  /api/v1/instructor-stubs/activity-log:
+    get:
+      tags: [Instructor]
+      summary: Placeholder activity log endpoint
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Coming soon
 
   /api/system/permission-sync-now:
     post:

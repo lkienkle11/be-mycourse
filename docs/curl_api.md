@@ -1237,15 +1237,9 @@ curl -X DELETE {{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions/P8 
 
 ---
 
-## 10. Deprecated / Planned APIs
+## 10. Deprecated APIs
 
-| Status | Endpoint | Notes |
-|--------|----------|-------|
-| 🔜 Planned | `GET /api/v1/courses` | Course listing — not yet implemented |
-| 🔜 Planned | `POST /api/v1/courses` | Course creation — not yet implemented |
-| 🔜 Planned | `GET /api/v1/courses/:id/lessons` | Lesson listing — not yet implemented |
-| 🔜 Planned | `POST /api/v1/enrollments` | Enrollment — not yet implemented |
-> No endpoints are currently marked as **deprecated**. When an endpoint is deprecated it will be listed here with the deprecation date, reason, and replacement.
+No endpoints are currently marked as **deprecated**. When an endpoint is deprecated it will be listed here with the deprecation date, reason, and replacement.
 
 ---
 

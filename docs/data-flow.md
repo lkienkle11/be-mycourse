@@ -3,7 +3,7 @@
 ## Primary Request Flow
 
 1. HTTP request enters the Gin router (`internal/server/router.go`).
-2. Global middleware executes: `RequestLogger` (structured access log + `X-Request-ID`), `httperr.Middleware`, `httperr.Recovery`, CORS, gzip.
+2. Global middleware executes: `RequestLogger` (structured access log + `X-Request-ID`), `CircuitBreakerMiddleware`, `httperr.Middleware`, `httperr.Recovery`, CORS, gzip.
 3. Group middleware executes based on route group (rate limit, JWT auth, active-user DB check, API key, system token).
 4. Delivery handler (in `internal/<domain>/delivery/`) binds and validates the request DTO, then calls the application service.
 5. Application service (`internal/<domain>/application/`) executes business logic using injected domain interfaces (repos, external clients).
@@ -176,6 +176,41 @@ Background job (cleanup_scheduler.go — started in main.go):
   └─ Poll media_pending_cloud_cleanup rows in batches
   └─ Delete cloud objects (B2 or Bunny)
   └─ Mark rows done / remove from table
+```
+
+### Course Authoring + Review
+
+```
+POST/PATCH /api/v1/courses/*  (JWT + course:update)
+  └─ internal/course/delivery/*
+       └─ CourseService (application)
+            ├─ validate collaborator/owner access in repo layer
+            ├─ mutate draft version rows with row_version checks
+            ├─ maintain stable_id for outline resources
+            └─ persist version-scoped sections/lessons/sub-lessons
+
+POST /api/v1/courses/:courseId/submit-review
+  └─ transition DRAFT -> IN_REVIEW
+
+POST /api/v1/course-reviews/:courseId/approve|reject  (admin:modify)
+  └─ transition IN_REVIEW -> APPROVED/REJECTED
+  └─ on approve: update courses.current_published_version_id
+```
+
+### Learner Enrollment + Progress
+
+```
+POST /api/v1/learner-courses/:courseId/enroll
+  └─ CourseService.Enroll
+       ├─ ensure course has published version
+       ├─ create/update enrollment row
+       └─ set current_version_id for learner
+
+GET/POST /api/v1/learner-courses/:courseId/progress
+  └─ CourseService.GetProgress / SaveProgress
+       ├─ load enrollment + current version
+       ├─ read/write progress keyed by stable_content_id
+       └─ keep progress portable across approved version switches
 ```
 
 ---

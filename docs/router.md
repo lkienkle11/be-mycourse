@@ -142,6 +142,78 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | GET | `/api/v1/media/files/local/:token` | `media_file:read` | Decode local signed URL token |
 | GET | `/api/v1/media/videos/:id/status` | `media_file:read` | Bunny video processing status |
 
+#### Course
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| GET | `/api/v1/courses/my` | `course_instructor:read` | List editable courses |
+| POST | `/api/v1/courses` | `course:create` | Create course root |
+| GET | `/api/v1/courses/:courseId` | `course_instructor:read` | Get course detail |
+| POST | `/api/v1/courses/:courseId/draft/prepare` | `course:update` | Ensure one active draft |
+| PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info |
+| DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |
+| GET | `/api/v1/courses/:courseId/collaborators` | `course_instructor:read` | List collaborators |
+| POST | `/api/v1/courses/:courseId/collaborators` | `course:update` | Add collaborator |
+| DELETE | `/api/v1/courses/:courseId/collaborators/:userId` | `course:update` | Remove collaborator |
+| POST | `/api/v1/courses/:courseId/sections` | `course:update` | Create section |
+| PATCH | `/api/v1/courses/:courseId/sections/:sectionId` | `course:update` | Update section |
+| DELETE | `/api/v1/courses/:courseId/sections/:sectionId` | `course:update` | Delete section |
+| POST | `/api/v1/courses/:courseId/sections/reorder` | `course:update` | Reorder sections |
+| POST | `/api/v1/courses/:courseId/lessons` | `course:update` | Create lesson |
+| PATCH | `/api/v1/courses/:courseId/lessons/:lessonId` | `course:update` | Update lesson |
+| DELETE | `/api/v1/courses/:courseId/lessons/:lessonId` | `course:update` | Delete lesson |
+| POST | `/api/v1/courses/:courseId/sections/:sectionId/lessons/reorder` | `course:update` | Reorder lessons |
+| POST | `/api/v1/courses/:courseId/sub-lessons` | `course:update` | Create sub-lesson (`VIDEO`/`QUIZ`/`TEXT`) |
+| PATCH | `/api/v1/courses/:courseId/sub-lessons/:subLessonId` | `course:update` | Update sub-lesson |
+| DELETE | `/api/v1/courses/:courseId/sub-lessons/:subLessonId` | `course:update` | Delete sub-lesson |
+| POST | `/api/v1/courses/:courseId/lessons/:lessonId/sub-lessons/reorder` | `course:update` | Reorder sub-lessons |
+| POST | `/api/v1/courses/:courseId/leases/acquire` | `course:update` | Acquire edit lease |
+| POST | `/api/v1/courses/:courseId/leases/heartbeat` | `course:update` | Refresh edit lease |
+| POST | `/api/v1/courses/:courseId/leases/release` | `course:update` | Release edit lease |
+| POST | `/api/v1/courses/:courseId/submit-review` | `course:update` | Submit draft for review |
+| POST | `/api/v1/courses/:courseId/reopen-draft` | `course:update` | Reopen rejected draft |
+| GET | `/api/v1/course-reviews/pending` | `admin:modify` | List pending drafts |
+| POST | `/api/v1/course-reviews/:courseId/approve` | `admin:modify` | Approve draft/publish |
+| POST | `/api/v1/course-reviews/:courseId/reject` | `admin:modify` | Reject draft with reason |
+| GET | `/api/v1/learner-courses` | `course:read` | List published learner catalog |
+| GET | `/api/v1/learner-courses/:courseId` | `course:read` | Get learning course detail |
+| POST | `/api/v1/learner-courses/:courseId/enroll` | `course:read` | Enroll learner |
+| GET | `/api/v1/learner-courses/:courseId/progress` | `course:read` | Get learner progress |
+| POST | `/api/v1/learner-courses/:courseId/progress` | `course:read` | Save learner progress item |
+
+#### Instructor Management
+
+| Method | Path | Permission | Description |
+|--------|------|-----------|-------------|
+| GET | `/api/v1/instructors` | `instructor_roster:read` | List roster |
+| POST | `/api/v1/instructors` | `instructor_roster:create` | Add roster by email |
+| DELETE | `/api/v1/instructors/:id` | `instructor_roster:delete` | Remove instructor role |
+| GET | `/api/v1/instructors/:id/expertise/topics` | `instructor_expertise:read` | List expertise topics |
+| POST | `/api/v1/instructors/:id/expertise/topics` | `instructor_expertise:create` | Add expertise topic |
+| DELETE | `/api/v1/instructors/:id/expertise/topics/:topicRowId` | `instructor_expertise:delete` | Delete expertise topic row |
+| GET | `/api/v1/instructors/:id/expertise/skills` | `instructor_expertise:read` | List expertise skills |
+| POST | `/api/v1/instructors/:id/expertise/skills` | `instructor_expertise:create` | Add expertise skill |
+| DELETE | `/api/v1/instructors/:id/expertise/skills/:skillRowId` | `instructor_expertise:delete` | Delete expertise skill row |
+| GET | `/api/v1/instructor-applications` | `instructor_application:read` | List applications |
+| POST | `/api/v1/instructor-applications` | `instructor_application:create` | Submit application |
+| GET | `/api/v1/instructor-applications/:id` | `instructor_application:read` | Get application |
+| POST | `/api/v1/instructor-applications/:id/approve` | `instructor_application:approve` | Approve application |
+| POST | `/api/v1/instructor-applications/:id/reject` | `instructor_application:reject` | Reject application |
+| DELETE | `/api/v1/instructor-applications/:id` | `instructor_application:delete` | Delete application |
+| GET | `/api/v1/instructor-profiles` | `instructor_profile:read` | List profiles |
+| GET | `/api/v1/instructor-profiles/me` | `instructor_profile:read` | Get own profile |
+| GET | `/api/v1/instructor-profiles/:id` | `instructor_profile:read` | Get profile by user |
+| POST | `/api/v1/instructor-profiles` | `instructor_profile:create` | Upsert own profile |
+| PATCH | `/api/v1/instructor-profiles/:id` | `instructor_profile:update` | Upsert profile by user |
+| DELETE | `/api/v1/instructor-profiles/:id` | `instructor_profile:delete` | Delete profile |
+| GET | `/api/v1/instructor-tickets` | `instructor_application:read` | List tickets |
+| POST | `/api/v1/instructor-tickets` | `instructor_application:create` | Create ticket |
+| POST | `/api/v1/instructor-tickets/:id/close` | `instructor_ticket:close` | Close ticket |
+| GET | `/api/v1/instructor-tickets/:id/messages` | `instructor_application:read` | List ticket messages |
+| POST | `/api/v1/instructor-tickets/:id/messages` | `instructor_application:create` | Add ticket message |
+| GET | `/api/v1/instructor-stubs/assignments` | `instructor_profile:read` | Placeholder route |
+| GET | `/api/v1/instructor-stubs/activity-log` | `instructor_profile:read` | Placeholder route |
+
 ---
 
 ### `/api/internal-v1` — Internal RBAC administration

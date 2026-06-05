@@ -510,6 +510,17 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Reuse Opportunity:
   - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.
 
+### Asset: Generic normalization / set primitives (utils)
+- Name: `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON`
+- Type: Util
+- Path: `internal/shared/utils/normalize.go`
+- Purpose: Shared helpers for set-equivalence checks, dedupe IDs, nullable SQL update values, and fallback JSON normalization.
+- Scope: Any module handling list reordering, lookup dedupe validation, partial update maps, or JSON text payload defaults.
+- Dependencies: Go stdlib (`sort`, `strings`).
+- Current Usage: `internal/course/infra/*` (reorder checks, version ref validation, sub-lesson text handling, learner progress payload normalization).
+- Reuse Opportunity:
+  - Reuse in other bounded contexts instead of redefining local `nullable*`, `normalize*`, or set-compare helpers.
+
 ### Asset: Taxonomy tree + description validators
 - Name: `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs`
 - Type: Package (`internal/shared/taxonomy`)

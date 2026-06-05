@@ -55,9 +55,11 @@ server/wire    → all layers
 | Context | Path | Responsibility |
 |---------|------|---------------|
 | **auth** | `internal/auth/` | User registration, login, email confirmation, JWT sessions, token refresh |
+| **course** | `internal/course/` | Versioned course authoring, collaboration, review workflow, learner enrollment/progress |
+| **instructor** | `internal/instructor/` | Instructor roster, applications, profiles, expertise, support tickets |
 | **media** | `internal/media/` | File/video upload, B2/Bunny storage, orphan cleanup, webhooks |
 | **rbac** | `internal/rbac/` | Roles, permissions, user-role/user-permission bindings |
-| **taxonomy** | `internal/taxonomy/` | Categories, tags, course levels |
+| **taxonomy** | `internal/taxonomy/` | Course topics, outcomes, skills, tags, levels |
 | **system** | `internal/system/` | Privileged operations, RBAC sync, scheduler control |
 
 ---
@@ -74,13 +76,13 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/logger/` | Uber Zap bootstrap, `WithRequestID`, `FromContext` |
 | `internal/shared/token/` | JWT generation and validation |
 | `internal/shared/middleware/` | Gin middleware: CORS, auth JWT, **active-user guard**, RBAC permission checks, rate limiting, **circuit breaker**, request logger |
-| `internal/shared/response/` | Unified `{ code, message, data }` response envelope |
+| `internal/shared/response/` | Unified `{ code, message, data }` response envelope (`OK`, `Created`, `WriteByStatus`, `OKPaginated`, `Fail`, `AbortFail`) |
 | `internal/shared/validate/` | Request validation helpers |
 | `internal/shared/brevo/` | Brevo SMTP email client |
 | `internal/shared/mailtmpl/` | HTML email templates |
 | `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
 | `internal/shared/constants/` | Cross-domain constants (only 5 files: dbschema names, error messages, media limits, permission IDs, register HTTP headers) |
-| `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint) |
+| `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint, normalization/set helpers) |
 | `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `TouchCreatedUpdated`, `ScopeActiveOnly`, `SoftDeleteWithAudit`) — see **`docs/patterns.md`** |
 | `internal/shared/timex/` | Unix epoch second helpers for audit columns (`NowUnix`, `PtrUnix`) |
 | `internal/shared/cryptox/` | Shared HMAC/JWT helpers (used by auth/system infra) |
@@ -99,9 +101,11 @@ Dependency injection lives in **`internal/server/wire.go`**. The `Wire()` functi
 2. Constructs application services in dependency order:
    - RBAC (no cross-domain deps)
    - System (`SystemService` + `SystemCrypto` port)
+   - Course (`CourseService`)
    - Media (`MediaService` + `MediaGateway` port)
    - Taxonomy (depends on Media for image validation)
    - Auth (depends on RBAC + Media)
+   - Instructor (`InstructorService`, wired through adapters and shared core)
 3. Wraps cross-domain interface adapters (e.g. `rbacPermissionReader`, `mediaProfileImageValidator`).
 4. Passes `MediaGateway` into `mediadelivery.NewHandler(svc, gw)` so delivery stays free of `infra` imports.
 5. Returns `*Services` and `*Handlers` structs.

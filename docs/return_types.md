@@ -2,7 +2,7 @@
 
 
 > This document catalogues **application-layer return types** (`internal/*/application`) and **JSON response shapes** from `internal/*/delivery` handlers.  
-> **Last updated:** 2026-05-24  
+> **Last updated:** 2026-06-05  
 > **Audit timestamps:** `created_at`, `updated_at`, `deleted_at` (when present) are **`int64` Unix seconds** in Go and JSON numbers — see **`docs/database.md`**.
 
 ---
@@ -13,6 +13,8 @@
 2. [Core Types (Models / DTOs)](#2-core-types-models--dtos)
 3. [Application Layer Return Types](#3-application-layer-return-types)
    - [internal/auth/application](#internalauthapplication)
+   - [internal/course/application](#internalcourseapplication)
+   - [internal/instructor/application](#internalinstructorapplication)
    - [internal/rbac/application](#internalrbacapplication)
    - [internal/system/application](#internalsystemapplication)
 4. [Delivery (HTTP) Return Types](#4-delivery-http-return-types)
@@ -38,6 +40,8 @@ type Response struct {
     Data    any    `json:"data"`
 }
 ```
+
+The shared response package also exposes `WriteByStatus(c, statusCode, message, data, opts...)` to standardize success writes for handlers that branch between `200 OK` and `201 Created`.
 
 ```json
 {

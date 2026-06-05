@@ -192,7 +192,7 @@ Partial unique index `WHERE deleted_at IS NULL` (migration **`000012`**) so slug
 
 ## Testing
 
-Tests are **co-located** with their packages, not in a separate `tests/` directory.
+Tests are co-located with their packages.
 
 | Convention | Rule |
 |-----------|------|
@@ -268,7 +268,7 @@ CI (`.github/workflows/deploy-dev.yml` **`test`** job) runs the same layout/arch
 
 When **public API**, DTOs, DB migrations, or persistence columns change, update the docs that reference that feature.
 
-**This refactor (DDD ports, helpers, dupl cleanup) did not change HTTP routes or JSON shapes** — no Apidog/Postman regen required.
+Always regenerate ApiDog/Postman import after `docs/api_swagger.yaml` changes.
 
 Minimum checklist when behavior or API **does** change:
 

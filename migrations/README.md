@@ -19,12 +19,14 @@
 | `000011_audit_timestamps_bigint` | Converts audit columns **`created_at`**, **`updated_at`**, **`deleted_at`** (where present) from `TIMESTAMPTZ` to **`BIGINT`** Unix epoch seconds. **Must `DROP DEFAULT` before `ALTER TYPE`**, then `SET DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)`. |
 | `000012_soft_delete_taxonomy_users_ban` | Adds **`deleted_at`** to 5 taxonomy tables + partial unique slug indexes; adds **`users.banned_until`** (Unix seconds ban-lift timestamp). |
 | `000013_instructor_management` | Adds **`users.phone`**; creates instructor tables (applications, profiles, expertise, tickets, messages); seeds **P41–P58** + role grants. See **`docs/modules/instructor.md`**. |
+| `000014_system_user_machine_binding` | Adds **`system_privileged_users.machine_secret`** for privileged CLI machine binding (existing rows default empty value). |
+| `000015_instructor_expertise_soft_delete_compat` | Drift-safe compatibility patch for `instructor_expertise_topics` / `instructor_expertise_skills`: ensures `deleted_at`, normalizes `topic_id` / `skill_id` from legacy `course_topic_id` / `course_skill_id` when present, then rebuilds active-only unique indexes. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 
 **Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P58** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/database.md`**.
 
-**COMMENT / SQL strings with `golang-migrate`:** the runner splits files by **every** `;` (no SQL parser). Therefore, do **not** place `;` inside strings (`'...'`), inside **`$$...$$`**, etc. Use `;` only to terminate statements. In `COMMENT ON ... IS '...'`, avoid `;` in comment text (use punctuation like commas or periods), e.g. `000007_registration_email_limits.up.sql`.
+**COMMENT / SQL strings with `golang-migrate`:** the runner splits files by **every** `;` (no SQL parser). Therefore, do **not** place `;` inside strings (`'...'`), inside **`$$...$$`**, etc. Use `;` only to terminate statements. In this repo, avoid `DO $$ ... $$` blocks entirely (see `000015` rewrite) and prefer plain DDL/DML statements. In `COMMENT ON ... IS '...'`, avoid `;` in comment text (use punctuation like commas or periods), e.g. `000007_registration_email_limits.up.sql`.
 
 **Changing column type with DEFAULT:** when `ALTER COLUMN ... TYPE` cannot cast the old default (e.g. `TIMESTAMPTZ DEFAULT NOW()` -> `BIGINT`), run in this order: `DROP DEFAULT` -> `ALTER TYPE ... USING ...` -> `SET DEFAULT` (new value). Error `default for column "created_at" cannot be cast automatically to type bigint` means `DROP DEFAULT` was skipped; see `000011_audit_timestamps_bigint.up.sql`.
 

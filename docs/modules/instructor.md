@@ -66,7 +66,7 @@ Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, 
 | `instructor_tickets` | `status` open/closed |
 | `instructor_ticket_messages` | Thread messages; blocked when ticket closed |
 
-Compatibility note: migration `000015_instructor_expertise_soft_delete_compat` backfills `deleted_at` on expertise junction tables and recreates active-only unique indexes for drifted environments.
+Compatibility note: migration `000015_instructor_expertise_soft_delete_compat` is drift-safe for environments that still have legacy `course_topic_id` / `course_skill_id`. Up path ensures `deleted_at`, `topic_id`, `skill_id`, backfills from legacy columns when present, and rebuilds active-only unique indexes. Down path restores non-partial unique indexes and drops `deleted_at`.
 
 Permissions **P41–P58** seeded in the same migration. Role grants:
 

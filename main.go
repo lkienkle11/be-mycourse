@@ -54,13 +54,22 @@ func mustSupabaseRedisAndMedia() {
 }
 
 func maybeMigrateFromEnv() {
-	if os.Getenv("MIGRATE") != "1" {
+	switch os.Getenv("MIGRATE") {
+	case "1":
+		if err := shareddb.MigrateDatabase(); err != nil {
+			zap.L().Fatal("migrate database failed", zap.Error(err))
+		}
+		zap.L().Info("sql up migrations applied (see migrations/*.up.sql)")
+	case "2":
+		versionFile := os.Getenv("MIGRATE_VERSION_FILE")
+		if err := shareddb.MigrateDatabaseDownByFile(versionFile); err != nil {
+			zap.L().Fatal("migrate database down failed", zap.String("migration_version_file", versionFile), zap.Error(err))
+		}
+		zap.L().Info("sql down migration applied", zap.String("migration_version_file", versionFile))
+		os.Exit(0)
+	default:
 		return
 	}
-	if err := shareddb.MigrateDatabase(); err != nil {
-		zap.L().Fatal("migrate database failed", zap.Error(err))
-	}
-	zap.L().Info("sql migrations applied (see migrations/*.up.sql)")
 }
 
 func mustBootstrapRuntime() {

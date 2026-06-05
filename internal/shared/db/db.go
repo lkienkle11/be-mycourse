@@ -10,6 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -67,6 +70,23 @@ func MigrateDatabase() error {
 	return migrateUp(context.Background(), dsn, appmigrations.Files, ".")
 }
 
+// MigrateDatabaseDownByFile rolls back one specific migration file by moving DB
+// version to the immediate previous version of that file.
+func MigrateDatabaseDownByFile(migrationVersionFile string) error {
+	if primary == nil {
+		return errors.New("database not initialized")
+	}
+	dsn := setting.DatabaseSetting.PostgresDSN()
+	if dsn == "" {
+		return errors.New("missing [database] DSN")
+	}
+	targetVersion, err := targetDownVersionFromFileName(migrationVersionFile)
+	if err != nil {
+		return err
+	}
+	return migrateDownTo(context.Background(), dsn, appmigrations.Files, ".", targetVersion)
+}
+
 func migrateUp(ctx context.Context, dsn string, fsys fs.FS, dir string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -92,23 +112,98 @@ func openPingPostgres(ctx context.Context, dsn string) (*sql.DB, error) {
 }
 
 func migrateUpFromIOFS(rawDB *sql.DB, fsys fs.FS, dir string) error {
-	src, err := iofs.New(fsys, dir)
+	m, err := newMigratorFromIOFS(rawDB, fsys, dir)
 	if err != nil {
-		return fmt.Errorf(constants.MsgMigrationSource, err)
-	}
-	driver, err := postgresmigrate.WithInstance(rawDB, &postgresmigrate.Config{
-		MultiStatementEnabled: true,
-	})
-	if err != nil {
-		return fmt.Errorf(constants.MsgMigrationPostgresDriver, err)
-	}
-	m, err := gomigrate.NewWithInstance("iofs", src, "postgres", driver)
-	if err != nil {
-		return fmt.Errorf(constants.MsgMigrationRun, err)
+		return err
 	}
 	defer func() { _, _ = m.Close() }()
 	if err := m.Up(); err != nil && !errors.Is(err, gomigrate.ErrNoChange) {
 		return err
 	}
 	return nil
+}
+
+func migrateDownTo(ctx context.Context, dsn string, fsys fs.FS, dir string, targetVersion uint) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	rawDB, err := openPingPostgres(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rawDB.Close() }()
+	return migrateDownToFromIOFS(rawDB, fsys, dir, targetVersion)
+}
+
+func migrateDownToFromIOFS(rawDB *sql.DB, fsys fs.FS, dir string, targetVersion uint) error {
+	m, err := newMigratorFromIOFS(rawDB, fsys, dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _, _ = m.Close() }()
+	currentVersion, dirty, err := migrationVersion(m)
+	if err != nil {
+		return err
+	}
+	if dirty {
+		return fmt.Errorf("cannot run down migration on dirty schema_migrations (current version=%d)", currentVersion)
+	}
+	if currentVersion <= targetVersion {
+		return fmt.Errorf("down-only migration refused: current version=%d is not above target=%d", currentVersion, targetVersion)
+	}
+	if err := m.Migrate(targetVersion); err != nil && !errors.Is(err, gomigrate.ErrNoChange) {
+		return err
+	}
+	return nil
+}
+
+func newMigratorFromIOFS(rawDB *sql.DB, fsys fs.FS, dir string) (*gomigrate.Migrate, error) {
+	src, err := iofs.New(fsys, dir)
+	if err != nil {
+		return nil, fmt.Errorf(constants.MsgMigrationSource, err)
+	}
+	driver, err := postgresmigrate.WithInstance(rawDB, &postgresmigrate.Config{
+		MultiStatementEnabled: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf(constants.MsgMigrationPostgresDriver, err)
+	}
+	m, err := gomigrate.NewWithInstance("iofs", src, "postgres", driver)
+	if err != nil {
+		return nil, fmt.Errorf(constants.MsgMigrationRun, err)
+	}
+	return m, nil
+}
+
+func migrationVersion(m *gomigrate.Migrate) (uint, bool, error) {
+	version, dirty, err := m.Version()
+	if errors.Is(err, gomigrate.ErrNilVersion) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("read schema_migrations version: %w", err)
+	}
+	return version, dirty, nil
+}
+
+func targetDownVersionFromFileName(migrationVersionFile string) (uint, error) {
+	base := filepath.Base(strings.TrimSpace(migrationVersionFile))
+	if base == "" || base == "." {
+		return 0, errors.New("MIGRATE_VERSION_FILE is required when MIGRATE=2")
+	}
+	if !strings.HasSuffix(base, ".down.sql") {
+		return 0, fmt.Errorf("MIGRATE_VERSION_FILE must point to a .down.sql file, got %q", base)
+	}
+	versionToken, _, ok := strings.Cut(base, "_")
+	if !ok || versionToken == "" {
+		return 0, fmt.Errorf("invalid migration file name %q (expected NNNNNN_name.down.sql)", base)
+	}
+	versionNumber, err := strconv.ParseUint(versionToken, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid migration version in %q: %w", base, err)
+	}
+	if versionNumber == 0 {
+		return 0, fmt.Errorf("invalid migration version in %q: must be greater than zero", base)
+	}
+	return uint(versionNumber - 1), nil
 }

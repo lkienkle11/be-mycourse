@@ -8,6 +8,12 @@ Run pending migrations:
 MIGRATE=1 go run .
 ```
 
+Rollback by specific migration file (down):
+
+```bash
+MIGRATE=2 MIGRATE_VERSION_FILE=000016_course_management.down.sql go run .
+```
+
 See `migrations/README.md` for migration conventions (semicolon splitting, `COMMENT` rules, rollback).
 
 ## Code ↔ table names
@@ -602,7 +608,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
 | 000013 | `instructor_management` | `users.phone`; tables `instructor_applications`, `instructor_profiles`, `instructor_expertise_topics`, `instructor_expertise_skills`, `instructor_tickets`, `instructor_ticket_messages`; seed P41–P58 + role grants |
 | 000014 | `system_user_machine_binding` | `system_privileged_users.machine_secret` — CLI machine binding; existing rows default `''` (re-register after deploy) |
-| 000015 | `instructor_expertise_soft_delete_compat` | Compatibility migration for older DBs: ensure `deleted_at` exists on `instructor_expertise_topics` / `instructor_expertise_skills`, then recreate active-only unique indexes (`WHERE deleted_at IS NULL`) |
+| 000015 | `instructor_expertise_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on expertise junctions, ensure `topic_id` / `skill_id`, backfill from legacy `course_topic_id` / `course_skill_id` when present, then recreate active-only unique indexes (`WHERE deleted_at IS NULL`). Down path restores non-partial unique indexes and drops `deleted_at`. |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

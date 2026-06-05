@@ -494,7 +494,9 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 #### NFR-1.5 Startup & Build
 
 - The server **MUST** listen on the port defined by `setting.ServerSetting.Port` (default **8080**).
-- Database migrations are applied with `MIGRATE=1 go run .` (not auto-run on startup).
+- Database migrations support env modes:
+  - `MIGRATE=1` applies pending up migrations, then continues normal server startup.
+  - `MIGRATE=2` + `MIGRATE_VERSION_FILE=<file>.down.sql` rolls back to `version(file)-1` then exits.
 - The binary supports a one-shot CLI flow for privileged user registration (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
 
 #### NFR-1.6 Test code layout

@@ -260,11 +260,11 @@ Set at least:
 - **Circuit breaker:** optional Redis key `mycourse:resilience:circuit` shares open state across instances; falls back to in-process when Redis is unavailable. Tune thresholds via `resilience:` in `config/app.yaml`.
 - `API_KEY` if you use `/api/internal-v1`.
 
-**`MIGRATE=1` behavior:** With the current `main.go`, enabling `MIGRATE=1` still runs `router.Run` after migrations (HTTP server starts). Typical approaches:
+**Migration mode behavior (`main.go`):**
 
-- Stop the running process (PM2/systemd), run once with `MIGRATE=1`, then return to normal startup; or
-- Keep `MIGRATE=1` on every start if you accept running migrate on boot (safe when migrations are idempotent); or
-- Later, add a dedicated `cmd/migrate` that only runs `Up` and exits—cleaner for CI.
+- `MIGRATE=1`: apply pending up migrations, then continue normal API startup.
+- `MIGRATE=2` + `MIGRATE_VERSION_FILE=<file>.down.sql`: down to `version(file)-1`, then process exits (`os.Exit(0)`), no HTTP server start.
+- Default / unset `MIGRATE`: normal API startup.
 
 **Deploy order:** Apply DB migrations **before** (or together with) deploying a binary that expects `BIGINT` audit columns (`000011`+). A new binary against an old `TIMESTAMPTZ` schema causes login/list **500** with `Scan error ... time.Time ... int64`.
 
@@ -292,6 +292,11 @@ Expect `version >= 12`, `dirty = f`, and `data_type = bigint` for all three colu
 ```bash
 cd /var/www/be-mycourse   # or local clone
 MIGRATE=1 go run .
+```
+
+```bash
+cd /var/www/be-mycourse   # or local clone
+MIGRATE=2 MIGRATE_VERSION_FILE=000016_course_management.down.sql go run .
 ```
 
 If `000011` was skipped but version is already 12, run the up file once (no Go code change):
@@ -589,7 +594,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 | 2 | `models.Setup()` | PostgreSQL via `[database]` DSN. |
 | 3 | Supabase packages | Separate Supabase DB URL + HTTP client when configured. |
 | 4 | `pkg/cache_clients.SetupRedis()` | Redis (auth/`/me` cache—see `docs/modules/auth.md`; **optional** if using hosted Redis or accepting DB-only fallback). |
-| 5 | `MIGRATE=1` | `models.MigrateDatabase()` applies `migrations/*.up.sql`. |
+| 5 | `MIGRATE=1` / `MIGRATE=2` | `shareddb.MigrateDatabase()` (up, then continue startup) or `shareddb.MigrateDatabaseDownByFile()` (down by `MIGRATE_VERSION_FILE`, then exit). |
 | 6 | `config.InitSystem()`, `queues.Consume()` | Bootstrap and queue placeholder. |
 | 7 | `api.InitRouter()` | Gin: CORS, gzip, `/api/v1` (JWT and public routes), `/api/internal-v1` (API key). |
 
@@ -690,7 +695,7 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | Entry point | `main.go` | `setting.Setup()` → DB → Redis → wire → `internal/server/router.go` |
 | Router | `internal/server/router.go`, `internal/*/delivery/routes.go` | Gin: CORS, gzip, JWT, RBAC middleware |
 | Settings | `config/app.yaml`, `internal/shared/setting/` | YAML + `.env` merge via `STAGE` |
-| DB / migrate | `internal/shared/db/`, `migrations/*.sql` | `MIGRATE=1` → `MigrateDatabase()` on startup |
+| DB / migrate | `internal/shared/db/`, `migrations/*.sql` | `MIGRATE=1` → `MigrateDatabase()` (up then continue startup); `MIGRATE=2` + `MIGRATE_VERSION_FILE` → down then exit |
 | Cache | `internal/shared/cache/` | Redis; auth/taxonomy helpers in module `application` |
 | Error codes | `internal/shared/errors/` | App `code` values and default messages for JSON envelope |
 | HTTP errors | `internal/shared/httperr/` | Global Gin error handler |

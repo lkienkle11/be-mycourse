@@ -1,7 +1,6 @@
 package delivery
 
 type createCourseRequest struct {
-	Slug  string `json:"slug" validate:"required,min=3,max=255"`
 	Title string `json:"title" validate:"required,min=1,max=255"`
 }
 

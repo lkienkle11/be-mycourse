@@ -20,7 +20,6 @@ func (h *Handler) createCourse(c *gin.Context) {
 	withBody(c, func(req *createCourseRequest) {
 		row, err := h.svc.CreateCourse(c.Request.Context(), domain.CreateCourseInput{
 			ActorUserID: utils.CurrentUserID(c),
-			Slug:        req.Slug,
 			Title:       req.Title,
 		})
 		if mapCourseError(c, err) {

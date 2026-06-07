@@ -21,4 +21,5 @@ var (
 	ErrCourseOwnerCannotBeRemoved  = errors.New("course owner cannot be removed from collaborators")
 	ErrCourseEnrollmentNotFound    = errors.New("course enrollment not found")
 	ErrCourseProgressVersionAbsent = errors.New("course version for learner progress is not available")
+	ErrCourseInvalidSlug           = errors.New("course title must produce a non-empty slug")
 )

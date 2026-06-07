@@ -41,7 +41,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 		return
 	}
 	in := domain.CreateCourseTopicInput{
-		ActorID: utils.CurrentUserID(c), Name: req.Name, Slug: req.Slug,
+		ActorID: utils.CurrentUserID(c), Name: req.Name,
 		Status: req.Status, ImageFileID: req.ImageFileID, ChildTopics: req.ChildTopics,
 	}
 	row, err := h.svc.CreateTopic(c.Request.Context(), in)
@@ -63,7 +63,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 		return
 	}
 	in := domain.UpdateCourseTopicInput{
-		Name: req.Name, Slug: req.Slug, Status: req.Status,
+		Name: req.Name, Status: req.Status,
 		ImageFileID: req.ImageFileID, ChildTopics: req.ChildTopics,
 	}
 	row, err := h.svc.UpdateTopic(c.Request.Context(), id, in)

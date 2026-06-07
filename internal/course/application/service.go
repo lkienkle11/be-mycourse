@@ -2,8 +2,10 @@ package application
 
 import (
 	"context"
+	"strings"
 
 	"mycourse-io-be/internal/course/domain"
+	"mycourse-io-be/internal/shared/utils"
 )
 
 type CourseService struct {
@@ -19,7 +21,16 @@ func (s *CourseService) ListEditableCourses(ctx context.Context, userID uint) ([
 }
 
 func (s *CourseService) CreateCourse(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
-	return s.repo.CreateCourse(ctx, in)
+	title := strings.TrimSpace(in.Title)
+	slug := utils.SlugifyName(title)
+	if len(slug) < 1 {
+		return nil, domain.ErrCourseInvalidSlug
+	}
+	return s.repo.CreateCourse(ctx, domain.CreateCourseInput{
+		ActorUserID: in.ActorUserID,
+		Title:       title,
+		Slug:        slug,
+	})
 }
 
 func (s *CourseService) GetCourseDetail(ctx context.Context, courseID, userID uint, includeDraft bool) (*domain.CourseDetail, error) {

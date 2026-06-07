@@ -16,7 +16,7 @@ import (
 func (r *GormRepository) ListPublishedCourses(ctx context.Context) ([]domain.CourseListItem, error) {
 	q := `
 SELECT
-    c.*,
+    ` + courseListBaseColumns + `,
     'LEARNER' AS role,
     pv.title,
     pv.status AS review_status,

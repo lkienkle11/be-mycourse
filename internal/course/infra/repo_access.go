@@ -127,30 +127,18 @@ func (r *GormRepository) requireEnrollment(ctx context.Context, db *gorm.DB, cou
 }
 
 func (r *GormRepository) requireCourseAccess(ctx context.Context, db *gorm.DB, courseID, userID uint) (*courseAccess, error) {
-	type scanRow struct {
-		courseRow
-		Role string `gorm:"column:role"`
-	}
-	q := `
-SELECT
-    c.*,
-    CASE WHEN c.owner_user_id = @user_id THEN 'OWNER' ELSE COALESCE(cc.role, '') END AS role
-FROM courses c
-LEFT JOIN course_collaborators cc
-    ON cc.course_id = c.id AND cc.user_id = @user_id AND cc.deleted_at IS NULL
-WHERE c.id = @course_id AND c.deleted_at IS NULL
-LIMIT 1`
-	var row scanRow
-	if err := db.WithContext(ctx).Raw(q, map[string]any{"course_id": courseID, "user_id": userID}).Scan(&row).Error; err != nil {
+	course, err := r.loadCourse(ctx, db, courseID)
+	if err != nil {
 		return nil, err
 	}
-	if row.ID == 0 {
-		return nil, domain.ErrCourseNotFound
+	if course.OwnerUserID == userID {
+		return &courseAccess{courseRow: *course, Role: domain.CollaboratorRoleOwner}, nil
 	}
-	if row.Role == "" {
-		return nil, domain.ErrCourseCollaboratorAccess
+	collab, err := loadActiveRow[collaboratorRow](ctx, db, domain.ErrCourseCollaboratorAccess, "course_id = ? AND user_id = ? AND deleted_at IS NULL", courseID, userID)
+	if err != nil {
+		return nil, err
 	}
-	return &courseAccess{courseRow: row.courseRow, Role: row.Role}, nil
+	return &courseAccess{courseRow: *course, Role: collab.Role}, nil
 }
 
 func (r *GormRepository) requireEditorAccess(ctx context.Context, db *gorm.DB, courseID, userID uint) (*courseAccess, error) {

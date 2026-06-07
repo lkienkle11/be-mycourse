@@ -240,17 +240,39 @@ type mediaInfoRow struct {
 	URL      string `gorm:"column:url"`
 }
 
+const courseListBaseColumns = `c.id, c.owner_user_id, c.slug, c.current_published_version_id, c.current_draft_version_id, c.created_at, c.updated_at, c.deleted_at`
+
 type courseListScanRow struct {
-	courseRow
-	Role               string `gorm:"column:role"`
-	Title              string `gorm:"column:title"`
-	ReviewStatus       string `gorm:"column:review_status"`
-	VersionNo          int    `gorm:"column:version_no"`
-	HasPublished       bool   `gorm:"column:has_published"`
-	HasDraft           bool   `gorm:"column:has_draft"`
-	ThumbnailFileID    string `gorm:"column:thumbnail_file_id"`
-	ThumbnailURL       string `gorm:"column:thumbnail_url"`
-	PreviewVideoFileID string `gorm:"column:preview_video_file_id"`
+	ID                        uint   `gorm:"column:id"`
+	OwnerUserID               uint   `gorm:"column:owner_user_id"`
+	Slug                      string `gorm:"column:slug"`
+	CurrentPublishedVersionID *uint  `gorm:"column:current_published_version_id"`
+	CurrentDraftVersionID     *uint  `gorm:"column:current_draft_version_id"`
+	CreatedAt                 int64  `gorm:"column:created_at"`
+	UpdatedAt                 int64  `gorm:"column:updated_at"`
+	DeletedAt                 *int64 `gorm:"column:deleted_at"`
+	Role                      string `gorm:"column:role"`
+	Title                     string `gorm:"column:title"`
+	ReviewStatus              string `gorm:"column:review_status"`
+	VersionNo                 int    `gorm:"column:version_no"`
+	HasPublished              bool   `gorm:"column:has_published"`
+	HasDraft                  bool   `gorm:"column:has_draft"`
+	ThumbnailFileID           string `gorm:"column:thumbnail_file_id"`
+	ThumbnailURL              string `gorm:"column:thumbnail_url"`
+	PreviewVideoFileID        string `gorm:"column:preview_video_file_id"`
+}
+
+func (row *courseListScanRow) asCourseRow() courseRow {
+	return courseRow{
+		ID:                        row.ID,
+		OwnerUserID:               row.OwnerUserID,
+		Slug:                      row.Slug,
+		CurrentPublishedVersionID: row.CurrentPublishedVersionID,
+		CurrentDraftVersionID:     row.CurrentDraftVersionID,
+		CreatedAt:                 row.CreatedAt,
+		UpdatedAt:                 row.UpdatedAt,
+		DeletedAt:                 row.DeletedAt,
+	}
 }
 
 type courseAccess struct {
@@ -382,8 +404,9 @@ func toCourse(row *courseRow) domain.Course {
 }
 
 func toCourseListItem(row *courseListScanRow) domain.CourseListItem {
+	cr := row.asCourseRow()
 	return domain.CourseListItem{
-		Course:             toCourse(&row.courseRow),
+		Course:             toCourse(&cr),
 		Title:              row.Title,
 		ReviewStatus:       row.ReviewStatus,
 		VersionNo:          row.VersionNo,

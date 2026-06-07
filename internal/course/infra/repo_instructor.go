@@ -16,7 +16,7 @@ import (
 func (r *GormRepository) ListEditableCourses(ctx context.Context, userID uint) ([]domain.CourseListItem, error) {
 	q := `
 SELECT
-    c.*,
+    ` + courseListBaseColumns + `,
     CASE WHEN c.owner_user_id = @user_id THEN 'OWNER' ELSE cc.role END AS role,
     COALESCE(dv.title, pv.title, '') AS title,
     COALESCE(dv.status, pv.status, '') AS review_status,

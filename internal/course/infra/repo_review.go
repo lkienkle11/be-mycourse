@@ -21,7 +21,7 @@ func (r *GormRepository) ReopenDraft(ctx context.Context, courseID, actorUserID 
 func (r *GormRepository) ListPendingReviews(ctx context.Context) ([]domain.CourseListItem, error) {
 	q := `
 SELECT
-    c.*,
+    ` + courseListBaseColumns + `,
     'OWNER' AS role,
     dv.title,
     dv.status AS review_status,

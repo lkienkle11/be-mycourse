@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-05-29 (`internal/instructor/`, migration `000013_instructor_management`)._
+_Last audited: 2026-06-07 (`internal/instructor/`, migration `000013_instructor_management`, zero-logic review refactor cleanup)._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / approve / reject), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -18,7 +18,7 @@ internal/instructor/
 │   └── repository.go      # Repository interface (roster, apps, profiles, expertise, tickets)
 ├── application/
 │   ├── service.go         # InstructorService facade
-│   ├── service_roster.go
+│   ├── service_roster.go   # roster queries + avatar hydration reuse through service_identity helpers
 │   ├── service_applications.go
 │   ├── service_profiles.go
 │   ├── service_expertise.go
@@ -47,7 +47,7 @@ internal/server/
 ├── wire_instructor_adapters.go
 └── wire_core.go             # shared core wiring (RBAC, auth, media, taxonomy, …)
 
-internal/shared/mediaquery/hydrate.go   # avatar URL hydration (no media/domain import)
+internal/shared/mediaquery/hydrate.go   # shared avatar URL hydration primitives (no media/domain import)
 ```
 
 Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, h.Instructor, svc.RBAC)`.
@@ -105,6 +105,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 | DELETE | `/instructors/:id` | `instructor_roster:delete` — `:id` = user id |
 
 List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL).
+Roster hydration now reuses the same generic avatar-hydration path as application/profile identity responses instead of keeping a separate roster-only implementation.
 
 ### Applications (`instructor_application:*`)
 

@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-05 (multi-instructor draft editing, review, publish, learner progress versioning)._
+_Last audited: 2026-06-07 (multi-instructor draft editing, review, publish, learner progress versioning, zero-logic review refactor cleanup)._
 
 ## Overview
 
@@ -143,11 +143,18 @@ The module reuses the existing permission catalog:
 
 Repo-wide validation passed during the latest audit:
 
+- `golangci-lint cache clean`
 - `golangci-lint run`
 - `go test ./...`
 - `go build ./...`
 - `make check-architecture`
 - `make check-dupl`
 - `make check-layout`
+- `make build`
 
-The only validation caveat observed was `golangci-lint cache clean`, which hit a local cache-directory cleanup issue on the machine but did not affect lint execution or result quality.
+## Deferred follow-up
+
+The following repository-internal performance refactors are intentionally deferred to a separate task because they are more invasive than the zero-logic cleanup pass:
+
+- `internal/course/infra/repo_access.go:loadOutline` multi-level N+1 query reduction
+- `internal/course/infra/repo_versioning.go` version-clone batching / per-row insert reduction

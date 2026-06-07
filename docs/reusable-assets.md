@@ -175,9 +175,9 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 ### Asset: BindUpdateAndCreateMultipart
 - Name: `BindUpdateAndCreateMultipart`
 - Type: Function (mapping)
-- Path: `pkg/logic/mapping/multipart_gin_bind.go`
+- Path: `internal/media/delivery/mapping.go`
 - Purpose: Single entry that binds both update + create multipart text fields (Rule 14 — no duplicate wrapper under `api/`).
-- Current Usage: `internal/*/delivery/media/file_handler.go`.
+- Current Usage: `internal/media/delivery/handler.go` (`updateFile`).
 
 ### Asset: ListPermissions
 - Name: `ListPermissions`
@@ -250,29 +250,29 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 ### Asset: Request param helper package
 - Name: `CurrentUserID`, `ParseUintParam`
 - Type: Util/Helper
-- Path: `pkg/requestutil/params.go`
+- Path: `internal/shared/utils/requestutil.go`
 - Purpose: Centralize request-context user extraction and path param integer parsing.
 - Scope: All HTTP handlers requiring authenticated user id or `:id` parsing.
-- Dependencies: `gin.Context`, `pkg/logic/utils`.
-- Current Usage: taxonomy handlers.
+- Dependencies: `gin.Context`, `internal/shared/middleware`, `internal/shared/utils/params.go`.
+- Current Usage: auth, course, instructor, taxonomy, and RBAC delivery handlers.
 - Reuse Opportunity:
   - Reuse in all future CRUD handlers to keep transport-layer parsing behavior consistent.
 
 ### Asset: Generic uint path-param parser
 - Name: `ParseUintPathParam`
 - Type: Util/Helper
-- Path: `pkg/logic/utils/params.go`
+- Path: `internal/shared/utils/params.go`
 - Purpose: Parse unsigned integer path params from `gin.Context` with one shared implementation.
-- Scope: Internal RBAC and taxonomy handlers (through direct usage or `pkg/requestutil` delegation).
+- Scope: Any delivery handler that needs numeric route params, either directly or via `ParseUintParam`.
 - Dependencies: `gin.Context`, `strconv`.
-- Current Usage: `internal/*/delivery/internal/rbac_handler.go` (direct calls), `pkg/requestutil/params.go`.
+- Current Usage: `internal/shared/utils/requestutil.go` and handlers that call it.
 - Reuse Opportunity:
   - Reuse for all future `:id`/`:userId`/`:roleId` style path parsing to eliminate duplicate conversions.
 
 ### Asset: Permission id path-param parser
 - Name: `ParsePermissionIDParam`
 - Type: Util/Helper
-- Path: `pkg/requestutil/params.go`
+- Path: `internal/shared/utils/requestutil.go`
 - Purpose: Parse and validate permission id path params (trim + max length check).
 - Scope: Internal RBAC permission handlers.
 - Dependencies: `gin.Context`, `strings`.
@@ -416,10 +416,10 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 ### Asset: Multipart binders (media create/update)
 - Name: `BindCreateFileMultipart`, `BindUpdateFileMultipart`
 - Type: Helper (transport parsing)
-- Path: `pkg/logic/mapping/multipart_gin_bind.go`
+- Path: `internal/media/delivery/mapping.go`
 - Purpose: Parse multipart text fields for backward-compat validation and bind allowed update controls (`reuse_media_id`, `expected_row_version`, `skip_upload_if_unchanged`); client `kind`/`metadata` are intentionally ignored by service flow.
-- Scope: `internal/*/delivery/media/file_handler.go` only; keeps handlers thin.
-- Dependencies: `github.com/gin-gonic/gin`, `dto`, `pkg/logic/utils` (`ParseBoolLoose` for `skip_upload_if_unchanged`).
+- Scope: `internal/media/delivery/handler.go` only; keeps handlers thin.
+- Dependencies: `github.com/gin-gonic/gin`, `internal/media/application`, `internal/media/domain`, `internal/shared/utils.ParseBoolLoose`.
 
 ### Asset: DeleteStoredObject (unified cloud delete)
 - Name: `DeleteStoredObject`

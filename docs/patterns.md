@@ -89,7 +89,7 @@ Repository interfaces remain in `domain/repository.go`; ports cover **stateless 
 
 - All JSON responses use the standard envelope via `internal/shared/response` — never raw `gin.H`.
 - List endpoints use a `BaseFilter` struct that provides `page`, `per_page`, `sort_by`, `sort_order`, `search_by`, `search_data`.
-- Fine-grained permission guards are applied **at the route level** using `middleware.RequirePermission`.
+- Fine-grained permission guards are applied **at the route level** using `middleware.RequirePermission`, typically through the shared route helper `internal/shared/utils.RoutePermission(...)` so delivery packages do not duplicate local permission-wrapper closures.
 
 ---
 

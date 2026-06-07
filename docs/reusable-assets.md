@@ -258,6 +258,17 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Reuse Opportunity:
   - Reuse in all future CRUD handlers to keep transport-layer parsing behavior consistent.
 
+### Asset: Route-level permission adapter
+- Name: `RoutePermission`
+- Type: Util/Helper
+- Path: `internal/shared/utils/route_permission.go`
+- Purpose: Shared delivery-layer adapter that turns `middleware.RequirePermission` into a reusable route-registration helper.
+- Scope: Permission-gated route registration in `internal/auth`, `internal/course`, `internal/media`, `internal/instructor`, and `internal/taxonomy`.
+- Dependencies: `github.com/gin-gonic/gin`, `internal/shared/middleware`.
+- Current Usage: all protected `delivery/routes.go` files; variadic `actions ...string` keeps the helper ready for single- or multi-permission routes.
+- Reuse Opportunity:
+  - Reuse this instead of defining local `rp := func(...){...}` wrappers in new delivery route files.
+
 ### Asset: Generic uint path-param parser
 - Name: `ParseUintPathParam`
 - Type: Util/Helper
@@ -696,7 +707,7 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Purpose: Permission enforcement by action names.
 - Scope: Protected endpoint authorization.
 - Dependencies: JWT context permissions + `services.UserHasAllPermissions`.
-- Current Usage: `/internal/*/delivery/me/permissions`.
+- Current Usage: all permission-gated API routes, typically via `internal/shared/utils.RoutePermission(...)`.
 - Reuse Opportunity:
   - Primary reusable gate for taxonomy/course/commerce CRUD actions.
 

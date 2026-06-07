@@ -172,7 +172,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `httperr/` | `Middleware`, `Recovery`, `HTTPError`, `Abort` |
 | `parsebool/` | `Loose`, `EnvEnabled` — env/YAML boolean strings |
 | `mediaquery/` | Shared avatar/media file-ID URL hydration helpers reused across bounded contexts without importing media/domain |
-| `utils/` | `CurrentUserID`, `ParseUintParam`, `ParsePermissionIDParam`, `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`), `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON` |
+| `utils/` | `CurrentUserID`, `ParseUintParam`, `ParsePermissionIDParam`, `RoutePermission`, `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`), `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON` |
 | `brevo/` | Brevo SMTP HTTP wrapper + `constants.go` |
 | `mailtmpl/` | HTML email template rendering + `constants.go` |
 | `errors/` | Sentinel `Err*` vars and error code constants |

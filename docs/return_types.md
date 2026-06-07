@@ -2,7 +2,7 @@
 
 
 > This document catalogues **application-layer return types** (`internal/*/application`) and **JSON response shapes** from `internal/*/delivery` handlers.  
-> **Last updated:** 2026-06-05  
+> **Last updated:** 2026-06-07  
 > **Audit timestamps:** `created_at`, `updated_at`, `deleted_at` (when present) are **`int64` Unix seconds** in Go and JSON numbers — see **`docs/database.md`**.
 
 ---
@@ -427,6 +427,52 @@ type ListPermissionsParams struct {
 
 ---
 
+### internal/course/application
+
+| Function | Signature | Return Types |
+|----------|-----------|--------------|
+| `CreateCourse` | `CreateCourse(ctx, CreateCourseInput) (*CourseDetail, error)` | `*CourseDetail` on success; `ErrCourseInvalidSlug`; repo errors |
+| `ListEditableCourses` | `ListEditableCourses(ctx, userID uint) ([]CourseListItem, error)` | `[]CourseListItem` |
+| `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID uint, includeDraft bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
+| `UpdateBasicInfo` | `UpdateBasicInfo(ctx, courseID, actorUserID uint, UpdateBasicInfoInput) (*CourseDetail, error)` | `*CourseDetail`; optimistic lock / validation errors |
+| `DeleteCourse` | `DeleteCourse(ctx, courseID, actorUserID uint) error` | `nil`; owner-only / not-found errors |
+| Outline CRUD / reorder | `CreateSection`, `UpdateSection`, `DeleteSection`, `ReorderSections`, lesson/sub-lesson variants | Entity or `[]Section`; draft/lease/lock errors |
+| Review | `SubmitForReview`, `ReopenDraft`, `ListPendingReviews`, `ApproveDraft`, `RejectDraft` | `*CourseDetail` or `[]CourseListItem` |
+| Learner | `ListPublishedCourses`, `GetLearningCourse`, `Enroll`, `GetProgress`, `SaveProgress` | Catalog / detail / enrollment / progress types |
+
+**Key domain types** (`internal/course/domain`):
+
+```go
+type CourseDetail struct {
+    Course           Course         `json:"course"`
+    CollaboratorRole string         `json:"collaborator_role"`
+    LiveVersion      *CourseVersion `json:"live_version,omitempty"`
+    DraftVersion     *CourseVersion `json:"draft_version,omitempty"`
+    Collaborators    []Collaborator `json:"collaborators"`
+    Outline          []Section      `json:"outline"`
+}
+```
+
+**Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository.
+
+**Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, …).
+
+---
+
+### internal/instructor/application
+
+| Area | Functions | Return types |
+|------|-----------|--------------|
+| Roster | `ListRoster`, `AddRosterByEmail`, `RemoveFromRoster` | `[]RosterMember`, paginated totals |
+| Applications | `ListApplications`, `GetApplication`, `SubmitApplication`, `ApproveApplication`, `RejectApplication`, `DeleteApplication` | `*Application`, lists |
+| Profiles | `ListProfiles`, `GetProfileByUserID`, `UpsertProfile`, `DeleteProfile` | `*Profile`, lists |
+| Expertise | `ListExpertiseTopics/Skills`, `AddExpertiseTopic/Skill`, deletes | topic/skill rows |
+| Tickets | `ListTickets`, `GetTicket`, `CreateTicket`, `CloseTicket`, message list/add | `*Ticket`, `[]TicketMessage` |
+
+Details: **`docs/modules/instructor.md`**.
+
+---
+
 ### internal/system/application
 
 | Function | Signature | Return Types |
@@ -647,6 +693,52 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 ```json
 { "code": 0, "message": "ok", "data": { "permissions": ["course:read", "profile:read", "user:read"] } }
 ```
+
+---
+
+#### `POST /api/v1/courses`
+
+**Auth:** Bearer JWT + `course:create`
+
+**Request body:** `{ "title": string }` (required, 1–255 chars). Slug is server-computed; not in request.
+
+| Status | `code` | `data` |
+|--------|--------|--------|
+| 201 | 0 | `domain.CourseDetail` |
+| 400 | 3001 | `null` — empty slug after slugify |
+| 401 | 3002 | `null` |
+| 403 | 3003 | `null` — missing permission |
+| 409 | 3005 | `null` — duplicate slug |
+| 500 | 9001 | `null` |
+
+---
+
+#### `GET /api/v1/courses/my`
+
+**Auth:** Bearer JWT + `course_instructor:read`
+
+| Status | `code` | `data` |
+|--------|--------|--------|
+| 200 | 0 | `[]domain.CourseListItem` |
+| 401 | 3002 | `null` |
+| 403 | 3003 | `null` |
+| 500 | 9001 | `null` |
+
+---
+
+#### `GET /api/v1/courses/:courseId`
+
+**Auth:** Bearer JWT + `course_instructor:read`
+
+| Status | `code` | `data` |
+|--------|--------|--------|
+| 200 | 0 | `domain.CourseDetail` |
+| 401 | 3002 | `null` |
+| 403 | 3003 | `null` — not owner/collaborator |
+| 404 | 3004 | `null` — course not found |
+| 500 | 9001 | `null` |
+
+Other course instructor, review, and learner routes return the same envelope with shapes documented in **`docs/modules/course.md`** and **`docs/curl_api.md` §14**.
 
 ---
 

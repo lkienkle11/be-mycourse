@@ -1,6 +1,6 @@
 # Enrollment Module
 
-_Last audited: 2026-06-04._
+_Last audited: 2026-06-07._
 
 There is no standalone `internal/enrollment/` package yet.
 

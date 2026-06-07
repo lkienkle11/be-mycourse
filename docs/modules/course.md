@@ -141,9 +141,8 @@ The module reuses the existing permission catalog:
 
 ## Validation snapshot
 
-Repo-wide validation passed during the latest audit:
+Repo-wide validation passed during the latest audit (2026-06-07):
 
-- `golangci-lint cache clean`
 - `golangci-lint run`
 - `go test ./...`
 - `go build ./...`
@@ -151,6 +150,22 @@ Repo-wide validation passed during the latest audit:
 - `make check-dupl`
 - `make check-layout`
 - `make build`
+
+## Create course transaction
+
+`POST /api/v1/courses` persists everything in one DB transaction (`GormRepository.CreateCourse`):
+
+1. Insert `courses` (`owner_user_id`, server-computed `slug`)
+2. Insert initial `course_versions` row (`version_no = 1`, `status = DRAFT`, trimmed `title`)
+3. Set `courses.current_draft_version_id`
+4. Insert `course_collaborators` row (`role = OWNER`)
+5. Reload detail via `loadCourseDetail` → `requireCourseAccess`
+
+Access resolution in step 5 reuses existing helpers (`loadCourse`, `loadActiveRow[collaboratorRow]`) instead of a Raw SQL scan into an embedded `courseRow`. The previous Raw scan could leave `ID = 0` even when SQL returned a row, which surfaced as `404` / `3004` (`course not found`) and rolled back the whole transaction.
+
+List endpoints (`GET /courses/my`, learner catalog, pending reviews) use a flat `courseListScanRow` for GORM `Raw().Scan` — embedded `courseRow` is not populated by GORM for joined list queries; rows are mapped back through `asCourseRow()` → `toCourse()`.
+
+Successful response: HTTP **201**, envelope `data` = `domain.CourseDetail` (course root, `collaborator_role`, empty outline, draft version v1, collaborators list including owner).
 
 ## Deferred follow-up
 

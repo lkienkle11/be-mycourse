@@ -9,7 +9,7 @@
 
 > All diagrams are written in **Mermaid** (`sequenceDiagram`).  
 > Render with: [mermaid.live](https://mermaid.live), the Mermaid CLI, GitHub markdown preview, or any Mermaid-compatible viewer.  
-> **Last updated:** 2026-04-30
+> **Last updated:** 2026-06-07
 
 **Media / Bunny:** This file does not include Mermaid sequences for multipart upload or the Bunny webhook. Those flows are described in **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/curl_api.md`** (Sub 09 parity fields on **`dto.UploadFileResponse`**).
 
@@ -40,6 +40,8 @@
 21. [RBAC — Assign / Remove User Direct Permission (Internal)](#21-rbac--assign--remove-user-direct-permission-internal)
 22. [JWT Auth Middleware Flow](#22-jwt-auth-middleware-flow)
 23. [RequirePermission Middleware Flow](#23-requirepermission-middleware-flow)
+24. [Course Draft Review (high-level)](#24-course-draft-review-high-level)
+25. [Create Course (`POST /api/v1/courses`)](#25-create-course-post-apiv1courses)
 
 ---
 
@@ -67,6 +69,36 @@ sequenceDiagram
     CourseSvc->>DB: update status -> APPROVED
     CourseSvc->>DB: update courses.current_published_version_id
     CourseSvc-->>Admin: updated course detail
+```
+
+---
+
+## 25. Create Course (`POST /api/v1/courses`)
+
+**Description:** Instructor creates a course root, initial draft version v1, owner collaborator row, and returns full detail in one transaction.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant H as course/delivery.Handler
+    participant S as course/application.CourseService
+    participant R as course/infra.GormRepository
+    participant DB as PostgreSQL
+
+    C->>H: POST /api/v1/courses { title }
+    H->>S: CreateCourse(actorUserID, title)
+    S->>S: SlugifyName(title)
+    S->>R: CreateCourse(input)
+    R->>DB: BEGIN
+    R->>DB: INSERT courses
+    R->>DB: INSERT course_versions (v1 DRAFT)
+    R->>DB: UPDATE courses.current_draft_version_id
+    R->>DB: INSERT course_collaborators (OWNER)
+    R->>R: loadCourseDetail → requireCourseAccess (loadCourse + collaborator lookup)
+    R->>DB: COMMIT
+    R-->>S: *CourseDetail
+    S-->>H: *CourseDetail
+    H-->>C: 201 { code:0, data: CourseDetail }
 ```
 
 **Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).

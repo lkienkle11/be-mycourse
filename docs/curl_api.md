@@ -1401,8 +1401,8 @@ Allowed `search_by` values:
 | DELETE | `/api/v1/taxonomy/levels/:id` |
 | DELETE | `/api/v1/taxonomy/levels/:id/hard` |
 
-**Create body:** `{ "name", "slug", "status"? }` — `status` optional (`ACTIVE` / `INACTIVE`).  
-**Update body:** partial `{ "name"?, "slug"?, "status"? }`.
+**Create body:** `{ "name", "status"? }` — `status` optional (`ACTIVE` / `INACTIVE`). Slug is computed server-side from `name`.  
+**Update body:** partial `{ "name"?, "status"? }` — when `name` changes, slug is recomputed server-side.
 
 ```bash
 # List
@@ -1413,7 +1413,7 @@ curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&status=ACTIV
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/levels \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Beginner","slug":"beginner","status":"ACTIVE"}'
+  -d '{"name":"Beginner","status":"ACTIVE"}'
 
 # Update
 curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/1 \
@@ -1441,14 +1441,14 @@ curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1/hard \
 | DELETE | `/api/v1/taxonomy/topics/:id` |
 | DELETE | `/api/v1/taxonomy/topics/:id/hard` |
 
-**Create body:** `{ "name", "slug", "image_file_id"?, "child_topics"?, "status"? }` — optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** is a tree of `{ "id", "name", "slug", "children" }` nodes (UUID ids, max depth 12, max 100 nodes).  
+**Create body:** `{ "name", "image_file_id"?, "child_topics"?, "status"? }` — slug is server-computed from `name`. Optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** input nodes: `{ "id", "name", "children" }` (UUID ids, max depth 12, max 100 nodes; slug derived per node on server).  
 **Update body:** partial fields including optional **`child_topics`** array.
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/topics \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Math","slug":"math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","child_topics":[],"status":"ACTIVE"}'
+  -d '{"name":"Math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","child_topics":[],"status":"ACTIVE"}'
 ```
 
 ### 12.3 Course outcomes
@@ -1482,13 +1482,13 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/outcomes \
 | DELETE | `/api/v1/taxonomy/skills/:id` |
 | DELETE | `/api/v1/taxonomy/skills/:id/hard` |
 
-**Create body:** `{ "name", "slug", "children"?, "status"? }` — `children` uses the same tree node shape as `child_topics`.
+**Create body:** `{ "name", "children"?, "status"? }` — slug server-computed; `children` uses the same input tree shape as `child_topics`.
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Problem solving","slug":"problem-solving","children":[],"status":"ACTIVE"}'
+  -d '{"name":"Problem solving","children":[],"status":"ACTIVE"}'
 ```
 
 ### 12.5 Tags
@@ -1502,7 +1502,7 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
 | DELETE | `/api/v1/taxonomy/tags/:id` |
 | DELETE | `/api/v1/taxonomy/tags/:id/hard` |
 
-**Create body:** `{ "name", "slug", "status"? }`.
+**Create body:** `{ "name", "status"? }` — slug server-computed from `name`.
 
 ```bash
 curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search_by=slug&search_value=react&status=ACTIVE" \

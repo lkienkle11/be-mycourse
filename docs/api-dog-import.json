@@ -566,7 +566,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Beginner\",\n  \"slug\": \"beginner\",\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"Beginner\",\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2000,7 +2000,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"slug\": \"\",\n  \"title\": \"\"\n}",
+              "raw": "{\n  \"title\": \"My new course\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

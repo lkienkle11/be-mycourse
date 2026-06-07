@@ -718,7 +718,7 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
 
 #### Course topic (`/topics`, permission `topic:*`)
 
-**Create / update body:** `name`, `slug`, optional `image_file_id`, `child_topics` (tree nodes), optional `status`.
+**Create / update body:** `name`, optional `image_file_id`, `child_topics` (tree input nodes: `id`, `name`, `children`), optional `status`. Slug is **not** accepted on write — computed server-side from `name` (and from each tree node name).
 
 **Row shape (`data` on create/update, items in list):**
 

@@ -521,6 +521,16 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Reuse Opportunity:
   - Reuse directly in future modules to avoid re-implementing generic conversion/parsing primitives.
 
+### Asset: SlugifyName (utils)
+- Name: `SlugifyName`
+- Type: Function (util)
+- Path: `internal/shared/utils/slug.go`
+- Purpose: Build URL slug from display name — mirrors FE `slugifyName` / `generateSlug` (trim, lowercase, strip accents, `đ/Đ -> d`, spaces/underscores → `-`, Unicode letters/numbers only, collapse dashes).
+- Scope: Taxonomy create/update (root slug + tree nodes via `NormalizeTreeSlugs`), course create (`title` → `courses.slug`).
+- Dependencies: `golang.org/x/text/unicode/norm`, Go `unicode`.
+- Current Usage: `internal/taxonomy/application/service.go`, `internal/shared/taxonomy/tree_slug.go`, `internal/course/application/service.go`.
+- Reuse: Never accept client-provided slug on write — always derive with `SlugifyName`.
+
 ### Asset: Generic normalization / set primitives (utils)
 - Name: `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON`
 - Type: Util
@@ -533,10 +543,10 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
   - Reuse in other bounded contexts instead of redefining local `nullable*`, `normalize*`, or set-compare helpers.
 
 ### Asset: Taxonomy tree + description validators
-- Name: `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs`
+- Name: `TreeNode`, `NormalizeTreeSlugs`, `ValidateTree`, `ValidateDescriptionParagraphs`
 - Type: Package (`internal/shared/taxonomy`)
 - Path: `internal/shared/taxonomy/`
-- Purpose: Validate nested JSONB trees (`child_topics`, `children`) and outcome description arrays.
+- Purpose: Normalize tree node slugs from names, validate nested JSONB trees (`child_topics`, `children`), and outcome description arrays.
 - Scope: `internal/taxonomy` application + infra layers.
 - Current Usage: `internal/taxonomy/application/service.go`, `internal/taxonomy/infra/jsonb_types.go`, domain/DTO types embedding `TreeNode`.
 

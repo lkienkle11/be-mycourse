@@ -30,7 +30,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 
 - `courses` is the stable root record and stores:
   - `owner_user_id`
-  - `slug`
+  - `slug` (derived on create from `title` via `utils.SlugifyName`; not accepted from clients)
   - `current_published_version_id`
   - `current_draft_version_id`
 - `course_versions` stores the editable and published snapshots:
@@ -90,7 +90,7 @@ Routes are registered from `internal/course/delivery/routes.go` through `interna
 Instructor / collaborator routes:
 
 - `GET /api/v1/courses/my`
-- `POST /api/v1/courses`
+- `POST /api/v1/courses` — body `{ "title" }` only; slug is computed server-side (rejected only when slugify yields empty)
 - `GET /api/v1/courses/:courseId`
 - `POST /api/v1/courses/:courseId/draft/prepare`
 - `PATCH /api/v1/courses/:courseId/basic-info`

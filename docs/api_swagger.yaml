@@ -359,21 +359,20 @@ components:
       description: At least one of permission_id or permission_name required.
     CreateCourseLevelRequest:
       type: object
-      required: [name, slug]
+      required: [name]
       example:
         name: Beginner
-        slug: beginner
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
-        slug: { type: string, maxLength: 255 }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+      description: Slug is computed server-side from name (utils.SlugifyName); not accepted on write.
     UpdateCourseLevelRequest:
       type: object
       properties:
         name: { type: string }
-        slug: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+      description: When name changes, slug is recomputed server-side.
     MediaFilePublic:
       type: object
       description: Public subset of a media_files row (`internal/media/delivery` DTO)
@@ -398,7 +397,7 @@ components:
         avatar_file_id: { type: string, format: uuid, description: "Set to empty string to clear" }
     TreeNode:
       type: object
-      required: [id, name, slug]
+      required: [id, name]
       example:
         id: "660e8400-e29b-41d4-a716-446655440001"
         name: Algebra
@@ -407,33 +406,34 @@ components:
       properties:
         id: { type: string, format: uuid, description: Client-generated UUID per node }
         name: { type: string, maxLength: 255 }
-        slug: { type: string, maxLength: 255 }
+        slug:
+          type: string
+          maxLength: 255
+          description: Response only; computed server-side from name on write (omit in create/update body).
         children:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
     CreateCourseTopicRequest:
       type: object
-      required: [name, slug]
+      required: [name]
       example:
         name: Mathematics
-        slug: mathematics
         image_file_id: "550e8400-e29b-41d4-a716-446655440000"
         child_topics:
           - id: "660e8400-e29b-41d4-a716-446655440001"
             name: Algebra
-            slug: algebra
             children: []
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
-        slug: { type: string, maxLength: 255 }
         image_file_id: { type: string, format: uuid }
         child_topics:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+      description: Slug is computed server-side from name; not accepted on write.
     UpdateCourseTopicRequest:
       type: object
       example:
@@ -441,7 +441,6 @@ components:
         child_topics: []
       properties:
         name: { type: string }
-        slug: { type: string }
         image_file_id: { type: string, format: uuid }
         child_topics:
           type: array
@@ -480,31 +479,28 @@ components:
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     CreateCourseSkillRequest:
       type: object
-      required: [name, slug]
+      required: [name]
       example:
         name: Problem solving
-        slug: problem-solving
         children:
           - id: "660e8400-e29b-41d4-a716-446655440001"
             name: Critical thinking
-            slug: critical-thinking
             children: []
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
-        slug: { type: string, maxLength: 255 }
         children:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+      description: Slug is computed server-side from name; not accepted on write.
     UpdateCourseSkillRequest:
       type: object
       example:
-        slug: problem-solving-advanced
+        name: Problem solving (advanced)
       properties:
         name: { type: string }
-        slug: { type: string }
         children:
           type: array
           items:
@@ -512,20 +508,18 @@ components:
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     CreateTagRequest:
       type: object
-      required: [name, slug]
+      required: [name]
       example:
         name: React
-        slug: react
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
-        slug: { type: string, maxLength: 255 }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+      description: Slug is computed server-side from name; not accepted on write.
     UpdateTagRequest:
       type: object
       properties:
         name: { type: string }
-        slug: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
     BunnyVideoWebhookRequest:
       type: object
@@ -1494,10 +1488,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [slug, title]
+              required: [title]
               properties:
-                slug: { type: string, minLength: 3, maxLength: 255 }
                 title: { type: string, minLength: 1, maxLength: 255 }
+              description: Course slug is computed server-side from title (utils.SlugifyName). Request fails only when slugify yields an empty string.
       responses:
         "201":
           description: Created

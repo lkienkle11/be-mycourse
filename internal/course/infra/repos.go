@@ -450,35 +450,13 @@ func mapQuizOptions(rows []subLessonQuizOptionRow) []domain.QuizOption {
 	return out
 }
 
-func sameStableIDsSection(rows []sectionRow, ordered []string) bool {
+func sameStableIDs[TRow any](rows []TRow, ordered []string, stableIDOf func(TRow) string) bool {
 	if len(rows) != len(ordered) {
 		return false
 	}
 	current := make([]string, len(rows))
-	for i := range rows {
-		current[i] = rows[i].StableID
-	}
-	return sharedutils.SameStringSet(current, ordered)
-}
-
-func sameStableIDsLesson(rows []lessonRow, ordered []string) bool {
-	if len(rows) != len(ordered) {
-		return false
-	}
-	current := make([]string, len(rows))
-	for i := range rows {
-		current[i] = rows[i].StableID
-	}
-	return sharedutils.SameStringSet(current, ordered)
-}
-
-func sameStableIDsSubLesson(rows []subLessonRow, ordered []string) bool {
-	if len(rows) != len(ordered) {
-		return false
-	}
-	current := make([]string, len(rows))
-	for i := range rows {
-		current[i] = rows[i].StableID
+	for i, row := range rows {
+		current[i] = stableIDOf(row)
 	}
 	return sharedutils.SameStringSet(current, ordered)
 }

@@ -43,8 +43,6 @@ func mapCourseError(c *gin.Context, err error) bool {
 	return true
 }
 
-func currentUserID(c *gin.Context) uint { return utils.CurrentUserID(c) }
-
 func badParam(c *gin.Context, msg string) {
 	response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, msg, nil)
 }

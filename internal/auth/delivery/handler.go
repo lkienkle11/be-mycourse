@@ -15,6 +15,7 @@ import (
 	"mycourse-io-be/internal/shared/middleware"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
 )
 
@@ -199,7 +200,7 @@ func (h *Handler) Logout(c *gin.Context) {
 
 // GetMe — GET /api/v1/me
 func (h *Handler) GetMe(c *gin.Context) {
-	uid := currentUserID(c)
+	uid := utils.CurrentUserID(c)
 	me, err := h.auth.GetMe(c.Request.Context(), uid)
 	if err != nil {
 		writeMeAccessError(c, err, false)
@@ -210,7 +211,7 @@ func (h *Handler) GetMe(c *gin.Context) {
 
 // PatchMe — PATCH /api/v1/me
 func (h *Handler) PatchMe(c *gin.Context) {
-	uid := currentUserID(c)
+	uid := utils.CurrentUserID(c)
 	var req UpdateMeRequest
 	if err := validate.BindJSON(c, &req); err != nil {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
@@ -226,7 +227,7 @@ func (h *Handler) PatchMe(c *gin.Context) {
 
 // DeleteMe — DELETE /api/v1/me (soft delete)
 func (h *Handler) DeleteMe(c *gin.Context) {
-	uid := currentUserID(c)
+	uid := utils.CurrentUserID(c)
 	if err := h.auth.SoftDeleteUser(c.Request.Context(), uid); err != nil {
 		writeMeAccessError(c, err, false)
 		return
@@ -236,7 +237,7 @@ func (h *Handler) DeleteMe(c *gin.Context) {
 
 // HardDeleteMe — DELETE /api/v1/me/hard
 func (h *Handler) HardDeleteMe(c *gin.Context) {
-	uid := currentUserID(c)
+	uid := utils.CurrentUserID(c)
 	if err := h.auth.HardDeleteUser(c.Request.Context(), uid); err != nil {
 		writeMeAccessError(c, err, false)
 		return
@@ -263,7 +264,7 @@ func writeMeAccessError(c *gin.Context, err error, validationFallback bool) {
 
 // GetMyPermissions — GET /api/v1/me/permissions
 func (h *Handler) GetMyPermissions(c *gin.Context) {
-	uid := currentUserID(c)
+	uid := utils.CurrentUserID(c)
 	set, err := h.perm.PermissionCodesForUser(uid)
 	if err != nil {
 		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, "failed to load permissions", nil)
@@ -275,14 +276,6 @@ func (h *Handler) GetMyPermissions(c *gin.Context) {
 	}
 	sort.Strings(list)
 	response.OK(c, "ok", MyPermissionsResponse{Permissions: list})
-}
-
-// --- helpers ---
-
-func currentUserID(c *gin.Context) uint {
-	v, _ := c.Get(middleware.ContextUserID)
-	uid, _ := v.(uint)
-	return uid
 }
 
 func toTokensResponse(r domain.TokenPairResult) LoginSessionTokensResponse {

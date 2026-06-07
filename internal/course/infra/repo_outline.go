@@ -62,7 +62,7 @@ func (r *GormRepository) ReorderSections(ctx context.Context, courseID, actorUse
 		if err != nil {
 			return err
 		}
-		if !sameStableIDsSection(rows, orderedStableIDs) {
+		if !sameStableIDs(rows, orderedStableIDs, func(row sectionRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
 		for idx, stableID := range orderedStableIDs {
@@ -132,7 +132,7 @@ func (r *GormRepository) ReorderLessons(ctx context.Context, courseID, actorUser
 		if err != nil {
 			return err
 		}
-		if !sameStableIDsLesson(rows, orderedStableIDs) {
+		if !sameStableIDs(rows, orderedStableIDs, func(row lessonRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
 		for idx, stableID := range orderedStableIDs {
@@ -281,7 +281,7 @@ func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID, actorU
 		if err != nil {
 			return err
 		}
-		if !sameStableIDsSubLesson(rows, orderedStableIDs) {
+		if !sameStableIDs(rows, orderedStableIDs, func(row subLessonRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
 		for idx, stableID := range orderedStableIDs {

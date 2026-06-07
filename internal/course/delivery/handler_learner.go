@@ -5,6 +5,7 @@ import (
 
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/response"
+	"mycourse-io-be/internal/shared/utils"
 )
 
 func (h *Handler) listPublishedCourses(c *gin.Context) {
@@ -17,25 +18,25 @@ func (h *Handler) listPublishedCourses(c *gin.Context) {
 
 func (h *Handler) getLearningCourse(c *gin.Context) {
 	h.courseOK(c, "ok", func(courseID uint) (any, error) {
-		return h.svc.GetLearningCourse(c.Request.Context(), courseID, currentUserID(c))
+		return h.svc.GetLearningCourse(c.Request.Context(), courseID, utils.CurrentUserID(c))
 	})
 }
 
 func (h *Handler) enroll(c *gin.Context) {
 	h.courseCreated(c, "created", func(courseID uint) (any, error) {
-		return h.svc.Enroll(c.Request.Context(), courseID, currentUserID(c))
+		return h.svc.Enroll(c.Request.Context(), courseID, utils.CurrentUserID(c))
 	})
 }
 
 func (h *Handler) getProgress(c *gin.Context) {
 	h.courseOK(c, "ok", func(courseID uint) (any, error) {
-		return h.svc.GetProgress(c.Request.Context(), courseID, currentUserID(c))
+		return h.svc.GetProgress(c.Request.Context(), courseID, utils.CurrentUserID(c))
 	})
 }
 
 func (h *Handler) saveProgress(c *gin.Context) {
 	courseBodyOK(h, c, "updated", func(courseID uint, req *saveProgressRequest) (any, error) {
-		return h.svc.SaveProgress(c.Request.Context(), courseID, currentUserID(c), domain.SaveProgressInput{
+		return h.svc.SaveProgress(c.Request.Context(), courseID, utils.CurrentUserID(c), domain.SaveProgressInput{
 			StableContentID: req.StableContentID,
 			ContentType:     req.ContentType,
 			Status:          req.Status,

@@ -8,16 +8,19 @@ import (
 
 	"mycourse-io-be/internal/instructor/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
 )
 
 func (h *Handler) listProfiles(c *gin.Context) {
-	listPaginated(c,
+	httpx.ListPaginated(c,
+		func(q *listQuery) error { return c.ShouldBindQuery(q) },
 		func(ctx context.Context, q listQuery) ([]domain.Profile, int64, error) {
 			return h.svc.ListProfiles(ctx, domain.ProfileFilter{Page: q.getPage(), PageSize: q.getPerPage()})
 		},
+		func(q listQuery) (int, int) { return q.getPage(), q.getPerPage() },
 		func(rows []domain.Profile) []applicationResponse {
 			out := make([]applicationResponse, len(rows))
 			for i, r := range rows {

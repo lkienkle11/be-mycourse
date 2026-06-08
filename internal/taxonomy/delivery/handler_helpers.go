@@ -117,20 +117,20 @@ func courseOutcomeInputFromUpdate(req UpdateCourseOutcomeRequest) domain.UpdateC
 
 func courseSkillInputFromCreate(req CreateCourseSkillRequest, actorID uint) domain.CreateCourseSkillInput {
 	return domain.CreateCourseSkillInput{
-		ActorID: actorID, Name: req.Name, Slug: req.Slug, Status: req.Status, Children: req.Children,
+		ActorID: actorID, Name: req.Name, Status: req.Status, Children: req.Children,
 	}
 }
 
 func courseSkillInputFromUpdate(req UpdateCourseSkillRequest) domain.UpdateCourseSkillInput {
-	return domain.UpdateCourseSkillInput{Name: req.Name, Slug: req.Slug, Status: req.Status, Children: req.Children}
+	return domain.UpdateCourseSkillInput{Name: req.Name, Status: req.Status, Children: req.Children}
 }
 
 func slugStatusInputFromCreate(req CreateTagRequest, actorID uint) domain.CreateTagInput {
-	return domain.CreateTagInput{ActorID: actorID, Name: req.Name, Slug: req.Slug, Status: req.Status}
+	return domain.CreateTagInput{ActorID: actorID, Name: req.Name, Status: req.Status}
 }
 
 func slugStatusInputFromUpdate(req UpdateTagRequest) domain.UpdateTagInput {
-	return domain.UpdateTagInput{Name: req.Name, Slug: req.Slug, Status: req.Status}
+	return domain.UpdateTagInput{Name: req.Name, Status: req.Status}
 }
 
 func slugStatusResponseFromTag(t domain.Tag) SlugStatusResponse {

@@ -86,6 +86,10 @@ Cross-domain dependencies (e.g. Auth calling RBAC) use **interface adapters** de
 | `internal/shared/taxonomy` | Taxonomy tree/description validators and `TreeNode` type |
 | `pkg/supabase` | Supabase client init and helpers |
 
+## Implemented Domains
+
+Current bounded contexts under `internal/`: `auth`, `course`, `instructor`, `media`, `rbac`, `system`, `taxonomy`.
+
 ---
 
 ## Build Requirements

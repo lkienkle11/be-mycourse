@@ -20,7 +20,7 @@
 
 ## Implemented Endpoint Inventory
 
-For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`internal/shared/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise, tickets (migration **`000013`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/course.md`](modules/course.md)** — versioned authoring, review, learner progress; **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`internal/shared/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise, tickets (migration **`000013`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
 
 ### `/api/system`
 - System token: obtain via CLI (`CLI_SYSTEM_LOGIN=1 go run .` — JWT on stdout); set `SYSTEM_TOKEN` for HTTP calls.
@@ -72,6 +72,10 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `GET/POST/DELETE /instructors/:id/expertise/topics|skills`
   - `GET/POST /instructor-tickets`, `POST …/close`, `GET/POST …/messages`
   - `GET /instructor-stubs/assignments|activity-log` — stubs
+- Course management (see **`docs/modules/course.md`**):
+  - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId`, `PATCH /courses/:courseId/basic-info`, collaborator CRUD, outline CRUD/reorder, lease acquire/heartbeat/release
+  - Review: `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft`, `GET /course-reviews/pending`, `POST /course-reviews/:courseId/approve|reject`
+  - Learner: `GET /learner-courses`, `GET /learner-courses/:courseId`, `POST /learner-courses/:courseId/enroll`, `GET|POST /learner-courses/:courseId/progress`
 
 ### `/api/internal-v1/rbac`
 - Permissions CRUD: list/create/update/delete.
@@ -98,8 +102,6 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - `/api/system`: interceptor + system-IP rate limit + system access token on all routes.
 
 ## Gaps vs Planned E-learning Domains
-- Taxonomy domain is implemented.
-- Media upload domain is implemented (unified file/video API).
-- Instructor management (roster, applications, profiles, expertise, tickets) is implemented — **`docs/modules/instructor.md`**.
-- No course/lesson/enrollment/commerce CRUD endpoints implemented yet.
-- Planned module docs (`docs/modules/*.md`) describe intended touchpoints in `api/v1`, `services`, `dto`, `models`, `migrations`.
+- Taxonomy, Media, Instructor, and Course domains are implemented on `/api/v1`.
+- Standalone payment/checkout and anonymous storefront flows are still planned.
+- Lesson/enrollment docs remain as compatibility docs because behavior is currently embedded in `internal/course/`.

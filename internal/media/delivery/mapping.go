@@ -102,9 +102,14 @@ func BindCreateFileMultipart(c *gin.Context, gw domain.MediaGateway) (applicatio
 	return bindCreateFileMultipart(c, gw)
 }
 
+func validateMultipartMetadata(c *gin.Context, gw domain.MediaGateway) error {
+	_, err := gw.ParseMetadataFromRaw(c.PostForm("metadata"))
+	return err
+}
+
 // bindCreateFileMultipart reads optional multipart text fields into CreateFileInput.
 func bindCreateFileMultipart(c *gin.Context, gw domain.MediaGateway) (application.CreateFileInput, error) {
-	if _, err := gw.ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
+	if err := validateMultipartMetadata(c, gw); err != nil {
 		return application.CreateFileInput{}, err
 	}
 	return application.CreateFileInput{
@@ -114,7 +119,7 @@ func bindCreateFileMultipart(c *gin.Context, gw domain.MediaGateway) (applicatio
 
 // bindUpdateFileMultipart reads optional multipart text fields into UpdateFileInput.
 func bindUpdateFileMultipart(c *gin.Context, gw domain.MediaGateway) (application.UpdateFileInput, error) {
-	if _, err := gw.ParseMetadataFromRaw(c.PostForm("metadata")); err != nil {
+	if err := validateMultipartMetadata(c, gw); err != nil {
 		return application.UpdateFileInput{}, err
 	}
 	req := application.UpdateFileInput{

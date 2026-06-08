@@ -26,8 +26,12 @@ internal/taxonomy/
 
 internal/shared/taxonomy/
 ├── tree_node.go             # TreeNode JSON shape
+├── tree_slug.go             # NormalizeTreeSlugs — derive slug from name (recursive)
 ├── tree_validate.go         # Depth, node count, UUID id, duplicate slug checks
 └── description_validate.go  # Outcome description paragraph limits
+
+internal/shared/utils/
+└── slug.go                  # SlugifyName — shared slug algorithm (matches FE slugifyName)
 ```
 
 List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (same pattern as media list).
@@ -68,9 +72,9 @@ List query contract:
 | DELETE | `/taxonomy/topics/:id` | `topic:delete` | Soft-delete topic |
 | DELETE | `/taxonomy/topics/:id/hard` | `topic:delete` | Hard-delete topic (+ orphan image cleanup) |
 
-**Body fields:** `name`, `slug`, `status`, optional `image_file_id`, `child_topics` (tree array).
+**Create / update body:** `name`, optional `status`, optional `image_file_id`, optional `child_topics` (tree array). **`slug` is not accepted on write** — the service derives it from `name` via `utils.SlugifyName` (same rules as FE `slugifyName`).
 
-**Tree node shape:** `{ "id": "<uuid>", "name": "...", "slug": "...", "children": [...] }` — max depth **12**, max **100** nodes per tree.
+**Tree nodes:** same `TreeNode` JSON shape for read and write; `slug` is optional on write and always present on read responses. Max depth **12**, max **100** nodes per tree.
 
 ### Course Outcomes
 
@@ -90,7 +94,7 @@ List query contract:
 | GET | `/taxonomy/skills/full` | `course_skill:read` | List including soft-deleted |
 | DELETE | `/taxonomy/skills/:id/hard` | `course_skill:delete` | Hard delete |
 
-**Body:** `name`, `slug`, `children` (tree), `status`.
+**Create / update body:** `name`, optional `children` (tree), optional `status`. Slug is server-computed from `name` (and from each tree node name).
 
 ### Course Levels / Tags
 

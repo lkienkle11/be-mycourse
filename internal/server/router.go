@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	authdelivery "mycourse-io-be/internal/auth/delivery"
+	coursedelivery "mycourse-io-be/internal/course/delivery"
 	instdelivery "mycourse-io-be/internal/instructor/delivery"
 	mediadelivery "mycourse-io-be/internal/media/delivery"
 	rbacdelivery "mycourse-io-be/internal/rbac/delivery"
@@ -13,10 +14,10 @@ import (
 	taxdelivery "mycourse-io-be/internal/taxonomy/delivery"
 
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/httperr"
 	"mycourse-io-be/internal/shared/middleware"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/setting"
-	"mycourse-io-be/internal/shared/httperr"
 )
 
 func ginDefaultCORS() cors.Config {
@@ -88,6 +89,7 @@ func mountAPITree(apiRoot *gin.RouterGroup, svc *Services, h *Handlers) {
 	authdelivery.RegisterRoutes(authen, nil, h.Auth, svc.RBAC)
 	taxdelivery.RegisterRoutes(authen, h.Taxonomy, svc.RBAC)
 	mediadelivery.RegisterRoutes(authen, h.Media, svc.RBAC)
+	coursedelivery.RegisterRoutes(authen, h.Course, svc.RBAC)
 	instdelivery.RegisterRoutes(authen, h.Instructor, svc.RBAC)
 
 	// --- /api/internal-v1 (internal API key required) ---

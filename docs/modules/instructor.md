@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-05-29 (`internal/instructor/`, migration `000013_instructor_management`)._
+_Last audited: 2026-06-07 (`internal/instructor/`, migration `000013_instructor_management`, zero-logic review refactor cleanup)._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / approve / reject), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -18,7 +18,7 @@ internal/instructor/
 │   └── repository.go      # Repository interface (roster, apps, profiles, expertise, tickets)
 ├── application/
 │   ├── service.go         # InstructorService facade
-│   ├── service_roster.go
+│   ├── service_roster.go   # roster queries + avatar hydration reuse through service_identity helpers
 │   ├── service_applications.go
 │   ├── service_profiles.go
 │   ├── service_expertise.go
@@ -47,14 +47,14 @@ internal/server/
 ├── wire_instructor_adapters.go
 └── wire_core.go             # shared core wiring (RBAC, auth, media, taxonomy, …)
 
-internal/shared/mediaquery/hydrate.go   # avatar URL hydration (no media/domain import)
+internal/shared/mediaquery/hydrate.go   # shared avatar URL hydration primitives (no media/domain import)
 ```
 
 Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, h.Instructor, svc.RBAC)`.
 
 ---
 
-## Database (migrations `000013` + compatibility `000015`)
+## Database (migrations `000013` + compatibility `000015`/`000018`/`000019` + finalize `000017`)
 
 | Table | Purpose |
 |-------|---------|
@@ -63,10 +63,16 @@ Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, 
 | `instructor_profiles` | Managed profile per user (admin CRUD) |
 | `instructor_expertise_topics` | `(user_id, topic_id)` → `course_topics` |
 | `instructor_expertise_skills` | `(user_id, skill_id)` → `course_skills` |
-| `instructor_tickets` | `status` open/closed |
-| `instructor_ticket_messages` | Thread messages; blocked when ticket closed |
+| `instructor_tickets` | `status` open/closed; soft-delete via `deleted_at` — apply `000018` on drifted DBs |
+| `instructor_ticket_messages` | Thread messages; blocked when ticket closed; soft-delete via `deleted_at` — apply `000018` when column missing |
 
 Compatibility note: migration `000015_instructor_expertise_soft_delete_compat` is drift-safe for environments that still have legacy `course_topic_id` / `course_skill_id`. Up path ensures `deleted_at`, `topic_id`, `skill_id`, backfills from legacy columns when present, and rebuilds active-only unique indexes. Down path restores non-partial unique indexes and drops `deleted_at`.
+
+Migration `000017_instructor_expertise_drop_legacy_fk_cols` completes the normalization started in `000015`: drops legacy `course_topic_id` / `course_skill_id` (which can remain NOT NULL and block inserts into `topic_id` / `skill_id`), enforces NOT NULL on canonical columns, and adds FK constraints. POST `/api/v1/instructors/:id/expertise/topics` and `/expertise/skills` require this migration on drifted databases.
+
+Migration `000018_instructor_tickets_soft_delete_compat` ensures `deleted_at` on `instructor_tickets` and `instructor_ticket_messages` when drifted DBs were created without soft-delete columns. GET `/api/v1/instructor-tickets` requires this migration on such environments.
+
+Migration `000019_instructor_profiles_apps_soft_delete_compat` normalizes drifted profile/application tables: adds `deleted_at`, adds surrogate `id` PK on `instructor_profiles` when only `user_id` PK exists, rebuilds active-only unique indexes. GET `/api/v1/instructor-profiles/:id` requires this migration on drifted DBs. JOIN list/load queries use alias-qualified soft-delete filters (`ip.deleted_at IS NULL`, `ia.deleted_at IS NULL`).
 
 Permissions **P41–P58** seeded in the same migration. Role grants:
 
@@ -105,6 +111,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 | DELETE | `/instructors/:id` | `instructor_roster:delete` — `:id` = user id |
 
 List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL).
+Roster hydration now reuses the same generic avatar-hydration path as application/profile identity responses instead of keeping a separate roster-only implementation.
 
 ### Applications (`instructor_application:*`)
 
@@ -147,6 +154,8 @@ Under `/instructors/:id/…` (`:id` = user id):
 | DELETE | `…/expertise/skills/:skillRowId` | delete |
 
 POST body: `{ "topic_id": N }` or `{ "skill_id": N }`.
+
+List/create responses use `domain.ExpertiseTopic` / `domain.ExpertiseSkill` JSON (`snake_case`): junction `id`, `user_id`, `topic_id` / `skill_id`, joined taxonomy `name` + `slug`, audit timestamps. Repository joins taxonomy with junction alias-qualified soft-delete filter (`iet.deleted_at IS NULL` / `ies.deleted_at IS NULL`) because both junction and taxonomy tables expose `deleted_at`.
 
 ### Tickets
 

@@ -41,23 +41,23 @@ type profileRow struct {
 func (profileRow) TableName() string { return constants.TableInstructorProfiles }
 
 type expertiseTopicRow struct {
-	ID        uint `gorm:"primaryKey"`
-	UserID    uint
-	TopicID   uint
-	CreatedAt int64
-	UpdatedAt int64
-	DeletedAt *int64
+	ID        uint   `gorm:"column:id;primaryKey"`
+	UserID    uint   `gorm:"column:user_id"`
+	TopicID   uint   `gorm:"column:topic_id"`
+	CreatedAt int64  `gorm:"column:created_at"`
+	UpdatedAt int64  `gorm:"column:updated_at"`
+	DeletedAt *int64 `gorm:"column:deleted_at"`
 }
 
 func (expertiseTopicRow) TableName() string { return constants.TableInstructorExpertiseTopics }
 
 type expertiseSkillRow struct {
-	ID        uint `gorm:"primaryKey"`
-	UserID    uint
-	SkillID   uint
-	CreatedAt int64
-	UpdatedAt int64
-	DeletedAt *int64
+	ID        uint   `gorm:"column:id;primaryKey"`
+	UserID    uint   `gorm:"column:user_id"`
+	SkillID   uint   `gorm:"column:skill_id"`
+	CreatedAt int64  `gorm:"column:created_at"`
+	UpdatedAt int64  `gorm:"column:updated_at"`
+	DeletedAt *int64 `gorm:"column:deleted_at"`
 }
 
 func (expertiseSkillRow) TableName() string { return constants.TableInstructorExpertiseSkills }

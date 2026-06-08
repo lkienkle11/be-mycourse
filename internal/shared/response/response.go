@@ -108,6 +108,17 @@ func Created(c *gin.Context, message string, data any, opts ...Options) {
 	c.JSON(http.StatusCreated, Response{Code: 0, Message: message, Data: data})
 }
 
+// WriteByStatus writes success envelopes for either 200 (OK) or 201 (Created).
+// Unknown status codes fall back to OK to keep a stable response shape.
+func WriteByStatus(c *gin.Context, statusCode int, message string, data any, opts ...Options) {
+	switch statusCode {
+	case http.StatusCreated:
+		Created(c, message, data, opts...)
+	default:
+		OK(c, message, data, opts...)
+	}
+}
+
 // OKPaginated writes HTTP 200 with a PaginatedData envelope in the data field.
 func OKPaginated(c *gin.Context, message string, result any, pageInfo PageInfo, opts ...Options) {
 	applyOptions(c, opts)

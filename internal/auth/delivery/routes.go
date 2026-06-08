@@ -5,6 +5,7 @@ import (
 
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/middleware"
+	"mycourse-io-be/internal/shared/utils"
 )
 
 // RegisterRoutes mounts auth and/or /me routes onto the provided router groups.
@@ -33,7 +34,7 @@ func RegisterRoutes(
 		authen.DELETE("/me/hard", h.HardDeleteMe)
 		authen.DELETE("/me", h.DeleteMe)
 		authen.GET("/me/permissions",
-			middleware.RequirePermission(permChecker, constants.AllPermissions.UserRead),
+			utils.RoutePermission(permChecker, constants.AllPermissions.UserRead),
 			h.GetMyPermissions,
 		)
 	}

@@ -116,9 +116,32 @@ Instructor roster, applications (approve/reject with reason), profiles, expertis
 
 **Exposed under:** `/api/v1/instructors`, `/instructor-applications`, `/instructor-profiles`, `/instructor-tickets`, … (JWT + permission). Wired in `internal/server/router.go`.
 
-**Migration:** `000013_instructor_management` (not `000011` — that migration is audit timestamps BIGINT).
+**Migration:** `000013_instructor_management` (+ drift patches `000015`, `000017` for expertise junction columns, `000018` for ticket soft-delete, `000019` for profile/application schema — see [`docs/modules/instructor.md`](modules/instructor.md))
 
 See [`docs/modules/instructor.md`](modules/instructor.md) for full deep-dive.
+
+---
+
+### Course (`internal/course/`)
+
+Versioned course authoring, collaborator access, outline editing, admin review, learner enrollment, and learner progress now live in one bounded context.
+
+**Capabilities:**
+- Course root CRUD with owner-only delete
+- Single active draft per course plus current approved/published version
+- Multi-instructor collaboration through `OWNER` / `EDITOR` memberships
+- Optimistic locking with `row_version`
+- Edit leases for outline resources (`OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON`)
+- Version-scoped sections, lessons, and sub-lessons
+- Sub-lesson types: video, quiz, text (Quill Delta JSON)
+- Review workflow: submit, reject, reopen, approve
+- Learner enrollment and progress keyed by stable content ids
+
+**Exposed under:** `/api/v1/courses`, `/api/v1/course-reviews`, `/api/v1/learner-courses`
+
+**Migration:** `000016_course_management`
+
+See [`docs/modules/course.md`](modules/course.md) for full deep-dive.
 
 ---
 
@@ -146,11 +169,9 @@ Privileged operations for system administrators.
 
 ## Planned But Not Implemented
 
-- **Course module** (phase 02+)
-- **Lesson module** (phase 05+)
-- **Enrollment module** (phase 11+)
-
-These currently have no route/service/infra implementations.
+- Standalone payment / checkout bounded context
+- Public anonymous course storefront routes
+- Separate dedicated lesson or enrollment bounded contexts (today both live under `internal/course/`)
 
 ---
 

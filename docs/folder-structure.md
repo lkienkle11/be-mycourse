@@ -70,7 +70,8 @@ be-mycourse/
 │   │   ├── taxonomy/               # TreeNode + tree/description validators (taxonomy JSONB)
 │   │   ├── httperr/                # Gin error middleware + panic recovery
 │   │   ├── parsebool/              # Loose bool parsing (env, YAML, forms)
-│   │   ├── utils/                  # Generic utilities: image encode, random, fingerprint
+│   │   ├── mediaquery/             # Shared media file-ID → public URL hydration helpers
+│   │   ├── utils/                  # Generic utilities: image encode, random, fingerprint, request param helpers
 │   │   │   └── webp_test.go
 │   │   └── validate/               # Request validation helpers
 │   └── server/
@@ -112,7 +113,7 @@ be-mycourse/
 | `domain/` | `File`, `MediaGateway` port, repository interfaces, Bunny status/webhook/meta types |
 | `application/` | `MediaService` (injected `MediaGateway`), `service_upload_helpers.go` |
 | `infra/` | `storage_gateway.go` (implements `MediaGateway`), `repos.go`, B2/Bunny clients, metadata, webhooks, multipart open/validate |
-| `delivery/` | `Handler` + `MediaGateway` for multipart/metadata; `routes.go`, DTOs |
+| `delivery/` | `Handler` + `MediaGateway` for multipart/metadata; `routes.go`, DTOs, multipart bind helpers in `mapping.go` |
 | `jobs/` | `OrphanEnqueuer`, cleanup scheduler, `GlobalCounters`, `cleanup_constants.go` |
 
 ### `internal/rbac/`
@@ -140,7 +141,7 @@ be-mycourse/
 | `domain/` | Applications, profiles, expertise, tickets; repository interface |
 | `application/` | `InstructorService` + roster/apps/profiles/expertise/tickets; ports for RBAC, auth cache, media |
 | `infra/` | `GormRepository`, rows, profile JSONB |
-| `delivery/` | Split handlers (`handler_expertise_*`, `handler_ticket`, …), `routes.go` |
+| `delivery/` | Split handlers (`handler_expertise_*`, `handler_ticket`, …), `routes.go`; list handlers use `internal/shared/httpx.ListPaginated` directly |
 
 Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wire_core.go`, `router.go` (`instdelivery.RegisterRoutes`).
 
@@ -164,13 +165,14 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `setting/` | `setting.Setup()`, config structs (`ServerSetting`, `DatabaseSetting`, `MediaSetting`, `LogSetting`, …) |
 | `logger/` | `logger.InitFromSettings()`, `logger.Sync()`, `logger.FromContext()`, `logger.WithRequestID()` |
 | `middleware/` | `AuthJWT`, `RequirePermission`, `RequireInternalAPIKey`, `RequireSystemAccessToken`, `RateLimitLocal`, `RateLimitSystemIP`, `CircuitBreakerMiddleware`, `BeforeInterceptor`, `RequestLogger` |
-| `response/` | `response.OK`, `response.Created`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |
+| `response/` | `response.OK`, `response.Created`, `response.WriteByStatus`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |
 | `token/` | JWT sign/parse for access and refresh tokens |
 | `validate/` | Validator setup, error flattening for Gin binding |
 | `taxonomy/` | `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs` |
 | `httperr/` | `Middleware`, `Recovery`, `HTTPError`, `Abort` |
 | `parsebool/` | `Loose`, `EnvEnabled` — env/YAML boolean strings |
-| `utils/` | `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`) |
+| `mediaquery/` | Shared avatar/media file-ID URL hydration helpers reused across bounded contexts without importing media/domain |
+| `utils/` | `CurrentUserID`, `ParseUintParam`, `ParsePermissionIDParam`, `RoutePermission`, `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`), `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON` |
 | `brevo/` | Brevo SMTP HTTP wrapper + `constants.go` |
 | `mailtmpl/` | HTML email template rendering + `constants.go` |
 | `errors/` | Sentinel `Err*` vars and error code constants |

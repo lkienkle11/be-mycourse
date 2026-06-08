@@ -1,50 +1,52 @@
 # Lesson Module
 
+_Last audited: 2026-06-04._
 
-> **Status: Planned / Not yet implemented.**  
-> No lesson endpoints or `internal/lesson/` package. Roadmap only — see **`docs/modules.md`**.  
-> This document describes the intended design. No lesson-related endpoints exist in the current codebase.
+There is still no standalone `internal/lesson/` package.
 
----
+Lesson behavior now lives inside `internal/course/` as part of the versioned outline model:
 
-## Overview
+- `course_lessons` stores first-level lessons inside a section
+- `course_sub_lessons` stores second-level lesson items inside a lesson
+- `course_sub_lesson_videos`, `course_sub_lesson_texts`, and `course_sub_lesson_quizzes` store type-specific content
 
-The Lesson module will manage the ordered content items within a course. Lesson visibility is gated on enrollment status and per-lesson preview settings.
+## Outline hierarchy
 
----
+```text
+Course version
+└── Section
+    └── Lesson
+        └── Sub-lesson
+            ├── VIDEO
+            ├── QUIZ
+            └── TEXT
+```
 
-## Planned Business Logic
+## Current behavior
 
-- List lessons within a course, ordered by sequence index.
-- Authenticated learners with an active enrollment can access all lessons.
-- Preview lessons are accessible without enrollment.
-- Instructors / Admins can create, update, reorder, and delete lessons.
+- lessons are version-scoped, not shared across drafts and published versions
+- lesson and sub-lesson ordering is explicit through `order_index`
+- every section / lesson / sub-lesson has a stable UUID (`stable_id`) for progress migration across approved versions
+- lesson edits use optimistic locking (`row_version`)
+- lesson and sub-lesson edits can be coordinated through course edit leases
 
-## Planned Constraints
+## Learner visibility
 
-- A lesson belongs to exactly one course.
-- Learners can access locked lessons only after active enrollment.
-- Lesson `order_index` must be unique within a course.
+- learners read lessons only from the currently published course version
+- draft-only lesson changes are invisible to learners until admin/sysadmin approval
+- `is_preview` exists on sub-lessons for preview-capable lesson items
 
-## Planned Transaction Notes
+## Route surface
 
-- Batch lesson reorder/update should run in a single transaction.
-- Lesson deletion should cascade or nullify references in enrollment progress records.
+The lesson APIs are exposed through the course route group, not through a separate lesson router:
 
----
+- `POST /api/v1/courses/:courseId/lessons`
+- `PATCH /api/v1/courses/:courseId/lessons/:lessonId`
+- `DELETE /api/v1/courses/:courseId/lessons/:lessonId`
+- `POST /api/v1/courses/:courseId/sections/:sectionId/lessons/reorder`
+- `POST /api/v1/courses/:courseId/sub-lessons`
+- `PATCH /api/v1/courses/:courseId/sub-lessons/:subLessonId`
+- `DELETE /api/v1/courses/:courseId/sub-lessons/:subLessonId`
+- `POST /api/v1/courses/:courseId/lessons/:lessonId/sub-lessons/reorder`
 
-## Implementation Reference (when added)
-
-When lesson APIs are implemented, update:
-- `api/v1/routes.go` — add lesson route group
-- `services/lesson.go` — business logic
-- `models/lesson.go` — GORM model
-- `dto/lesson.go` — request/response DTOs
-- `migrations/` — new SQL migration
-- This file and `docs/architecture.md`
-
----
-
-## Testing
-
-- **Module-level / integration** tests: **`tests/`** at repo root (`tests/README.md`, root `README.md` **Testing**).
+If the system later introduces a separate lesson bounded context, this document should be updated. Today the source of truth is `internal/course/`.

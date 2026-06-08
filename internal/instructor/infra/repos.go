@@ -33,11 +33,16 @@ func activeScope(db *gorm.DB) *gorm.DB {
 	return db.Where("deleted_at IS NULL")
 }
 
+func activeScopeAlias(db *gorm.DB, alias string) *gorm.DB {
+	return db.Where(alias + ".deleted_at IS NULL")
+}
+
 // --- Applications -----------------------------------------------------------
 
 func (r *GormRepository) ListApplications(ctx context.Context, f domain.ApplicationFilter) ([]domain.Application, int64, error) {
-	q := activeScope(r.db.WithContext(ctx).Table(constants.TableInstructorApplications + " ia")).
-		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = ia.user_id AND u.deleted_at IS NULL")
+	q := r.db.WithContext(ctx).Table(constants.TableInstructorApplications + " ia").
+		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = ia.user_id AND u.deleted_at IS NULL").
+		Where("ia.deleted_at IS NULL")
 	if s := strings.TrimSpace(f.ReviewStatus); s != "" {
 		q = q.Where("ia.review_status = ?", s)
 	}
@@ -130,8 +135,9 @@ func (r *GormRepository) DeleteApplicationsByUserID(ctx context.Context, userID 
 // --- Profiles ---------------------------------------------------------------
 
 func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilter) ([]domain.Profile, int64, error) {
-	q := activeScope(r.db.WithContext(ctx).Table(constants.TableInstructorProfiles + " ip")).
-		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = ip.user_id AND u.deleted_at IS NULL")
+	q := r.db.WithContext(ctx).Table(constants.TableInstructorProfiles + " ip").
+		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = ip.user_id AND u.deleted_at IS NULL").
+		Where("ip.deleted_at IS NULL")
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -250,23 +256,59 @@ WHERE ur.user_id = ?`, constants.TableRBACUserRoles, constants.TableRBACRoles)
 
 func (r *GormRepository) ListExpertise(ctx context.Context, userID uint, isTopic bool) (any, error) {
 	if isTopic {
-		var rows []expertiseTopicRow
-		if err := activeScope(r.db.WithContext(ctx)).Where("user_id = ?", userID).Find(&rows).Error; err != nil {
+		type expertiseTopicWithTaxonomyRow struct {
+			ID        uint   `gorm:"column:id"`
+			UserID    uint   `gorm:"column:user_id"`
+			TopicID   uint   `gorm:"column:topic_id"`
+			CreatedAt int64  `gorm:"column:created_at"`
+			UpdatedAt int64  `gorm:"column:updated_at"`
+			Name      string `gorm:"column:name"`
+			Slug      string `gorm:"column:slug"`
+		}
+		var rows []expertiseTopicWithTaxonomyRow
+		q := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseTopics+" iet").
+			Joins("LEFT JOIN "+constants.TableTaxonomyCourseTopics+" ct ON ct.id = iet.topic_id AND ct.deleted_at IS NULL").
+			Where("iet.deleted_at IS NULL AND iet.user_id = ?", userID)
+		if err := q.
+			Select("iet.id, iet.user_id, iet.topic_id, iet.created_at, iet.updated_at, COALESCE(ct.name, '') AS name, COALESCE(ct.slug, '') AS slug").
+			Order("iet.id ASC").
+			Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 		out := make([]domain.ExpertiseTopic, len(rows))
-		for i, row := range rows {
-			out[i] = domain.ExpertiseTopic{ID: row.ID, UserID: row.UserID, TopicID: row.TopicID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		for i := range rows {
+			out[i] = expertiseTopicRowToDomain(&expertiseTopicRow{
+				ID: rows[i].ID, UserID: rows[i].UserID, TopicID: rows[i].TopicID,
+				CreatedAt: rows[i].CreatedAt, UpdatedAt: rows[i].UpdatedAt,
+			}, rows[i].Name, rows[i].Slug)
 		}
 		return out, nil
 	}
-	var rows []expertiseSkillRow
-	if err := activeScope(r.db.WithContext(ctx)).Where("user_id = ?", userID).Find(&rows).Error; err != nil {
+	type expertiseSkillWithTaxonomyRow struct {
+		ID        uint   `gorm:"column:id"`
+		UserID    uint   `gorm:"column:user_id"`
+		SkillID   uint   `gorm:"column:skill_id"`
+		CreatedAt int64  `gorm:"column:created_at"`
+		UpdatedAt int64  `gorm:"column:updated_at"`
+		Name      string `gorm:"column:name"`
+		Slug      string `gorm:"column:slug"`
+	}
+	var rows []expertiseSkillWithTaxonomyRow
+	q := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseSkills+" ies").
+		Joins("LEFT JOIN "+constants.TableTaxonomyCourseSkills+" cs ON cs.id = ies.skill_id AND cs.deleted_at IS NULL").
+		Where("ies.deleted_at IS NULL AND ies.user_id = ?", userID)
+	if err := q.
+		Select("ies.id, ies.user_id, ies.skill_id, ies.created_at, ies.updated_at, COALESCE(cs.name, '') AS name, COALESCE(cs.slug, '') AS slug").
+		Order("ies.id ASC").
+		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]domain.ExpertiseSkill, len(rows))
-	for i, row := range rows {
-		out[i] = domain.ExpertiseSkill{ID: row.ID, UserID: row.UserID, SkillID: row.SkillID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	for i := range rows {
+		out[i] = expertiseSkillRowToDomain(&expertiseSkillRow{
+			ID: rows[i].ID, UserID: rows[i].UserID, SkillID: rows[i].SkillID,
+			CreatedAt: rows[i].CreatedAt, UpdatedAt: rows[i].UpdatedAt,
+		}, rows[i].Name, rows[i].Slug)
 	}
 	return out, nil
 }
@@ -305,13 +347,64 @@ func (r *GormRepository) addExpertise(ctx context.Context, userID, refID uint, i
 		if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return nil, err
 		}
-		return &domain.ExpertiseTopic{ID: row.ID, UserID: row.UserID, TopicID: row.TopicID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+		return r.getExpertiseByID(ctx, row.ID, true)
 	}
 	row := &expertiseSkillRow{UserID: userID, SkillID: refID}
 	if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 		return nil, err
 	}
-	return &domain.ExpertiseSkill{ID: row.ID, UserID: row.UserID, SkillID: row.SkillID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+	return r.getExpertiseByID(ctx, row.ID, false)
+}
+
+func (r *GormRepository) getExpertiseByID(ctx context.Context, id uint, isTopic bool) (any, error) {
+	if isTopic {
+		type expertiseTopicWithTaxonomyRow struct {
+			ID        uint   `gorm:"column:id"`
+			UserID    uint   `gorm:"column:user_id"`
+			TopicID   uint   `gorm:"column:topic_id"`
+			CreatedAt int64  `gorm:"column:created_at"`
+			UpdatedAt int64  `gorm:"column:updated_at"`
+			Name      string `gorm:"column:name"`
+			Slug      string `gorm:"column:slug"`
+		}
+		var row expertiseTopicWithTaxonomyRow
+		err := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseTopics+" iet").
+			Select("iet.id, iet.user_id, iet.topic_id, iet.created_at, iet.updated_at, COALESCE(ct.name, '') AS name, COALESCE(ct.slug, '') AS slug").
+			Joins("LEFT JOIN "+constants.TableTaxonomyCourseTopics+" ct ON ct.id = iet.topic_id AND ct.deleted_at IS NULL").
+			Where("iet.deleted_at IS NULL AND iet.id = ?", id).
+			First(&row).Error
+		if err != nil {
+			return nil, mapNotFound(err)
+		}
+		out := expertiseTopicRowToDomain(&expertiseTopicRow{
+			ID: row.ID, UserID: row.UserID, TopicID: row.TopicID,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		}, row.Name, row.Slug)
+		return &out, nil
+	}
+	type expertiseSkillWithTaxonomyRow struct {
+		ID        uint   `gorm:"column:id"`
+		UserID    uint   `gorm:"column:user_id"`
+		SkillID   uint   `gorm:"column:skill_id"`
+		CreatedAt int64  `gorm:"column:created_at"`
+		UpdatedAt int64  `gorm:"column:updated_at"`
+		Name      string `gorm:"column:name"`
+		Slug      string `gorm:"column:slug"`
+	}
+	var row expertiseSkillWithTaxonomyRow
+	err := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseSkills+" ies").
+		Select("ies.id, ies.user_id, ies.skill_id, ies.created_at, ies.updated_at, COALESCE(cs.name, '') AS name, COALESCE(cs.slug, '') AS slug").
+		Joins("LEFT JOIN "+constants.TableTaxonomyCourseSkills+" cs ON cs.id = ies.skill_id AND cs.deleted_at IS NULL").
+		Where("ies.deleted_at IS NULL AND ies.id = ?", id).
+		First(&row).Error
+	if err != nil {
+		return nil, mapNotFound(err)
+	}
+	out := expertiseSkillRowToDomain(&expertiseSkillRow{
+		ID: row.ID, UserID: row.UserID, SkillID: row.SkillID,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}, row.Name, row.Slug)
+	return &out, nil
 }
 
 func touchAndCreate(ctx context.Context, db *gorm.DB, created, updated *int64, row any) error {

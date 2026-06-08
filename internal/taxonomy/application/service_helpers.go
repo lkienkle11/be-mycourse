@@ -35,11 +35,11 @@ type slugStatusEntityRepo[T any] struct {
 
 func createSlugStatusEntity[T any](
 	ctx context.Context,
-	name, slug, status string,
+	name, status string,
 	actorID uint,
 	repo slugStatusEntityRepo[T],
 ) (*T, error) {
-	n, sl, st := trimmedTaxonomyFields(name, slug, status)
+	n, sl, st := trimmedTaxonomyFields(name, status)
 	entity := repo.build(n, sl, st, uintPtrIfPos(actorID))
 	if err := repo.create(ctx, entity); err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func courseLevelID(cl *domain.CourseLevel) uint { return cl.ID }
 type slugStatusCreator[T any] = slugStatusEntityRepo[T]
 
 func createSlugStatusFromInput[T any](ctx context.Context, in domain.CreateTagInput, c slugStatusCreator[T]) (*T, error) {
-	return createSlugStatusEntity(ctx, in.Name, in.Slug, in.Status, in.ActorID, c)
+	return createSlugStatusEntity(ctx, in.Name, in.Status, in.ActorID, c)
 }
 
 func (s *TaxonomyService) tagCreator() slugStatusCreator[domain.Tag] {
@@ -107,9 +107,9 @@ func updateSlugStatusRepo[T any](
 func updateSlugStatusFields(entity any, in domain.UpdateTagInput) {
 	switch e := entity.(type) {
 	case *domain.Tag:
-		applyOptionalTaxonomyFields(&e.Name, &e.Slug, &e.Status, in.Name, in.Slug, in.Status)
+		applyOptionalTaxonomyFields(&e.Name, &e.Slug, &e.Status, in.Name, in.Status)
 	case *domain.CourseLevel:
-		applyOptionalTaxonomyFields(&e.Name, &e.Slug, &e.Status, in.Name, in.Slug, in.Status)
+		applyOptionalTaxonomyFields(&e.Name, &e.Slug, &e.Status, in.Name, in.Status)
 	}
 }
 

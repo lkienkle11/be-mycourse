@@ -4,7 +4,7 @@
 > **Base URL:** `http://localhost:8080` (local) / `https://api.mycourse.io` (production)  
 > Replace `{{BASE_URL}}` with the actual base URL in all examples.  
 > **Handlers:** `internal/<domain>/delivery` (routes in `routes.go`, wired from `internal/server/wire.go`).  
-> **Last updated:** 2026-05-24
+> **Last updated:** 2026-06-07
 
 **Audit timestamps:** JSON `created_at` / `updated_at` (and soft-delete `deleted_at` where returned) are **integers** — Unix epoch **seconds**, not ISO strings. See **`docs/database.md`** and migration `000011`.
 
@@ -55,9 +55,11 @@
 11. [Media API (`/api/v1/media/*`)](#11-media-api-apiv1media)
 12. [Taxonomy (`/api/v1/taxonomy/*`)](#12-taxonomy-apiv1taxonomy)
 13. [Instructor management (`/api/v1/instructors`, …)](#13-instructor-management)
-14. [Webhooks (`/api/v1/webhook/*`)](#14-webhooks-apiv1webhook)
-15. [Error Code Reference](#15-error-code-reference)
-16. [Postman / API Dog](#16-postman--api-dog)
+14. [Course management (`/api/v1/courses`, …)](#14-course-management)
+15. [Webhooks (`/api/v1/webhook/*`)](#15-webhooks-apiv1webhook)
+16. [Error Code Reference](#16-error-code-reference)
+17. [Postman / API Dog](#17-postman--api-dog)
+18. [Local smoke test (migrations `000011` + `000013`)](#18-local-smoke-test-migrations-000011--000013)
 
 **Test code layout:** module-level / integration Go tests belong under repository root **`tests/`** — see `tests/README.md` and root `README.md` (**Testing**).
 
@@ -1237,15 +1239,9 @@ curl -X DELETE {{BASE_URL}}/api/internal-v1/rbac/users/42/direct-permissions/P8 
 
 ---
 
-## 10. Deprecated / Planned APIs
+## 10. Deprecated APIs
 
-| Status | Endpoint | Notes |
-|--------|----------|-------|
-| 🔜 Planned | `GET /api/v1/courses` | Course listing — not yet implemented |
-| 🔜 Planned | `POST /api/v1/courses` | Course creation — not yet implemented |
-| 🔜 Planned | `GET /api/v1/courses/:id/lessons` | Lesson listing — not yet implemented |
-| 🔜 Planned | `POST /api/v1/enrollments` | Enrollment — not yet implemented |
-> No endpoints are currently marked as **deprecated**. When an endpoint is deprecated it will be listed here with the deprecation date, reason, and replacement.
+No endpoints are currently marked as **deprecated**. When an endpoint is deprecated it will be listed here with the deprecation date, reason, and replacement.
 
 ---
 
@@ -1407,8 +1403,8 @@ Allowed `search_by` values:
 | DELETE | `/api/v1/taxonomy/levels/:id` |
 | DELETE | `/api/v1/taxonomy/levels/:id/hard` |
 
-**Create body:** `{ "name", "slug", "status"? }` — `status` optional (`ACTIVE` / `INACTIVE`).  
-**Update body:** partial `{ "name"?, "slug"?, "status"? }`.
+**Create body:** `{ "name", "status"? }` — `status` optional (`ACTIVE` / `INACTIVE`). Slug is computed server-side from `name`.  
+**Update body:** partial `{ "name"?, "status"? }` — when `name` changes, slug is recomputed server-side.
 
 ```bash
 # List
@@ -1419,7 +1415,7 @@ curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&status=ACTIV
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/levels \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Beginner","slug":"beginner","status":"ACTIVE"}'
+  -d '{"name":"Beginner","status":"ACTIVE"}'
 
 # Update
 curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/1 \
@@ -1447,14 +1443,14 @@ curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1/hard \
 | DELETE | `/api/v1/taxonomy/topics/:id` |
 | DELETE | `/api/v1/taxonomy/topics/:id/hard` |
 
-**Create body:** `{ "name", "slug", "image_file_id"?, "child_topics"?, "status"? }` — optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** is a tree of `{ "id", "name", "slug", "children" }` nodes (UUID ids, max depth 12, max 100 nodes).  
+**Create body:** `{ "name", "image_file_id"?, "child_topics"?, "status"? }` — slug is server-computed from `name`. Optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** input nodes: `{ "id", "name", "children" }` (UUID ids, max depth 12, max 100 nodes; slug derived per node on server).  
 **Update body:** partial fields including optional **`child_topics`** array.
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/topics \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Math","slug":"math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","child_topics":[],"status":"ACTIVE"}'
+  -d '{"name":"Math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","child_topics":[],"status":"ACTIVE"}'
 ```
 
 ### 12.3 Course outcomes
@@ -1488,13 +1484,13 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/outcomes \
 | DELETE | `/api/v1/taxonomy/skills/:id` |
 | DELETE | `/api/v1/taxonomy/skills/:id/hard` |
 
-**Create body:** `{ "name", "slug", "children"?, "status"? }` — `children` uses the same tree node shape as `child_topics`.
+**Create body:** `{ "name", "children"?, "status"? }` — slug server-computed; `children` uses the same input tree shape as `child_topics`.
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Problem solving","slug":"problem-solving","children":[],"status":"ACTIVE"}'
+  -d '{"name":"Problem solving","children":[],"status":"ACTIVE"}'
 ```
 
 ### 12.5 Tags
@@ -1508,7 +1504,7 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
 | DELETE | `/api/v1/taxonomy/tags/:id` |
 | DELETE | `/api/v1/taxonomy/tags/:id/hard` |
 
-**Create body:** `{ "name", "slug", "status"? }`.
+**Create body:** `{ "name", "status"? }` — slug server-computed from `name`.
 
 ```bash
 curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search_by=slug&search_value=react&status=ACTIVE" \
@@ -1549,11 +1545,104 @@ curl -sS -X POST "{{BASE_URL}}/api/v1/instructor-applications/1/reject" \
 
 ---
 
-## 14. Webhooks (`/api/v1/webhook/*`)
+## 14. Course management
+
+> **Auth:** Bearer JWT. Permissions: `course:create`, `course:update`, `course:delete`, `course_instructor:read`, `admin:modify` (review). Full route matrix: **`docs/router.md`**, module notes: **`docs/modules/course.md`**.
+
+Requires migration **`000016_course_management`** (or `MIGRATE=1`) and permission sync.
+
+### 14.1 Create course
+
+**`POST /api/v1/courses`** — permission `course:create`
+
+Request body: `{ "title": string }` only. Slug is computed server-side from `title` via `utils.SlugifyName` (not accepted from clients).
+
+```bash
+curl -sS -X POST "{{BASE_URL}}/api/v1/courses" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Introduction to Go"}'
+```
+
+| HTTP | `code` | Notes |
+|------|--------|-------|
+| 201 | 0 | `data` = `CourseDetail` (draft v1, owner collaborator, empty outline) |
+| 400 | 3001 | Empty slug after slugify (`invalid slug`) |
+| 401 | 3002 | Missing/invalid JWT |
+| 403 | 3003 | Missing `course:create` |
+| 409 | 3005 | Duplicate slug (unique constraint) |
+| 500 | 9001 | Internal error |
+
+Example success (truncated):
+
+```json
+{
+  "code": 0,
+  "message": "created",
+  "data": {
+    "course": {
+      "id": 1,
+      "owner_user_id": 2,
+      "slug": "introduction-to-go",
+      "current_draft_version_id": 1,
+      "created_at": 1780823439,
+      "updated_at": 1780823439
+    },
+    "collaborator_role": "OWNER",
+    "draft_version": {
+      "id": 1,
+      "course_id": 1,
+      "version_no": 1,
+      "status": "DRAFT",
+      "title": "Introduction to Go",
+      "row_version": 1
+    },
+    "collaborators": [
+      {
+        "user_id": 2,
+        "role": "OWNER",
+        "display_name": "Alice",
+        "email": "alice@example.com"
+      }
+    ],
+    "outline": []
+  }
+}
+```
+
+### 14.2 List editable courses
+
+**`GET /api/v1/courses/my`** — permission `course_instructor:read`
+
+```bash
+curl -sS "{{BASE_URL}}/api/v1/courses/my" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Success `data`: `[]CourseListItem` (courses where caller is owner or collaborator).
+
+### 14.3 Get course detail
+
+**`GET /api/v1/courses/:courseId`** — permission `course_instructor:read`
+
+```bash
+curl -sS "{{BASE_URL}}/api/v1/courses/1" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Success `data`: `CourseDetail` with draft + published version context when available.
+
+Other instructor routes (basic info, outline CRUD/reorder, leases, collaborators, review submit/reopen) follow the same Bearer + permission pattern — see **`docs/router.md`**.
+
+Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
+
+---
+
+## 15. Webhooks (`/api/v1/webhook/*`)
 
 > **Auth:** none (public URL — protect at edge / signature if you add it). Mounted on the **no-filter** v1 group (same CORS as app).
 
-### 14.1 Bunny Stream video webhook
+### 15.1 Bunny Stream video webhook
 
 **`POST /api/v1/webhook/bunny`**
 
@@ -1575,7 +1664,7 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 
 ---
 
-## 15. Error Code Reference
+## 16. Error Code Reference
 
 | HTTP | `code` | Constant | Meaning |
 |------|--------|----------|---------|
@@ -1621,7 +1710,7 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 
 ---
 
-## 16. Postman / API Dog
+## 17. Postman / API Dog
 
 > **Import vào Apidog:** (1) [`docs/api-dog-import.json`](./api-dog-import.json) — **Import → Postman**; hoặc (2) [`docs/api_swagger.yaml`](./api_swagger.yaml) — **Import → OpenAPI** (script lưu token nằm trong `x-postman-event` trên Login / Confirm / Refresh / System login). Sau khi gọi **Login** / **Confirm** / **Refresh**, post-processor tự ghi `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (chọn **Environment** trước). Sinh lại collection Postman: `ruby scripts/generate-apidog-postman.rb` (đọc script từ swagger, không hardcode trong Ruby).
 
@@ -1658,7 +1747,7 @@ if (data && data.access_token) {
 
 Add to any authenticated request to auto-refresh when needed:
 
-## 17. Local smoke test (migrations `000011` + `000013`)
+## 18. Local smoke test (migrations `000011` + `000013` + expertise `000017`)
 
 Run on **`http://localhost:8080`** only after `MIGRATE=1` (or manual SQL) and `go run .`. Expect `users.created_at` = `bigint` in Postgres (**`000011`**) — see **`docs/deploy.md`** (Troubleshooting). For instructor APIs, **`000013`** must be applied and permissions synced.
 
@@ -1692,6 +1781,35 @@ curl -sS 'http://localhost:8080/api/v1/instructors?page=1&per_page=20' \
 ```
 
 Pass: HTTP **200**, `code: 0`, paginated `data` array (or empty list).
+
+**4. Instructor expertise topics** (same token; replace `:id` with instructor `user_id`, e.g. `14`)
+
+```bash
+curl -sS 'http://localhost:8080/api/v1/instructors/14/expertise/topics' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **200**, `code: 0`; each item has snake_case `topic_id`, joined `name`, `slug` (not PascalCase `TopicID`). POST add:
+
+```bash
+curl -sS -X POST 'http://localhost:8080/api/v1/instructors/14/expertise/topics' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"topic_id":7}'
+```
+
+Pass: HTTP **200**, `code: 0`, `data.topic_id` present. If **500** with `course_topic_id` NOT NULL, apply migration **`000017`** (`MIGRATE=1`). Dev test account: **`user01@yopmail.com`** / **`Test@1234`** (see **`AGENTS.md`**).
+
+**5. Instructor profile by user_id** (replace `14` with target instructor)
+
+```bash
+curl -sS 'http://localhost:8080/api/v1/instructor-profiles/14' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **404** `code: 3004` when no profile yet (not **500**). If **500** with `column ip.id does not exist` or ambiguous `deleted_at`, apply migration **`000019`**.
 
 ---
 

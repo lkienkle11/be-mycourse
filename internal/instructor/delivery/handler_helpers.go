@@ -9,7 +9,6 @@ import (
 
 	"mycourse-io-be/internal/instructor/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
-	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/utils"
 )
@@ -40,19 +39,6 @@ func mapInstructorError(c *gin.Context, err error) bool {
 	}
 	response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
 	return true
-}
-
-func listPaginated[TRow any, TResp any](
-	c *gin.Context,
-	listFn func(context.Context, listQuery) ([]TRow, int64, error),
-	toResp func([]TRow) []TResp,
-) {
-	httpx.ListPaginated(c,
-		func(q *listQuery) error { return c.ShouldBindQuery(q) },
-		func(ctx context.Context, q listQuery) ([]TRow, int64, error) { return listFn(ctx, q) },
-		func(q listQuery) (int, int) { return q.getPage(), q.getPerPage() },
-		toResp,
-	)
 }
 
 func parseIDParam(c *gin.Context) (uint, bool) {

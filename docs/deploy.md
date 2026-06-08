@@ -317,6 +317,30 @@ curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
 
 See also **`migrations/README.md`** (`000011`, `000012`) and **`docs/database.md`** (BIGINT audit convention).
 
+**Expertise POST returns 500 (`course_topic_id` NOT NULL):** drifted databases may still have legacy `course_topic_id` / `course_skill_id` as NOT NULL while the app inserts into `topic_id` / `skill_id`. Apply migration **`000017_instructor_expertise_drop_legacy_fk_cols`** (`MIGRATE=1` or `psql ... -f migrations/000017_instructor_expertise_drop_legacy_fk_cols.up.sql`). Verify with:
+
+```bash
+psql "$DATABASE_URL" -c "\d instructor_expertise_topics"
+```
+
+Expect canonical column `topic_id` NOT NULL with FK to `course_topics`, and **no** `course_topic_id` column.
+
+**Instructor tickets GET returns 500 (`deleted_at` does not exist):** drifted databases may have `instructor_tickets` / `instructor_ticket_messages` without `deleted_at` while queries use `activeScope()`. Apply migration **`000018_instructor_tickets_soft_delete_compat`** (`MIGRATE=1` or `psql ... -f migrations/000018_instructor_tickets_soft_delete_compat.up.sql`). Verify with:
+
+```bash
+psql "$DATABASE_URL" -c "\d instructor_tickets"
+```
+
+Expect column `deleted_at` (BIGINT, nullable) and partial index `idx_instructor_tickets_status` with `WHERE deleted_at IS NULL`.
+
+**Instructor profile GET returns 500 (`column ip.id does not exist`):** drifted databases may define `instructor_profiles` with `user_id` as sole PK (no `id`, no `deleted_at`). Apply migration **`000019_instructor_profiles_apps_soft_delete_compat`** (`MIGRATE=1` or manual SQL). Verify with:
+
+```bash
+psql "$DATABASE_URL" -c "\d instructor_profiles"
+```
+
+Expect columns `id` (PK) and `deleted_at`, plus partial unique index `uix_instructor_profiles_user_active`.
+
 ---
 
 ### Step 11 — Build the backend binary

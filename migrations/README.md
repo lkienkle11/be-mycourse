@@ -20,7 +20,11 @@
 | `000012_soft_delete_taxonomy_users_ban` | Adds **`deleted_at`** to 5 taxonomy tables + partial unique slug indexes; adds **`users.banned_until`** (Unix seconds ban-lift timestamp). |
 | `000013_instructor_management` | Adds **`users.phone`**; creates instructor tables (applications, profiles, expertise, tickets, messages); seeds **P41–P58** + role grants. See **`docs/modules/instructor.md`**. |
 | `000014_system_user_machine_binding` | Adds **`system_privileged_users.machine_secret`** for privileged CLI machine binding (existing rows default empty value). |
-| `000015_instructor_expertise_soft_delete_compat` | Drift-safe compatibility patch for `instructor_expertise_topics` / `instructor_expertise_skills`: ensures `deleted_at`, normalizes `topic_id` / `skill_id` from legacy `course_topic_id` / `course_skill_id` when present, then rebuilds active-only unique indexes. |
+| `000015_instructor_expertise_soft_delete_compat` | Drift-safe compatibility patch for `instructor_expertise_topics` / `instructor_expertise_skills`: ensures `deleted_at`, normalizes `topic_id` / `skill_id` from legacy `course_topic_id` / `course_skill_id` when present, then rebuilds active-only unique indexes. Does **not** drop legacy columns — apply `000017` next on drifted DBs. |
+| `000016_course_management` | Tables `courses`, `course_versions`, collaborator membership, version-scoped outline rows, sub-lesson payload tables, edit leases, learner enrollments, and stable-id progress records. See **`docs/modules/course.md`**. |
+| `000017_instructor_expertise_drop_legacy_fk_cols` | Finalizes expertise junction schema on drifted DBs: backfills `topic_id` / `skill_id`, drops legacy `course_topic_id` / `course_skill_id`, sets canonical columns NOT NULL, and adds FK constraints on `topic_id` / `skill_id`. |
+| `000018_instructor_tickets_soft_delete_compat` | Drift-safe compatibility patch for `instructor_tickets` / `instructor_ticket_messages`: ensures `deleted_at` and rebuilds partial status index (`WHERE deleted_at IS NULL`). |
+| `000019_instructor_profiles_apps_soft_delete_compat` | Drift-safe patch for `instructor_profiles` / `instructor_applications`: ensures `deleted_at`, adds `id` PK on profiles when DB only has `user_id` PK, rebuilds partial unique indexes. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

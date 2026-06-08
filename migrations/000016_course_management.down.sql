@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS course_progress_items;
+DROP TABLE IF EXISTS course_enrollments;
+DROP TABLE IF EXISTS course_edit_leases;
+DROP TABLE IF EXISTS course_sub_lesson_quiz_options;
+DROP TABLE IF EXISTS course_sub_lesson_quizzes;
+DROP TABLE IF EXISTS course_sub_lesson_texts;
+DROP TABLE IF EXISTS course_sub_lesson_videos;
+DROP TABLE IF EXISTS course_sub_lessons;
+DROP TABLE IF EXISTS course_lessons;
+DROP TABLE IF EXISTS course_sections;
+DROP TABLE IF EXISTS course_collaborators;
+DROP TABLE IF EXISTS course_version_outcomes;
+DROP TABLE IF EXISTS course_version_skills;
+DROP TABLE IF EXISTS course_version_tags;
+ALTER TABLE courses DROP CONSTRAINT IF EXISTS fk_courses_current_draft_version;
+ALTER TABLE courses DROP CONSTRAINT IF EXISTS fk_courses_current_published_version;
+DROP TABLE IF EXISTS course_versions;
+DROP TABLE IF EXISTS courses;

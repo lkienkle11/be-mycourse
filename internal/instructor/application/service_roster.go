@@ -20,28 +20,10 @@ func (s *InstructorService) ListRoster(ctx context.Context, f domain.RosterFilte
 }
 
 func (s *InstructorService) hydrateRosterAvatars(ctx context.Context, rows []domain.RosterMember) error {
-	if s.hydrator == nil || len(rows) == 0 {
-		return nil
-	}
-	ids := make([]string, 0, len(rows))
-	for _, r := range rows {
-		if id := strings.TrimSpace(r.AvatarFileID); id != "" {
-			ids = append(ids, id)
-		}
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	urls, err := s.hydrator.ResolveAvatarURLs(ctx, ids)
-	if err != nil {
-		return err
-	}
-	for i := range rows {
-		if u, ok := urls[rows[i].AvatarFileID]; ok {
-			rows[i].AvatarURL = u
-		}
-	}
-	return nil
+	return hydrateAvatarURLsByAccessor(ctx, s.hydrator, rows,
+		func(row domain.RosterMember) string { return row.AvatarFileID },
+		func(row *domain.RosterMember, url string) { row.AvatarURL = url },
+	)
 }
 
 func (s *InstructorService) AddRosterByEmail(ctx context.Context, email string) (*domain.RosterMember, error) {

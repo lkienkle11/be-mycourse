@@ -34,7 +34,6 @@ func (f TaxonomyBaseFilter) getPerPage() int {
 // CreateCourseTopicRequest is the JSON body for creating a course topic.
 type CreateCourseTopicRequest struct {
 	Name        string            `json:"name" validate:"required,min=1,max=255"`
-	Slug        string            `json:"slug" validate:"required,min=1,max=255"`
 	ImageFileID string            `json:"image_file_id" validate:"omitempty,uuid"`
 	ChildTopics []taxpkg.TreeNode `json:"child_topics"`
 	Status      string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
@@ -43,7 +42,6 @@ type CreateCourseTopicRequest struct {
 // UpdateCourseTopicRequest is the JSON body for updating a course topic.
 type UpdateCourseTopicRequest struct {
 	Name        *string            `json:"name" validate:"omitempty,min=1,max=255"`
-	Slug        *string            `json:"slug" validate:"omitempty,min=1,max=255"`
 	ImageFileID *string            `json:"image_file_id" validate:"omitempty,uuid"`
 	ChildTopics *[]taxpkg.TreeNode `json:"child_topics"`
 	Status      *string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
@@ -68,7 +66,6 @@ type UpdateCourseOutcomeRequest struct {
 // CreateCourseSkillRequest is the JSON body for creating a course skill.
 type CreateCourseSkillRequest struct {
 	Name     string            `json:"name" validate:"required,min=1,max=255"`
-	Slug     string            `json:"slug" validate:"required,min=1,max=255"`
 	Children []taxpkg.TreeNode `json:"children"`
 	Status   string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 }
@@ -76,7 +73,6 @@ type CreateCourseSkillRequest struct {
 // UpdateCourseSkillRequest is the JSON body for updating a course skill.
 type UpdateCourseSkillRequest struct {
 	Name     *string            `json:"name" validate:"omitempty,min=1,max=255"`
-	Slug     *string            `json:"slug" validate:"omitempty,min=1,max=255"`
 	Children *[]taxpkg.TreeNode `json:"children"`
 	Status   *string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 }
@@ -84,14 +80,12 @@ type UpdateCourseSkillRequest struct {
 // CreateTagRequest is the JSON body for creating a tag.
 type CreateTagRequest struct {
 	Name   string `json:"name" validate:"required,min=1,max=255"`
-	Slug   string `json:"slug" validate:"required,min=1,max=255"`
 	Status string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 }
 
 // UpdateTagRequest is the JSON body for updating a tag.
 type UpdateTagRequest struct {
 	Name   *string `json:"name" validate:"omitempty,min=1,max=255"`
-	Slug   *string `json:"slug" validate:"omitempty,min=1,max=255"`
 	Status *string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 }
 

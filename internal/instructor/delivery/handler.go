@@ -9,6 +9,7 @@ import (
 	"mycourse-io-be/internal/instructor/application"
 	"mycourse-io-be/internal/instructor/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
@@ -22,10 +23,12 @@ type Handler struct {
 func NewHandler(svc *application.InstructorService) *Handler { return &Handler{svc: svc} }
 
 func (h *Handler) listRoster(c *gin.Context) {
-	listPaginated(c,
+	httpx.ListPaginated(c,
+		func(q *listQuery) error { return c.ShouldBindQuery(q) },
 		func(ctx context.Context, q listQuery) ([]domain.RosterMember, int64, error) {
 			return h.svc.ListRoster(ctx, domain.RosterFilter{Page: q.getPage(), PageSize: q.getPerPage(), Search: q.Search})
 		},
+		func(q listQuery) (int, int) { return q.getPage(), q.getPerPage() },
 		func(rows []domain.RosterMember) []rosterResponse {
 			out := make([]rosterResponse, len(rows))
 			for i, r := range rows {
@@ -56,12 +59,14 @@ func (h *Handler) deleteRoster(c *gin.Context) {
 }
 
 func (h *Handler) listApplications(c *gin.Context) {
-	listPaginated(c,
+	httpx.ListPaginated(c,
+		func(q *listQuery) error { return c.ShouldBindQuery(q) },
 		func(ctx context.Context, q listQuery) ([]domain.Application, int64, error) {
 			return h.svc.ListApplications(ctx, domain.ApplicationFilter{
 				Page: q.getPage(), PageSize: q.getPerPage(), HasProfile: q.HasProfile, ReviewStatus: q.Status,
 			})
 		},
+		func(q listQuery) (int, int) { return q.getPage(), q.getPerPage() },
 		func(rows []domain.Application) []applicationResponse {
 			out := make([]applicationResponse, len(rows))
 			for i, r := range rows {

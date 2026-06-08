@@ -6,8 +6,9 @@ import (
 	"errors"
 	"strings"
 
-	"mycourse-io-be/internal/taxonomy/domain"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
+	"mycourse-io-be/internal/shared/utils"
+	"mycourse-io-be/internal/taxonomy/domain"
 )
 
 // MediaFileValidator validates and loads a profile-image file by ID.
@@ -74,9 +75,10 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 			return nil, err
 		}
 	}
-	n, sl, st := trimmedTaxonomyFields(in.Name, in.Slug, in.Status)
+	childTopics := taxpkg.NormalizeTreeSlugs(in.ChildTopics)
+	n, sl, st := trimmedTaxonomyFields(in.Name, in.Status)
 	t := &domain.CourseTopic{
-		Name: n, Slug: sl, Status: st, ChildTopics: in.ChildTopics,
+		Name: n, Slug: sl, Status: st, ChildTopics: childTopics,
 		CreatedBy: uintPtrIfPos(in.ActorID),
 	}
 	if fileID != "" {
@@ -93,12 +95,13 @@ func (s *TaxonomyService) UpdateTopic(ctx context.Context, id uint, in domain.Up
 	if err != nil {
 		return nil, err
 	}
-	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Slug, in.Status)
+	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Status)
 	if in.ChildTopics != nil {
-		if err := validateChildTopics(*in.ChildTopics); err != nil {
+		normalized := taxpkg.NormalizeTreeSlugs(*in.ChildTopics)
+		if err := validateChildTopics(normalized); err != nil {
 			return nil, err
 		}
-		row.ChildTopics = *in.ChildTopics
+		row.ChildTopics = normalized
 	}
 	prevFileID := imageFileIDStr(row.ImageFileID)
 	if err := s.mutateImageFileID(ctx, &row.ImageFileID, in.ImageFileID); err != nil {
@@ -223,9 +226,10 @@ func (s *TaxonomyService) CreateCourseSkill(ctx context.Context, in domain.Creat
 	if err := validateChildren(in.Children); err != nil {
 		return nil, err
 	}
-	n, sl, st := trimmedTaxonomyFields(in.Name, in.Slug, in.Status)
+	children := taxpkg.NormalizeTreeSlugs(in.Children)
+	n, sl, st := trimmedTaxonomyFields(in.Name, in.Status)
 	sk := &domain.CourseSkill{
-		Name: n, Slug: sl, Status: st, Children: in.Children,
+		Name: n, Slug: sl, Status: st, Children: children,
 		CreatedBy: uintPtrIfPos(in.ActorID),
 	}
 	if err := s.skillRepo.Create(ctx, sk); err != nil {
@@ -239,12 +243,13 @@ func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id uint, in dom
 	if err != nil {
 		return nil, err
 	}
-	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Slug, in.Status)
+	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Status)
 	if in.Children != nil {
-		if err := validateChildren(*in.Children); err != nil {
+		normalized := taxpkg.NormalizeTreeSlugs(*in.Children)
+		if err := validateChildren(normalized); err != nil {
 			return nil, err
 		}
-		row.Children = *in.Children
+		row.Children = normalized
 	}
 	if err := s.skillRepo.Save(ctx, row); err != nil {
 		return nil, err
@@ -323,6 +328,7 @@ func validateChildTopics(nodes []taxpkg.TreeNode) error {
 	if nodes == nil {
 		return nil
 	}
+	nodes = taxpkg.NormalizeTreeSlugs(nodes)
 	if err := taxpkg.ValidateTree(nodes, taxpkg.ValidateTreeOpts{}); err != nil {
 		return errors.Join(ErrTaxonomyValidation, err)
 	}
@@ -365,9 +371,9 @@ func (s *TaxonomyService) mutateImageFileID(ctx context.Context, dst **string, i
 	return nil
 }
 
-func trimmedTaxonomyFields(name, slug, status string) (string, string, string) {
+func trimmedTaxonomyFields(name, status string) (string, string, string) {
 	n := strings.TrimSpace(name)
-	sl := strings.TrimSpace(slug)
+	sl := slugFromName(n)
 	st := strings.ToUpper(strings.TrimSpace(status))
 	if st == "" {
 		st = "ACTIVE"
@@ -375,12 +381,14 @@ func trimmedTaxonomyFields(name, slug, status string) (string, string, string) {
 	return n, sl, st
 }
 
-func applyOptionalTaxonomyFields(dstName, dstSlug, dstStatus *string, name, slug, status *string) {
+func slugFromName(name string) string {
+	return strings.TrimSpace(utils.SlugifyName(name))
+}
+
+func applyOptionalTaxonomyFields(dstName, dstSlug, dstStatus *string, name, status *string) {
 	if name != nil {
 		*dstName = strings.TrimSpace(*name)
-	}
-	if slug != nil {
-		*dstSlug = strings.TrimSpace(*slug)
+		*dstSlug = slugFromName(*dstName)
 	}
 	if status != nil {
 		v := strings.ToUpper(strings.TrimSpace(*status))

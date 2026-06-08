@@ -1,47 +1,37 @@
 # Enrollment Module
 
+_Last audited: 2026-06-07._
 
-> **Status: Planned / Not yet implemented.**  
-> No enrollment endpoints or `internal/enrollment/` package. Roadmap only — see **`docs/modules.md`**.  
-> This document describes the intended design. No enrollment-related endpoints exist in the current codebase.
+There is no standalone `internal/enrollment/` package yet.
 
----
+Enrollment and learner progress are currently implemented inside `internal/course/` because they are tightly coupled to course version selection and stable-content progress migration.
 
-## Overview
+## Current tables
 
-The Enrollment module manages the relationship between a learner and a course. An enrollment record is created after a successful payment or free-course acquisition, and its state controls lesson access.
+- `course_enrollments`
+  - one learner-course membership row
+  - stores `current_version_id`
+- `course_progress_items`
+  - stores learner progress keyed by `stable_content_id`
+  - keeps progress tied to business-stable outline identities instead of version-local row ids
 
----
+## Current behavior
 
-## Planned Business Logic
+- learner enrollment is created via:
+  - `POST /api/v1/learner-courses/:courseId/enroll`
+- learner course detail is read via:
+  - `GET /api/v1/learner-courses/:courseId`
+- learner progress is read / saved via:
+  - `GET /api/v1/learner-courses/:courseId/progress`
+  - `POST /api/v1/learner-courses/:courseId/progress`
 
-- A learner enrolls in a course after a successful payment flow.
-- Enrollment status controls access to locked lessons.
-- Duplicate enrollment (same learner + same active course) is prevented.
+## Version-switch behavior
 
-## Planned Constraints
+- learners always study the currently approved course version
+- when a new version is approved, `courses.current_published_version_id` changes and learners move to that version
+- progress is preserved for sections / lessons / sub-lessons that keep the same `stable_id`
+- removed content no longer contributes to current completion, but historical progress rows remain stored
 
-- A learner cannot enroll twice in the same active course.
-- Enrollment must be linked to either a completed payment or a free-course grant.
+## Scope note
 
-## Planned Transaction Notes
-
-- Enrollment creation and payment status update must be atomic to prevent partial state.
-
----
-
-## Implementation Reference (when added)
-
-When enrollment APIs are implemented, update:
-- `api/v1/routes.go` — add enrollment route group
-- `services/enrollment.go` — business logic
-- `models/enrollment.go` — GORM model
-- `dto/enrollment.go` — request/response DTOs
-- `migrations/` — new SQL migration
-- This file and `docs/architecture.md`
-
----
-
-## Testing
-
-- **Module-level / integration** tests: **`tests/`** at repo root (`tests/README.md`, root `README.md` **Testing**).
+Payment and commercial enrollment flows are still outside this implementation. The current learner enrollment support is the content-access and progress layer required by the versioned course workflow.

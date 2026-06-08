@@ -29,9 +29,9 @@
    - [FR-5 RBAC Synchronization (Internal)](#fr-5-rbac-synchronization-internal)
    - [FR-6 Internal RBAC HTTP API](#fr-6-internal-rbac-http-api)
    - [FR-7 Health Check](#fr-7-health-check)
-   - [FR-8 Planned: Course Management](#fr-8-planned-course-management)
-   - [FR-9 Planned: Lesson Management](#fr-9-planned-lesson-management)
-   - [FR-10 Planned: Enrollment](#fr-10-planned-enrollment)
+   - [FR-8 Course Management](#fr-8-course-management)
+   - [FR-9 Lesson Management](#fr-9-lesson-management)
+   - [FR-10 Enrollment](#fr-10-enrollment)
    - [FR-11 Media Upload Gateway](#fr-11-media-upload-gateway)
 2. [Non-Functional Requirements](#non-functional-requirements)
    - [NFR-1 Performance & Availability](#nfr-1-performance--availability)
@@ -398,33 +398,34 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 
 ---
 
-### FR-8 Planned: Course Management
+### FR-8 Course Management
 
-> **Status: Not yet implemented.** See `docs/modules/course.md`.
+> **Status: Implemented in `internal/course/`.** See `docs/modules/course.md`.
 
-- Learners, instructors, and admins can list and read courses (`course:read`).
-- Instructors and admins can create (`course:create`), update (`course:update`), and delete (`course:delete`) courses.
-- Sysadmins can also view instructor assignments (`course_instructor:read`).
-
----
-
-### FR-9 Planned: Lesson Management
-
-> **Status: Not yet implemented.** See `docs/modules/lesson.md`.
-
-- Lessons belong to courses and are ordered by an index.
-- Access to non-preview lessons is gated on active enrollment.
-- Batch reorder runs in a single transaction.
+- The system **MUST** provide course authoring endpoints under `/api/v1/courses` for create/read/update/delete and collaborator management.
+- The system **MUST** enforce role-gated review endpoints under `/api/v1/course-reviews` for pending queue, approve, and reject actions.
+- The system **MUST** support draft-first editing with one active draft per course, optimistic locking (`row_version`), and resource edit leases.
+- Learner course delivery and enrollment/progress APIs **MUST** be exposed under `/api/v1/learner-courses`.
 
 ---
 
-### FR-10 Planned: Enrollment
+### FR-9 Lesson Management
 
-> **Status: Not yet implemented.** See `docs/modules/enrollment.md`.
+> **Status: Implemented inside the Course bounded context.** See `docs/modules/lesson.md` and `docs/modules/course.md`.
 
-- Learners enroll in courses after payment or free grant.
-- Duplicate enrollment is prevented at the DB constraint level.
-- Enrollment creation and payment status update must be atomic.
+- Lessons **MUST** belong to course sections in a specific course version and maintain sortable order.
+- Sub-lessons **MUST** support `VIDEO`, `QUIZ`, and `TEXT` payloads with version-scoped persistence.
+- Reorder operations for sections/lessons/sub-lessons **MUST** be validated against stable-id sets and applied atomically.
+
+---
+
+### FR-10 Enrollment
+
+> **Status: Implemented inside the Course bounded context.** See `docs/modules/enrollment.md` and `docs/modules/course.md`.
+
+- Learners **MUST** enroll through `POST /api/v1/learner-courses/:courseId/enroll`.
+- Enrollment records **MUST** track the learner's active published version and prevent duplicates.
+- Progress tracking **MUST** use stable content identifiers so progress can migrate across approved versions.
 
 ---
 

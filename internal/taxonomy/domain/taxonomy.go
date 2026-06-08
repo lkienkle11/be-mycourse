@@ -93,7 +93,6 @@ type TaxonomyFilter struct {
 type CreateCourseTopicInput struct {
 	ActorID     uint
 	Name        string
-	Slug        string
 	Status      string
 	ImageFileID string
 	ChildTopics []taxpkg.TreeNode
@@ -102,7 +101,6 @@ type CreateCourseTopicInput struct {
 // UpdateCourseTopicInput carries partial-update data for a course topic.
 type UpdateCourseTopicInput struct {
 	Name        *string
-	Slug        *string
 	Status      *string
 	ImageFileID *string
 	ChildTopics *[]taxpkg.TreeNode
@@ -129,7 +127,6 @@ type UpdateCourseOutcomeInput struct {
 type CreateCourseSkillInput struct {
 	ActorID  uint
 	Name     string
-	Slug     string
 	Status   string
 	Children []taxpkg.TreeNode
 }
@@ -137,7 +134,6 @@ type CreateCourseSkillInput struct {
 // UpdateCourseSkillInput carries partial-update data for a course skill.
 type UpdateCourseSkillInput struct {
 	Name     *string
-	Slug     *string
 	Status   *string
 	Children *[]taxpkg.TreeNode
 }
@@ -146,14 +142,12 @@ type UpdateCourseSkillInput struct {
 type CreateTagInput struct {
 	ActorID uint
 	Name    string
-	Slug    string
 	Status  string
 }
 
 // UpdateTagInput carries partial-update data for a tag.
 type UpdateTagInput struct {
 	Name   *string
-	Slug   *string
 	Status *string
 }
 

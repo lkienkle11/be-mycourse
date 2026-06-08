@@ -75,20 +75,24 @@ type RosterMember struct {
 
 // ExpertiseTopic links an instructor user to a course topic.
 type ExpertiseTopic struct {
-	ID        uint
-	UserID    uint
-	TopicID   uint
-	CreatedAt int64
-	UpdatedAt int64
+	ID        uint   `json:"id"`
+	UserID    uint   `json:"user_id"`
+	TopicID   uint   `json:"topic_id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
 }
 
 // ExpertiseSkill links an instructor user to a course skill.
 type ExpertiseSkill struct {
-	ID        uint
-	UserID    uint
-	SkillID   uint
-	CreatedAt int64
-	UpdatedAt int64
+	ID        uint   `json:"id"`
+	UserID    uint   `json:"user_id"`
+	SkillID   uint   `json:"skill_id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
 }
 
 // Ticket is a support thread owned by an instructor user.

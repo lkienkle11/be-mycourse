@@ -78,6 +78,22 @@ func profileRowToDomain(r *profileRow) domain.Profile {
 	}
 }
 
+func expertiseTopicRowToDomain(r *expertiseTopicRow, name, slug string) domain.ExpertiseTopic {
+	return domain.ExpertiseTopic{
+		ID: r.ID, UserID: r.UserID, TopicID: r.TopicID,
+		Name: name, Slug: slug,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
+}
+
+func expertiseSkillRowToDomain(r *expertiseSkillRow, name, slug string) domain.ExpertiseSkill {
+	return domain.ExpertiseSkill{
+		ID: r.ID, UserID: r.UserID, SkillID: r.SkillID,
+		Name: name, Slug: slug,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
+}
+
 func applyPayloadToAppRow(r *applicationRow, p domain.ProfilePayload) error {
 	f, err := fieldsFromPayload(p)
 	if err != nil {

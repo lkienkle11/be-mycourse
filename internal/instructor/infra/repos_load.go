@@ -66,7 +66,7 @@ func loadRowWithIdentity(
 		"%s.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id",
 		alias,
 	)
-	return activeScope(db.WithContext(ctx).Table(tableName+" "+alias)).
+	return activeScopeAlias(db.WithContext(ctx), alias).Table(tableName+" "+alias).
 		Select(selectSQL).
 		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = "+alias+".user_id AND u.deleted_at IS NULL").
 		Where(query, args...).

@@ -466,10 +466,32 @@ type CourseDetail struct {
 | Roster | `ListRoster`, `AddRosterByEmail`, `RemoveFromRoster` | `[]RosterMember`, paginated totals |
 | Applications | `ListApplications`, `GetApplication`, `SubmitApplication`, `ApproveApplication`, `RejectApplication`, `DeleteApplication` | `*Application`, lists |
 | Profiles | `ListProfiles`, `GetProfileByUserID`, `UpsertProfile`, `DeleteProfile` | `*Profile`, lists |
-| Expertise | `ListExpertiseTopics/Skills`, `AddExpertiseTopic/Skill`, deletes | topic/skill rows |
+| Expertise | `ListExpertiseTopics/Skills`, `AddExpertiseTopic/Skill`, deletes | `ExpertiseTopic` / `ExpertiseSkill` — junction fields + joined taxonomy `name`, `slug` (snake_case JSON) |
 | Tickets | `ListTickets`, `GetTicket`, `CreateTicket`, `CloseTicket`, message list/add | `*Ticket`, `[]TicketMessage` |
 
 Details: **`docs/modules/instructor.md`**.
+
+**Expertise HTTP JSON (`domain.ExpertiseTopic` / `domain.ExpertiseSkill`):**
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": [
+    {
+      "id": 4,
+      "user_id": 14,
+      "topic_id": 7,
+      "name": "Business",
+      "slug": "business",
+      "created_at": 1780887061,
+      "updated_at": 1780887061
+    }
+  ]
+}
+```
+
+POST create returns the same object shape in `data` (not an array). Skills use `skill_id` instead of `topic_id`. Requires migration **`000017`** on drifted DBs (see **`docs/deploy.md`**).
 
 ---
 

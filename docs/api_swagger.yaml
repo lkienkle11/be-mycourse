@@ -240,6 +240,72 @@ components:
         permissions:
           type: array
           items: { type: string }
+    InstructorExpertiseTopic:
+      type: object
+      description: Junction row plus joined course topic taxonomy (snake_case JSON).
+      example:
+        id: 4
+        user_id: 14
+        topic_id: 7
+        name: Business
+        slug: business
+        created_at: 1780887061
+        updated_at: 1780887061
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        topic_id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+        updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+    InstructorExpertiseSkill:
+      type: object
+      description: Junction row plus joined course skill taxonomy (snake_case JSON).
+      example:
+        id: 2
+        user_id: 14
+        skill_id: 3
+        name: Leadership
+        slug: leadership
+        created_at: 1780887061
+        updated_at: 1780887061
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        skill_id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+        updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+    InstructorExpertiseTopicsListResponse:
+      allOf:
+        - $ref: "#/components/schemas/EnvelopeOK"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/InstructorExpertiseTopic" }
+    InstructorExpertiseTopicResponse:
+      allOf:
+        - $ref: "#/components/schemas/EnvelopeOK"
+        - type: object
+          properties:
+            data: { $ref: "#/components/schemas/InstructorExpertiseTopic" }
+    InstructorExpertiseSkillsListResponse:
+      allOf:
+        - $ref: "#/components/schemas/EnvelopeOK"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: "#/components/schemas/InstructorExpertiseSkill" }
+    InstructorExpertiseSkillResponse:
+      allOf:
+        - $ref: "#/components/schemas/EnvelopeOK"
+        - type: object
+          properties:
+            data: { $ref: "#/components/schemas/InstructorExpertiseSkill" }
     PermissionRecord:
       type: object
       properties:
@@ -2271,7 +2337,11 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: OK — envelope `data` is an array of `InstructorExpertiseTopic` (joined taxonomy `name` + `slug`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorExpertiseTopicsListResponse"
     post:
       tags: [Instructor]
       summary: Add expertise topic
@@ -2288,7 +2358,11 @@ paths:
                 topic_id: { type: integer }
       responses:
         "200":
-          description: OK
+          description: OK — envelope `data` is one `InstructorExpertiseTopic`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorExpertiseTopicResponse"
 
   /api/v1/instructors/{id}/expertise/topics/{topicRowId}:
     delete:
@@ -2322,7 +2396,11 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: OK — envelope `data` is an array of `InstructorExpertiseSkill` (joined taxonomy `name` + `slug`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorExpertiseSkillsListResponse"
     post:
       tags: [Instructor]
       summary: Add expertise skill
@@ -2339,7 +2417,11 @@ paths:
                 skill_id: { type: integer }
       responses:
         "200":
-          description: OK
+          description: OK — envelope `data` is one `InstructorExpertiseSkill`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorExpertiseSkillResponse"
 
   /api/v1/instructors/{id}/expertise/skills/{skillRowId}:
     delete:

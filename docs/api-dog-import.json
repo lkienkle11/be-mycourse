@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "3763eea4aa846f20685d04",
+    "_postman_id": "f99dce33a3b377b750733c",
     "name": "MyCourse Backend API",
     "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n**Audit timestamps:** `created_at`, `updated_at`, and soft-delete `deleted_at` (where present) are **Unix epoch seconds** (`integer` / `int64` in JSON), not ISO-8601 strings. DB columns are PostgreSQL `BIGINT` (migration `000011`).\n\n**Apidog / Postman — auto-save tokens:** After **Login**, **Confirm email**, or **Refresh**, post-processors in `x-postman-event` set `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (from JSON `data` or cookies). Select an **Environment** with those variables before other requests. **Bearer** auth uses `{{ACCESS_TOKEN}}`. **System token:** obtain via `CLI_SYSTEM_LOGIN=1 go run .` (stdout only) and set `SYSTEM_TOKEN` manually in your environment.\n\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb` (token scripts + examples from `docs/api_swagger.yaml` only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -786,7 +786,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Mathematics\",\n  \"slug\": \"mathematics\",\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"child_topics\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Algebra\",\n      \"slug\": \"algebra\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"Mathematics\",\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"child_topics\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Algebra\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1226,7 +1226,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Problem solving\",\n  \"slug\": \"problem-solving\",\n  \"children\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Critical thinking\",\n      \"slug\": \"critical-thinking\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"Problem solving\",\n  \"children\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Critical thinking\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1292,7 +1292,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"slug\": \"problem-solving-advanced\"\n}",
+              "raw": "{\n  \"name\": \"Problem solving (advanced)\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1446,7 +1446,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"React\",\n  \"slug\": \"react\",\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"React\",\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2000,7 +2000,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"My new course\"\n}",
+              "raw": "{\n  \"title\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -116,7 +116,7 @@ Instructor roster, applications (approve/reject with reason), profiles, expertis
 
 **Exposed under:** `/api/v1/instructors`, `/instructor-applications`, `/instructor-profiles`, `/instructor-tickets`, … (JWT + permission). Wired in `internal/server/router.go`.
 
-**Migration:** `000013_instructor_management` (not `000011` — that migration is audit timestamps BIGINT).
+**Migration:** `000013_instructor_management` (+ drift patches `000015`, `000017` for expertise junction columns, `000018` for ticket soft-delete, `000019` for profile/application schema — see [`docs/modules/instructor.md`](modules/instructor.md))
 
 See [`docs/modules/instructor.md`](modules/instructor.md) for full deep-dive.
 

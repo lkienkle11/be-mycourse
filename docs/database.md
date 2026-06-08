@@ -608,8 +608,11 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
 | 000013 | `instructor_management` | `users.phone`; tables `instructor_applications`, `instructor_profiles`, `instructor_expertise_topics`, `instructor_expertise_skills`, `instructor_tickets`, `instructor_ticket_messages`; seed P41–P58 + role grants |
 | 000014 | `system_user_machine_binding` | `system_privileged_users.machine_secret` — CLI machine binding; existing rows default `''` (re-register after deploy) |
-| 000015 | `instructor_expertise_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on expertise junctions, ensure `topic_id` / `skill_id`, backfill from legacy `course_topic_id` / `course_skill_id` when present, then recreate active-only unique indexes (`WHERE deleted_at IS NULL`). Down path restores non-partial unique indexes and drops `deleted_at`. |
+| 000015 | `instructor_expertise_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on expertise junctions, ensure `topic_id` / `skill_id`, backfill from legacy `course_topic_id` / `course_skill_id` when present, then recreate active-only unique indexes (`WHERE deleted_at IS NULL`). Does **not** drop legacy columns — follow with `000017` on drifted DBs. Down path restores non-partial unique indexes and drops `deleted_at`. |
 | 000016 | `course_management` | Tables `courses`, `course_versions`, collaborator membership, version-scoped outline rows, sub-lesson payload tables, edit leases, learner enrollments, and stable-id progress records |
+| 000017 | `instructor_expertise_drop_legacy_fk_cols` | Finalizes expertise junction schema on drifted DBs: backfills `topic_id` / `skill_id`, drops legacy `course_topic_id` / `course_skill_id`, sets canonical columns NOT NULL, and adds FK constraints on `topic_id` / `skill_id`. Required after `000015` on environments that still enforce NOT NULL on legacy columns. |
+| 000018 | `instructor_tickets_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on `instructor_tickets` and `instructor_ticket_messages`, rebuild partial status index. Required when GET `/api/v1/instructor-tickets` fails with `column "deleted_at" does not exist`. |
+| 000019 | `instructor_profiles_apps_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on profiles/applications; add `id` PK column on `instructor_profiles` when drifted DB uses `user_id` PK only. Required when GET `/api/v1/instructor-profiles/:id` fails with `column ip.id does not exist`. |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -621,8 +624,8 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 |-------|--------|
 | `instructor_applications` | `review_status`, `rejection_reason`, inline profile fields; unique active row per `user_id` |
 | `instructor_profiles` | Same profile shape as applications; unique active row per `user_id` |
-| `instructor_expertise_topics` | FK `topic_id` → `course_topics` |
-| `instructor_expertise_skills` | FK `skill_id` → `course_skills` |
+| `instructor_expertise_topics` | FK `topic_id` → `course_topics`; on drifted DBs apply `000015` then `000017` (legacy `course_topic_id` blocks INSERT until dropped) |
+| `instructor_expertise_skills` | FK `skill_id` → `course_skills`; same drift patch chain as topics |
 | `instructor_tickets` | `subject`, `status` (`open` / `closed`) |
 | `instructor_ticket_messages` | `author_user_id`, `body` |
 

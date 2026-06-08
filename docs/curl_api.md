@@ -1747,7 +1747,7 @@ if (data && data.access_token) {
 
 Add to any authenticated request to auto-refresh when needed:
 
-## 18. Local smoke test (migrations `000011` + `000013`)
+## 18. Local smoke test (migrations `000011` + `000013` + expertise `000017`)
 
 Run on **`http://localhost:8080`** only after `MIGRATE=1` (or manual SQL) and `go run .`. Expect `users.created_at` = `bigint` in Postgres (**`000011`**) — see **`docs/deploy.md`** (Troubleshooting). For instructor APIs, **`000013`** must be applied and permissions synced.
 
@@ -1781,6 +1781,35 @@ curl -sS 'http://localhost:8080/api/v1/instructors?page=1&per_page=20' \
 ```
 
 Pass: HTTP **200**, `code: 0`, paginated `data` array (or empty list).
+
+**4. Instructor expertise topics** (same token; replace `:id` with instructor `user_id`, e.g. `14`)
+
+```bash
+curl -sS 'http://localhost:8080/api/v1/instructors/14/expertise/topics' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **200**, `code: 0`; each item has snake_case `topic_id`, joined `name`, `slug` (not PascalCase `TopicID`). POST add:
+
+```bash
+curl -sS -X POST 'http://localhost:8080/api/v1/instructors/14/expertise/topics' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"topic_id":7}'
+```
+
+Pass: HTTP **200**, `code: 0`, `data.topic_id` present. If **500** with `course_topic_id` NOT NULL, apply migration **`000017`** (`MIGRATE=1`). Dev test account: **`user01@yopmail.com`** / **`Test@1234`** (see **`AGENTS.md`**).
+
+**5. Instructor profile by user_id** (replace `14` with target instructor)
+
+```bash
+curl -sS 'http://localhost:8080/api/v1/instructor-profiles/14' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **404** `code: 3004` when no profile yet (not **500**). If **500** with `column ip.id does not exist` or ambiguous `deleted_at`, apply migration **`000019`**.
 
 ---
 

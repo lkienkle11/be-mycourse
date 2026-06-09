@@ -2117,7 +2117,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"expected_row_version\": 0\n}",
+              "raw": "{\n  \"expected_row_version\": 1,\n  \"title\": \"Updated course title\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2702,7 +2702,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"course_version_id\": 0,\n  \"resource_type\": \"OUTLINE_ROOT\",\n  \"resource_stable_id\": \"\"\n}",
+              "raw": "{\n  \"course_version_id\": 0,\n  \"resource_type\": \"OUTLINE_ROOT\",\n  \"resource_stable_id\": \"00000000-0000-4000-8000-000000000006\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

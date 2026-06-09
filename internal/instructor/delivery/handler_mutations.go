@@ -9,7 +9,7 @@ import (
 	"mycourse-io-be/internal/shared/response"
 )
 
-func (h *Handler) deleteByID(c *gin.Context, fn func(uint) error) {
+func (h *Handler) deleteByID(c *gin.Context, fn func(string) error) {
 	id, ok := parseIDParam(c)
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)

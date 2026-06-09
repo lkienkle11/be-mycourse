@@ -1,11 +1,11 @@
 CREATE TYPE taxonomy_status AS ENUM ('ACTIVE', 'INACTIVE');
 
 CREATE TABLE course_levels (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
     status taxonomy_status NOT NULL DEFAULT 'ACTIVE',
-    created_by BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users (id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -13,12 +13,12 @@ CREATE TABLE course_levels (
 CREATE INDEX idx_course_levels_created_by ON course_levels (created_by);
 
 CREATE TABLE categories (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
     image_url VARCHAR(512) NOT NULL DEFAULT '',
     status taxonomy_status NOT NULL DEFAULT 'ACTIVE',
-    created_by BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users (id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -26,11 +26,11 @@ CREATE TABLE categories (
 CREATE INDEX idx_categories_created_by ON categories (created_by);
 
 CREATE TABLE tags (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
     status taxonomy_status NOT NULL DEFAULT 'ACTIVE',
-    created_by BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users (id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

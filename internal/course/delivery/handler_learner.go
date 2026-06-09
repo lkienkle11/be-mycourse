@@ -17,25 +17,25 @@ func (h *Handler) listPublishedCourses(c *gin.Context) {
 }
 
 func (h *Handler) getLearningCourse(c *gin.Context) {
-	h.courseOK(c, "ok", func(courseID uint) (any, error) {
+	h.courseOK(c, "ok", func(courseID string) (any, error) {
 		return h.svc.GetLearningCourse(c.Request.Context(), courseID, utils.CurrentUserID(c))
 	})
 }
 
 func (h *Handler) enroll(c *gin.Context) {
-	h.courseCreated(c, "created", func(courseID uint) (any, error) {
+	h.courseCreated(c, "created", func(courseID string) (any, error) {
 		return h.svc.Enroll(c.Request.Context(), courseID, utils.CurrentUserID(c))
 	})
 }
 
 func (h *Handler) getProgress(c *gin.Context) {
-	h.courseOK(c, "ok", func(courseID uint) (any, error) {
+	h.courseOK(c, "ok", func(courseID string) (any, error) {
 		return h.svc.GetProgress(c.Request.Context(), courseID, utils.CurrentUserID(c))
 	})
 }
 
 func (h *Handler) saveProgress(c *gin.Context) {
-	courseBodyOK(h, c, "updated", func(courseID uint, req *saveProgressRequest) (any, error) {
+	courseBodyOK(h, c, "updated", func(courseID string, req *saveProgressRequest) (any, error) {
 		return h.svc.SaveProgress(c.Request.Context(), courseID, utils.CurrentUserID(c), domain.SaveProgressInput{
 			StableContentID: req.StableContentID,
 			ContentType:     req.ContentType,

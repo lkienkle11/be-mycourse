@@ -14,7 +14,7 @@ import (
 	"mycourse-io-be/internal/shared/timex"
 )
 
-func (r *GormRepository) CreateSection(ctx context.Context, courseID, actorUserID uint, in domain.UpsertSectionInput) (*domain.Section, error) {
+func (r *GormRepository) CreateSection(ctx context.Context, courseID string, actorUserID string, in domain.UpsertSectionInput) (*domain.Section, error) {
 	var out *domain.Section
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -40,18 +40,25 @@ func (r *GormRepository) CreateSection(ctx context.Context, courseID, actorUserI
 	return out, err
 }
 
-func (r *GormRepository) UpdateSection(ctx context.Context, courseID, actorUserID uint, in domain.UpsertSectionInput) (*domain.Section, error) {
-	return updateOutlineEntity(r, ctx, draftEditScope{CourseID: courseID, ActorUserID: actorUserID}, in.SectionID, in.ExpectedRowVersion, r.loadSection, sectionBehavior, sectionUpdates(in))
+func (r *GormRepository) UpdateSection(ctx context.Context, courseID string, actorUserID string, in domain.UpsertSectionInput) (*domain.Section, error) {
+	return updateSectionBySpec(
+		r,
+		ctx,
+		draftEditScope{CourseID: courseID, ActorUserID: actorUserID},
+		in.SectionID,
+		in.ExpectedRowVersion,
+		sectionUpdates(in),
+	)
 }
 
-func (r *GormRepository) DeleteSection(ctx context.Context, courseID, actorUserID uint, sectionID uint) ([]domain.Section, error) {
+func (r *GormRepository) DeleteSection(ctx context.Context, courseID string, actorUserID string, sectionID string) ([]domain.Section, error) {
 	return r.deleteDraftOutline(ctx, courseID, actorUserID, sectionID, draftOutlineDeleteConfig{
 		Resolve: r.resolveSectionID,
 		Remove:  r.deleteSectionTree,
 	})
 }
 
-func (r *GormRepository) ReorderSections(ctx context.Context, courseID, actorUserID uint, orderedStableIDs []string) ([]domain.Section, error) {
+func (r *GormRepository) ReorderSections(ctx context.Context, courseID string, actorUserID string, orderedStableIDs []string) ([]domain.Section, error) {
 	var outline []domain.Section
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -78,7 +85,7 @@ func (r *GormRepository) ReorderSections(ctx context.Context, courseID, actorUse
 	return outline, err
 }
 
-func (r *GormRepository) CreateLesson(ctx context.Context, courseID, actorUserID uint, in domain.UpsertLessonInput) (*domain.Lesson, error) {
+func (r *GormRepository) CreateLesson(ctx context.Context, courseID string, actorUserID string, in domain.UpsertLessonInput) (*domain.Lesson, error) {
 	var out *domain.Lesson
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -107,18 +114,25 @@ func (r *GormRepository) CreateLesson(ctx context.Context, courseID, actorUserID
 	return out, err
 }
 
-func (r *GormRepository) UpdateLesson(ctx context.Context, courseID, actorUserID uint, in domain.UpsertLessonInput) (*domain.Lesson, error) {
-	return updateOutlineEntity(r, ctx, draftEditScope{CourseID: courseID, ActorUserID: actorUserID}, in.LessonID, in.ExpectedRowVersion, r.loadLesson, lessonBehavior, lessonUpdates(in))
+func (r *GormRepository) UpdateLesson(ctx context.Context, courseID string, actorUserID string, in domain.UpsertLessonInput) (*domain.Lesson, error) {
+	return updateLessonBySpec(
+		r,
+		ctx,
+		draftEditScope{CourseID: courseID, ActorUserID: actorUserID},
+		in.LessonID,
+		in.ExpectedRowVersion,
+		lessonUpdates(in),
+	)
 }
 
-func (r *GormRepository) DeleteLesson(ctx context.Context, courseID, actorUserID uint, lessonID uint) ([]domain.Section, error) {
+func (r *GormRepository) DeleteLesson(ctx context.Context, courseID string, actorUserID string, lessonID string) ([]domain.Section, error) {
 	return r.deleteDraftOutline(ctx, courseID, actorUserID, lessonID, draftOutlineDeleteConfig{
 		Resolve: r.resolveLessonID,
 		Remove:  r.deleteLessonTree,
 	})
 }
 
-func (r *GormRepository) ReorderLessons(ctx context.Context, courseID, actorUserID, sectionID uint, orderedStableIDs []string) ([]domain.Lesson, error) {
+func (r *GormRepository) ReorderLessons(ctx context.Context, courseID string, actorUserID string, sectionID string, orderedStableIDs []string) ([]domain.Lesson, error) {
 	var out []domain.Lesson
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -154,7 +168,7 @@ func (r *GormRepository) ReorderLessons(ctx context.Context, courseID, actorUser
 	return out, err
 }
 
-func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID, actorUserID uint, in domain.UpsertSubLessonInput) (*domain.SubLesson, error) {
+func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID string, actorUserID string, in domain.UpsertSubLessonInput) (*domain.SubLesson, error) {
 	var out *domain.SubLesson
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -193,7 +207,7 @@ func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID, actorUse
 	return out, err
 }
 
-func (r *GormRepository) UpdateSubLesson(ctx context.Context, courseID, actorUserID uint, in domain.UpsertSubLessonInput) (*domain.SubLesson, error) {
+func (r *GormRepository) UpdateSubLesson(ctx context.Context, courseID string, actorUserID string, in domain.UpsertSubLessonInput) (*domain.SubLesson, error) {
 	if in.SubLessonID == nil {
 		return nil, domain.ErrCourseNotFound
 	}
@@ -244,7 +258,7 @@ func (r *GormRepository) UpdateSubLesson(ctx context.Context, courseID, actorUse
 	return out, err
 }
 
-func (r *GormRepository) DeleteSubLesson(ctx context.Context, courseID, actorUserID uint, subLessonID uint) ([]domain.Section, error) {
+func (r *GormRepository) DeleteSubLesson(ctx context.Context, courseID string, actorUserID string, subLessonID string) ([]domain.Section, error) {
 	var outline []domain.Section
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -267,7 +281,7 @@ func (r *GormRepository) DeleteSubLesson(ctx context.Context, courseID, actorUse
 	return outline, err
 }
 
-func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID, actorUserID, lessonID uint, orderedStableIDs []string) ([]domain.SubLesson, error) {
+func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID string, actorUserID string, lessonID string, orderedStableIDs []string) ([]domain.SubLesson, error) {
 	var out []domain.SubLesson
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -307,7 +321,85 @@ func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID, actorU
 	return out, err
 }
 
-func (r *GormRepository) AcquireLease(ctx context.Context, courseID, actorUserID uint, in domain.AcquireLeaseInput) (*domain.Lease, error) {
+type outlineUpdateSpec[T any, D any] struct {
+	scope              draftEditScope
+	entityID           *string
+	expectedRowVersion int64
+	load               func(context.Context, *gorm.DB, string, string) (*T, error)
+	behavior           draftEntityBehavior[T, D]
+	updates            map[string]any
+}
+
+func buildOutlineUpdateSpec[T any, D any](
+	scope draftEditScope,
+	entityID *string,
+	expectedRowVersion int64,
+	load func(context.Context, *gorm.DB, string, string) (*T, error),
+	behavior draftEntityBehavior[T, D],
+	updates map[string]any,
+) outlineUpdateSpec[T, D] {
+	return outlineUpdateSpec[T, D]{
+		scope:              scope,
+		entityID:           entityID,
+		expectedRowVersion: expectedRowVersion,
+		load:               load,
+		behavior:           behavior,
+		updates:            updates,
+	}
+}
+
+func updateSectionBySpec(
+	r *GormRepository,
+	ctx context.Context,
+	scope draftEditScope,
+	entityID *string,
+	expectedRowVersion int64,
+	updates map[string]any,
+) (*domain.Section, error) {
+	spec := buildOutlineUpdateSpec(
+		scope,
+		entityID,
+		expectedRowVersion,
+		r.loadSection,
+		sectionBehavior,
+		updates,
+	)
+	return updateSectionOrLesson(r, ctx, spec)
+}
+
+func updateLessonBySpec(
+	r *GormRepository,
+	ctx context.Context,
+	scope draftEditScope,
+	entityID *string,
+	expectedRowVersion int64,
+	updates map[string]any,
+) (*domain.Lesson, error) {
+	spec := buildOutlineUpdateSpec(
+		scope,
+		entityID,
+		expectedRowVersion,
+		r.loadLesson,
+		lessonBehavior,
+		updates,
+	)
+	return updateSectionOrLesson(r, ctx, spec)
+}
+
+func updateSectionOrLesson[T any, D any](r *GormRepository, ctx context.Context, spec outlineUpdateSpec[T, D]) (*D, error) {
+	return updateOutlineEntity(
+		r,
+		ctx,
+		spec.scope,
+		spec.entityID,
+		spec.expectedRowVersion,
+		spec.load,
+		spec.behavior,
+		spec.updates,
+	)
+}
+
+func (r *GormRepository) AcquireLease(ctx context.Context, courseID string, actorUserID string, in domain.AcquireLeaseInput) (*domain.Lease, error) {
 	var out *domain.Lease
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID); err != nil {
@@ -353,7 +445,7 @@ func (r *GormRepository) AcquireLease(ctx context.Context, courseID, actorUserID
 	return out, err
 }
 
-func (r *GormRepository) HeartbeatLease(ctx context.Context, courseID, actorUserID uint, in domain.LeaseHeartbeatInput) (*domain.Lease, error) {
+func (r *GormRepository) HeartbeatLease(ctx context.Context, courseID string, actorUserID string, in domain.LeaseHeartbeatInput) (*domain.Lease, error) {
 	var out *domain.Lease
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row leaseRow
@@ -379,6 +471,6 @@ func (r *GormRepository) HeartbeatLease(ctx context.Context, courseID, actorUser
 	return out, err
 }
 
-func (r *GormRepository) ReleaseLease(ctx context.Context, courseID, actorUserID uint, in domain.ReleaseLeaseInput) error {
+func (r *GormRepository) ReleaseLease(ctx context.Context, courseID string, actorUserID string, in domain.ReleaseLeaseInput) error {
 	return r.db.WithContext(ctx).Where("course_id = ? AND holder_user_id = ? AND lease_token = ?", courseID, actorUserID, in.LeaseToken).Delete(&leaseRow{}).Error
 }

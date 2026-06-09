@@ -17,7 +17,7 @@ import (
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
 
-func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID, actorUserID uint, fromStatus, toStatus, reason string, setSubmitted bool) (*domain.CourseDetail, error) {
+func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID string, actorUserID string, fromStatus, toStatus, reason string, setSubmitted bool) (*domain.CourseDetail, error) {
 	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID); err != nil {
@@ -56,21 +56,21 @@ func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID, actorU
 	return detail, err
 }
 
-func (r *GormRepository) createDraftVersion(ctx context.Context, tx *gorm.DB, course *courseRow) (uint, error) {
+func (r *GormRepository) createDraftVersion(ctx context.Context, tx *gorm.DB, course *courseRow) (string, error) {
 	var maxVersion int
 	if err := tx.Model(&courseVersionRow{}).Where("course_id = ?", course.ID).Select("COALESCE(MAX(version_no), 0)").Scan(&maxVersion).Error; err != nil {
-		return 0, err
+		return "", err
 	}
 	draft := &courseVersionRow{
-		CourseID:    course.ID,
-		VersionNo:   maxVersion + 1,
-		Status:      domain.VersionStatusDraft,
-		RowVersion:  1,
+		CourseID:   course.ID,
+		VersionNo:  maxVersion + 1,
+		Status:     domain.VersionStatusDraft,
+		RowVersion: 1,
 	}
 	if course.CurrentPublishedVersionID != nil {
 		live, err := r.loadVersionRow(ctx, tx, *course.CurrentPublishedVersionID)
 		if err != nil {
-			return 0, err
+			return "", err
 		}
 		draft.BasedOnVersionID = &live.ID
 		draft.Title = live.Title
@@ -83,20 +83,20 @@ func (r *GormRepository) createDraftVersion(ctx context.Context, tx *gorm.DB, co
 	}
 	gormx.TouchCreatedUpdated(&draft.CreatedAt, &draft.UpdatedAt)
 	if err := tx.Create(draft).Error; err != nil {
-		return 0, err
+		return "", err
 	}
 	if course.CurrentPublishedVersionID != nil {
 		if err := r.cloneVersionRefs(ctx, tx, *course.CurrentPublishedVersionID, draft.ID); err != nil {
-			return 0, err
+			return "", err
 		}
 		if err := r.cloneOutline(ctx, tx, *course.CurrentPublishedVersionID, draft.ID); err != nil {
-			return 0, err
+			return "", err
 		}
 	}
 	return draft.ID, nil
 }
 
-func (r *GormRepository) cloneVersionRefs(ctx context.Context, tx *gorm.DB, fromVersionID, toVersionID uint) error {
+func (r *GormRepository) cloneVersionRefs(ctx context.Context, tx *gorm.DB, fromVersionID, toVersionID string) error {
 	var tagRows []courseVersionRefRow
 	if err := tx.WithContext(ctx).Where("course_version_id = ?", fromVersionID).Find(&tagRows).Error; err != nil {
 		return err
@@ -136,7 +136,7 @@ func (r *GormRepository) cloneVersionRefs(ctx context.Context, tx *gorm.DB, from
 	return nil
 }
 
-func (r *GormRepository) cloneOutline(ctx context.Context, tx *gorm.DB, fromVersionID, toVersionID uint) error {
+func (r *GormRepository) cloneOutline(ctx context.Context, tx *gorm.DB, fromVersionID, toVersionID string) error {
 	sections, err := r.loadSectionsByVersion(ctx, tx, fromVersionID)
 	if err != nil {
 		return err
@@ -160,11 +160,11 @@ func (r *GormRepository) cloneOutline(ctx context.Context, tx *gorm.DB, fromVers
 	return r.cloneSubLessonRows(ctx, tx, subLessons, toVersionID, lessonMap)
 }
 
-func (r *GormRepository) cloneSectionRows(ctx context.Context, tx *gorm.DB, sections []sectionRow, toVersionID uint) (map[uint]uint, error) {
-	sectionMap := make(map[uint]uint, len(sections))
+func (r *GormRepository) cloneSectionRows(ctx context.Context, tx *gorm.DB, sections []sectionRow, toVersionID string) (map[string]string, error) {
+	sectionMap := make(map[string]string, len(sections))
 	for _, section := range sections {
 		clone := section
-		clone.ID = 0
+		clone.ID = ""
 		clone.CourseVersionID = toVersionID
 		clone.RowVersion = 1
 		gormx.TouchCreatedUpdated(&clone.CreatedAt, &clone.UpdatedAt)
@@ -176,11 +176,11 @@ func (r *GormRepository) cloneSectionRows(ctx context.Context, tx *gorm.DB, sect
 	return sectionMap, nil
 }
 
-func (r *GormRepository) cloneLessonRows(ctx context.Context, tx *gorm.DB, lessons []lessonRow, toVersionID uint, sectionMap map[uint]uint) (map[uint]uint, error) {
-	lessonMap := make(map[uint]uint, len(lessons))
+func (r *GormRepository) cloneLessonRows(ctx context.Context, tx *gorm.DB, lessons []lessonRow, toVersionID string, sectionMap map[string]string) (map[string]string, error) {
+	lessonMap := make(map[string]string, len(lessons))
 	for _, lesson := range lessons {
 		clone := lesson
-		clone.ID = 0
+		clone.ID = ""
 		clone.CourseVersionID = toVersionID
 		clone.SectionID = sectionMap[lesson.SectionID]
 		clone.RowVersion = 1
@@ -193,10 +193,10 @@ func (r *GormRepository) cloneLessonRows(ctx context.Context, tx *gorm.DB, lesso
 	return lessonMap, nil
 }
 
-func (r *GormRepository) cloneSubLessonRows(ctx context.Context, tx *gorm.DB, subLessons []subLessonRow, toVersionID uint, lessonMap map[uint]uint) error {
+func (r *GormRepository) cloneSubLessonRows(ctx context.Context, tx *gorm.DB, subLessons []subLessonRow, toVersionID string, lessonMap map[string]string) error {
 	for _, subLesson := range subLessons {
 		clone := subLesson
-		clone.ID = 0
+		clone.ID = ""
 		clone.CourseVersionID = toVersionID
 		clone.LessonID = lessonMap[subLesson.LessonID]
 		clone.RowVersion = 1
@@ -211,7 +211,7 @@ func (r *GormRepository) cloneSubLessonRows(ctx context.Context, tx *gorm.DB, su
 	return nil
 }
 
-func (r *GormRepository) cloneSubLessonDetail(ctx context.Context, tx *gorm.DB, fromID, toID uint) error {
+func (r *GormRepository) cloneSubLessonDetail(ctx context.Context, tx *gorm.DB, fromID, toID string) error {
 	var video subLessonVideoRow
 	if err := tx.WithContext(ctx).Where("sub_lesson_id = ?", fromID).First(&video).Error; err == nil {
 		video.SubLessonID = toID
@@ -241,7 +241,7 @@ func (r *GormRepository) cloneSubLessonDetail(ctx context.Context, tx *gorm.DB, 
 			return err
 		}
 		for i := range opts {
-			opts[i].ID = 0
+			opts[i].ID = ""
 			opts[i].SubLessonID = toID
 		}
 		if len(opts) > 0 {
@@ -277,7 +277,7 @@ func (r *GormRepository) validateVersionRefs(ctx context.Context, tx *gorm.DB, i
 	return r.validateLookupIDs(ctx, tx, constants.TableTaxonomyCourseOutcomes, in.OutcomeIDs)
 }
 
-func (r *GormRepository) replaceVersionRefs(ctx context.Context, tx *gorm.DB, versionID uint, tagIDs, skillIDs, outcomeIDs []uint) error {
+func (r *GormRepository) replaceVersionRefs(ctx context.Context, tx *gorm.DB, versionID string, tagIDs, skillIDs, outcomeIDs []string) error {
 	if err := tx.WithContext(ctx).Where("course_version_id = ?", versionID).Delete(&courseVersionRefRow{}).Error; err != nil {
 		return err
 	}
@@ -349,8 +349,8 @@ func (r *GormRepository) validateMediaFile(ctx context.Context, tx *gorm.DB, fil
 	return nil
 }
 
-func (r *GormRepository) validateLookupID(ctx context.Context, tx *gorm.DB, table string, id *uint) error {
-	if id == nil || *id == 0 {
+func (r *GormRepository) validateLookupID(ctx context.Context, tx *gorm.DB, table string, id *string) error {
+	if id == nil || strings.TrimSpace(*id) == "" {
 		return nil
 	}
 	var count int64
@@ -363,7 +363,7 @@ func (r *GormRepository) validateLookupID(ctx context.Context, tx *gorm.DB, tabl
 	return nil
 }
 
-func (r *GormRepository) validateLookupIDs(ctx context.Context, tx *gorm.DB, table string, ids []uint) error {
+func (r *GormRepository) validateLookupIDs(ctx context.Context, tx *gorm.DB, table string, ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -371,7 +371,7 @@ func (r *GormRepository) validateLookupIDs(ctx context.Context, tx *gorm.DB, tab
 	if err := tx.WithContext(ctx).Table(table).Where("id IN ? AND deleted_at IS NULL", ids).Count(&count).Error; err != nil {
 		return err
 	}
-	if count != int64(len(sharedutils.UniqueUint(ids))) {
+	if count != int64(len(sharedutils.UniqueString(ids))) {
 		return apperrors.ErrNotFound
 	}
 	return nil
@@ -403,7 +403,7 @@ func (r *GormRepository) validateSubLessonPayload(ctx context.Context, tx *gorm.
 	}
 }
 
-func (r *GormRepository) upsertSubLessonDetail(ctx context.Context, tx *gorm.DB, subLessonID uint, in domain.UpsertSubLessonInput) error {
+func (r *GormRepository) upsertSubLessonDetail(ctx context.Context, tx *gorm.DB, subLessonID string, in domain.UpsertSubLessonInput) error {
 	now := timex.NowUnix()
 	switch strings.ToUpper(strings.TrimSpace(in.Kind)) {
 	case domain.SubLessonKindVideo:
@@ -434,7 +434,7 @@ func (r *GormRepository) upsertSubLessonDetail(ctx context.Context, tx *gorm.DB,
 	}
 }
 
-func (r *GormRepository) deleteSubLessonDetails(ctx context.Context, tx *gorm.DB, subLessonID uint) error {
+func (r *GormRepository) deleteSubLessonDetails(ctx context.Context, tx *gorm.DB, subLessonID string) error {
 	for _, model := range []any{&subLessonVideoRow{}, &subLessonTextRow{}, &subLessonQuizOptionRow{}, &subLessonQuizRow{}} {
 		if err := tx.WithContext(ctx).Where("sub_lesson_id = ?", subLessonID).Delete(model).Error; err != nil {
 			return err

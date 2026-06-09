@@ -14,7 +14,7 @@ import (
 // ActiveUserChecker verifies the authenticated user is not soft-deleted, disabled, or actively banned.
 // Implemented by auth application layer and injected at router wiring (same pattern as PermissionChecker).
 type ActiveUserChecker interface {
-	EnsureActiveUser(ctx context.Context, userID uint) error
+	EnsureActiveUser(ctx context.Context, userID string) error
 }
 
 // RequireActiveUser rejects requests when the JWT user fails accessibility checks in Postgres.
@@ -26,7 +26,7 @@ func RequireActiveUser(checker ActiveUserChecker) gin.HandlerFunc {
 			response.AbortFail(c, http.StatusUnauthorized, apperrors.Unauthorized, "not authenticated", nil)
 			return
 		}
-		userID, _ := v.(uint)
+		userID, _ := v.(string)
 		if err := checker.EnsureActiveUser(c.Request.Context(), userID); err != nil {
 			writeActiveUserError(c, err)
 			return

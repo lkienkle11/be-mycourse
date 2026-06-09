@@ -34,7 +34,7 @@ func (h *Handler) listProfiles(c *gin.Context) {
 func (h *Handler) getProfileMe(c *gin.Context) { h.respondProfileMe(c) }
 
 func (h *Handler) getProfileByUser(c *gin.Context) {
-	userID, ok := parseIDParam(c)
+	userID, ok := parseUserIDParam(c)
 	if !ok {
 		failInvalidID(c)
 		return
@@ -52,7 +52,7 @@ func (h *Handler) upsertProfile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	userID, ok := parseIDParam(c)
+	userID, ok := parseUserIDParam(c)
 	if !ok {
 		userID = utils.CurrentUserID(c)
 	}
@@ -66,7 +66,12 @@ func (h *Handler) upsertProfile(c *gin.Context) {
 }
 
 func (h *Handler) deleteProfile(c *gin.Context) {
-	h.deleteByID(c, func(id uint) error {
-		return h.svc.DeleteProfile(c.Request.Context(), id)
-	})
+	id, ok := parseUserIDParam(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteProfile(c.Request.Context(), id); mapInstructorError(c, err) {
+		return
+	}
+	response.OK(c, "deleted", nil)
 }

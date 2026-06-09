@@ -9,7 +9,7 @@ import (
 	"mycourse-io-be/internal/shared/timex"
 )
 
-func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, courseID, userID uint, includeDraft bool) (*domain.CourseDetail, error) {
+func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
 	access, err := r.requireCourseAccess(ctx, db, courseID, userID)
 	if err != nil {
 		return nil, err
@@ -17,7 +17,7 @@ func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, cour
 	course := toCourse(&access.courseRow)
 	var live *domain.CourseVersion
 	var draft *domain.CourseVersion
-	outlineVersionID := uint(0)
+	outlineVersionID := ""
 	if access.CurrentPublishedVersionID != nil {
 		row, err := r.loadVersionRow(ctx, db, *access.CurrentPublishedVersionID)
 		if err != nil {
@@ -47,7 +47,7 @@ func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, cour
 		return nil, err
 	}
 	outline := []domain.Section{}
-	if outlineVersionID > 0 {
+	if outlineVersionID != "" {
 		outline, err = r.loadOutline(ctx, db, outlineVersionID)
 		if err != nil {
 			return nil, err
@@ -63,7 +63,7 @@ func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, cour
 	}, nil
 }
 
-func (r *GormRepository) loadLearnerCourseDetail(ctx context.Context, db *gorm.DB, courseID, userID uint) (*domain.CourseDetail, error) {
+func (r *GormRepository) loadLearnerCourseDetail(ctx context.Context, db *gorm.DB, courseID string, userID string) (*domain.CourseDetail, error) {
 	course, err := r.loadCourse(ctx, db, courseID)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (r *GormRepository) loadLearnerCourseDetail(ctx context.Context, db *gorm.D
 	}, nil
 }
 
-func (r *GormRepository) loadProgress(ctx context.Context, db *gorm.DB, courseID, userID uint) (*domain.CourseProgress, error) {
+func (r *GormRepository) loadProgress(ctx context.Context, db *gorm.DB, courseID string, userID string) (*domain.CourseProgress, error) {
 	enrollment, err := r.requireEnrollment(ctx, db, courseID, userID)
 	if err != nil {
 		return nil, err
@@ -122,11 +122,11 @@ func (r *GormRepository) loadProgress(ctx context.Context, db *gorm.DB, courseID
 	return progress, nil
 }
 
-func (r *GormRepository) requireEnrollment(ctx context.Context, db *gorm.DB, courseID, userID uint) (*enrollmentRow, error) {
+func (r *GormRepository) requireEnrollment(ctx context.Context, db *gorm.DB, courseID string, userID string) (*enrollmentRow, error) {
 	return loadActiveRow[enrollmentRow](ctx, db, domain.ErrCourseEnrollmentNotFound, "course_id = ? AND user_id = ? AND deleted_at IS NULL", courseID, userID)
 }
 
-func (r *GormRepository) requireCourseAccess(ctx context.Context, db *gorm.DB, courseID, userID uint) (*courseAccess, error) {
+func (r *GormRepository) requireCourseAccess(ctx context.Context, db *gorm.DB, courseID string, userID string) (*courseAccess, error) {
 	course, err := r.loadCourse(ctx, db, courseID)
 	if err != nil {
 		return nil, err
@@ -141,11 +141,11 @@ func (r *GormRepository) requireCourseAccess(ctx context.Context, db *gorm.DB, c
 	return &courseAccess{courseRow: *course, Role: collab.Role}, nil
 }
 
-func (r *GormRepository) requireEditorAccess(ctx context.Context, db *gorm.DB, courseID, userID uint) (*courseAccess, error) {
+func (r *GormRepository) requireEditorAccess(ctx context.Context, db *gorm.DB, courseID string, userID string) (*courseAccess, error) {
 	return r.requireCourseAccess(ctx, db, courseID, userID)
 }
 
-func (r *GormRepository) requireOwnerAccess(ctx context.Context, db *gorm.DB, courseID, userID uint) (*courseAccess, error) {
+func (r *GormRepository) requireOwnerAccess(ctx context.Context, db *gorm.DB, courseID string, userID string) (*courseAccess, error) {
 	access, err := r.requireCourseAccess(ctx, db, courseID, userID)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (r *GormRepository) requireOwnerAccess(ctx context.Context, db *gorm.DB, co
 	return access, nil
 }
 
-func (r *GormRepository) ensureEditableDraft(ctx context.Context, tx *gorm.DB, courseID, userID uint) (*courseAccess, error) {
+func (r *GormRepository) ensureEditableDraft(ctx context.Context, tx *gorm.DB, courseID string, userID string) (*courseAccess, error) {
 	access, err := r.requireEditorAccess(ctx, tx, courseID, userID)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func (r *GormRepository) ensureEditableDraft(ctx context.Context, tx *gorm.DB, c
 	return access, nil
 }
 
-func (r *GormRepository) requireDraftVersion(ctx context.Context, tx *gorm.DB, courseID uint) (*courseRow, *courseVersionRow, error) {
+func (r *GormRepository) requireDraftVersion(ctx context.Context, tx *gorm.DB, courseID string) (*courseRow, *courseVersionRow, error) {
 	course, err := r.loadCourse(ctx, tx, courseID)
 	if err != nil {
 		return nil, nil, err
@@ -199,15 +199,15 @@ func (r *GormRepository) requireDraftVersion(ctx context.Context, tx *gorm.DB, c
 	return course, version, nil
 }
 
-func (r *GormRepository) loadCourse(ctx context.Context, db *gorm.DB, courseID uint) (*courseRow, error) {
+func (r *GormRepository) loadCourse(ctx context.Context, db *gorm.DB, courseID string) (*courseRow, error) {
 	return loadActiveRow[courseRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND deleted_at IS NULL", courseID)
 }
 
-func (r *GormRepository) loadVersionRow(ctx context.Context, db *gorm.DB, versionID uint) (*courseVersionRow, error) {
+func (r *GormRepository) loadVersionRow(ctx context.Context, db *gorm.DB, versionID string) (*courseVersionRow, error) {
 	return loadActiveRow[courseVersionRow](ctx, db, domain.ErrCourseVersionNotFound, "id = ? AND deleted_at IS NULL", versionID)
 }
 
-func (r *GormRepository) loadCollaborators(ctx context.Context, db *gorm.DB, courseID uint) ([]domain.Collaborator, error) {
+func (r *GormRepository) loadCollaborators(ctx context.Context, db *gorm.DB, courseID string) ([]domain.Collaborator, error) {
 	q := `
 SELECT
     cc.user_id,
@@ -224,7 +224,7 @@ LEFT JOIN media_files m
 WHERE cc.course_id = @course_id AND cc.deleted_at IS NULL
 ORDER BY CASE WHEN cc.role = 'OWNER' THEN 0 ELSE 1 END, cc.id ASC`
 	type row struct {
-		UserID       uint   `gorm:"column:user_id"`
+		UserID       string `gorm:"column:user_id"`
 		Role         string `gorm:"column:role"`
 		DisplayName  string `gorm:"column:display_name"`
 		Email        string `gorm:"column:email"`
@@ -245,25 +245,25 @@ ORDER BY CASE WHEN cc.role = 'OWNER' THEN 0 ELSE 1 END, cc.id ASC`
 	return out, nil
 }
 
-func (r *GormRepository) loadSectionsByVersion(ctx context.Context, db *gorm.DB, versionID uint) ([]sectionRow, error) {
+func (r *GormRepository) loadSectionsByVersion(ctx context.Context, db *gorm.DB, versionID string) ([]sectionRow, error) {
 	return loadActiveRows[sectionRow](ctx, db, "course_version_id = ? AND deleted_at IS NULL", versionID)
 }
 
-func (r *GormRepository) loadLessonsBySection(ctx context.Context, db *gorm.DB, sectionID uint) ([]lessonRow, error) {
+func (r *GormRepository) loadLessonsBySection(ctx context.Context, db *gorm.DB, sectionID string) ([]lessonRow, error) {
 	return loadActiveRows[lessonRow](ctx, db, "section_id = ? AND deleted_at IS NULL", sectionID)
 }
 
-func (r *GormRepository) loadSubLessonsByLesson(ctx context.Context, db *gorm.DB, lessonID uint) ([]subLessonRow, error) {
+func (r *GormRepository) loadSubLessonsByLesson(ctx context.Context, db *gorm.DB, lessonID string) ([]subLessonRow, error) {
 	return loadActiveRows[subLessonRow](ctx, db, "lesson_id = ? AND deleted_at IS NULL", lessonID)
 }
 
-func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID uint) ([]domain.Section, error) {
+func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID string) ([]domain.Section, error) {
 	sections, err := r.loadSectionsByVersion(ctx, db, versionID)
 	if err != nil {
 		return nil, err
 	}
-	lessons := map[uint][]lessonRow{}
-	subLessons := map[uint][]domain.SubLesson{}
+	lessons := map[string][]lessonRow{}
+	subLessons := map[string][]domain.SubLesson{}
 	for _, section := range sections {
 		rows, err := r.loadLessonsBySection(ctx, db, section.ID)
 		if err != nil {
@@ -299,14 +299,14 @@ func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID
 	return out, nil
 }
 
-func (r *GormRepository) loadSection(ctx context.Context, db *gorm.DB, sectionID, versionID uint) (*sectionRow, error) {
+func (r *GormRepository) loadSection(ctx context.Context, db *gorm.DB, sectionID, versionID string) (*sectionRow, error) {
 	return loadActiveRow[sectionRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND course_version_id = ? AND deleted_at IS NULL", sectionID, versionID)
 }
 
-func (r *GormRepository) loadLesson(ctx context.Context, db *gorm.DB, lessonID, versionID uint) (*lessonRow, error) {
+func (r *GormRepository) loadLesson(ctx context.Context, db *gorm.DB, lessonID, versionID string) (*lessonRow, error) {
 	return loadActiveRow[lessonRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND course_version_id = ? AND deleted_at IS NULL", lessonID, versionID)
 }
 
-func (r *GormRepository) loadSubLesson(ctx context.Context, db *gorm.DB, subLessonID, versionID uint) (*subLessonRow, error) {
+func (r *GormRepository) loadSubLesson(ctx context.Context, db *gorm.DB, subLessonID, versionID string) (*subLessonRow, error) {
 	return loadActiveRow[subLessonRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND course_version_id = ? AND deleted_at IS NULL", subLessonID, versionID)
 }

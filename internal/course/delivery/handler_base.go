@@ -56,8 +56,8 @@ func bindJSON[T any](c *gin.Context) (*T, bool) {
 	return &req, true
 }
 
-func withCourseID(c *gin.Context, fn func(courseID uint)) {
-	courseID, ok := utils.ParseUintParam(c, "courseId")
+func withCourseID(c *gin.Context, fn func(courseID string)) {
+	courseID, ok := utils.ParseUUIDParam(c, "courseId")
 	if !ok {
 		badParam(c, "invalid course id")
 		return
@@ -73,17 +73,17 @@ func withBody[T any](c *gin.Context, fn func(req *T)) {
 	fn(req)
 }
 
-func withCourseAndBody[T any](c *gin.Context, fn func(courseID uint, req *T)) {
-	withCourseID(c, func(courseID uint) {
+func withCourseAndBody[T any](c *gin.Context, fn func(courseID string, req *T)) {
+	withCourseID(c, func(courseID string) {
 		withBody(c, func(req *T) {
 			fn(courseID, req)
 		})
 	})
 }
 
-func withCourseAndParam(c *gin.Context, name, message string, fn func(courseID, id uint)) {
-	withCourseID(c, func(courseID uint) {
-		id, ok := utils.ParseUintParam(c, name)
+func withCourseAndParam(c *gin.Context, name, message string, fn func(courseID, id string)) {
+	withCourseID(c, func(courseID string) {
+		id, ok := utils.ParseUUIDParam(c, name)
 		if !ok {
 			badParam(c, message)
 			return
@@ -92,8 +92,8 @@ func withCourseAndParam(c *gin.Context, name, message string, fn func(courseID, 
 	})
 }
 
-func withCourseParamAndBody[T any](c *gin.Context, name, message string, fn func(courseID, id uint, req *T)) {
-	withCourseAndParam(c, name, message, func(courseID, id uint) {
+func withCourseParamAndBody[T any](c *gin.Context, name, message string, fn func(courseID, id string, req *T)) {
+	withCourseAndParam(c, name, message, func(courseID, id string) {
 		withBody(c, func(req *T) {
 			fn(courseID, id, req)
 		})
@@ -104,8 +104,8 @@ func writeResponse(c *gin.Context, statusCode int, message string, payload any) 
 	response.WriteByStatus(c, statusCode, message, payload)
 }
 
-func courseResult(h *Handler, c *gin.Context, statusCode int, message string, fn func(courseID uint) (any, error)) {
-	withCourseID(c, func(courseID uint) {
+func courseResult(h *Handler, c *gin.Context, statusCode int, message string, fn func(courseID string) (any, error)) {
+	withCourseID(c, func(courseID string) {
 		row, err := fn(courseID)
 		if mapCourseError(c, err) {
 			return
@@ -114,16 +114,16 @@ func courseResult(h *Handler, c *gin.Context, statusCode int, message string, fn
 	})
 }
 
-func (h *Handler) courseOK(c *gin.Context, message string, fn func(courseID uint) (any, error)) {
+func (h *Handler) courseOK(c *gin.Context, message string, fn func(courseID string) (any, error)) {
 	courseResult(h, c, http.StatusOK, message, fn)
 }
 
-func (h *Handler) courseCreated(c *gin.Context, message string, fn func(courseID uint) (any, error)) {
+func (h *Handler) courseCreated(c *gin.Context, message string, fn func(courseID string) (any, error)) {
 	courseResult(h, c, http.StatusCreated, message, fn)
 }
 
-func (h *Handler) courseParamOK(c *gin.Context, name, invalidMessage, message string, fn func(courseID, id uint) (any, error)) {
-	withCourseAndParam(c, name, invalidMessage, func(courseID, id uint) {
+func (h *Handler) courseParamOK(c *gin.Context, name, invalidMessage, message string, fn func(courseID, id string) (any, error)) {
+	withCourseAndParam(c, name, invalidMessage, func(courseID, id string) {
 		row, err := fn(courseID, id)
 		if mapCourseError(c, err) {
 			return
@@ -132,16 +132,31 @@ func (h *Handler) courseParamOK(c *gin.Context, name, invalidMessage, message st
 	})
 }
 
-func courseBodyOK[T any](h *Handler, c *gin.Context, message string, fn func(courseID uint, req *T) (any, error)) {
+func (h *Handler) courseUUIDParamOK(c *gin.Context, name, invalidMessage, message string, fn func(courseID string, id string) (any, error)) {
+	withCourseID(c, func(courseID string) {
+		id, ok := utils.ParseUUIDParam(c, name)
+		if !ok {
+			badParam(c, invalidMessage)
+			return
+		}
+		row, err := fn(courseID, id)
+		if mapCourseError(c, err) {
+			return
+		}
+		response.OK(c, message, row)
+	})
+}
+
+func courseBodyOK[T any](h *Handler, c *gin.Context, message string, fn func(courseID string, req *T) (any, error)) {
 	courseBodyResult(h, c, http.StatusOK, message, fn)
 }
 
-func courseBodyCreated[T any](h *Handler, c *gin.Context, message string, fn func(courseID uint, req *T) (any, error)) {
+func courseBodyCreated[T any](h *Handler, c *gin.Context, message string, fn func(courseID string, req *T) (any, error)) {
 	courseBodyResult(h, c, http.StatusCreated, message, fn)
 }
 
-func courseBodyResult[T any](h *Handler, c *gin.Context, statusCode int, message string, fn func(courseID uint, req *T) (any, error)) {
-	withCourseAndBody[T](c, func(courseID uint, req *T) {
+func courseBodyResult[T any](h *Handler, c *gin.Context, statusCode int, message string, fn func(courseID string, req *T) (any, error)) {
+	withCourseAndBody[T](c, func(courseID string, req *T) {
 		row, err := fn(courseID, req)
 		if mapCourseError(c, err) {
 			return
@@ -150,8 +165,8 @@ func courseBodyResult[T any](h *Handler, c *gin.Context, statusCode int, message
 	})
 }
 
-func courseParamBodyOK[T any](h *Handler, c *gin.Context, name, invalidMessage, message string, fn func(courseID, id uint, req *T) (any, error)) {
-	withCourseParamAndBody[T](c, name, invalidMessage, func(courseID, id uint, req *T) {
+func courseParamBodyOK[T any](h *Handler, c *gin.Context, name, invalidMessage, message string, fn func(courseID, id string, req *T) (any, error)) {
+	withCourseParamAndBody[T](c, name, invalidMessage, func(courseID, id string, req *T) {
 		row, err := fn(courseID, id, req)
 		if mapCourseError(c, err) {
 			return
@@ -160,8 +175,8 @@ func courseParamBodyOK[T any](h *Handler, c *gin.Context, name, invalidMessage, 
 	})
 }
 
-func reorderByParent(h *Handler, c *gin.Context, name, invalidMessage string, fn func(courseID, parentID uint, orderedStableIDs []string) (any, error)) {
-	courseParamBodyOK(h, c, name, invalidMessage, "updated", func(courseID, parentID uint, req *reorderRequest) (any, error) {
+func reorderByParent(h *Handler, c *gin.Context, name, invalidMessage string, fn func(courseID, parentID string, orderedStableIDs []string) (any, error)) {
+	courseParamBodyOK(h, c, name, invalidMessage, "updated", func(courseID, parentID string, req *reorderRequest) (any, error) {
 		return fn(courseID, parentID, req.OrderedStableIDs)
 	})
 }

@@ -30,8 +30,8 @@ func NewInstructorService(
 	}
 }
 
-func (s *InstructorService) invalidateMe(ctx context.Context, userID uint) {
-	if s.meCache != nil && userID > 0 {
+func (s *InstructorService) invalidateMe(ctx context.Context, userID string) {
+	if s.meCache != nil && userID != "" {
 		s.meCache.InvalidateUserMeCache(ctx, userID)
 	}
 }

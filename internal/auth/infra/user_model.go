@@ -9,8 +9,8 @@ import (
 
 // userRow is the GORM model for the users table.
 type userRow struct {
-	ID                         uint    `gorm:"primaryKey;autoIncrement"`
-	UserCode                   string  `gorm:"type:uuid;uniqueIndex;not null"`
+	ID                         string  `gorm:"type:uuid;primaryKey"`
+	UserCode                   string  `gorm:"type:char(26);uniqueIndex;not null"`
 	Email                      string  `gorm:"size:255;uniqueIndex;not null"`
 	HashPassword               string  `gorm:"size:255;not null"`
 	DisplayName                string  `gorm:"size:255;not null;default:''"`

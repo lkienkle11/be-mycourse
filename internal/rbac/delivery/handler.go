@@ -2,6 +2,7 @@
 package delivery
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"sort"
@@ -135,7 +136,7 @@ func (h *Handler) setRolePermissions(c *gin.Context) {
 func (h *Handler) listUserRoles(c *gin.Context) { h.listUserBinding(c, userBindingRoles) }
 
 func (h *Handler) listUserPermissions(c *gin.Context) {
-	userID, ok := utils.ParseUintPathParam(c, "userId")
+	userID, ok := utils.ParseUUIDPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid user id", nil)
 		return
@@ -158,7 +159,7 @@ func (h *Handler) listUserDirectPermissions(c *gin.Context) {
 }
 
 func (h *Handler) assignUserRole(c *gin.Context) {
-	userID, ok := utils.ParseUintPathParam(c, "userId")
+	userID, ok := utils.ParseUUIDPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid user id", nil)
 		return
@@ -180,17 +181,12 @@ func (h *Handler) assignUserRole(c *gin.Context) {
 }
 
 func (h *Handler) removeUserRole(c *gin.Context) {
-	removeUserBinding(c,
-		func(c *gin.Context) (uint, bool) { return utils.ParseUintPathParam(c, "roleId") },
-		func(userID, roleID uint) error {
-			return h.svc.RemoveRoleFromUser(c.Request.Context(), userID, roleID)
-		},
-		"invalid role id",
-	)
+	spec := removeBindingSpec[uint]{parse: parseRoleIDParam, invalidMsg: "invalid role id", call: removeRoleBinding}
+	removeUserBindingForHandler(h, c, spec)
 }
 
 func (h *Handler) assignUserPermission(c *gin.Context) {
-	userID, ok := utils.ParseUintPathParam(c, "userId")
+	userID, ok := utils.ParseUUIDPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid user id", nil)
 		return
@@ -222,13 +218,34 @@ func (h *Handler) assignUserPermission(c *gin.Context) {
 }
 
 func (h *Handler) removeUserPermission(c *gin.Context) {
-	removeUserBinding(c,
-		func(c *gin.Context) (string, bool) { return utils.ParsePermissionIDParam(c, "permissionId") },
-		func(userID uint, permissionID string) error {
-			return h.svc.RemovePermissionFromUser(c.Request.Context(), userID, permissionID)
-		},
-		"invalid permission id",
-	)
+	spec := removeBindingSpec[string]{parse: parsePermissionIDParam, invalidMsg: "invalid permission id", call: removePermissionBinding}
+	removeUserBindingForHandler(h, c, spec)
+}
+
+type removeBindingSpec[SecondID any] struct {
+	parse      func(*gin.Context) (SecondID, bool)
+	invalidMsg string
+	call       func(*application.RBACService, context.Context, string, SecondID) error
+}
+
+func removeUserBindingForHandler[SecondID any](h *Handler, c *gin.Context, spec removeBindingSpec[SecondID]) {
+	removeUserBinding(c, spec.parse, func(userID string, secondID SecondID) error {
+		return spec.call(h.svc, c.Request.Context(), userID, secondID)
+	}, spec.invalidMsg)
+}
+
+func parseRoleIDParam(c *gin.Context) (uint, bool) { return utils.ParseUintPathParam(c, "roleId") }
+
+func parsePermissionIDParam(c *gin.Context) (string, bool) {
+	return utils.ParsePermissionIDParam(c, "permissionId")
+}
+
+func removeRoleBinding(svc *application.RBACService, ctx context.Context, userID string, roleID uint) error {
+	return svc.RemoveRoleFromUser(ctx, userID, roleID)
+}
+
+func removePermissionBinding(svc *application.RBACService, ctx context.Context, userID string, permissionID string) error {
+	return svc.RemovePermissionFromUser(ctx, userID, permissionID)
 }
 
 // isNotFound checks if an error is the ErrNotFound sentinel.

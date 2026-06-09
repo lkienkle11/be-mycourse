@@ -41,15 +41,15 @@ func mapInstructorError(c *gin.Context, err error) bool {
 	return true
 }
 
-func parseIDParam(c *gin.Context) (uint, bool) {
-	return utils.ParseUintParam(c, "id")
+func parseIDParam(c *gin.Context) (string, bool) {
+	return utils.ParseUUIDParam(c, "id")
 }
 
 func failInvalidID(c *gin.Context) {
 	response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 }
 
-func (h *Handler) respondApplicationByID(c *gin.Context, load func(context.Context, uint) (*domain.Application, error)) {
+func (h *Handler) respondApplicationByID(c *gin.Context, load func(context.Context, string) (*domain.Application, error)) {
 	id, ok := parseIDParam(c)
 	if !ok {
 		failInvalidID(c)

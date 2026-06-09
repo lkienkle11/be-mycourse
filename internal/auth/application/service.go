@@ -10,7 +10,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	"mycourse-io-be/internal/auth/domain"
@@ -18,11 +17,12 @@ import (
 	sharedErrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/setting"
 	"mycourse-io-be/internal/shared/timex"
+	"mycourse-io-be/internal/shared/uuidx"
 )
 
 // PermissionReader returns the set of permission codes granted to a user (via RBAC roles + direct grants).
 type PermissionReader interface {
-	PermissionCodesForUser(userID uint) (map[string]struct{}, error)
+	PermissionCodesForUser(userID string) (map[string]struct{}, error)
 }
 
 // MediaFileValidator checks if a file ID references a valid, READY non-video raster image.
@@ -49,8 +49,8 @@ type AuthService struct {
 // (AddSession, SaveSession beyond the domain interface).
 type sessionRepo interface {
 	domain.RefreshSessionRepository
-	AddSession(ctx context.Context, userID uint, sessionStr string, entry domain.RefreshSessionEntry) error
-	SaveSession(ctx context.Context, userID uint, sessionStr string, entry domain.RefreshSessionEntry) error
+	AddSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error
+	SaveSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error
 }
 
 // NewAuthService constructs the service.  redis may be nil (cache is skipped when nil).
@@ -145,14 +145,16 @@ func (s *AuthService) registerNewPending(ctx context.Context, norm, email, passw
 	if err != nil {
 		return err
 	}
-	uc, err := uuid.NewV7()
+	uid, err := uuidx.NewV7()
 	if err != nil {
 		return err
 	}
-	tok := uuid.New().String()
+	uc := uuidx.NewULID()
+	tok := uuidx.NewV4()
 	now := time.Now()
 	user := &domain.User{
-		UserCode:           uc.String(),
+		ID:                 uid,
+		UserCode:           uc,
 		Email:              email,
 		HashPassword:       hash,
 		DisplayName:        displayName,
@@ -170,7 +172,7 @@ func (s *AuthService) registerResendPending(ctx context.Context, norm, email, pa
 	if err != nil {
 		return err
 	}
-	tok := uuid.New().String()
+	tok := uuidx.NewV4()
 	now := time.Now()
 	existing.HashPassword = hash
 	existing.DisplayName = displayName
@@ -252,7 +254,7 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, confirmToken string) (do
 // --- GetMe ---
 
 // GetMe returns the cached or freshly loaded MeProfile for a user.
-func (s *AuthService) GetMe(ctx context.Context, userID uint) (*domain.MeProfile, error) {
+func (s *AuthService) GetMe(ctx context.Context, userID string) (*domain.MeProfile, error) {
 	if me, ok := s.getCachedMe(ctx, userID); ok {
 		return me, nil
 	}
@@ -272,7 +274,7 @@ func (s *AuthService) GetMe(ctx context.Context, userID uint) (*domain.MeProfile
 // --- UpdateMe ---
 
 // UpdateMe applies PATCH /me fields (avatar_file_id).
-func (s *AuthService) UpdateMe(ctx context.Context, userID uint, avatarFileID *string) (*domain.MeProfile, error) {
+func (s *AuthService) UpdateMe(ctx context.Context, userID string, avatarFileID *string) (*domain.MeProfile, error) {
 	if avatarFileID == nil {
 		return s.GetMe(ctx, userID)
 	}
@@ -307,16 +309,16 @@ func (s *AuthService) UpdateMe(ctx context.Context, userID uint, avatarFileID *s
 // --- SoftDeleteUser ---
 
 // SoftDeleteUser soft-deletes the user and schedules avatar cleanup.
-func (s *AuthService) SoftDeleteUser(ctx context.Context, userID uint) error {
+func (s *AuthService) SoftDeleteUser(ctx context.Context, userID string) error {
 	return s.deleteUserAccount(ctx, userID, s.userRepo.SoftDelete)
 }
 
 // HardDeleteUser permanently removes the user row and schedules avatar cleanup.
-func (s *AuthService) HardDeleteUser(ctx context.Context, userID uint) error {
+func (s *AuthService) HardDeleteUser(ctx context.Context, userID string) error {
 	return s.deleteUserAccount(ctx, userID, s.userRepo.HardDelete)
 }
 
-func (s *AuthService) deleteUserAccount(ctx context.Context, userID uint, deleteFn func(context.Context, uint) error) error {
+func (s *AuthService) deleteUserAccount(ctx context.Context, userID string, deleteFn func(context.Context, string) error) error {
 	user, err := s.loadAccessibleUser(ctx, userID)
 	if err != nil {
 		return err
@@ -335,7 +337,7 @@ func (s *AuthService) deleteUserAccount(ctx context.Context, userID uint, delete
 	return nil
 }
 
-func (s *AuthService) loadAccessibleUser(ctx context.Context, userID uint) (*domain.User, error) {
+func (s *AuthService) loadAccessibleUser(ctx context.Context, userID string) (*domain.User, error) {
 	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		if isNotFound(err) {
@@ -351,7 +353,7 @@ func (s *AuthService) loadAccessibleUser(ctx context.Context, userID uint) (*dom
 
 // --- internal helpers ---
 
-func (s *AuthService) permissionSlice(userID uint) ([]string, error) {
+func (s *AuthService) permissionSlice(userID string) ([]string, error) {
 	if s.permReader == nil {
 		return nil, nil
 	}

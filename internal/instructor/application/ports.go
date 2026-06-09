@@ -15,13 +15,13 @@ type UserLookup interface {
 // InstructorRoleManager assigns or removes the instructor role only.
 type InstructorRoleManager interface {
 	InstructorRoleID(ctx context.Context) (uint, error)
-	AssignInstructorRole(ctx context.Context, userID uint) error
-	RemoveInstructorRole(ctx context.Context, userID uint) error
+	AssignInstructorRole(ctx context.Context, userID string) error
+	RemoveInstructorRole(ctx context.Context, userID string) error
 }
 
 // MeCacheInvalidator clears cached /me after RBAC changes.
 type MeCacheInvalidator interface {
-	InvalidateUserMeCache(ctx context.Context, userID uint)
+	InvalidateUserMeCache(ctx context.Context, userID string)
 }
 
 // ProfileMediaValidator checks media file IDs on profile payloads.

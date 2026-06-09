@@ -75,7 +75,7 @@ func (b profileBody) toPayload() domain.ProfilePayload {
 }
 
 type rosterResponse struct {
-	ID        uint   `json:"id"`
+	ID        string `json:"id"`
 	FullName  string `json:"full_name"`
 	Email     string `json:"email"`
 	Phone     string `json:"phone"`
@@ -83,8 +83,8 @@ type rosterResponse struct {
 }
 
 type applicationResponse struct {
-	ID              uint        `json:"id"`
-	UserID          uint        `json:"user_id"`
+	ID              string        `json:"id"`
+	UserID          string      `json:"user_id"`
 	FullName        string      `json:"full_name"`
 	AvatarURL       string      `json:"avatar"`
 	ReviewStatus    string      `json:"review_status"`
@@ -136,11 +136,11 @@ func certBodiesFromDomain(certs []domain.Certificate) []certificateBody {
 }
 
 type expertiseTopicRequest struct {
-	TopicID uint `json:"topic_id" binding:"required"`
+	TopicID string `json:"topic_id" binding:"required,uuid"`
 }
 
 type expertiseSkillRequest struct {
-	SkillID uint `json:"skill_id" binding:"required"`
+	SkillID string `json:"skill_id" binding:"required,uuid"`
 }
 
 type createTicketRequest struct {

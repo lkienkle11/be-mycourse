@@ -17,8 +17,8 @@ type profileDataRow struct {
 }
 
 type applicationRow struct {
-	ID              uint   `gorm:"primaryKey"`
-	UserID          uint   `gorm:"not null"`
+	ID              string `gorm:"column:id;primaryKey;type:uuid"`
+	UserID          string `gorm:"type:uuid;not null"`
 	ReviewStatus    string `gorm:"size:32;not null"`
 	RejectionReason string `gorm:"type:text"`
 	profileDataRow
@@ -30,8 +30,8 @@ type applicationRow struct {
 func (applicationRow) TableName() string { return constants.TableInstructorApplications }
 
 type profileRow struct {
-	ID     uint `gorm:"primaryKey"`
-	UserID uint `gorm:"not null"`
+	ID     string `gorm:"column:id;primaryKey;type:uuid"`
+	UserID string `gorm:"type:uuid;not null"`
 	profileDataRow
 	CreatedAt int64
 	UpdatedAt int64
@@ -41,9 +41,9 @@ type profileRow struct {
 func (profileRow) TableName() string { return constants.TableInstructorProfiles }
 
 type expertiseTopicRow struct {
-	ID        uint   `gorm:"column:id;primaryKey"`
-	UserID    uint   `gorm:"column:user_id"`
-	TopicID   uint   `gorm:"column:topic_id"`
+	ID        string `gorm:"column:id;primaryKey;type:uuid"`
+	UserID    string `gorm:"column:user_id;type:uuid"`
+	TopicID   string `gorm:"column:topic_id;type:uuid"`
 	CreatedAt int64  `gorm:"column:created_at"`
 	UpdatedAt int64  `gorm:"column:updated_at"`
 	DeletedAt *int64 `gorm:"column:deleted_at"`
@@ -52,9 +52,9 @@ type expertiseTopicRow struct {
 func (expertiseTopicRow) TableName() string { return constants.TableInstructorExpertiseTopics }
 
 type expertiseSkillRow struct {
-	ID        uint   `gorm:"column:id;primaryKey"`
-	UserID    uint   `gorm:"column:user_id"`
-	SkillID   uint   `gorm:"column:skill_id"`
+	ID        string `gorm:"column:id;primaryKey;type:uuid"`
+	UserID    string `gorm:"column:user_id;type:uuid"`
+	SkillID   string `gorm:"column:skill_id;type:uuid"`
 	CreatedAt int64  `gorm:"column:created_at"`
 	UpdatedAt int64  `gorm:"column:updated_at"`
 	DeletedAt *int64 `gorm:"column:deleted_at"`
@@ -63,8 +63,8 @@ type expertiseSkillRow struct {
 func (expertiseSkillRow) TableName() string { return constants.TableInstructorExpertiseSkills }
 
 type ticketRow struct {
-	ID        uint `gorm:"primaryKey"`
-	UserID    uint
+	ID        string `gorm:"column:id;primaryKey;type:uuid"`
+	UserID    string `gorm:"type:uuid"`
 	Subject   string `gorm:"size:255"`
 	Status    string `gorm:"size:32"`
 	CreatedAt int64
@@ -75,9 +75,9 @@ type ticketRow struct {
 func (ticketRow) TableName() string { return constants.TableInstructorTickets }
 
 type ticketMessageRow struct {
-	ID           uint `gorm:"primaryKey"`
-	TicketID     uint
-	AuthorUserID uint
+	ID           string `gorm:"column:id;primaryKey;type:uuid"`
+	TicketID     string `gorm:"column:ticket_id;type:uuid"`
+	AuthorUserID string `gorm:"type:uuid"`
 	Body         string `gorm:"type:text"`
 	CreatedAt    int64
 	UpdatedAt    int64

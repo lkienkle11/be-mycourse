@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	"mycourse-io-be/internal/auth/domain"
+	"mycourse-io-be/internal/shared/uuidx"
 )
 
 func (s *AuthService) redisKey(prefix string, id interface{}) string {
@@ -22,7 +22,7 @@ func (s *AuthService) redisKey(prefix string, id interface{}) string {
 	return prefix
 }
 
-func (s *AuthService) getCachedMe(ctx context.Context, userID uint) (*domain.MeProfile, bool) {
+func (s *AuthService) getCachedMe(ctx context.Context, userID string) (*domain.MeProfile, bool) {
 	if s.redis == nil {
 		return nil, false
 	}
@@ -45,38 +45,33 @@ func (s *AuthService) setCachedMe(ctx context.Context, me *domain.MeProfile) {
 	_ = s.redis.Set(ctx, s.redisKey(RedisKeyUserMePrefix, me.UserID), data, UserMeTTL).Err()
 }
 
-func (s *AuthService) delCachedMe(ctx context.Context, userID uint) {
+func (s *AuthService) delCachedMe(ctx context.Context, userID string) {
 	if s.redis != nil {
 		_ = s.redis.Del(ctx, s.redisKey(RedisKeyUserMePrefix, userID)).Err()
 	}
 }
 
 // InvalidateUserMeCache drops the cached /me payload for userID (e.g. after RBAC role change).
-func (s *AuthService) InvalidateUserMeCache(ctx context.Context, userID uint) {
+func (s *AuthService) InvalidateUserMeCache(ctx context.Context, userID string) {
 	s.delCachedMe(ctx, userID)
 }
 
-func (s *AuthService) getCachedLoginUserID(ctx context.Context, normEmail string) (uint, bool) {
+func (s *AuthService) getCachedLoginUserID(ctx context.Context, normEmail string) (string, bool) {
 	if s.redis == nil || normEmail == "" {
-		return 0, false
+		return "", false
 	}
 	v, err := s.redis.Get(ctx, s.redisKey(RedisKeyLoginUserByEmailPrefix, normEmail)).Result()
 	if err != nil {
-		return 0, false
+		return "", false
 	}
-	id, err := strconv.ParseUint(v, 10, 64)
-	if err != nil {
-		return 0, false
-	}
-	return uint(id), true
+	return v, true
 }
 
-func (s *AuthService) setCachedLoginUserID(ctx context.Context, normEmail string, userID uint) {
+func (s *AuthService) setCachedLoginUserID(ctx context.Context, normEmail string, userID string) {
 	if s.redis == nil || normEmail == "" {
 		return
 	}
-	_ = s.redis.Set(ctx, s.redisKey(RedisKeyLoginUserByEmailPrefix, normEmail),
-		strconv.FormatUint(uint64(userID), 10), LoginEmailUserIDTTL).Err()
+	_ = s.redis.Set(ctx, s.redisKey(RedisKeyLoginUserByEmailPrefix, normEmail), userID, LoginEmailUserIDTTL).Err()
 }
 
 func (s *AuthService) loginInvalidCached(ctx context.Context, normEmail string) bool {
@@ -106,17 +101,17 @@ func (s *AuthService) delLoginUserByEmail(ctx context.Context, normEmail string)
 	}
 }
 
-func (s *AuthService) delRegisterWindowKey(ctx context.Context, userID uint) {
+func (s *AuthService) delRegisterWindowKey(ctx context.Context, userID string) {
 	if s.redis != nil {
 		_ = s.redis.Del(ctx, s.redisKey(RedisKeyRegisterConfirmEmailWindowPrefix, userID)).Err()
 	}
 }
 
-func (s *AuthService) tryReserveEmailSend(ctx context.Context, userID uint) (bool, time.Duration, string, error) {
+func (s *AuthService) tryReserveEmailSend(ctx context.Context, userID string) (bool, time.Duration, string, error) {
 	if s.redis == nil {
 		return true, 0, "", nil
 	}
-	member := uuid.New().String()
+	member := uuidx.NewV4()
 	now := time.Now().UnixMilli()
 	win := RegisterConfirmationEmailWindow.Milliseconds()
 	max := int64(MaxRegisterConfirmationEmailsPerWindow)
@@ -143,7 +138,7 @@ if n > max then
 end
 return {1, 0}
 `)
-	key := RedisKeyRegisterConfirmEmailWindowPrefix + strconv.FormatUint(uint64(userID), 10)
+	key := RedisKeyRegisterConfirmEmailWindowPrefix + userID
 	r, err := script.Run(ctx, s.redis, []string{key}, now, win, max, member).Slice()
 	if err != nil {
 		return false, 0, "", err
@@ -159,10 +154,10 @@ return {1, 0}
 	return true, 0, member, nil
 }
 
-func (s *AuthService) releaseEmailSendReservation(ctx context.Context, userID uint, reservationID string) {
+func (s *AuthService) releaseEmailSendReservation(ctx context.Context, userID string, reservationID string) {
 	if s.redis == nil || reservationID == "" {
 		return
 	}
-	key := RedisKeyRegisterConfirmEmailWindowPrefix + strconv.FormatUint(uint64(userID), 10)
+	key := RedisKeyRegisterConfirmEmailWindowPrefix + userID
 	_ = s.redis.ZRem(ctx, key, reservationID).Err()
 }

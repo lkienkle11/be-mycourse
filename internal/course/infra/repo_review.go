@@ -10,11 +10,11 @@ import (
 	"mycourse-io-be/internal/shared/timex"
 )
 
-func (r *GormRepository) SubmitForReview(ctx context.Context, courseID, actorUserID uint) (*domain.CourseDetail, error) {
+func (r *GormRepository) SubmitForReview(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	return r.updateDraftStatus(ctx, courseID, actorUserID, domain.VersionStatusDraft, domain.VersionStatusInReview, "", true)
 }
 
-func (r *GormRepository) ReopenDraft(ctx context.Context, courseID, actorUserID uint) (*domain.CourseDetail, error) {
+func (r *GormRepository) ReopenDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	return r.updateDraftStatus(ctx, courseID, actorUserID, domain.VersionStatusRejected, domain.VersionStatusDraft, "", false)
 }
 
@@ -49,7 +49,7 @@ ORDER BY dv.updated_at DESC`
 	return out, nil
 }
 
-func (r *GormRepository) ApproveDraft(ctx context.Context, courseID, actorUserID uint) (*domain.CourseDetail, error) {
+func (r *GormRepository) ApproveDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		course, version, err := r.requireDraftVersion(ctx, tx, courseID)
@@ -85,7 +85,7 @@ func (r *GormRepository) ApproveDraft(ctx context.Context, courseID, actorUserID
 	return detail, err
 }
 
-func (r *GormRepository) RejectDraft(ctx context.Context, courseID, actorUserID uint, reason string) (*domain.CourseDetail, error) {
+func (r *GormRepository) RejectDraft(ctx context.Context, courseID string, actorUserID string, reason string) (*domain.CourseDetail, error) {
 	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		course, version, err := r.requireDraftVersion(ctx, tx, courseID)

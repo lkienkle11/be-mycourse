@@ -81,15 +81,15 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	return out, total, nil
 }
 
-func (r *GormRepository) GetApplicationByID(ctx context.Context, id uint) (*domain.Application, error) {
+func (r *GormRepository) GetApplicationByID(ctx context.Context, id string) (*domain.Application, error) {
 	return loadApplicationRow(ctx, r.db, "ia.id = ?", id)
 }
 
-func (r *GormRepository) GetActiveApplicationByUserID(ctx context.Context, userID uint) (*domain.Application, error) {
+func (r *GormRepository) GetActiveApplicationByUserID(ctx context.Context, userID string) (*domain.Application, error) {
 	return loadApplicationRow(ctx, r.db, "ia.user_id = ?", userID)
 }
 
-func (r *GormRepository) UpsertPendingApplication(ctx context.Context, userID uint, p domain.ProfilePayload) (*domain.Application, error) {
+func (r *GormRepository) UpsertPendingApplication(ctx context.Context, userID string, p domain.ProfilePayload) (*domain.Application, error) {
 	var existing applicationRow
 	err := activeScope(r.db.WithContext(ctx)).Where("user_id = ?", userID).First(&existing).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
@@ -107,9 +107,9 @@ func (r *GormRepository) UpsertPendingApplication(ctx context.Context, userID ui
 	}
 	row.RejectionReason = ""
 	gormx.TouchUpdated(&row.UpdatedAt)
-	if row.ID == 0 {
+	if row.ID == "" {
 		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
+		if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return nil, err
 		}
 	} else if err := r.db.WithContext(ctx).Save(row).Error; err != nil {
@@ -119,7 +119,7 @@ func (r *GormRepository) UpsertPendingApplication(ctx context.Context, userID ui
 	return &a, nil
 }
 
-func (r *GormRepository) SetApplicationReview(ctx context.Context, id uint, status, rejectionReason string) error {
+func (r *GormRepository) SetApplicationReview(ctx context.Context, id string, status, rejectionReason string) error {
 	now := timex.NowUnix()
 	return r.db.WithContext(ctx).Model(&applicationRow{}).
 		Where("id = ? AND deleted_at IS NULL", id).
@@ -128,7 +128,7 @@ func (r *GormRepository) SetApplicationReview(ctx context.Context, id uint, stat
 		}).Error
 }
 
-func (r *GormRepository) DeleteApplicationsByUserID(ctx context.Context, userID uint) error {
+func (r *GormRepository) DeleteApplicationsByUserID(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &applicationRow{}, "user_id = ?", userID)
 }
 
@@ -166,7 +166,7 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 	return out, total, nil
 }
 
-func (r *GormRepository) GetProfileByUserID(ctx context.Context, userID uint) (*domain.Profile, error) {
+func (r *GormRepository) GetProfileByUserID(ctx context.Context, userID string) (*domain.Profile, error) {
 	return loadProfileRow(ctx, r.db, "ip.user_id = ?", userID)
 }
 
@@ -183,9 +183,9 @@ func (r *GormRepository) UpsertProfile(ctx context.Context, in domain.UpsertProf
 		return nil, e
 	}
 	gormx.TouchUpdated(&row.UpdatedAt)
-	if row.ID == 0 {
+	if row.ID == "" {
 		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return nil, err
 		}
 	} else if err := r.db.WithContext(ctx).Save(&row).Error; err != nil {
@@ -195,7 +195,7 @@ func (r *GormRepository) UpsertProfile(ctx context.Context, in domain.UpsertProf
 	return &p, nil
 }
 
-func (r *GormRepository) DeleteProfileByUserID(ctx context.Context, userID uint) error {
+func (r *GormRepository) DeleteProfileByUserID(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &profileRow{}, "user_id = ?", userID)
 }
 
@@ -220,7 +220,7 @@ WHERE u.deleted_at IS NULL`, constants.TableAppUsers, constants.TableRBACUserRol
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
 	type scanRow struct {
-		ID           uint
+		ID           string
 		DisplayName  string
 		Email        string
 		Phone        string
@@ -240,7 +240,7 @@ WHERE u.deleted_at IS NULL`, constants.TableAppUsers, constants.TableRBACUserRol
 	return out, total, nil
 }
 
-func (r *GormRepository) UserHasInstructorRole(ctx context.Context, userID uint) (bool, error) {
+func (r *GormRepository) UserHasInstructorRole(ctx context.Context, userID string) (bool, error) {
 	var n int64
 	q := fmt.Sprintf(`
 SELECT COUNT(*) FROM %s ur
@@ -254,12 +254,12 @@ WHERE ur.user_id = ?`, constants.TableRBACUserRoles, constants.TableRBACRoles)
 
 // --- Expertise --------------------------------------------------------------
 
-func (r *GormRepository) ListExpertise(ctx context.Context, userID uint, isTopic bool) (any, error) {
+func (r *GormRepository) ListExpertise(ctx context.Context, userID string, isTopic bool) (any, error) {
 	if isTopic {
 		type expertiseTopicWithTaxonomyRow struct {
-			ID        uint   `gorm:"column:id"`
-			UserID    uint   `gorm:"column:user_id"`
-			TopicID   uint   `gorm:"column:topic_id"`
+			ID        string   `gorm:"column:id"`
+			UserID    string `gorm:"column:user_id"`
+			TopicID   string   `gorm:"column:topic_id"`
 			CreatedAt int64  `gorm:"column:created_at"`
 			UpdatedAt int64  `gorm:"column:updated_at"`
 			Name      string `gorm:"column:name"`
@@ -285,9 +285,9 @@ func (r *GormRepository) ListExpertise(ctx context.Context, userID uint, isTopic
 		return out, nil
 	}
 	type expertiseSkillWithTaxonomyRow struct {
-		ID        uint   `gorm:"column:id"`
-		UserID    uint   `gorm:"column:user_id"`
-		SkillID   uint   `gorm:"column:skill_id"`
+		ID        string   `gorm:"column:id"`
+		UserID    string `gorm:"column:user_id"`
+		SkillID   string   `gorm:"column:skill_id"`
 		CreatedAt int64  `gorm:"column:created_at"`
 		UpdatedAt int64  `gorm:"column:updated_at"`
 		Name      string `gorm:"column:name"`
@@ -313,19 +313,19 @@ func (r *GormRepository) ListExpertise(ctx context.Context, userID uint, isTopic
 	return out, nil
 }
 
-func (r *GormRepository) InsertExpertise(ctx context.Context, userID, refID uint, isTopic bool) (any, error) {
+func (r *GormRepository) InsertExpertise(ctx context.Context, userID string, refID string, isTopic bool) (any, error) {
 	return r.addExpertise(ctx, userID, refID, isTopic)
 }
 
-func (r *GormRepository) DeleteTopic(ctx context.Context, id uint) error {
+func (r *GormRepository) DeleteTopic(ctx context.Context, id string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &expertiseTopicRow{}, "id = ?", id)
 }
 
-func (r *GormRepository) DeleteAllTopicsForUser(ctx context.Context, userID uint) error {
+func (r *GormRepository) DeleteAllTopicsForUser(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &expertiseTopicRow{}, "user_id = ?", userID)
 }
 
-func (r *GormRepository) ListSkills(ctx context.Context, userID uint) ([]domain.ExpertiseSkill, error) {
+func (r *GormRepository) ListSkills(ctx context.Context, userID string) ([]domain.ExpertiseSkill, error) {
 	v, err := r.ListExpertise(ctx, userID, false)
 	if err != nil {
 		return nil, err
@@ -333,15 +333,15 @@ func (r *GormRepository) ListSkills(ctx context.Context, userID uint) ([]domain.
 	return v.([]domain.ExpertiseSkill), nil
 }
 
-func (r *GormRepository) DeleteSkill(ctx context.Context, id uint) error {
+func (r *GormRepository) DeleteSkill(ctx context.Context, id string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &expertiseSkillRow{}, "id = ?", id)
 }
 
-func (r *GormRepository) DeleteAllSkillsForUser(ctx context.Context, userID uint) error {
+func (r *GormRepository) DeleteAllSkillsForUser(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &expertiseSkillRow{}, "user_id = ?", userID)
 }
 
-func (r *GormRepository) addExpertise(ctx context.Context, userID, refID uint, isTopic bool) (any, error) {
+func (r *GormRepository) addExpertise(ctx context.Context, userID string, refID string, isTopic bool) (any, error) {
 	if isTopic {
 		row := &expertiseTopicRow{UserID: userID, TopicID: refID}
 		if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
@@ -356,12 +356,12 @@ func (r *GormRepository) addExpertise(ctx context.Context, userID, refID uint, i
 	return r.getExpertiseByID(ctx, row.ID, false)
 }
 
-func (r *GormRepository) getExpertiseByID(ctx context.Context, id uint, isTopic bool) (any, error) {
+func (r *GormRepository) getExpertiseByID(ctx context.Context, id string, isTopic bool) (any, error) {
 	if isTopic {
 		type expertiseTopicWithTaxonomyRow struct {
-			ID        uint   `gorm:"column:id"`
-			UserID    uint   `gorm:"column:user_id"`
-			TopicID   uint   `gorm:"column:topic_id"`
+			ID        string   `gorm:"column:id"`
+			UserID    string `gorm:"column:user_id"`
+			TopicID   string   `gorm:"column:topic_id"`
 			CreatedAt int64  `gorm:"column:created_at"`
 			UpdatedAt int64  `gorm:"column:updated_at"`
 			Name      string `gorm:"column:name"`
@@ -383,9 +383,9 @@ func (r *GormRepository) getExpertiseByID(ctx context.Context, id uint, isTopic 
 		return &out, nil
 	}
 	type expertiseSkillWithTaxonomyRow struct {
-		ID        uint   `gorm:"column:id"`
-		UserID    uint   `gorm:"column:user_id"`
-		SkillID   uint   `gorm:"column:skill_id"`
+		ID        string   `gorm:"column:id"`
+		UserID    string `gorm:"column:user_id"`
+		SkillID   string   `gorm:"column:skill_id"`
 		CreatedAt int64  `gorm:"column:created_at"`
 		UpdatedAt int64  `gorm:"column:updated_at"`
 		Name      string `gorm:"column:name"`
@@ -408,6 +408,32 @@ func (r *GormRepository) getExpertiseByID(ctx context.Context, id uint, isTopic 
 }
 
 func touchAndCreate(ctx context.Context, db *gorm.DB, created, updated *int64, row any) error {
+	switch r := row.(type) {
+	case *expertiseTopicRow:
+		if err := ensureStringID(&r.ID); err != nil {
+			return err
+		}
+	case *expertiseSkillRow:
+		if err := ensureStringID(&r.ID); err != nil {
+			return err
+		}
+	case *applicationRow:
+		if err := ensureStringID(&r.ID); err != nil {
+			return err
+		}
+	case *profileRow:
+		if err := ensureStringID(&r.ID); err != nil {
+			return err
+		}
+	case *ticketRow:
+		if err := ensureStringID(&r.ID); err != nil {
+			return err
+		}
+	case *ticketMessageRow:
+		if err := ensureStringID(&r.ID); err != nil {
+			return err
+		}
+	}
 	gormx.TouchCreatedUpdated(created, updated)
 	return db.WithContext(ctx).Create(row).Error
 }
@@ -416,7 +442,7 @@ func touchAndCreate(ctx context.Context, db *gorm.DB, created, updated *int64, r
 
 func (r *GormRepository) ListTickets(ctx context.Context, f domain.TicketFilter) ([]domain.Ticket, int64, error) {
 	q := activeScope(r.db.WithContext(ctx).Model(&ticketRow{}))
-	if f.UserID > 0 {
+	if f.UserID != "" {
 		q = q.Where("user_id = ?", f.UserID)
 	}
 	if s := strings.TrimSpace(f.Status); s != "" {
@@ -438,37 +464,36 @@ func (r *GormRepository) ListTickets(ctx context.Context, f domain.TicketFilter)
 	return out, total, nil
 }
 
-func (r *GormRepository) GetTicketByID(ctx context.Context, id uint) (*domain.Ticket, error) {
+func (r *GormRepository) GetTicketByID(ctx context.Context, id string) (*domain.Ticket, error) {
 	var row ticketRow
-	if err := activeScope(r.db.WithContext(ctx)).First(&row, id).Error; err != nil {
+	if err := activeScope(r.db.WithContext(ctx)).First(&row, "id = ?", id).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
 	t := domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 	return &t, nil
 }
 
-func (r *GormRepository) CreateTicket(ctx context.Context, userID uint, subject string) (*domain.Ticket, error) {
+func (r *GormRepository) CreateTicket(ctx context.Context, userID string, subject string) (*domain.Ticket, error) {
 	row := &ticketRow{UserID: userID, Subject: subject, Status: domain.TicketStatusOpen}
-	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
+	if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 		return nil, err
 	}
 	t := domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 	return &t, nil
 }
 
-func (r *GormRepository) CloseTicket(ctx context.Context, id uint) error {
+func (r *GormRepository) CloseTicket(ctx context.Context, id string) error {
 	now := timex.NowUnix()
 	return r.db.WithContext(ctx).Model(&ticketRow{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]any{"status": domain.TicketStatusClosed, "updated_at": now}).Error
 }
 
-func (r *GormRepository) DeleteTicketsByUserID(ctx context.Context, userID uint) error {
+func (r *GormRepository) DeleteTicketsByUserID(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &ticketRow{}, "user_id = ?", userID)
 }
 
-func (r *GormRepository) ListMessages(ctx context.Context, ticketID uint) ([]domain.TicketMessage, error) {
+func (r *GormRepository) ListMessages(ctx context.Context, ticketID string) ([]domain.TicketMessage, error) {
 	var rows []ticketMessageRow
 	if err := activeScope(r.db.WithContext(ctx)).Where("ticket_id = ?", ticketID).Order("id ASC").Find(&rows).Error; err != nil {
 		return nil, err
@@ -483,10 +508,9 @@ func (r *GormRepository) ListMessages(ctx context.Context, ticketID uint) ([]dom
 	return out, nil
 }
 
-func (r *GormRepository) AddMessage(ctx context.Context, ticketID, authorUserID uint, body string) (*domain.TicketMessage, error) {
+func (r *GormRepository) AddMessage(ctx context.Context, ticketID string, authorUserID string, body string) (*domain.TicketMessage, error) {
 	row := &ticketMessageRow{TicketID: ticketID, AuthorUserID: authorUserID, Body: body}
-	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
+	if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 		return nil, err
 	}
 	m := domain.TicketMessage{
@@ -496,14 +520,14 @@ func (r *GormRepository) AddMessage(ctx context.Context, ticketID, authorUserID 
 	return &m, nil
 }
 
-func (r *GormRepository) DeleteMessagesByUserTickets(ctx context.Context, userID uint) error {
+func (r *GormRepository) DeleteMessagesByUserTickets(ctx context.Context, userID string) error {
 	sub := activeScope(r.db.WithContext(ctx).Model(&ticketRow{})).Select("id").Where("user_id = ?", userID)
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &ticketMessageRow{}, "ticket_id IN (?)", sub)
 }
 
 // --- Wipe -------------------------------------------------------------------
 
-func (r *GormRepository) WipeInstructorScopedData(ctx context.Context, userID uint) error {
+func (r *GormRepository) WipeInstructorScopedData(ctx context.Context, userID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		repo := &GormRepository{db: tx}
 		if err := repo.DeleteMessagesByUserTickets(ctx, userID); err != nil {

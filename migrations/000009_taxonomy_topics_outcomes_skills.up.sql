@@ -1,44 +1,38 @@
 -- Rename categories to course_topics and add nested child_topics JSONB tree.
 
 ALTER TABLE categories RENAME TO course_topics;
-
 ALTER INDEX idx_categories_created_by RENAME TO idx_course_topics_created_by;
-
 ALTER INDEX idx_categories_image_file_id RENAME TO idx_course_topics_image_file_id;
 
 ALTER TABLE course_topics
     ADD COLUMN IF NOT EXISTS child_topics JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 UPDATE permissions SET permission_name = 'topic:read', updated_at = NOW() WHERE permission_id = 'P18';
-
 UPDATE permissions SET permission_name = 'topic:create', updated_at = NOW() WHERE permission_id = 'P19';
-
 UPDATE permissions SET permission_name = 'topic:update', updated_at = NOW() WHERE permission_id = 'P20';
-
 UPDATE permissions SET permission_name = 'topic:delete', updated_at = NOW() WHERE permission_id = 'P21';
 
 CREATE TABLE course_outcomes (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     short_description VARCHAR(100) NOT NULL,
     description JSONB NOT NULL DEFAULT '[]'::jsonb,
     image_file_id UUID NULL REFERENCES media_files (id) ON DELETE SET NULL,
     status taxonomy_status NOT NULL DEFAULT 'ACTIVE',
-    created_by BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users (id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_course_outcomes_created_by ON course_outcomes (created_by);
-
 CREATE INDEX idx_course_outcomes_image_file_id ON course_outcomes (image_file_id);
 
 CREATE TABLE course_skills (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
     children JSONB NOT NULL DEFAULT '[]'::jsonb,
     status taxonomy_status NOT NULL DEFAULT 'ACTIVE',
-    created_by BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users (id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

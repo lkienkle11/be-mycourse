@@ -30,7 +30,7 @@ func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
 	return &GormUserRepository{db: db}
 }
 
-func (r *GormUserRepository) FindByID(ctx context.Context, id uint) (*domain.User, error) {
+func (r *GormUserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	var row userRow
 	if err := findActiveUserWhere(ctx, r.db, &row, "id = ?", id); err != nil {
 		return nil, err
@@ -75,23 +75,23 @@ func (r *GormUserRepository) Save(ctx context.Context, u *domain.User) error {
 	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormUserRepository) UpdateDisplayName(ctx context.Context, userID uint, displayName string) error {
+func (r *GormUserRepository) UpdateDisplayName(ctx context.Context, userID string, displayName string) error {
 	return r.db.WithContext(ctx).Model(&userRow{}).
 		Where("id = ? AND deleted_at IS NULL", userID).
 		Update("display_name", displayName).Error
 }
 
-func (r *GormUserRepository) UpdateAvatar(ctx context.Context, userID uint, avatarFileID *string) error {
+func (r *GormUserRepository) UpdateAvatar(ctx context.Context, userID string, avatarFileID *string) error {
 	return r.db.WithContext(ctx).Model(&userRow{}).
 		Where("id = ? AND deleted_at IS NULL", userID).
 		Update("avatar_file_id", avatarFileID).Error
 }
 
-func (r *GormUserRepository) SoftDelete(ctx context.Context, userID uint) error {
+func (r *GormUserRepository) SoftDelete(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &userRow{}, "id = ? AND deleted_at IS NULL", userID)
 }
 
-func (r *GormUserRepository) HardDelete(ctx context.Context, userID uint) error {
+func (r *GormUserRepository) HardDelete(ctx context.Context, userID string) error {
 	return r.db.WithContext(ctx).Delete(&userRow{}, userID).Error
 }
 
@@ -104,7 +104,7 @@ func NewGormRefreshSessionRepository(db *gorm.DB) *GormRefreshSessionRepository 
 	return &GormRefreshSessionRepository{db: db}
 }
 
-func (r *GormRefreshSessionRepository) LoadSessions(ctx context.Context, userID uint) (domain.RefreshTokenSessionMap, error) {
+func (r *GormRefreshSessionRepository) LoadSessions(ctx context.Context, userID string) (domain.RefreshTokenSessionMap, error) {
 	var row struct {
 		RefreshTokenSession RefreshTokenSessionMap `gorm:"type:jsonb"`
 	}
@@ -115,7 +115,7 @@ func (r *GormRefreshSessionRepository) LoadSessions(ctx context.Context, userID 
 	return toDomainSessionMap(row.RefreshTokenSession), nil
 }
 
-func (r *GormRefreshSessionRepository) SaveSessions(ctx context.Context, userID uint, sessions domain.RefreshTokenSessionMap) error {
+func (r *GormRefreshSessionRepository) SaveSessions(ctx context.Context, userID string, sessions domain.RefreshTokenSessionMap) error {
 	data, err := json.Marshal(sessions)
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func (r *GormRefreshSessionRepository) SaveSessions(ctx context.Context, userID 
 	return r.db.WithContext(ctx).Exec(q, string(data), timex.NowUnix(), userID).Error
 }
 
-func (r *GormRefreshSessionRepository) AddSession(ctx context.Context, userID uint, sessionStr string, entry domain.RefreshSessionEntry) error {
+func (r *GormRefreshSessionRepository) AddSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row struct {
 			RefreshTokenSession RefreshTokenSessionMap `gorm:"type:jsonb"`
@@ -151,7 +151,7 @@ func (r *GormRefreshSessionRepository) AddSession(ctx context.Context, userID ui
 	})
 }
 
-func (r *GormRefreshSessionRepository) RemoveSession(ctx context.Context, userID uint, sessionStr string) error {
+func (r *GormRefreshSessionRepository) RemoveSession(ctx context.Context, userID string, sessionStr string) error {
 	sessions, err := r.LoadSessions(ctx, userID)
 	if err != nil {
 		return err
@@ -166,7 +166,7 @@ func (r *GormRefreshSessionRepository) RemoveSession(ctx context.Context, userID
 	return r.SaveSessions(ctx, userID, sessions)
 }
 
-func (r *GormRefreshSessionRepository) SaveSession(ctx context.Context, userID uint, sessionStr string, entry domain.RefreshSessionEntry) error {
+func (r *GormRefreshSessionRepository) SaveSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func (r *GormRefreshSessionRepository) SaveSession(ctx context.Context, userID u
 	return r.db.WithContext(ctx).Exec(q, sessionStr, string(data), timex.NowUnix(), userID).Error
 }
 
-func (r *GormRefreshSessionRepository) IncrementEmailSendCount(ctx context.Context, userID uint) (int, error) {
+func (r *GormRefreshSessionRepository) IncrementEmailSendCount(ctx context.Context, userID string) (int, error) {
 	var count int
 	q := fmt.Sprintf(`UPDATE %s SET registration_email_send_total = registration_email_send_total + 1 WHERE id = ? AND deleted_at IS NULL RETURNING registration_email_send_total`, constants.TableAppUsers)
 	if err := r.db.WithContext(ctx).Raw(q, userID).Scan(&count).Error; err != nil {

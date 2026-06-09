@@ -30,7 +30,7 @@ func isUserBanned(now int64, bannedUntil *int64) bool {
 
 // EnsureActiveUser verifies the user is not soft-deleted, disabled, or actively banned.
 // Returns shared/errors sentinels for middleware.RequireActiveUser.
-func (s *AuthService) EnsureActiveUser(ctx context.Context, userID uint) error {
+func (s *AuthService) EnsureActiveUser(ctx context.Context, userID string) error {
 	_, err := s.loadAccessibleUser(ctx, userID)
 	return toSharedAccessErr(err)
 }

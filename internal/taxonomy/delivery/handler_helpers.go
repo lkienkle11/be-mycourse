@@ -40,8 +40,8 @@ func listTaxonomyItemsWithDeleted[TRow any, TResp any](
 	)
 }
 
-func deleteTaxonomyByID(c *gin.Context, deleteFn func(context.Context, uint) error) {
-	id, ok := utils.ParseUintParam(c, "id")
+func deleteTaxonomyByID(c *gin.Context, deleteFn func(context.Context, string) error) {
+	id, ok := utils.ParseUUIDParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 		return
@@ -75,11 +75,11 @@ func mapTaxonomyMutationError(c *gin.Context, err error, withProfileMedia bool) 
 
 func updateSlugStatusTaxonomy[Req any, Row any](
 	c *gin.Context,
-	updateFn func(context.Context, uint, domain.UpdateTagInput) (*Row, error),
+	updateFn func(context.Context, string, domain.UpdateTagInput) (*Row, error),
 	toInput func(Req) domain.UpdateTagInput,
 	toResponse func(Row) SlugStatusResponse,
 ) {
-	id, ok := utils.ParseUintParam(c, "id")
+	id, ok := utils.ParseUUIDParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 		return
@@ -101,7 +101,7 @@ func updateSlugStatusTaxonomy[Req any, Row any](
 	response.OK(c, "updated", toResponse(*row))
 }
 
-func courseOutcomeInputFromCreate(req CreateCourseOutcomeRequest, actorID uint) domain.CreateCourseOutcomeInput {
+func courseOutcomeInputFromCreate(req CreateCourseOutcomeRequest, actorID string) domain.CreateCourseOutcomeInput {
 	return domain.CreateCourseOutcomeInput{
 		ActorID: actorID, ShortDescription: req.ShortDescription,
 		Description: req.Description, Status: req.Status, ImageFileID: req.ImageFileID,
@@ -115,7 +115,7 @@ func courseOutcomeInputFromUpdate(req UpdateCourseOutcomeRequest) domain.UpdateC
 	}
 }
 
-func courseSkillInputFromCreate(req CreateCourseSkillRequest, actorID uint) domain.CreateCourseSkillInput {
+func courseSkillInputFromCreate(req CreateCourseSkillRequest, actorID string) domain.CreateCourseSkillInput {
 	return domain.CreateCourseSkillInput{
 		ActorID: actorID, Name: req.Name, Status: req.Status, Children: req.Children,
 	}
@@ -125,7 +125,7 @@ func courseSkillInputFromUpdate(req UpdateCourseSkillRequest) domain.UpdateCours
 	return domain.UpdateCourseSkillInput{Name: req.Name, Status: req.Status, Children: req.Children}
 }
 
-func slugStatusInputFromCreate(req CreateTagRequest, actorID uint) domain.CreateTagInput {
+func slugStatusInputFromCreate(req CreateTagRequest, actorID string) domain.CreateTagInput {
 	return domain.CreateTagInput{ActorID: actorID, Name: req.Name, Status: req.Status}
 }
 
@@ -143,12 +143,12 @@ func slugStatusResponseFromCourseLevel(cl domain.CourseLevel) SlugStatusResponse
 
 func updateTaxonomyMutation[Req any, In any, Row any, Resp any](
 	c *gin.Context,
-	updateFn func(context.Context, uint, In) (*Row, error),
+	updateFn func(context.Context, string, In) (*Row, error),
 	toInput func(Req) In,
 	toResponse func(Row) Resp,
 	withProfileMedia bool,
 ) {
-	id, ok := utils.ParseUintParam(c, "id")
+	id, ok := utils.ParseUUIDParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 		return
@@ -168,7 +168,7 @@ func updateTaxonomyMutation[Req any, In any, Row any, Resp any](
 func createTaxonomyMutation[Req any, In any, Row any, Resp any](
 	c *gin.Context,
 	createFn func(context.Context, In) (*Row, error),
-	toInput func(Req, uint) In,
+	toInput func(Req, string) In,
 	toResponse func(Row) Resp,
 	withProfileMedia bool,
 ) {
@@ -185,7 +185,7 @@ func createTaxonomyMutation[Req any, In any, Row any, Resp any](
 	response.Created(c, "created", toResponse(*row))
 }
 
-func slugStatusResponse(id uint, name, slug, status string, createdBy *uint, createdAt, updatedAt int64) SlugStatusResponse {
+func slugStatusResponse(id string, name, slug, status string, createdBy *string, createdAt, updatedAt int64) SlugStatusResponse {
 	return SlugStatusResponse{
 		ID: id, Name: name, Slug: slug, Status: status, CreatedBy: createdBy,
 		CreatedAt: createdAt,

@@ -1,5 +1,4 @@
--- Core schema + RBAC seed (single migration).
--- permissions.permission_id = stable catalog PK (e.g. P1). permission_name = JWT / RequirePermission string (resource:action).
+-- Core schema + RBAC seed (UUID users + ULID user_code).
 
 CREATE TABLE permissions (
     permission_id VARCHAR(10) PRIMARY KEY,
@@ -26,8 +25,8 @@ CREATE TABLE role_permissions (
 );
 
 CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    user_code UUID NOT NULL DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
+    user_code CHAR(26) NOT NULL,
     email VARCHAR(255) NOT NULL,
     hash_password VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL DEFAULT '',
@@ -50,7 +49,7 @@ CREATE INDEX idx_users_deleted_at ON users (deleted_at) WHERE deleted_at IS NULL
 CREATE INDEX idx_users_confirm_token ON users (confirmation_token) WHERE confirmation_token IS NOT NULL;
 
 CREATE TABLE user_roles (
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     role_id BIGINT NOT NULL REFERENCES roles (id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, role_id)
 );
@@ -58,7 +57,7 @@ CREATE TABLE user_roles (
 CREATE INDEX idx_user_roles_user ON user_roles (user_id);
 
 CREATE TABLE user_permissions (
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     permission_id VARCHAR(10) NOT NULL REFERENCES permissions (permission_id) ON UPDATE CASCADE ON DELETE CASCADE,
     PRIMARY KEY (user_id, permission_id)
 );
@@ -98,18 +97,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.permission_id
 FROM roles r
 INNER JOIN permissions p ON p.permission_id IN (
-    'P1',
-    'P2',
-    'P3',
-    'P4',
-    'P5',
-    'P6',
-    'P7',
-    'P8',
-    'P10',
-    'P11',
-    'P12',
-    'P13'
+    'P1','P2','P3','P4','P5','P6','P7','P8','P10','P11','P12','P13'
 )
 WHERE r.name = 'admin';
 
@@ -125,8 +113,6 @@ FROM roles r
 INNER JOIN permissions p ON p.permission_id IN ('P1', 'P5', 'P10')
 WHERE r.name = 'learner';
 
--- Isolated system tables (no FKs to app RBAC / users).
--- system_app_config: exactly one logical row (id = 1). Secrets are managed out-of-band (SQL / future tooling).
 CREATE TABLE system_app_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     app_cli_system_password TEXT NOT NULL DEFAULT '',
@@ -138,9 +124,8 @@ CREATE TABLE system_app_config (
 INSERT INTO system_app_config (id, app_cli_system_password, app_system_env, app_token_env)
 VALUES (1, '', '', '');
 
--- Privileged system operators (credentials derived with app_system_env at write/login time).
 CREATE TABLE system_privileged_users (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     username_secret TEXT NOT NULL,
     password_secret TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

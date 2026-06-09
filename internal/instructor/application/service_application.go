@@ -18,7 +18,7 @@ func (s *InstructorService) ListApplications(ctx context.Context, f domain.Appli
 	)
 }
 
-func (s *InstructorService) GetApplication(ctx context.Context, id uint) (*domain.Application, error) {
+func (s *InstructorService) GetApplication(ctx context.Context, id string) (*domain.Application, error) {
 	return loadOneWithIdentity(
 		s,
 		ctx,
@@ -43,7 +43,7 @@ func (s *InstructorService) SubmitApplication(ctx context.Context, in domain.Sub
 	)
 }
 
-func (s *InstructorService) ApproveApplication(ctx context.Context, id uint) (*domain.Application, error) {
+func (s *InstructorService) ApproveApplication(ctx context.Context, id string) (*domain.Application, error) {
 	app, err := s.repo.GetApplicationByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (s *InstructorService) RejectApplication(ctx context.Context, in domain.Rej
 	return s.GetApplication(ctx, in.ApplicationID)
 }
 
-func (s *InstructorService) DeleteApplication(ctx context.Context, id uint) error {
+func (s *InstructorService) DeleteApplication(ctx context.Context, id string) error {
 	app, err := s.repo.GetApplicationByID(ctx, id)
 	if err != nil {
 		return err

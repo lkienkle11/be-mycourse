@@ -17,7 +17,7 @@ func (s *InstructorService) ListProfiles(ctx context.Context, f domain.ProfileFi
 	)
 }
 
-func (s *InstructorService) GetProfileByUserID(ctx context.Context, userID uint) (*domain.Profile, error) {
+func (s *InstructorService) GetProfileByUserID(ctx context.Context, userID string) (*domain.Profile, error) {
 	return loadOneWithIdentity(
 		s,
 		ctx,
@@ -44,6 +44,6 @@ func (s *InstructorService) UpsertProfile(ctx context.Context, in domain.UpsertP
 	return s.repo.UpsertProfile(ctx, in)
 }
 
-func (s *InstructorService) DeleteProfile(ctx context.Context, userID uint) error {
+func (s *InstructorService) DeleteProfile(ctx context.Context, userID string) error {
 	return s.repo.DeleteProfileByUserID(ctx, userID)
 }

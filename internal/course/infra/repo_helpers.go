@@ -15,36 +15,36 @@ import (
 type versionRefValidationInput struct {
 	ThumbnailFileID    *string
 	PreviewVideoFileID *string
-	CourseLevelID      *uint
-	CourseTopicID      *uint
-	TagIDs             []uint
-	SkillIDs           []uint
-	OutcomeIDs         []uint
+	CourseLevelID      *string
+	CourseTopicID      *string
+	TagIDs             []string
+	SkillIDs           []string
+	OutcomeIDs         []string
 }
 
 type draftEntityUpdateConfig[T any, D any] struct {
-	EntityID           *uint
+	EntityID           *string
 	ExpectedRowVersion int64
-	Load               func(context.Context, *gorm.DB, uint, uint) (*T, error)
+	Load               func(context.Context, *gorm.DB, string, string) (*T, error)
 	Behavior           draftEntityBehavior[T, D]
 	Updates            map[string]any
 }
 
 type draftEntityBehavior[T any, D any] struct {
 	RowVersion func(*T) int64
-	RowID      func(*T) uint
+	RowID      func(*T) string
 	Model      any
 	ToDomain   func(*T) D
 }
 
 type draftOutlineDeleteConfig struct {
-	Resolve func(context.Context, *gorm.DB, uint, uint) (uint, error)
-	Remove  func(context.Context, *gorm.DB, uint) error
+	Resolve func(context.Context, *gorm.DB, string, string) (string, error)
+	Remove  func(context.Context, *gorm.DB, string) error
 }
 
 type draftEditScope struct {
-	CourseID    uint
-	ActorUserID uint
+	CourseID    string
+	ActorUserID string
 }
 
 var sectionBehavior = draftEntityBehavior[sectionRow, domain.Section]{
@@ -80,7 +80,7 @@ func loadActiveRows[T any](ctx context.Context, db *gorm.DB, query string, args 
 	return rows, nil
 }
 
-func optimisticUpdate(ctx context.Context, tx *gorm.DB, model any, rowID uint, expectedRowVersion int64, updates map[string]any) error {
+func optimisticUpdate(ctx context.Context, tx *gorm.DB, model any, rowID string, expectedRowVersion int64, updates map[string]any) error {
 	updates["updated_at"] = timex.NowUnix()
 	updates["row_version"] = gorm.Expr("row_version + 1")
 	result := tx.WithContext(ctx).
@@ -99,7 +99,7 @@ func optimisticUpdate(ctx context.Context, tx *gorm.DB, model any, rowID uint, e
 func updateDraftEntity[T any, D any](
 	r *GormRepository,
 	ctx context.Context,
-	courseID, actorUserID uint,
+	courseID string, actorUserID string,
 	cfg draftEntityUpdateConfig[T, D],
 ) (*D, error) {
 	if cfg.EntityID == nil {
@@ -137,9 +137,9 @@ func updateOutlineEntity[T any, D any](
 	r *GormRepository,
 	ctx context.Context,
 	scope draftEditScope,
-	entityID *uint,
+	entityID *string,
 	expectedRowVersion int64,
-	load func(context.Context, *gorm.DB, uint, uint) (*T, error),
+	load func(context.Context, *gorm.DB, string, string) (*T, error),
 	behavior draftEntityBehavior[T, D],
 	updates map[string]any,
 ) (*D, error) {
@@ -154,7 +154,7 @@ func updateOutlineEntity[T any, D any](
 
 func (r *GormRepository) deleteDraftOutline(
 	ctx context.Context,
-	courseID, actorUserID, resourceID uint,
+	courseID string, actorUserID string, resourceID string,
 	cfg draftOutlineDeleteConfig,
 ) ([]domain.Section, error) {
 	var outline []domain.Section
@@ -197,10 +197,10 @@ func buildBasicInfoUpdates(in domain.UpdateBasicInfoInput) map[string]any {
 		updates["preview_video_file_id"] = sharedutils.NilIfBlank(*in.PreviewVideoFileID)
 	}
 	if in.CourseLevelID != nil {
-		updates["course_level_id"] = sharedutils.NilIfZeroUint(in.CourseLevelID)
+		updates["course_level_id"] = sharedutils.NilIfBlank(*in.CourseLevelID)
 	}
 	if in.CourseTopicID != nil {
-		updates["course_topic_id"] = sharedutils.NilIfZeroUint(in.CourseTopicID)
+		updates["course_topic_id"] = sharedutils.NilIfBlank(*in.CourseTopicID)
 	}
 	return updates
 }
@@ -223,35 +223,35 @@ func sectionRowVersion(row *sectionRow) int64 { return row.RowVersion }
 
 func lessonRowVersion(row *lessonRow) int64 { return row.RowVersion }
 
-func sectionRowID(row *sectionRow) uint { return row.ID }
+func sectionRowID(row *sectionRow) string { return row.ID }
 
-func lessonRowID(row *lessonRow) uint { return row.ID }
+func lessonRowID(row *lessonRow) string { return row.ID }
 
-func (r *GormRepository) resolveSectionID(ctx context.Context, tx *gorm.DB, id, versionID uint) (uint, error) {
+func (r *GormRepository) resolveSectionID(ctx context.Context, tx *gorm.DB, id, versionID string) (string, error) {
 	row, err := r.loadSection(ctx, tx, id, versionID)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	return row.ID, nil
 }
 
-func (r *GormRepository) resolveLessonID(ctx context.Context, tx *gorm.DB, id, versionID uint) (uint, error) {
+func (r *GormRepository) resolveLessonID(ctx context.Context, tx *gorm.DB, id, versionID string) (string, error) {
 	row, err := r.loadLesson(ctx, tx, id, versionID)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	return row.ID, nil
 }
 
-func (r *GormRepository) deleteSectionTree(ctx context.Context, tx *gorm.DB, rowID uint) error {
+func (r *GormRepository) deleteSectionTree(ctx context.Context, tx *gorm.DB, rowID string) error {
 	return deleteChildrenThenRow(ctx, tx, "section_id", &lessonRow{}, &sectionRow{}, rowID)
 }
 
-func (r *GormRepository) deleteLessonTree(ctx context.Context, tx *gorm.DB, rowID uint) error {
+func (r *GormRepository) deleteLessonTree(ctx context.Context, tx *gorm.DB, rowID string) error {
 	return deleteChildrenThenRow(ctx, tx, "lesson_id", &subLessonRow{}, &lessonRow{}, rowID)
 }
 
-func deleteChildrenThenRow(ctx context.Context, tx *gorm.DB, column string, childModel, model any, rowID uint) error {
+func deleteChildrenThenRow(ctx context.Context, tx *gorm.DB, column string, childModel, model any, rowID string) error {
 	if err := tx.WithContext(ctx).Where(column+" = ?", rowID).Delete(childModel).Error; err != nil {
 		return err
 	}

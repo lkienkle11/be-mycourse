@@ -11,21 +11,21 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
-	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 // --- GORM row types ----------------------------------------------------------
 
 type courseTopicRow struct {
-	ID          uint           `gorm:"primaryKey;autoIncrement"`
+	ID          string           `gorm:"column:id;primaryKey;type:uuid"`
 	Name        string         `gorm:"size:255;not null"`
 	Slug        string         `gorm:"size:255;not null;index"`
 	ImageFileID *string        `gorm:"column:image_file_id;type:uuid"`
 	ChildTopics treeNodesJSONB `gorm:"column:child_topics;type:jsonb;not null;default:'[]'"`
 	Status      string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy   *uint          `gorm:"column:created_by"`
+	CreatedBy   *string        `gorm:"column:created_by;type:uuid"`
 	CreatedAt   int64
 	UpdatedAt   int64
 	DeletedAt   *int64 `gorm:"column:deleted_at;index"`
@@ -34,12 +34,12 @@ type courseTopicRow struct {
 func (courseTopicRow) TableName() string { return constants.TableTaxonomyCourseTopics }
 
 type courseOutcomeRow struct {
-	ID               uint             `gorm:"primaryKey;autoIncrement"`
+	ID               string             `gorm:"column:id;primaryKey;type:uuid"`
 	ShortDescription string           `gorm:"column:short_description;size:100;not null"`
 	Description      descriptionJSONB `gorm:"type:jsonb;not null;default:'[]'"`
 	ImageFileID      *string          `gorm:"column:image_file_id;type:uuid"`
 	Status           string           `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy        *uint            `gorm:"column:created_by"`
+	CreatedBy        *string          `gorm:"column:created_by;type:uuid"`
 	CreatedAt        int64
 	UpdatedAt        int64
 	DeletedAt        *int64 `gorm:"column:deleted_at;index"`
@@ -48,12 +48,12 @@ type courseOutcomeRow struct {
 func (courseOutcomeRow) TableName() string { return constants.TableTaxonomyCourseOutcomes }
 
 type courseSkillRow struct {
-	ID        uint           `gorm:"primaryKey;autoIncrement"`
+	ID        string           `gorm:"column:id;primaryKey;type:uuid"`
 	Name      string         `gorm:"size:255;not null"`
 	Slug      string         `gorm:"size:255;not null;index"`
 	Children  treeNodesJSONB `gorm:"type:jsonb;not null;default:'[]'"`
 	Status    string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *uint          `gorm:"column:created_by"`
+	CreatedBy *string        `gorm:"column:created_by;type:uuid"`
 	CreatedAt int64
 	UpdatedAt int64
 	DeletedAt *int64 `gorm:"column:deleted_at;index"`
@@ -62,11 +62,11 @@ type courseSkillRow struct {
 func (courseSkillRow) TableName() string { return constants.TableTaxonomyCourseSkills }
 
 type tagRow struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement"`
-	Name      string `gorm:"size:255;not null"`
-	Slug      string `gorm:"size:255;not null;index"`
-	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *uint  `gorm:"column:created_by"`
+	ID        string    `gorm:"column:id;primaryKey;type:uuid"`
+	Name      string  `gorm:"size:255;not null"`
+	Slug      string  `gorm:"size:255;not null;index"`
+	Status    string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	CreatedBy *string `gorm:"column:created_by;type:uuid"`
 	CreatedAt int64
 	UpdatedAt int64
 	DeletedAt *int64 `gorm:"column:deleted_at;index"`
@@ -75,11 +75,11 @@ type tagRow struct {
 func (tagRow) TableName() string { return constants.TableTaxonomyTags }
 
 type courseLevelRow struct {
-	ID        uint   `gorm:"primaryKey;autoIncrement"`
-	Name      string `gorm:"size:255;not null"`
-	Slug      string `gorm:"size:255;not null;index"`
-	Status    string `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *uint  `gorm:"column:created_by"`
+	ID        string    `gorm:"column:id;primaryKey;type:uuid"`
+	Name      string  `gorm:"size:255;not null"`
+	Slug      string  `gorm:"size:255;not null;index"`
+	Status    string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	CreatedBy *string `gorm:"column:created_by;type:uuid"`
 	CreatedAt int64
 	UpdatedAt int64
 	DeletedAt *int64 `gorm:"column:deleted_at;index"`
@@ -178,7 +178,7 @@ func (r *GormCourseTopicRepository) List(ctx context.Context, filter domain.Taxo
 	)
 }
 
-func (r *GormCourseTopicRepository) GetByID(ctx context.Context, id uint) (*domain.CourseTopic, error) {
+func (r *GormCourseTopicRepository) GetByID(ctx context.Context, id string) (*domain.CourseTopic, error) {
 	return taxonomyGetByIDWithImageURLs(
 		ctx,
 		r.db,
@@ -200,11 +200,11 @@ func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTo
 	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseTopicRepository) SoftDelete(ctx context.Context, id uint) error {
+func (r *GormCourseTopicRepository) SoftDelete(ctx context.Context, id string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseTopicRow{}, "id = ? AND deleted_at IS NULL", id)
 }
 
-func (r *GormCourseTopicRepository) HardDelete(ctx context.Context, id uint) error {
+func (r *GormCourseTopicRepository) HardDelete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&courseTopicRow{}, id).Error
 }
 
@@ -235,7 +235,7 @@ func (r *GormCourseOutcomeRepository) List(ctx context.Context, filter domain.Ta
 	)
 }
 
-func (r *GormCourseOutcomeRepository) GetByID(ctx context.Context, id uint) (*domain.CourseOutcome, error) {
+func (r *GormCourseOutcomeRepository) GetByID(ctx context.Context, id string) (*domain.CourseOutcome, error) {
 	return taxonomyGetByIDWithImageURLs(
 		ctx,
 		r.db,
@@ -257,11 +257,11 @@ func (r *GormCourseOutcomeRepository) Save(ctx context.Context, o *domain.Course
 	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseOutcomeRepository) SoftDelete(ctx context.Context, id uint) error {
+func (r *GormCourseOutcomeRepository) SoftDelete(ctx context.Context, id string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseOutcomeRow{}, "id = ? AND deleted_at IS NULL", id)
 }
 
-func (r *GormCourseOutcomeRepository) HardDelete(ctx context.Context, id uint) error {
+func (r *GormCourseOutcomeRepository) HardDelete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&courseOutcomeRow{}, id).Error
 }
 
@@ -279,7 +279,7 @@ func (r *GormCourseSkillRepository) List(ctx context.Context, filter domain.Taxo
 	return taxonomyList(ctx, r.db, &courseSkillRow{}, filter, applyTaxonomyFilter, rowToCourseSkill)
 }
 
-func (r *GormCourseSkillRepository) GetByID(ctx context.Context, id uint) (*domain.CourseSkill, error) {
+func (r *GormCourseSkillRepository) GetByID(ctx context.Context, id string) (*domain.CourseSkill, error) {
 	return taxonomyGetByID(ctx, r.db, id, rowToCourseSkill)
 }
 
@@ -294,11 +294,11 @@ func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSk
 	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseSkillRepository) SoftDelete(ctx context.Context, id uint) error {
+func (r *GormCourseSkillRepository) SoftDelete(ctx context.Context, id string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseSkillRow{}, "id = ? AND deleted_at IS NULL", id)
 }
 
-func (r *GormCourseSkillRepository) HardDelete(ctx context.Context, id uint) error {
+func (r *GormCourseSkillRepository) HardDelete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&courseSkillRow{}, id).Error
 }
 
@@ -316,7 +316,7 @@ func (r *GormTagRepository) List(ctx context.Context, filter domain.TaxonomyFilt
 	return taxonomyList(ctx, r.db, &tagRow{}, filter, applyTaxonomyFilter, rowToTag)
 }
 
-func (r *GormTagRepository) GetByID(ctx context.Context, id uint) (*domain.Tag, error) {
+func (r *GormTagRepository) GetByID(ctx context.Context, id string) (*domain.Tag, error) {
 	return taxonomyGetByID(ctx, r.db, id, rowToTag)
 }
 
@@ -331,11 +331,11 @@ func (r *GormTagRepository) Save(ctx context.Context, t *domain.Tag) error {
 	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormTagRepository) SoftDelete(ctx context.Context, id uint) error {
+func (r *GormTagRepository) SoftDelete(ctx context.Context, id string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &tagRow{}, "id = ? AND deleted_at IS NULL", id)
 }
 
-func (r *GormTagRepository) HardDelete(ctx context.Context, id uint) error {
+func (r *GormTagRepository) HardDelete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&tagRow{}, id).Error
 }
 
@@ -353,7 +353,7 @@ func (r *GormCourseLevelRepository) List(ctx context.Context, filter domain.Taxo
 	return taxonomyList(ctx, r.db, &courseLevelRow{}, filter, applyTaxonomyFilter, rowToCourseLevel)
 }
 
-func (r *GormCourseLevelRepository) GetByID(ctx context.Context, id uint) (*domain.CourseLevel, error) {
+func (r *GormCourseLevelRepository) GetByID(ctx context.Context, id string) (*domain.CourseLevel, error) {
 	return taxonomyGetByID(ctx, r.db, id, rowToCourseLevel)
 }
 
@@ -368,11 +368,11 @@ func (r *GormCourseLevelRepository) Save(ctx context.Context, cl *domain.CourseL
 	return r.db.WithContext(ctx).Save(row).Error
 }
 
-func (r *GormCourseLevelRepository) SoftDelete(ctx context.Context, id uint) error {
+func (r *GormCourseLevelRepository) SoftDelete(ctx context.Context, id string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &courseLevelRow{}, "id = ? AND deleted_at IS NULL", id)
 }
 
-func (r *GormCourseLevelRepository) HardDelete(ctx context.Context, id uint) error {
+func (r *GormCourseLevelRepository) HardDelete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&courseLevelRow{}, id).Error
 }
 
@@ -493,7 +493,7 @@ func listTaxonomyWithImageURLs[R any, D any](
 func taxonomyGetByIDWithImageURLs[R any, D any](
 	ctx context.Context,
 	db *gorm.DB,
-	id uint,
+	id string,
 	mapRow func(*R) D,
 	getID func(*D) *string,
 	setImage func(*D, imageFileRow),

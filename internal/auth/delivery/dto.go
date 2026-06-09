@@ -40,7 +40,7 @@ type UpdateMeRequest struct {
 
 // MeResponse is the response body for GET /api/v1/me.
 type MeResponse struct {
-	UserID          uint     `json:"user_id"`
+	UserID          string   `json:"user_id"`
 	UserCode        string   `json:"user_code"`
 	Email           string   `json:"email"`
 	DisplayName     string   `json:"display_name"`

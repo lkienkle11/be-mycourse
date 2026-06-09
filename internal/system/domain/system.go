@@ -12,7 +12,7 @@ type AppConfig struct {
 
 // PrivilegedUser stores hashed credentials for system-level operators.
 type PrivilegedUser struct {
-	ID             uint
+	ID             string
 	UsernameSecret string
 	PasswordSecret string
 	MachineSecret  string

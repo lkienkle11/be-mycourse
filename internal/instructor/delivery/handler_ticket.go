@@ -40,18 +40,18 @@ func (h *Handler) createTicket(c *gin.Context) {
 }
 
 func (h *Handler) closeTicket(c *gin.Context) {
-	h.withTicketID(c, func(id uint) (any, error) {
+	h.withTicketID(c, func(id string) (any, error) {
 		return h.svc.CloseTicket(c.Request.Context(), id)
 	})
 }
 
 func (h *Handler) listTicketMessages(c *gin.Context) {
-	h.withTicketID(c, func(id uint) (any, error) {
+	h.withTicketID(c, func(id string) (any, error) {
 		return h.svc.ListTicketMessages(c.Request.Context(), id)
 	})
 }
 
-func (h *Handler) withTicketID(c *gin.Context, fn func(uint) (any, error)) {
+func (h *Handler) withTicketID(c *gin.Context, fn func(string) (any, error)) {
 	id, ok := parseIDParam(c)
 	if !ok {
 		failInvalidID(c)
@@ -70,7 +70,7 @@ func (h *Handler) addTicketMessage(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	h.withTicketID(c, func(id uint) (any, error) {
+	h.withTicketID(c, func(id string) (any, error) {
 		return h.svc.AddTicketMessage(c.Request.Context(), id, utils.CurrentUserID(c), req.Body)
 	})
 }

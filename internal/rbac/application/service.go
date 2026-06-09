@@ -152,36 +152,36 @@ func (s *RBACService) SetRolePermissions(ctx context.Context, roleID uint, permi
 
 // --- User-role bindings ------------------------------------------------------
 
-func (s *RBACService) ListRolesForUser(ctx context.Context, userID uint) ([]domain.Role, error) {
+func (s *RBACService) ListRolesForUser(ctx context.Context, userID string) ([]domain.Role, error) {
 	return s.userRoleRepo.ListRolesForUser(ctx, userID)
 }
 
-func (s *RBACService) AssignRoleToUser(ctx context.Context, userID, roleID uint) error {
-	if userID == 0 {
+func (s *RBACService) AssignRoleToUser(ctx context.Context, userID string, roleID uint) error {
+	if userID == "" {
 		return apperrors.ErrRBACInvalidUserID
 	}
 	return s.userRoleRepo.AssignRole(ctx, userID, roleID)
 }
 
-func (s *RBACService) RemoveRoleFromUser(ctx context.Context, userID, roleID uint) error {
+func (s *RBACService) RemoveRoleFromUser(ctx context.Context, userID string, roleID uint) error {
 	return s.userRoleRepo.RemoveRole(ctx, userID, roleID)
 }
 
 // --- User-permission bindings ------------------------------------------------
 
-func (s *RBACService) ListPermissionsForUser(ctx context.Context, userID uint) ([]domain.Permission, error) {
+func (s *RBACService) ListPermissionsForUser(ctx context.Context, userID string) ([]domain.Permission, error) {
 	return s.userPermRepo.ListPermissionsForUser(ctx, userID)
 }
 
-func (s *RBACService) PermissionCodesForUser(ctx context.Context, userID uint) (map[string]struct{}, error) {
-	if userID == 0 {
+func (s *RBACService) PermissionCodesForUser(ctx context.Context, userID string) (map[string]struct{}, error) {
+	if userID == "" {
 		return nil, apperrors.ErrRBACInvalidUserID
 	}
 	return s.userPermRepo.PermissionCodesForUser(ctx, userID)
 }
 
-func (s *RBACService) AssignPermissionToUser(ctx context.Context, userID uint, permissionID string) error {
-	if userID == 0 {
+func (s *RBACService) AssignPermissionToUser(ctx context.Context, userID string, permissionID string) error {
+	if userID == "" {
 		return apperrors.ErrRBACInvalidUserID
 	}
 	permissionID = strings.TrimSpace(permissionID)
@@ -191,14 +191,14 @@ func (s *RBACService) AssignPermissionToUser(ctx context.Context, userID uint, p
 	return s.userPermRepo.AssignPermission(ctx, userID, permissionID)
 }
 
-func (s *RBACService) AssignPermissionToUserByName(ctx context.Context, userID uint, permissionName string) error {
-	if userID == 0 || strings.TrimSpace(permissionName) == "" {
+func (s *RBACService) AssignPermissionToUserByName(ctx context.Context, userID string, permissionName string) error {
+	if userID == "" || strings.TrimSpace(permissionName) == "" {
 		return apperrors.ErrRBACUserAndPermissionNameRequired
 	}
 	return s.userPermRepo.AssignPermissionByName(ctx, userID, permissionName)
 }
 
-func (s *RBACService) RemovePermissionFromUser(ctx context.Context, userID uint, permissionID string) error {
+func (s *RBACService) RemovePermissionFromUser(ctx context.Context, userID string, permissionID string) error {
 	permissionID = strings.TrimSpace(permissionID)
 	if permissionID == "" {
 		return apperrors.ErrRBACPermissionIDRequired
@@ -236,7 +236,7 @@ func (s *RBACService) SeedDefaultPermissionsAndRoles(ctx context.Context, seedPe
 }
 
 // HasPermission returns true when PermissionCodesForUser includes action.
-func (s *RBACService) HasPermission(ctx context.Context, userID uint, action string) bool {
+func (s *RBACService) HasPermission(ctx context.Context, userID string, action string) bool {
 	codes, err := s.PermissionCodesForUser(ctx, userID)
 	if err != nil {
 		return false
@@ -247,7 +247,7 @@ func (s *RBACService) HasPermission(ctx context.Context, userID uint, action str
 
 // UserHasAllPermissions implements middleware.PermissionChecker.
 // Returns (allGranted, firstMissingPermission, error).
-func (s *RBACService) UserHasAllPermissions(userID uint, requiredActions []string) (bool, string, error) {
+func (s *RBACService) UserHasAllPermissions(userID string, requiredActions []string) (bool, string, error) {
 	codes, err := s.PermissionCodesForUser(context.Background(), userID)
 	if err != nil {
 		return false, "", err

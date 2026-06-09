@@ -44,7 +44,7 @@ ORDER BY c.id DESC`
 	return out, nil
 }
 
-func (r *GormRepository) GetLearningCourse(ctx context.Context, courseID, userID uint) (*domain.CourseDetail, error) {
+func (r *GormRepository) GetLearningCourse(ctx context.Context, courseID string, userID string) (*domain.CourseDetail, error) {
 	detail, err := r.loadLearnerCourseDetail(ctx, r.db.WithContext(ctx), courseID, userID)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func (r *GormRepository) GetLearningCourse(ctx context.Context, courseID, userID
 	return detail, nil
 }
 
-func (r *GormRepository) Enroll(ctx context.Context, courseID, userID uint) (*domain.Enrollment, error) {
+func (r *GormRepository) Enroll(ctx context.Context, courseID string, userID string) (*domain.Enrollment, error) {
 	var out *domain.Enrollment
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		course, err := r.loadCourse(ctx, tx, courseID)
@@ -84,11 +84,11 @@ func (r *GormRepository) Enroll(ctx context.Context, courseID, userID uint) (*do
 	return out, err
 }
 
-func (r *GormRepository) GetProgress(ctx context.Context, courseID, userID uint) (*domain.CourseProgress, error) {
+func (r *GormRepository) GetProgress(ctx context.Context, courseID string, userID string) (*domain.CourseProgress, error) {
 	return r.loadProgress(ctx, r.db.WithContext(ctx), courseID, userID)
 }
 
-func (r *GormRepository) SaveProgress(ctx context.Context, courseID, userID uint, in domain.SaveProgressInput) (*domain.CourseProgress, error) {
+func (r *GormRepository) SaveProgress(ctx context.Context, courseID string, userID string, in domain.SaveProgressInput) (*domain.CourseProgress, error) {
 	var out *domain.CourseProgress
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		enrollment, err := r.requireEnrollment(ctx, tx, courseID, userID)

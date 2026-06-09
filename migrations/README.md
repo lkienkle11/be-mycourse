@@ -25,6 +25,7 @@
 | `000017_instructor_expertise_drop_legacy_fk_cols` | Finalizes expertise junction schema on drifted DBs: backfills `topic_id` / `skill_id`, drops legacy `course_topic_id` / `course_skill_id`, sets canonical columns NOT NULL, and adds FK constraints on `topic_id` / `skill_id`. |
 | `000018_instructor_tickets_soft_delete_compat` | Drift-safe compatibility patch for `instructor_tickets` / `instructor_ticket_messages`: ensures `deleted_at` and rebuilds partial status index (`WHERE deleted_at IS NULL`). |
 | `000019_instructor_profiles_apps_soft_delete_compat` | Drift-safe patch for `instructor_profiles` / `instructor_applications`: ensures `deleted_at`, adds `id` PK on profiles when DB only has `user_id` PK, rebuilds partial unique indexes. |
+| `000020_course_version_row_version_backfill` | Backfills `course_versions.row_version` from `0` to `1` for rows created before GORM explicitly set `RowVersion: 1` on insert (column default alone is overridden by zero-value inserts). |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

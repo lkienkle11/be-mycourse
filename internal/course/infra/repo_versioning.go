@@ -62,9 +62,10 @@ func (r *GormRepository) createDraftVersion(ctx context.Context, tx *gorm.DB, co
 		return 0, err
 	}
 	draft := &courseVersionRow{
-		CourseID:  course.ID,
-		VersionNo: maxVersion + 1,
-		Status:    domain.VersionStatusDraft,
+		CourseID:    course.ID,
+		VersionNo:   maxVersion + 1,
+		Status:      domain.VersionStatusDraft,
+		RowVersion:  1,
 	}
 	if course.CurrentPublishedVersionID != nil {
 		live, err := r.loadVersionRow(ctx, tx, *course.CurrentPublishedVersionID)

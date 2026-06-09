@@ -63,7 +63,7 @@ func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCours
 
 		version := &courseVersionRow{
 			CourseID: course.ID, VersionNo: 1, Status: domain.VersionStatusDraft,
-			Title: strings.TrimSpace(in.Title),
+			Title: strings.TrimSpace(in.Title), RowVersion: 1,
 		}
 		gormx.TouchCreatedUpdated(&version.CreatedAt, &version.UpdatedAt)
 		if err := tx.Create(version).Error; err != nil {

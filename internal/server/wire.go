@@ -59,14 +59,14 @@ type Handlers struct {
 // (no context parameter — uses Background context).
 type rbacPermissionReader struct{ svc *rbacapp.RBACService }
 
-func (r *rbacPermissionReader) PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
+func (r *rbacPermissionReader) PermissionCodesForUser(userID string) (map[string]struct{}, error) {
 	return r.svc.PermissionCodesForUser(context.Background(), userID)
 }
 
 // rbacPermissionUseCase adapts RBACService to authdelivery.PermissionUseCase.
 type rbacPermissionUseCase struct{ svc *rbacapp.RBACService }
 
-func (r *rbacPermissionUseCase) PermissionCodesForUser(userID uint) (map[string]struct{}, error) {
+func (r *rbacPermissionUseCase) PermissionCodesForUser(userID string) (map[string]struct{}, error) {
 	return r.svc.PermissionCodesForUser(context.Background(), userID)
 }
 

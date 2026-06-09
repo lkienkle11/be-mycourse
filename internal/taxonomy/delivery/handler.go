@@ -52,7 +52,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 }
 
 func (h *Handler) updateTopic(c *gin.Context) {
-	id, ok := utils.ParseUintParam(c, "id")
+	id, ok := utils.ParseUUIDParam(c, "id")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 		return

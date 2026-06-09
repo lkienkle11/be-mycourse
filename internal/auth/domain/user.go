@@ -17,7 +17,7 @@ type RefreshTokenSessionMap map[string]RefreshSessionEntry
 
 // User is the application user entity persisted in the `users` table.
 type User struct {
-	ID                         uint
+	ID                         string
 	UserCode                   string
 	Email                      string
 	HashPassword               string
@@ -37,7 +37,7 @@ type User struct {
 
 // MeProfile is the /me projection used for Redis cache and service layer responses.
 type MeProfile struct {
-	UserID          uint
+	UserID          string
 	UserCode        string
 	Email           string
 	DisplayName     string

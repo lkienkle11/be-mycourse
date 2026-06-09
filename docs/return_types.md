@@ -131,8 +131,8 @@ Returned by `GET /api/v1/me`:
 ```go
 // dto/auth.go — nested avatar uses dto.MediaFilePublic (type alias → pkg/entities/media_file_public.go)
 type MeResponse struct {
-    UserID         uint               `json:"user_id"`
-    UserCode       string             `json:"user_code"` // UUIDv7 string
+    UserID         string             `json:"user_id"`   // UUID string
+    UserCode       string             `json:"user_code"` // ULID string
     Email          string             `json:"email"`
     DisplayName    string             `json:"display_name"`
     Avatar         *MediaFilePublic   `json:"avatar,omitempty"`
@@ -147,8 +147,8 @@ type MeResponse struct {
 
 ```json
 {
-  "user_id":         1,
-  "user_code":       "01960000-0000-7000-0000-000000000001",
+  "user_id":         "0195f8ac-214f-7e08-b180-6114ea8f09d6",
+  "user_code":       "01JX7H3DV5D5P2A3C7M9QW6R1N",
   "email":           "user@example.com",
   "display_name":    "Alice",
   "email_confirmed": true,
@@ -205,7 +205,7 @@ type Role struct {
 
 ```go
 type UserRole struct {
-    UserID uint `json:"user_id"`
+    UserID string `json:"user_id"`
     RoleID uint `json:"role_id"`
 }
 ```
@@ -214,7 +214,7 @@ type UserRole struct {
 
 ```go
 type UserPermission struct {
-    UserID       uint       `json:"user_id"`
+    UserID       string     `json:"user_id"`
     PermissionID string     `json:"permission_id"`
     Permission   Permission `json:"permission,omitempty"`
 }
@@ -432,10 +432,10 @@ type ListPermissionsParams struct {
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
 | `CreateCourse` | `CreateCourse(ctx, CreateCourseInput) (*CourseDetail, error)` | `*CourseDetail` on success; `ErrCourseInvalidSlug`; repo errors |
-| `ListEditableCourses` | `ListEditableCourses(ctx, userID uint) ([]CourseListItem, error)` | `[]CourseListItem` |
-| `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID uint, includeDraft bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
-| `UpdateBasicInfo` | `UpdateBasicInfo(ctx, courseID, actorUserID uint, UpdateBasicInfoInput) (*CourseDetail, error)` | `*CourseDetail`; optimistic lock / validation errors |
-| `DeleteCourse` | `DeleteCourse(ctx, courseID, actorUserID uint) error` | `nil`; owner-only / not-found errors |
+| `ListEditableCourses` | `ListEditableCourses(ctx, userID string) ([]CourseListItem, error)` | `[]CourseListItem` |
+| `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID string, includeDraft bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
+| `UpdateBasicInfo` | `UpdateBasicInfo(ctx, courseID, actorUserID string, UpdateBasicInfoInput) (*CourseDetail, error)` | `*CourseDetail`; optimistic lock / validation errors |
+| `DeleteCourse` | `DeleteCourse(ctx, courseID, actorUserID string) error` | `nil`; owner-only / not-found errors |
 | Outline CRUD / reorder | `CreateSection`, `UpdateSection`, `DeleteSection`, `ReorderSections`, lesson/sub-lesson variants | Entity or `[]Section`; draft/lease/lock errors |
 | Review | `SubmitForReview`, `ReopenDraft`, `ListPendingReviews`, `ApproveDraft`, `RejectDraft` | `*CourseDetail` or `[]CourseListItem` |
 | Learner | `ListPublishedCourses`, `GetLearningCourse`, `Enroll`, `GetProgress`, `SaveProgress` | Catalog / detail / enrollment / progress types |
@@ -480,7 +480,7 @@ Details: **`docs/modules/instructor.md`**.
   "data": [
     {
       "id": 4,
-      "user_id": 14,
+      "user_id": "0195f8ac-214f-7e08-b180-6114ea8f09d6",
       "topic_id": 7,
       "name": "Business",
       "slug": "business",
@@ -513,10 +513,10 @@ All cache functions return nothing on error (graceful no-op):
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `GetCachedUserMe` | `GetCachedUserMe(ctx, userID uint) (*dto.MeResponse, bool)` | `(*MeResponse, true)` on hit; `(nil, false)` on miss/error |
+| `GetCachedUserMe` | `GetCachedUserMe(ctx, userID string) (*dto.MeResponse, bool)` | `(*MeResponse, true)` on hit; `(nil, false)` on miss/error |
 | `SetCachedUserMe` | `SetCachedUserMe(ctx, me *dto.MeResponse)` | none |
-| `GetCachedLoginUserID` | `GetCachedLoginUserID(ctx, normEmail string) (uint, bool)` | `(uid, true)` on hit; `(0, false)` on miss |
-| `SetCachedLoginUserID` | `SetCachedLoginUserID(ctx, normEmail string, userID uint)` | none |
+| `GetCachedLoginUserID` | `GetCachedLoginUserID(ctx, normEmail string) (string, bool)` | `(uid, true)` on hit; `("", false)` on miss |
+| `SetCachedLoginUserID` | `SetCachedLoginUserID(ctx, normEmail string, userID string)` | none |
 | `LoginInvalidCached` | `LoginInvalidCached(ctx, normEmail string) bool` | `true` if negative cache hit |
 | `SetLoginInvalidCache` | `SetLoginInvalidCache(ctx, normEmail string)` | none |
 | `DelLoginInvalidCache` | `DelLoginInvalidCache(ctx, normEmail string)` | none |
@@ -528,8 +528,8 @@ All cache functions return nothing on error (graceful no-op):
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `SaveRefreshSession` | `SaveRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry entities.RefreshSessionEntry) error` | `nil` on success, DB error |
-| `AddRefreshSession` | `AddRefreshSession(db *gorm.DB, userID uint, sessionStr string, entry entities.RefreshSessionEntry) error` | `nil` on success; DB error; evicts oldest session if cap (**`constants.MaxActiveSessions`**) is reached, inside a transaction |
+| `SaveRefreshSession` | `SaveRefreshSession(db *gorm.DB, userID string, sessionStr string, entry entities.RefreshSessionEntry) error` | `nil` on success, DB error |
+| `AddRefreshSession` | `AddRefreshSession(db *gorm.DB, userID string, sessionStr string, entry entities.RefreshSessionEntry) error` | `nil` on success; DB error; evicts oldest session if cap (**`constants.MaxActiveSessions`**) is reached, inside a transaction |
 
 ---
 
@@ -684,8 +684,8 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 ```json
 {
-  "user_id":         1,
-  "user_code":       "01960000-0000-7000-0000-000000000001",
+  "user_id":         "0195f8ac-214f-7e08-b180-6114ea8f09d6",
+  "user_code":       "01JX7H3DV5D5P2A3C7M9QW6R1N",
   "email":           "user@example.com",
   "display_name":    "Alice",
   "email_confirmed": true,

@@ -79,7 +79,7 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 	n, sl, st := trimmedTaxonomyFields(in.Name, in.Status)
 	t := &domain.CourseTopic{
 		Name: n, Slug: sl, Status: st, ChildTopics: childTopics,
-		CreatedBy: uintPtrIfPos(in.ActorID),
+		CreatedBy: stringPtrIfNotBlank(in.ActorID),
 	}
 	if fileID != "" {
 		t.ImageFileID = &fileID
@@ -90,7 +90,7 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 	return s.topicRepo.GetByID(ctx, t.ID)
 }
 
-func (s *TaxonomyService) UpdateTopic(ctx context.Context, id uint, in domain.UpdateCourseTopicInput) (*domain.CourseTopic, error) {
+func (s *TaxonomyService) UpdateTopic(ctx context.Context, id string, in domain.UpdateCourseTopicInput) (*domain.CourseTopic, error) {
 	row, err := s.topicRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -117,15 +117,15 @@ func (s *TaxonomyService) UpdateTopic(ctx context.Context, id uint, in domain.Up
 	return s.topicRepo.GetByID(ctx, id)
 }
 
-func (s *TaxonomyService) DeleteTopic(ctx context.Context, id uint) error {
+func (s *TaxonomyService) DeleteTopic(ctx context.Context, id string) error {
 	return s.topicRepo.SoftDelete(ctx, id)
 }
 
-func (s *TaxonomyService) HardDeleteTopic(ctx context.Context, id uint) error {
+func (s *TaxonomyService) HardDeleteTopic(ctx context.Context, id string) error {
 	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderTopic(s), s.topicRepo.HardDelete)
 }
 
-func (s *TaxonomyService) GetTopic(ctx context.Context, id uint) (*domain.CourseTopic, error) {
+func (s *TaxonomyService) GetTopic(ctx context.Context, id string) (*domain.CourseTopic, error) {
 	return s.topicRepo.GetByID(ctx, id)
 }
 
@@ -158,7 +158,7 @@ func (s *TaxonomyService) CreateCourseOutcome(ctx context.Context, in domain.Cre
 		ShortDescription: strings.TrimSpace(in.ShortDescription),
 		Description:      in.Description,
 		Status:           st,
-		CreatedBy:        uintPtrIfPos(in.ActorID),
+		CreatedBy:        stringPtrIfNotBlank(in.ActorID),
 	}
 	if fileID != "" {
 		o.ImageFileID = &fileID
@@ -169,7 +169,7 @@ func (s *TaxonomyService) CreateCourseOutcome(ctx context.Context, in domain.Cre
 	return s.outcomeRepo.GetByID(ctx, o.ID)
 }
 
-func (s *TaxonomyService) UpdateCourseOutcome(ctx context.Context, id uint, in domain.UpdateCourseOutcomeInput) (*domain.CourseOutcome, error) {
+func (s *TaxonomyService) UpdateCourseOutcome(ctx context.Context, id string, in domain.UpdateCourseOutcomeInput) (*domain.CourseOutcome, error) {
 	row, err := s.outcomeRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -203,11 +203,11 @@ func (s *TaxonomyService) UpdateCourseOutcome(ctx context.Context, id uint, in d
 	return s.outcomeRepo.GetByID(ctx, id)
 }
 
-func (s *TaxonomyService) DeleteCourseOutcome(ctx context.Context, id uint) error {
+func (s *TaxonomyService) DeleteCourseOutcome(ctx context.Context, id string) error {
 	return s.outcomeRepo.SoftDelete(ctx, id)
 }
 
-func (s *TaxonomyService) HardDeleteCourseOutcome(ctx context.Context, id uint) error {
+func (s *TaxonomyService) HardDeleteCourseOutcome(ctx context.Context, id string) error {
 	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderOutcome(s), s.outcomeRepo.HardDelete)
 }
 
@@ -230,7 +230,7 @@ func (s *TaxonomyService) CreateCourseSkill(ctx context.Context, in domain.Creat
 	n, sl, st := trimmedTaxonomyFields(in.Name, in.Status)
 	sk := &domain.CourseSkill{
 		Name: n, Slug: sl, Status: st, Children: children,
-		CreatedBy: uintPtrIfPos(in.ActorID),
+		CreatedBy: stringPtrIfNotBlank(in.ActorID),
 	}
 	if err := s.skillRepo.Create(ctx, sk); err != nil {
 		return nil, err
@@ -238,7 +238,7 @@ func (s *TaxonomyService) CreateCourseSkill(ctx context.Context, in domain.Creat
 	return s.skillRepo.GetByID(ctx, sk.ID)
 }
 
-func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id uint, in domain.UpdateCourseSkillInput) (*domain.CourseSkill, error) {
+func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id string, in domain.UpdateCourseSkillInput) (*domain.CourseSkill, error) {
 	row, err := s.skillRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -257,11 +257,11 @@ func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id uint, in dom
 	return s.skillRepo.GetByID(ctx, id)
 }
 
-func (s *TaxonomyService) DeleteCourseSkill(ctx context.Context, id uint) error {
+func (s *TaxonomyService) DeleteCourseSkill(ctx context.Context, id string) error {
 	return s.skillRepo.SoftDelete(ctx, id)
 }
 
-func (s *TaxonomyService) HardDeleteCourseSkill(ctx context.Context, id uint) error {
+func (s *TaxonomyService) HardDeleteCourseSkill(ctx context.Context, id string) error {
 	return s.skillRepo.HardDelete(ctx, id)
 }
 
@@ -280,15 +280,15 @@ func (s *TaxonomyService) CreateTag(ctx context.Context, in domain.CreateTagInpu
 	return createSlugStatusFromInput(ctx, in, s.tagCreator())
 }
 
-func (s *TaxonomyService) UpdateTag(ctx context.Context, id uint, in domain.UpdateTagInput) (*domain.Tag, error) {
+func (s *TaxonomyService) UpdateTag(ctx context.Context, id string, in domain.UpdateTagInput) (*domain.Tag, error) {
 	return updateSlugStatusRepo(ctx, id, in, s.tagRepo.GetByID, s.tagRepo.Save)
 }
 
-func (s *TaxonomyService) DeleteTag(ctx context.Context, id uint) error {
+func (s *TaxonomyService) DeleteTag(ctx context.Context, id string) error {
 	return s.tagRepo.SoftDelete(ctx, id)
 }
 
-func (s *TaxonomyService) HardDeleteTag(ctx context.Context, id uint) error {
+func (s *TaxonomyService) HardDeleteTag(ctx context.Context, id string) error {
 	return s.tagRepo.HardDelete(ctx, id)
 }
 
@@ -307,15 +307,15 @@ func (s *TaxonomyService) CreateCourseLevel(ctx context.Context, in domain.Creat
 	return createSlugStatusFromInput(ctx, in, s.courseLevelCreator())
 }
 
-func (s *TaxonomyService) UpdateCourseLevel(ctx context.Context, id uint, in domain.UpdateCourseLevelInput) (*domain.CourseLevel, error) {
+func (s *TaxonomyService) UpdateCourseLevel(ctx context.Context, id string, in domain.UpdateCourseLevelInput) (*domain.CourseLevel, error) {
 	return updateSlugStatusRepo(ctx, id, in, s.courseLevelRepo.GetByID, s.courseLevelRepo.Save)
 }
 
-func (s *TaxonomyService) DeleteCourseLevel(ctx context.Context, id uint) error {
+func (s *TaxonomyService) DeleteCourseLevel(ctx context.Context, id string) error {
 	return s.courseLevelRepo.SoftDelete(ctx, id)
 }
 
-func (s *TaxonomyService) HardDeleteCourseLevel(ctx context.Context, id uint) error {
+func (s *TaxonomyService) HardDeleteCourseLevel(ctx context.Context, id string) error {
 	return s.courseLevelRepo.HardDelete(ctx, id)
 }
 
@@ -405,9 +405,10 @@ func imageFileIDStr(p *string) string {
 	return strings.TrimSpace(*p)
 }
 
-func uintPtrIfPos(id uint) *uint {
-	if id > 0 {
-		return &id
+func stringPtrIfNotBlank(id string) *string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil
 	}
-	return nil
+	return &id
 }

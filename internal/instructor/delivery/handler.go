@@ -53,9 +53,14 @@ func (h *Handler) addRoster(c *gin.Context) {
 }
 
 func (h *Handler) deleteRoster(c *gin.Context) {
-	h.deleteByID(c, func(id uint) error {
-		return h.svc.RemoveFromRoster(c.Request.Context(), id)
-	})
+	id, ok := parseUserIDParam(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.RemoveFromRoster(c.Request.Context(), id); mapInstructorError(c, err) {
+		return
+	}
+	response.OK(c, "deleted", nil)
 }
 
 func (h *Handler) listApplications(c *gin.Context) {
@@ -128,7 +133,7 @@ func (h *Handler) rejectApplication(c *gin.Context) {
 }
 
 func (h *Handler) deleteApplication(c *gin.Context) {
-	h.deleteByID(c, func(id uint) error {
+	h.deleteByID(c, func(id string) error {
 		return h.svc.DeleteApplication(c.Request.Context(), id)
 	})
 }

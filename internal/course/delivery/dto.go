@@ -11,15 +11,15 @@ type updateBasicInfoRequest struct {
 	AboutCourse        *string `json:"about_course"`
 	ThumbnailFileID    *string `json:"thumbnail_file_id" validate:"omitempty,uuid"`
 	PreviewVideoFileID *string `json:"preview_video_file_id" validate:"omitempty,uuid"`
-	CourseLevelID      *uint   `json:"course_level_id"`
-	CourseTopicID      *uint   `json:"course_topic_id"`
-	TagIDs             []uint  `json:"tag_ids"`
-	SkillIDs           []uint  `json:"skill_ids"`
-	OutcomeIDs         []uint  `json:"outcome_ids"`
+	CourseLevelID      *string `json:"course_level_id" validate:"omitempty,uuid"`
+	CourseTopicID      *string `json:"course_topic_id" validate:"omitempty,uuid"`
+	TagIDs             []string `json:"tag_ids" validate:"omitempty,dive,uuid"`
+	SkillIDs           []string `json:"skill_ids" validate:"omitempty,dive,uuid"`
+	OutcomeIDs         []string `json:"outcome_ids" validate:"omitempty,dive,uuid"`
 }
 
 type addCollaboratorRequest struct {
-	UserID uint   `json:"user_id" validate:"required"`
+	UserID string `json:"user_id" validate:"required,uuid"`
 	Role   string `json:"role" validate:"omitempty,oneof=OWNER EDITOR"`
 }
 
@@ -30,7 +30,7 @@ type sectionRequest struct {
 }
 
 type lessonRequest struct {
-	SectionID          uint   `json:"section_id" validate:"required"`
+	SectionID          string `json:"section_id" validate:"required,uuid"`
 	ExpectedRowVersion int64  `json:"expected_row_version"`
 	Title              string `json:"title" validate:"required,min=1,max=255"`
 	Summary            string `json:"summary"`
@@ -57,7 +57,7 @@ type quizRequest struct {
 }
 
 type subLessonRequest struct {
-	LessonID           uint          `json:"lesson_id" validate:"required"`
+	LessonID           string        `json:"lesson_id" validate:"required,uuid"`
 	ExpectedRowVersion int64         `json:"expected_row_version"`
 	Title              string        `json:"title" validate:"required,min=1,max=255"`
 	Kind               string        `json:"kind" validate:"required,oneof=VIDEO QUIZ TEXT"`
@@ -72,7 +72,7 @@ type reorderRequest struct {
 }
 
 type leaseAcquireRequest struct {
-	CourseVersionID  uint   `json:"course_version_id" validate:"required"`
+	CourseVersionID  string `json:"course_version_id" validate:"required,uuid"`
 	ResourceType     string `json:"resource_type" validate:"required,oneof=OUTLINE_ROOT SECTION LESSON SUB_LESSON"`
 	ResourceStableID string `json:"resource_stable_id" validate:"required,uuid"`
 }

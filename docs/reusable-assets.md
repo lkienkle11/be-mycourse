@@ -248,11 +248,11 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
   - Reuse for course shell and later listing endpoints to avoid duplicating query parsing logic.
 
 ### Asset: Request param helper package
-- Name: `CurrentUserID`, `ParseUintParam`
+- Name: `CurrentUserID`, `ParseUUIDParam`
 - Type: Util/Helper
 - Path: `internal/shared/utils/requestutil.go`
-- Purpose: Centralize request-context user extraction and path param integer parsing.
-- Scope: All HTTP handlers requiring authenticated user id or `:id` parsing.
+- Purpose: Centralize request-context user extraction and UUID path param parsing.
+- Scope: All HTTP handlers requiring authenticated user UUID or route param parsing.
 - Dependencies: `gin.Context`, `internal/shared/middleware`, `internal/shared/utils/params.go`.
 - Current Usage: auth, course, instructor, taxonomy, and RBAC delivery handlers.
 - Reuse Opportunity:
@@ -269,12 +269,12 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Reuse Opportunity:
   - Reuse this instead of defining local `rp := func(...){...}` wrappers in new delivery route files.
 
-### Asset: Generic uint path-param parser
-- Name: `ParseUintPathParam`
+### Asset: Generic path-param parsers
+- Name: `ParseUUIDPathParam`, `ParseUintPathParam`
 - Type: Util/Helper
 - Path: `internal/shared/utils/params.go`
-- Purpose: Parse unsigned integer path params from `gin.Context` with one shared implementation.
-- Scope: Any delivery handler that needs numeric route params, either directly or via `ParseUintParam`.
+- Purpose: Parse UUID or unsigned integer path params from `gin.Context` with shared implementations.
+- Scope: UUID entity routes use `ParseUUIDPathParam`; numeric catalog routes (for example RBAC `roleId`) use `ParseUintPathParam`.
 - Dependencies: `gin.Context`, `strconv`.
 - Current Usage: `internal/shared/utils/requestutil.go` and handlers that call it.
 - Reuse Opportunity:

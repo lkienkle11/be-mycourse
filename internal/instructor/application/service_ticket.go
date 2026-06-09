@@ -11,16 +11,16 @@ func (s *InstructorService) ListTickets(ctx context.Context, f domain.TicketFilt
 	return s.repo.ListTickets(ctx, f)
 }
 
-func (s *InstructorService) GetTicket(ctx context.Context, id uint) (*domain.Ticket, error) {
+func (s *InstructorService) GetTicket(ctx context.Context, id string) (*domain.Ticket, error) {
 	return s.repo.GetTicketByID(ctx, id)
 }
 
-func (s *InstructorService) CreateTicket(ctx context.Context, userID uint, subject string) (*domain.Ticket, error) {
+func (s *InstructorService) CreateTicket(ctx context.Context, userID string, subject string) (*domain.Ticket, error) {
 	subject = strings.TrimSpace(subject)
 	return s.repo.CreateTicket(ctx, userID, subject)
 }
 
-func (s *InstructorService) CloseTicket(ctx context.Context, id uint) (*domain.Ticket, error) {
+func (s *InstructorService) CloseTicket(ctx context.Context, id string) (*domain.Ticket, error) {
 	t, err := s.repo.GetTicketByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -34,11 +34,11 @@ func (s *InstructorService) CloseTicket(ctx context.Context, id uint) (*domain.T
 	return s.repo.GetTicketByID(ctx, id)
 }
 
-func (s *InstructorService) ListTicketMessages(ctx context.Context, ticketID uint) ([]domain.TicketMessage, error) {
+func (s *InstructorService) ListTicketMessages(ctx context.Context, ticketID string) ([]domain.TicketMessage, error) {
 	return s.repo.ListMessages(ctx, ticketID)
 }
 
-func (s *InstructorService) AddTicketMessage(ctx context.Context, ticketID, authorUserID uint, body string) (*domain.TicketMessage, error) {
+func (s *InstructorService) AddTicketMessage(ctx context.Context, ticketID string, authorUserID string, body string) (*domain.TicketMessage, error) {
 	t, err := s.repo.GetTicketByID(ctx, ticketID)
 	if err != nil {
 		return nil, err

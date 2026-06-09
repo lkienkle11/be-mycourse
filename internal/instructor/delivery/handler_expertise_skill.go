@@ -41,7 +41,7 @@ func (h *Handler) addExpertiseSkill(c *gin.Context) {
 }
 
 func (h *Handler) deleteExpertiseSkillByRow(c *gin.Context) {
-	id, ok := utils.ParseUintPathParam(c, "skillRowId")
+	id, ok := utils.ParseUUIDPathParam(c, "skillRowId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 		return

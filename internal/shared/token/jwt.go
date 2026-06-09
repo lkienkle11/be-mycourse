@@ -17,7 +17,7 @@ import (
 // UserID is users.id (numeric PK) — used for RBAC lookups.
 // UserCode is users.user_code (UUID) — the external-facing identifier.
 type Claims struct {
-	UserID      uint     `json:"user_id"`
+	UserID      string   `json:"user_id"`
 	UserCode    string   `json:"user_code"`
 	Email       string   `json:"email"`
 	DisplayName string   `json:"display_name"`
@@ -29,13 +29,13 @@ type Claims struct {
 // RefreshClaims is embedded in long-lived refresh JWTs (lean — no permissions).
 // UUID correlates the JWT with a specific entry in users.refresh_token_session.
 type RefreshClaims struct {
-	UserID uint   `json:"user_id"`
+	UserID string `json:"user_id"`
 	UUID   string `json:"uuid"`
 	jwt.RegisteredClaims
 }
 
 // GenerateAccess signs a short-lived access token carrying user identity and permissions.
-func GenerateAccess(secret string, userID uint, userCode, email, displayName string, createdAt int64, permissions []string, ttl time.Duration) (string, error) {
+func GenerateAccess(secret string, userID string, userCode, email, displayName string, createdAt int64, permissions []string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:      userID,
@@ -56,7 +56,7 @@ func GenerateAccess(secret string, userID uint, userCode, email, displayName str
 // GenerateRefresh signs a long-lived refresh token carrying the user's DB id and a session UUID.
 // The UUID must match the refresh_token_uuid stored in users.refresh_token_session for the
 // corresponding session string.
-func GenerateRefresh(secret string, userID uint, sessionUUID string, ttl time.Duration) (string, error) {
+func GenerateRefresh(secret string, userID string, sessionUUID string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := RefreshClaims{
 		UserID: userID,
@@ -130,7 +130,7 @@ func ParseRefreshIgnoreExpiry(secret, tokenString string) (*RefreshClaims, error
 	if err != nil && !errors.Is(err, jwt.ErrTokenExpired) {
 		return nil, err
 	}
-	if claims.UserID == 0 {
+	if claims.UserID == "" {
 		return nil, errors.New(constants.MsgJWTRefreshMissingUserID)
 	}
 	return claims, nil

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// ContextUserID holds the numeric users.id (uint) from the JWT — used for RBAC lookups.
+	// ContextUserID holds the UUID users.id from the JWT — used for RBAC lookups.
 	ContextUserID = "user_id"
 	// ContextUserCode holds the UUID user_code string — the external-facing identifier.
 	ContextUserCode    = "ctx_user_code"
@@ -62,7 +62,7 @@ func requireJWT(c *gin.Context) bool {
 		}
 		return false
 	}
-	if claims.UserID == 0 {
+	if claims.UserID == "" {
 		response.AbortFail(c, http.StatusUnauthorized, apperrors.Unauthorized, "token missing user_id", nil)
 		return false
 	}

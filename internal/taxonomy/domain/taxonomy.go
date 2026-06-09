@@ -7,13 +7,13 @@ import (
 
 // CourseTopic is the aggregate root for a taxonomy course topic (formerly category).
 type CourseTopic struct {
-	ID          uint
+	ID          string
 	Name        string
 	Slug        string
 	ImageFileID *string
 	ChildTopics []taxpkg.TreeNode
 	Status      string
-	CreatedBy   *uint
+	CreatedBy   *string
 	CreatedAt   int64
 	UpdatedAt   int64
 	DeletedAt   *int64
@@ -25,12 +25,12 @@ type CourseTopic struct {
 
 // CourseOutcome is the aggregate root for a course learning outcome.
 type CourseOutcome struct {
-	ID               uint
+	ID               string
 	ShortDescription string
 	Description      []string
 	ImageFileID      *string
 	Status           string
-	CreatedBy        *uint
+	CreatedBy        *string
 	CreatedAt        int64
 	UpdatedAt        int64
 	DeletedAt        *int64
@@ -42,12 +42,12 @@ type CourseOutcome struct {
 
 // CourseSkill is the aggregate root for a course skill tree root row.
 type CourseSkill struct {
-	ID        uint
+	ID        string
 	Name      string
 	Slug      string
 	Children  []taxpkg.TreeNode
 	Status    string
-	CreatedBy *uint
+	CreatedBy *string
 	CreatedAt int64
 	UpdatedAt int64
 	DeletedAt *int64
@@ -55,11 +55,11 @@ type CourseSkill struct {
 
 // Tag is the aggregate root for a taxonomy tag.
 type Tag struct {
-	ID        uint
+	ID        string
 	Name      string
 	Slug      string
 	Status    string
-	CreatedBy *uint
+	CreatedBy *string
 	CreatedAt int64
 	UpdatedAt int64
 	DeletedAt *int64
@@ -67,11 +67,11 @@ type Tag struct {
 
 // CourseLevel is the aggregate root for a taxonomy course level.
 type CourseLevel struct {
-	ID        uint
+	ID        string
 	Name      string
 	Slug      string
 	Status    string
-	CreatedBy *uint
+	CreatedBy *string
 	CreatedAt int64
 	UpdatedAt int64
 	DeletedAt *int64
@@ -91,7 +91,7 @@ type TaxonomyFilter struct {
 
 // CreateCourseTopicInput carries data for creating a new course topic.
 type CreateCourseTopicInput struct {
-	ActorID     uint
+	ActorID     string
 	Name        string
 	Status      string
 	ImageFileID string
@@ -108,7 +108,7 @@ type UpdateCourseTopicInput struct {
 
 // CreateCourseOutcomeInput carries data for creating a course outcome.
 type CreateCourseOutcomeInput struct {
-	ActorID          uint
+	ActorID          string
 	ShortDescription string
 	Description      []string
 	Status           string
@@ -125,7 +125,7 @@ type UpdateCourseOutcomeInput struct {
 
 // CreateCourseSkillInput carries data for creating a course skill.
 type CreateCourseSkillInput struct {
-	ActorID  uint
+	ActorID  string
 	Name     string
 	Status   string
 	Children []taxpkg.TreeNode
@@ -140,7 +140,7 @@ type UpdateCourseSkillInput struct {
 
 // CreateTagInput carries data for creating a new tag.
 type CreateTagInput struct {
-	ActorID uint
+	ActorID string
 	Name    string
 	Status  string
 }

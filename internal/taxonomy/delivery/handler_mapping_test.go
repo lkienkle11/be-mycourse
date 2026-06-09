@@ -10,7 +10,7 @@ import (
 func TestToCourseTopicResponse_UsesImageFileURLField(t *testing.T) {
 	imageFileID := "550e8400-e29b-41d4-a716-446655440000"
 	row := domain.CourseTopic{
-		ID:           1,
+		ID:           imageFileID,
 		Name:         "Math",
 		Slug:         "math",
 		ImageFileID:  &imageFileID,
@@ -45,7 +45,7 @@ func TestToCourseTopicResponse_UsesImageFileURLField(t *testing.T) {
 func TestToCourseOutcomeResponse_UsesImageFileURLField(t *testing.T) {
 	imageFileID := "550e8400-e29b-41d4-a716-446655440000"
 	row := domain.CourseOutcome{
-		ID:               10,
+		ID:               imageFileID,
 		ShortDescription: "Think critically",
 		ImageFileID:      &imageFileID,
 		ImageFileURL:     "https://cdn.example.com/outcome.webp",

@@ -26,16 +26,16 @@ type RoleRepository interface {
 
 // UserRoleRepository manages user ↔ role bindings.
 type UserRoleRepository interface {
-	ListRolesForUser(ctx context.Context, userID uint) ([]Role, error)
-	AssignRole(ctx context.Context, userID, roleID uint) error
-	RemoveRole(ctx context.Context, userID, roleID uint) error
+	ListRolesForUser(ctx context.Context, userID string) ([]Role, error)
+	AssignRole(ctx context.Context, userID string, roleID uint) error
+	RemoveRole(ctx context.Context, userID string, roleID uint) error
 }
 
 // UserPermissionRepository manages user ↔ permission bindings.
 type UserPermissionRepository interface {
-	ListPermissionsForUser(ctx context.Context, userID uint) ([]Permission, error)
-	PermissionCodesForUser(ctx context.Context, userID uint) (map[string]struct{}, error)
-	AssignPermission(ctx context.Context, userID uint, permissionID string) error
-	AssignPermissionByName(ctx context.Context, userID uint, permissionName string) error
-	RemovePermission(ctx context.Context, userID uint, permissionID string) error
+	ListPermissionsForUser(ctx context.Context, userID string) ([]Permission, error)
+	PermissionCodesForUser(ctx context.Context, userID string) (map[string]struct{}, error)
+	AssignPermission(ctx context.Context, userID string, permissionID string) error
+	AssignPermissionByName(ctx context.Context, userID string, permissionName string) error
+	RemovePermission(ctx context.Context, userID string, permissionID string) error
 }

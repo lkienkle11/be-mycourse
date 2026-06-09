@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/uuidx"
 	"mycourse-io-be/internal/system/domain"
 )
 
@@ -27,7 +29,7 @@ type appConfigRow struct {
 func (appConfigRow) TableName() string { return constants.TableSystemAppConfig }
 
 type privilegedUserRow struct {
-	ID             uint   `gorm:"column:id;primaryKey"`
+	ID             string `gorm:"column:id;type:uuid;primaryKey"`
 	UsernameSecret string `gorm:"column:username_secret;not null;uniqueIndex"`
 	PasswordSecret string `gorm:"column:password_secret;not null"`
 	MachineSecret  string `gorm:"column:machine_secret;not null"`
@@ -101,6 +103,15 @@ func (r *GormPrivilegedUserRepository) Create(ctx context.Context, u *domain.Pri
 		UsernameSecret: u.UsernameSecret,
 		PasswordSecret: u.PasswordSecret,
 		MachineSecret:  u.MachineSecret,
+	}
+	if strings.TrimSpace(u.ID) != "" {
+		row.ID = u.ID
+	} else {
+		id, err := uuidx.NewV7()
+		if err != nil {
+			return err
+		}
+		row.ID = id
 	}
 	gormx.TouchCreatedUpdated(&row.CreatedAt, nil)
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {

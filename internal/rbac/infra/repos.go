@@ -67,14 +67,14 @@ type rolePermissionRow struct {
 func (rolePermissionRow) TableName() string { return constants.TableRBACRolePermissions }
 
 type userRoleRow struct {
-	UserID uint `gorm:"primaryKey"`
-	RoleID uint `gorm:"primaryKey"`
+	UserID string `gorm:"type:uuid;primaryKey"`
+	RoleID uint   `gorm:"primaryKey"`
 }
 
 func (userRoleRow) TableName() string { return constants.TableRBACUserRoles }
 
 type userPermissionRow struct {
-	UserID       uint   `gorm:"primaryKey"`
+	UserID       string `gorm:"type:uuid;primaryKey"`
 	PermissionID string `gorm:"primaryKey;size:10"`
 }
 
@@ -294,7 +294,7 @@ func NewGormUserRoleRepository(db *gorm.DB) *GormUserRoleRepository {
 	return &GormUserRoleRepository{db: db}
 }
 
-func (r *GormUserRoleRepository) ListRolesForUser(ctx context.Context, userID uint) ([]domain.Role, error) {
+func (r *GormUserRoleRepository) ListRolesForUser(ctx context.Context, userID string) ([]domain.Role, error) {
 	var rows []roleRow
 	err := r.db.WithContext(ctx).
 		Joins("INNER JOIN "+constants.TableRBACUserRoles+" ur ON ur.role_id = roles.id").
@@ -311,12 +311,12 @@ func (r *GormUserRoleRepository) ListRolesForUser(ctx context.Context, userID ui
 	return out, nil
 }
 
-func (r *GormUserRoleRepository) AssignRole(ctx context.Context, userID, roleID uint) error {
+func (r *GormUserRoleRepository) AssignRole(ctx context.Context, userID string, roleID uint) error {
 	row := userRoleRow{UserID: userID, RoleID: roleID}
 	return r.db.WithContext(ctx).FirstOrCreate(&row, userRoleRow{UserID: userID, RoleID: roleID}).Error
 }
 
-func (r *GormUserRoleRepository) RemoveRole(ctx context.Context, userID, roleID uint) error {
+func (r *GormUserRoleRepository) RemoveRole(ctx context.Context, userID string, roleID uint) error {
 	return r.db.WithContext(ctx).
 		Where("user_id = ? AND role_id = ?", userID, roleID).
 		Delete(&userRoleRow{}).Error
@@ -331,7 +331,7 @@ func NewGormUserPermissionRepository(db *gorm.DB) *GormUserPermissionRepository 
 	return &GormUserPermissionRepository{db: db}
 }
 
-func (r *GormUserPermissionRepository) ListPermissionsForUser(ctx context.Context, userID uint) ([]domain.Permission, error) {
+func (r *GormUserPermissionRepository) ListPermissionsForUser(ctx context.Context, userID string) ([]domain.Permission, error) {
 	var rows []permissionRow
 	err := r.db.WithContext(ctx).
 		Joins("INNER JOIN "+constants.TableRBACUserPermissions+" up ON up.permission_id = permissions.permission_id").
@@ -347,7 +347,7 @@ func (r *GormUserPermissionRepository) ListPermissionsForUser(ctx context.Contex
 	return out, nil
 }
 
-func (r *GormUserPermissionRepository) PermissionCodesForUser(ctx context.Context, userID uint) (map[string]struct{}, error) {
+func (r *GormUserPermissionRepository) PermissionCodesForUser(ctx context.Context, userID string) (map[string]struct{}, error) {
 	q, args, err := utils.Postgres(sqlPermissionCodesForUser, map[string]any{"user_id": userID})
 	if err != nil {
 		return nil, err
@@ -363,12 +363,12 @@ func (r *GormUserPermissionRepository) PermissionCodesForUser(ctx context.Contex
 	return out, nil
 }
 
-func (r *GormUserPermissionRepository) AssignPermission(ctx context.Context, userID uint, permissionID string) error {
+func (r *GormUserPermissionRepository) AssignPermission(ctx context.Context, userID string, permissionID string) error {
 	row := userPermissionRow{UserID: userID, PermissionID: strings.TrimSpace(permissionID)}
 	return r.db.WithContext(ctx).FirstOrCreate(&row, row).Error
 }
 
-func (r *GormUserPermissionRepository) AssignPermissionByName(ctx context.Context, userID uint, permissionName string) error {
+func (r *GormUserPermissionRepository) AssignPermissionByName(ctx context.Context, userID string, permissionName string) error {
 	var p permissionRow
 	if err := r.db.WithContext(ctx).Where("permission_name = ?", strings.TrimSpace(permissionName)).First(&p).Error; err != nil {
 		return mapNotFound(err)
@@ -376,7 +376,7 @@ func (r *GormUserPermissionRepository) AssignPermissionByName(ctx context.Contex
 	return r.AssignPermission(ctx, userID, p.PermissionID)
 }
 
-func (r *GormUserPermissionRepository) RemovePermission(ctx context.Context, userID uint, permissionID string) error {
+func (r *GormUserPermissionRepository) RemovePermission(ctx context.Context, userID string, permissionID string) error {
 	return r.db.WithContext(ctx).
 		Where("user_id = ? AND permission_id = ?", userID, strings.TrimSpace(permissionID)).
 		Delete(&userPermissionRow{}).Error

@@ -49,7 +49,7 @@ func (s *InstructorService) AddRosterByEmail(ctx context.Context, email string) 
 	return &member, nil
 }
 
-func (s *InstructorService) RemoveFromRoster(ctx context.Context, userID uint) error {
+func (s *InstructorService) RemoveFromRoster(ctx context.Context, userID string) error {
 	if err := s.repo.WipeInstructorScopedData(ctx, userID); err != nil {
 		return err
 	}

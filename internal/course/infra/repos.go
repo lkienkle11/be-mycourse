@@ -22,11 +22,11 @@ func NewGormRepository(db *gorm.DB) *GormRepository {
 }
 
 type courseRow struct {
-	ID                        uint   `gorm:"column:id;primaryKey"`
-	OwnerUserID               uint   `gorm:"column:owner_user_id;not null"`
+	ID                        string   `gorm:"column:id;primaryKey"`
+	OwnerUserID               string `gorm:"column:owner_user_id;type:uuid;not null"`
 	Slug                      string `gorm:"column:slug;type:varchar(255);not null"`
-	CurrentPublishedVersionID *uint  `gorm:"column:current_published_version_id"`
-	CurrentDraftVersionID     *uint  `gorm:"column:current_draft_version_id"`
+	CurrentPublishedVersionID *string  `gorm:"column:current_published_version_id"`
+	CurrentDraftVersionID     *string  `gorm:"column:current_draft_version_id"`
 	CreatedAt                 int64  `gorm:"column:created_at;not null"`
 	UpdatedAt                 int64  `gorm:"column:updated_at;not null"`
 	DeletedAt                 *int64 `gorm:"column:deleted_at"`
@@ -35,24 +35,24 @@ type courseRow struct {
 func (courseRow) TableName() string { return constants.TableCourses }
 
 type courseVersionRow struct {
-	ID                 uint    `gorm:"column:id;primaryKey"`
-	CourseID           uint    `gorm:"column:course_id;not null"`
+	ID                 string    `gorm:"column:id;primaryKey"`
+	CourseID           string    `gorm:"column:course_id;not null"`
 	VersionNo          int     `gorm:"column:version_no;not null"`
 	Status             string  `gorm:"column:status;type:varchar(32);not null"`
-	BasedOnVersionID   *uint   `gorm:"column:based_on_version_id"`
+	BasedOnVersionID   *string   `gorm:"column:based_on_version_id"`
 	Title              string  `gorm:"column:title;type:varchar(255);not null"`
 	ShortDescription   string  `gorm:"column:short_description;type:varchar(500);not null"`
 	AboutCourse        string  `gorm:"column:about_course;type:text;not null"`
 	ThumbnailFileID    *string `gorm:"column:thumbnail_file_id;type:uuid"`
 	PreviewVideoFileID *string `gorm:"column:preview_video_file_id;type:uuid"`
-	CourseLevelID      *uint   `gorm:"column:course_level_id"`
-	CourseTopicID      *uint   `gorm:"column:course_topic_id"`
+	CourseLevelID      *string   `gorm:"column:course_level_id"`
+	CourseTopicID      *string   `gorm:"column:course_topic_id"`
 	RowVersion         int64   `gorm:"column:row_version;not null"`
-	SubmittedByUserID  *uint   `gorm:"column:submitted_by_user_id"`
+	SubmittedByUserID  *string `gorm:"column:submitted_by_user_id;type:uuid"`
 	SubmittedAt        *int64  `gorm:"column:submitted_at"`
-	ApprovedByUserID   *uint   `gorm:"column:approved_by_user_id"`
+	ApprovedByUserID   *string `gorm:"column:approved_by_user_id;type:uuid"`
 	ApprovedAt         *int64  `gorm:"column:approved_at"`
-	RejectedByUserID   *uint   `gorm:"column:rejected_by_user_id"`
+	RejectedByUserID   *string `gorm:"column:rejected_by_user_id;type:uuid"`
 	RejectedAt         *int64  `gorm:"column:rejected_at"`
 	RejectionReason    string  `gorm:"column:rejection_reason;type:text;not null"`
 	CreatedAt          int64   `gorm:"column:created_at;not null"`
@@ -63,18 +63,18 @@ type courseVersionRow struct {
 func (courseVersionRow) TableName() string { return constants.TableCourseVersions }
 
 type courseVersionRefRow struct {
-	CourseVersionID uint `gorm:"column:course_version_id;primaryKey"`
-	RefID           uint `gorm:"column:tag_id;primaryKey"`
+	CourseVersionID string `gorm:"column:course_version_id;primaryKey"`
+	RefID           string `gorm:"column:tag_id;primaryKey"`
 }
 
 type courseVersionSkillRefRow struct {
-	CourseVersionID uint `gorm:"column:course_version_id;primaryKey"`
-	RefID           uint `gorm:"column:skill_id;primaryKey"`
+	CourseVersionID string `gorm:"column:course_version_id;primaryKey"`
+	RefID           string `gorm:"column:skill_id;primaryKey"`
 }
 
 type courseVersionOutcomeRefRow struct {
-	CourseVersionID uint `gorm:"column:course_version_id;primaryKey"`
-	RefID           uint `gorm:"column:outcome_id;primaryKey"`
+	CourseVersionID string `gorm:"column:course_version_id;primaryKey"`
+	RefID           string `gorm:"column:outcome_id;primaryKey"`
 }
 
 func (courseVersionRefRow) TableName() string        { return constants.TableCourseVersionTags }
@@ -82,9 +82,9 @@ func (courseVersionSkillRefRow) TableName() string   { return constants.TableCou
 func (courseVersionOutcomeRefRow) TableName() string { return constants.TableCourseVersionOutcomes }
 
 type collaboratorRow struct {
-	ID        uint   `gorm:"column:id;primaryKey"`
-	CourseID  uint   `gorm:"column:course_id;not null"`
-	UserID    uint   `gorm:"column:user_id;not null"`
+	ID        string   `gorm:"column:id;primaryKey"`
+	CourseID  string   `gorm:"column:course_id;not null"`
+	UserID    string `gorm:"column:user_id;type:uuid;not null"`
 	Role      string `gorm:"column:role;type:varchar(16);not null"`
 	CreatedAt int64  `gorm:"column:created_at;not null"`
 	UpdatedAt int64  `gorm:"column:updated_at;not null"`
@@ -94,9 +94,9 @@ type collaboratorRow struct {
 func (collaboratorRow) TableName() string { return constants.TableCourseCollaborators }
 
 type sectionRow struct {
-	ID              uint   `gorm:"column:id;primaryKey"`
+	ID              string   `gorm:"column:id;primaryKey"`
 	StableID        string `gorm:"column:stable_id;type:uuid;not null"`
-	CourseVersionID uint   `gorm:"column:course_version_id;not null"`
+	CourseVersionID string   `gorm:"column:course_version_id;not null"`
 	Title           string `gorm:"column:title;type:varchar(255);not null"`
 	Description     string `gorm:"column:description;type:text;not null"`
 	OrderIndex      int    `gorm:"column:order_index;not null"`
@@ -109,10 +109,10 @@ type sectionRow struct {
 func (sectionRow) TableName() string { return constants.TableCourseSections }
 
 type lessonRow struct {
-	ID              uint   `gorm:"column:id;primaryKey"`
+	ID              string   `gorm:"column:id;primaryKey"`
 	StableID        string `gorm:"column:stable_id;type:uuid;not null"`
-	CourseVersionID uint   `gorm:"column:course_version_id;not null"`
-	SectionID       uint   `gorm:"column:section_id;not null"`
+	CourseVersionID string   `gorm:"column:course_version_id;not null"`
+	SectionID       string   `gorm:"column:section_id;not null"`
 	Title           string `gorm:"column:title;type:varchar(255);not null"`
 	Summary         string `gorm:"column:summary;type:text;not null"`
 	OrderIndex      int    `gorm:"column:order_index;not null"`
@@ -125,10 +125,10 @@ type lessonRow struct {
 func (lessonRow) TableName() string { return constants.TableCourseLessons }
 
 type subLessonRow struct {
-	ID              uint   `gorm:"column:id;primaryKey"`
+	ID              string   `gorm:"column:id;primaryKey"`
 	StableID        string `gorm:"column:stable_id;type:uuid;not null"`
-	CourseVersionID uint   `gorm:"column:course_version_id;not null"`
-	LessonID        uint   `gorm:"column:lesson_id;not null"`
+	CourseVersionID string   `gorm:"column:course_version_id;not null"`
+	LessonID        string   `gorm:"column:lesson_id;not null"`
 	Title           string `gorm:"column:title;type:varchar(255);not null"`
 	Kind            string `gorm:"column:kind;type:varchar(16);not null"`
 	IsPreview       bool   `gorm:"column:is_preview;not null"`
@@ -142,7 +142,7 @@ type subLessonRow struct {
 func (subLessonRow) TableName() string { return constants.TableCourseSubLessons }
 
 type subLessonVideoRow struct {
-	SubLessonID uint   `gorm:"column:sub_lesson_id;primaryKey"`
+	SubLessonID string   `gorm:"column:sub_lesson_id;primaryKey"`
 	MediaFileID string `gorm:"column:media_file_id;type:uuid;not null"`
 	CreatedAt   int64  `gorm:"column:created_at;not null"`
 	UpdatedAt   int64  `gorm:"column:updated_at;not null"`
@@ -151,7 +151,7 @@ type subLessonVideoRow struct {
 func (subLessonVideoRow) TableName() string { return constants.TableCourseSubLessonVideos }
 
 type subLessonTextRow struct {
-	SubLessonID  uint   `gorm:"column:sub_lesson_id;primaryKey"`
+	SubLessonID  string   `gorm:"column:sub_lesson_id;primaryKey"`
 	ContentDelta string `gorm:"column:content_delta;type:jsonb;not null"`
 	CreatedAt    int64  `gorm:"column:created_at;not null"`
 	UpdatedAt    int64  `gorm:"column:updated_at;not null"`
@@ -160,7 +160,7 @@ type subLessonTextRow struct {
 func (subLessonTextRow) TableName() string { return constants.TableCourseSubLessonTexts }
 
 type subLessonQuizRow struct {
-	SubLessonID   uint   `gorm:"column:sub_lesson_id;primaryKey"`
+	SubLessonID   string   `gorm:"column:sub_lesson_id;primaryKey"`
 	Prompt        string `gorm:"column:prompt;type:text;not null"`
 	AllowMultiple bool   `gorm:"column:allow_multiple;not null"`
 	CreatedAt     int64  `gorm:"column:created_at;not null"`
@@ -170,8 +170,8 @@ type subLessonQuizRow struct {
 func (subLessonQuizRow) TableName() string { return constants.TableCourseSubLessonQuizzes }
 
 type subLessonQuizOptionRow struct {
-	ID          uint   `gorm:"column:id;primaryKey"`
-	SubLessonID uint   `gorm:"column:sub_lesson_id;not null"`
+	ID          string   `gorm:"column:id;primaryKey"`
+	SubLessonID string   `gorm:"column:sub_lesson_id;not null"`
 	OptionKey   string `gorm:"column:option_key;type:uuid;not null"`
 	Body        string `gorm:"column:body;type:text;not null"`
 	IsCorrect   bool   `gorm:"column:is_correct;not null"`
@@ -183,12 +183,12 @@ type subLessonQuizOptionRow struct {
 func (subLessonQuizOptionRow) TableName() string { return constants.TableCourseSubLessonQuizOptions }
 
 type leaseRow struct {
-	ID               uint   `gorm:"column:id;primaryKey"`
-	CourseID         uint   `gorm:"column:course_id;not null"`
-	CourseVersionID  uint   `gorm:"column:course_version_id;not null"`
+	ID               string   `gorm:"column:id;primaryKey"`
+	CourseID         string   `gorm:"column:course_id;not null"`
+	CourseVersionID  string   `gorm:"column:course_version_id;not null"`
 	ResourceType     string `gorm:"column:resource_type;type:varchar(32);not null"`
 	ResourceStableID string `gorm:"column:resource_stable_id;type:uuid;not null"`
-	HolderUserID     uint   `gorm:"column:holder_user_id;not null"`
+	HolderUserID     string `gorm:"column:holder_user_id;type:uuid;not null"`
 	LeaseToken       string `gorm:"column:lease_token;type:uuid;not null"`
 	ExpiresAt        int64  `gorm:"column:expires_at;not null"`
 	CreatedAt        int64  `gorm:"column:created_at;not null"`
@@ -198,10 +198,10 @@ type leaseRow struct {
 func (leaseRow) TableName() string { return constants.TableCourseEditLeases }
 
 type enrollmentRow struct {
-	ID               uint   `gorm:"column:id;primaryKey"`
-	CourseID         uint   `gorm:"column:course_id;not null"`
-	UserID           uint   `gorm:"column:user_id;not null"`
-	CurrentVersionID uint   `gorm:"column:current_version_id;not null"`
+	ID               string   `gorm:"column:id;primaryKey"`
+	CourseID         string   `gorm:"column:course_id;not null"`
+	UserID           string `gorm:"column:user_id;type:uuid;not null"`
+	CurrentVersionID string   `gorm:"column:current_version_id;not null"`
 	CreatedAt        int64  `gorm:"column:created_at;not null"`
 	UpdatedAt        int64  `gorm:"column:updated_at;not null"`
 	DeletedAt        *int64 `gorm:"column:deleted_at"`
@@ -210,8 +210,8 @@ type enrollmentRow struct {
 func (enrollmentRow) TableName() string { return constants.TableCourseEnrollments }
 
 type progressRow struct {
-	ID               uint    `gorm:"column:id;primaryKey"`
-	EnrollmentID     uint    `gorm:"column:enrollment_id;not null"`
+	ID               string    `gorm:"column:id;primaryKey"`
+	EnrollmentID     string    `gorm:"column:enrollment_id;not null"`
 	StableContentID  string  `gorm:"column:stable_content_id;type:uuid;not null"`
 	ContentType      string  `gorm:"column:content_type;type:varchar(24);not null"`
 	Status           string  `gorm:"column:status;type:varchar(24);not null"`
@@ -226,7 +226,7 @@ type progressRow struct {
 func (progressRow) TableName() string { return constants.TableCourseProgressItems }
 
 type userInfoRow struct {
-	ID           uint    `gorm:"column:id"`
+	ID           string  `gorm:"column:id"`
 	DisplayName  string  `gorm:"column:display_name"`
 	Email        string  `gorm:"column:email"`
 	AvatarFileID *string `gorm:"column:avatar_file_id"`
@@ -243,11 +243,11 @@ type mediaInfoRow struct {
 const courseListBaseColumns = `c.id, c.owner_user_id, c.slug, c.current_published_version_id, c.current_draft_version_id, c.created_at, c.updated_at, c.deleted_at`
 
 type courseListScanRow struct {
-	ID                        uint   `gorm:"column:id"`
-	OwnerUserID               uint   `gorm:"column:owner_user_id"`
+	ID                        string   `gorm:"column:id"`
+	OwnerUserID               string `gorm:"column:owner_user_id"`
 	Slug                      string `gorm:"column:slug"`
-	CurrentPublishedVersionID *uint  `gorm:"column:current_published_version_id"`
-	CurrentDraftVersionID     *uint  `gorm:"column:current_draft_version_id"`
+	CurrentPublishedVersionID *string  `gorm:"column:current_published_version_id"`
+	CurrentDraftVersionID     *string  `gorm:"column:current_draft_version_id"`
 	CreatedAt                 int64  `gorm:"column:created_at"`
 	UpdatedAt                 int64  `gorm:"column:updated_at"`
 	DeletedAt                 *int64 `gorm:"column:deleted_at"`
@@ -282,7 +282,7 @@ type courseAccess struct {
 
 const courseMediaKindImage = "IMAGE"
 
-func (r *GormRepository) loadSubLessonDomain(ctx context.Context, db *gorm.DB, subLessonID uint) (*domain.SubLesson, error) {
+func (r *GormRepository) loadSubLessonDomain(ctx context.Context, db *gorm.DB, subLessonID string) (*domain.SubLesson, error) {
 	var row subLessonRow
 	if err := db.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", subLessonID).First(&row).Error; err != nil {
 		if stderrors.Is(err, gorm.ErrRecordNotFound) {
@@ -354,11 +354,11 @@ func (r *GormRepository) toCourseVersion(ctx context.Context, db *gorm.DB, row *
 	}, nil
 }
 
-func (r *GormRepository) loadVersionRefIDs(ctx context.Context, db *gorm.DB, table, col string, versionID uint) ([]uint, error) {
+func (r *GormRepository) loadVersionRefIDs(ctx context.Context, db *gorm.DB, table, col string, versionID string) ([]string, error) {
 	type row struct {
-		ID uint `gorm:"column:id"`
+		ID string `gorm:"column:id"`
 	}
-	var ids []uint
+	var ids []string
 	query := fmt.Sprintf("SELECT %s AS id FROM %s WHERE course_version_id = ?", col, table)
 	if err := db.WithContext(ctx).Raw(query, versionID).Scan(&ids).Error; err != nil {
 		return nil, err
@@ -375,7 +375,7 @@ func (r *GormRepository) mediaURL(ctx context.Context, db *gorm.DB, fileID strin
 	return row.URL, nil
 }
 
-func (r *GormRepository) userIsInstructor(ctx context.Context, db *gorm.DB, userID uint) bool {
+func (r *GormRepository) userIsInstructor(ctx context.Context, db *gorm.DB, userID string) bool {
 	var count int64
 	_ = db.WithContext(ctx).Raw(`
 SELECT COUNT(*)

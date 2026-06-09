@@ -3,8 +3,8 @@
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(32) NOT NULL DEFAULT '';
 
 CREATE TABLE instructor_applications (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     review_status VARCHAR(32) NOT NULL DEFAULT 'pending',
     rejection_reason TEXT NOT NULL DEFAULT '',
     headline VARCHAR(255) NOT NULL DEFAULT '',
@@ -28,8 +28,8 @@ CREATE INDEX idx_instructor_applications_status ON instructor_applications (revi
 CREATE INDEX idx_instructor_applications_user ON instructor_applications (user_id);
 
 CREATE TABLE instructor_profiles (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     headline VARCHAR(255) NOT NULL DEFAULT '',
     bio TEXT NOT NULL DEFAULT '',
     years_of_experience INT NOT NULL DEFAULT 0,
@@ -50,9 +50,9 @@ CREATE UNIQUE INDEX uix_instructor_profiles_user_active ON instructor_profiles (
 CREATE INDEX idx_instructor_profiles_user ON instructor_profiles (user_id);
 
 CREATE TABLE instructor_expertise_topics (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    topic_id BIGINT NOT NULL REFERENCES course_topics (id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    topic_id UUID NOT NULL REFERENCES course_topics (id) ON DELETE CASCADE,
     created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     deleted_at BIGINT
@@ -62,9 +62,9 @@ CREATE UNIQUE INDEX uix_instructor_expertise_topics_user_topic ON instructor_exp
 CREATE INDEX idx_instructor_expertise_topics_user ON instructor_expertise_topics (user_id);
 
 CREATE TABLE instructor_expertise_skills (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    skill_id BIGINT NOT NULL REFERENCES course_skills (id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    skill_id UUID NOT NULL REFERENCES course_skills (id) ON DELETE CASCADE,
     created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     deleted_at BIGINT
@@ -74,8 +74,8 @@ CREATE UNIQUE INDEX uix_instructor_expertise_skills_user_skill ON instructor_exp
 CREATE INDEX idx_instructor_expertise_skills_user ON instructor_expertise_skills (user_id);
 
 CREATE TABLE instructor_tickets (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     subject VARCHAR(255) NOT NULL DEFAULT '',
     status VARCHAR(32) NOT NULL DEFAULT 'open',
     created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
@@ -87,9 +87,9 @@ CREATE INDEX idx_instructor_tickets_user ON instructor_tickets (user_id);
 CREATE INDEX idx_instructor_tickets_status ON instructor_tickets (status) WHERE deleted_at IS NULL;
 
 CREATE TABLE instructor_ticket_messages (
-    id BIGSERIAL PRIMARY KEY,
-    ticket_id BIGINT NOT NULL REFERENCES instructor_tickets (id) ON DELETE CASCADE,
-    author_user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    ticket_id UUID NOT NULL REFERENCES instructor_tickets (id) ON DELETE CASCADE,
+    author_user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     body TEXT NOT NULL DEFAULT '',
     created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
     updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),

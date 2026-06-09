@@ -41,14 +41,14 @@ func (h *Handler) listUserBinding(c *gin.Context, kind userBindingKind) {
 	switch kind {
 	case userBindingRoles:
 		listForUserID(c,
-			func(userID uint) ([]domain.Role, error) {
+			func(userID string) ([]domain.Role, error) {
 				return h.svc.ListRolesForUser(c.Request.Context(), userID)
 			},
 			func(rows []domain.Role) any { return toRoleResponses(rows) },
 		)
 	case userBindingDirectPermissions:
 		listForUserID(c,
-			func(userID uint) ([]domain.Permission, error) {
+			func(userID string) ([]domain.Permission, error) {
 				return h.svc.ListPermissionsForUser(c.Request.Context(), userID)
 			},
 			func(rows []domain.Permission) any { return toPermissionResponses(rows) },
@@ -58,10 +58,10 @@ func (h *Handler) listUserBinding(c *gin.Context, kind userBindingKind) {
 
 func listForUserID[Row any](
 	c *gin.Context,
-	listFn func(uint) ([]Row, error),
+	listFn func(string) ([]Row, error),
 	toResponse func([]Row) any,
 ) {
-	userID, ok := utils.ParseUintPathParam(c, "userId")
+	userID, ok := utils.ParseUUIDPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid user id", nil)
 		return
@@ -77,10 +77,10 @@ func listForUserID[Row any](
 func removeUserBinding[SecondID any](
 	c *gin.Context,
 	parseSecond func(*gin.Context) (SecondID, bool),
-	removeFn func(userID uint, secondID SecondID) error,
+	removeFn func(userID string, secondID SecondID) error,
 	invalidSecondMsg string,
 ) {
-	userID, ok := utils.ParseUintPathParam(c, "userId")
+	userID, ok := utils.ParseUUIDPathParam(c, "userId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid user id", nil)
 		return

@@ -39,8 +39,8 @@ type ProfilePayload struct {
 
 // Application is an instructor onboarding request.
 type Application struct {
-	ID              uint
-	UserID          uint
+	ID              string
+	UserID          string
 	FullName        string
 	AvatarURL       string
 	AvatarFileID    string
@@ -53,8 +53,8 @@ type Application struct {
 
 // Profile is the admin-managed instructor profile per user.
 type Profile struct {
-	ID           uint
-	UserID       uint
+	ID           string
+	UserID       string
 	FullName     string
 	AvatarURL    string
 	AvatarFileID string
@@ -65,7 +65,7 @@ type Profile struct {
 
 // RosterMember is a user with the instructor role.
 type RosterMember struct {
-	UserID       uint
+	UserID       string
 	FullName     string
 	Email        string
 	Phone        string
@@ -75,9 +75,9 @@ type RosterMember struct {
 
 // ExpertiseTopic links an instructor user to a course topic.
 type ExpertiseTopic struct {
-	ID        uint   `json:"id"`
-	UserID    uint   `json:"user_id"`
-	TopicID   uint   `json:"topic_id"`
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	TopicID   string `json:"topic_id"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
 	CreatedAt int64  `json:"created_at"`
@@ -86,9 +86,9 @@ type ExpertiseTopic struct {
 
 // ExpertiseSkill links an instructor user to a course skill.
 type ExpertiseSkill struct {
-	ID        uint   `json:"id"`
-	UserID    uint   `json:"user_id"`
-	SkillID   uint   `json:"skill_id"`
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	SkillID   string `json:"skill_id"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
 	CreatedAt int64  `json:"created_at"`
@@ -97,8 +97,8 @@ type ExpertiseSkill struct {
 
 // Ticket is a support thread owned by an instructor user.
 type Ticket struct {
-	ID        uint
-	UserID    uint
+	ID        string
+	UserID    string
 	Subject   string
 	Status    string
 	CreatedAt int64
@@ -107,9 +107,9 @@ type Ticket struct {
 
 // TicketMessage is one message in a ticket thread.
 type TicketMessage struct {
-	ID           uint
-	TicketID     uint
-	AuthorUserID uint
+	ID           string
+	TicketID     string
+	AuthorUserID string
 	Body         string
 	CreatedAt    int64
 	UpdatedAt    int64
@@ -141,24 +141,24 @@ type ProfileFilter struct {
 type TicketFilter struct {
 	Page     int
 	PageSize int
-	UserID   uint
+	UserID   string
 	Status   string
 }
 
 // SubmitApplicationInput creates or replaces a pending application.
 type SubmitApplicationInput struct {
-	ActorUserID uint
+	ActorUserID string
 	ProfilePayload
 }
 
 // RejectApplicationInput rejects a pending application.
 type RejectApplicationInput struct {
-	ApplicationID   uint
+	ApplicationID   string
 	RejectionReason string
 }
 
 // UpsertProfileInput creates or updates a profile.
 type UpsertProfileInput struct {
-	UserID uint
+	UserID string
 	ProfilePayload
 }

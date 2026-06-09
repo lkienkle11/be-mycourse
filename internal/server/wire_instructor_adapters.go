@@ -49,7 +49,7 @@ func (m *instructorRoleManager) InstructorRoleID(ctx context.Context) (uint, err
 	return 0, apperrors.ErrNotFound
 }
 
-func (m *instructorRoleManager) AssignInstructorRole(ctx context.Context, userID uint) error {
+func (m *instructorRoleManager) AssignInstructorRole(ctx context.Context, userID string) error {
 	roleID, err := m.InstructorRoleID(ctx)
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func (m *instructorRoleManager) AssignInstructorRole(ctx context.Context, userID
 	return m.rbac.AssignRoleToUser(ctx, userID, roleID)
 }
 
-func (m *instructorRoleManager) RemoveInstructorRole(ctx context.Context, userID uint) error {
+func (m *instructorRoleManager) RemoveInstructorRole(ctx context.Context, userID string) error {
 	roleID, err := m.InstructorRoleID(ctx)
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (m *instructorRoleManager) RemoveInstructorRole(ctx context.Context, userID
 
 type instructorMeCache struct{ auth *authapp.AuthService }
 
-func (c *instructorMeCache) InvalidateUserMeCache(ctx context.Context, userID uint) {
+func (c *instructorMeCache) InvalidateUserMeCache(ctx context.Context, userID string) {
 	c.auth.InvalidateUserMeCache(ctx, userID)
 }
 

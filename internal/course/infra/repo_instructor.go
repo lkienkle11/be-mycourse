@@ -13,7 +13,7 @@ import (
 	"mycourse-io-be/internal/shared/timex"
 )
 
-func (r *GormRepository) ListEditableCourses(ctx context.Context, userID uint) ([]domain.CourseListItem, error) {
+func (r *GormRepository) ListEditableCourses(ctx context.Context, userID string) ([]domain.CourseListItem, error) {
 	q := `
 SELECT
     ` + courseListBaseColumns + `,
@@ -86,11 +86,11 @@ func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCours
 	return detail, err
 }
 
-func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID, userID uint, includeDraft bool) (*domain.CourseDetail, error) {
+func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
 	return r.loadCourseDetail(ctx, r.db.WithContext(ctx), courseID, userID, includeDraft)
 }
 
-func (r *GormRepository) PrepareDraft(ctx context.Context, courseID, actorUserID uint) (*domain.CourseDetail, error) {
+func (r *GormRepository) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID)
@@ -113,7 +113,7 @@ func (r *GormRepository) PrepareDraft(ctx context.Context, courseID, actorUserID
 	return detail, err
 }
 
-func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID, actorUserID uint, in domain.UpdateBasicInfoInput) (*domain.CourseDetail, error) {
+func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in domain.UpdateBasicInfoInput) (*domain.CourseDetail, error) {
 	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
@@ -156,7 +156,7 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID, actorUse
 	return detail, err
 }
 
-func (r *GormRepository) DeleteCourse(ctx context.Context, courseID, actorUserID uint) error {
+func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, actorUserID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
 		if err != nil {
@@ -198,14 +198,14 @@ WHERE deleted_at IS NULL
 	})
 }
 
-func (r *GormRepository) ListCollaborators(ctx context.Context, courseID, actorUserID uint) ([]domain.Collaborator, error) {
+func (r *GormRepository) ListCollaborators(ctx context.Context, courseID string, actorUserID string) ([]domain.Collaborator, error) {
 	if _, err := r.requireCourseAccess(ctx, r.db.WithContext(ctx), courseID, actorUserID); err != nil {
 		return nil, err
 	}
 	return r.loadCollaborators(ctx, r.db.WithContext(ctx), courseID)
 }
 
-func (r *GormRepository) AddCollaborator(ctx context.Context, courseID, actorUserID, userID uint, role string) ([]domain.Collaborator, error) {
+func (r *GormRepository) AddCollaborator(ctx context.Context, courseID string, actorUserID, userID string, role string) ([]domain.Collaborator, error) {
 	var out []domain.Collaborator
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
@@ -242,7 +242,7 @@ func (r *GormRepository) AddCollaborator(ctx context.Context, courseID, actorUse
 	return out, err
 }
 
-func (r *GormRepository) RemoveCollaborator(ctx context.Context, courseID, actorUserID, userID uint) ([]domain.Collaborator, error) {
+func (r *GormRepository) RemoveCollaborator(ctx context.Context, courseID string, actorUserID, userID string) ([]domain.Collaborator, error) {
 	var out []domain.Collaborator
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)

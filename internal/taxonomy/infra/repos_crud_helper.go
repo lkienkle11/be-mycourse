@@ -2,41 +2,43 @@ package infra
 
 import (
 	"context"
+	"strings"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/uuidx"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
 
-func copyUintRowMeta(entityID *uint, createdAt, updatedAt *int64, rowID uint, rowCreated, rowUpdated int64) {
+func copyStringRowMeta(entityID *string, createdAt, updatedAt *int64, rowID string, rowCreated, rowUpdated int64) {
 	*entityID = rowID
 	*createdAt = rowCreated
 	*updatedAt = rowUpdated
 }
 
-func rowUintTimestamps(id uint, createdAt, updatedAt int64) (uint, int64, int64) {
+func rowStringTimestamps(id string, createdAt, updatedAt int64) (string, int64, int64) {
 	return id, createdAt, updatedAt
 }
 
-func metaCourseTopicRow(r *courseTopicRow) (uint, int64, int64) {
-	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
+func metaCourseTopicRow(r *courseTopicRow) (string, int64, int64) {
+	return rowStringTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaCourseOutcomeRow(r *courseOutcomeRow) (uint, int64, int64) {
-	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
+func metaCourseOutcomeRow(r *courseOutcomeRow) (string, int64, int64) {
+	return rowStringTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaCourseSkillRow(r *courseSkillRow) (uint, int64, int64) {
-	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
+func metaCourseSkillRow(r *courseSkillRow) (string, int64, int64) {
+	return rowStringTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaTagRow(r *tagRow) (uint, int64, int64) {
-	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
+func metaTagRow(r *tagRow) (string, int64, int64) {
+	return rowStringTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
-func metaCourseLevelRow(r *courseLevelRow) (uint, int64, int64) {
-	return rowUintTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
+func metaCourseLevelRow(r *courseLevelRow) (string, int64, int64) {
+	return rowStringTimestamps(r.ID, r.CreatedAt, r.UpdatedAt)
 }
 
 func createTaxonomyDomain[Row any, Domain any](
@@ -44,9 +46,9 @@ func createTaxonomyDomain[Row any, Domain any](
 	db *gorm.DB,
 	d *Domain,
 	toRow func(*Domain) *Row,
-	entityID *uint,
+	entityID *string,
 	createdAt, updatedAt *int64,
-	meta func(*Row) (uint, int64, int64),
+	meta func(*Row) (string, int64, int64),
 ) error {
 	return taxonomyCreateSync(ctx, db, toRow(d), entityID, createdAt, updatedAt, meta)
 }
@@ -55,15 +57,47 @@ func taxonomyCreateSync[Row any](
 	ctx context.Context,
 	db *gorm.DB,
 	row *Row,
-	entityID *uint,
+	entityID *string,
 	createdAt, updatedAt *int64,
-	meta func(*Row) (uint, int64, int64),
+	meta func(*Row) (string, int64, int64),
 ) error {
+	if err := ensureRowPrimaryKey(row); err != nil {
+		return err
+	}
 	gormx.TouchCreatedUpdated(createdAt, updatedAt)
 	return taxonomyCreate(ctx, db, row, func(r *Row) {
 		id, c, u := meta(r)
-		copyUintRowMeta(entityID, createdAt, updatedAt, id, c, u)
+		copyStringRowMeta(entityID, createdAt, updatedAt, id, c, u)
 	})
+}
+
+func ensureRowPrimaryKey(row any) error {
+	switch r := row.(type) {
+	case *courseTopicRow:
+		return ensureStringID(&r.ID)
+	case *courseOutcomeRow:
+		return ensureStringID(&r.ID)
+	case *courseSkillRow:
+		return ensureStringID(&r.ID)
+	case *tagRow:
+		return ensureStringID(&r.ID)
+	case *courseLevelRow:
+		return ensureStringID(&r.ID)
+	default:
+		return nil
+	}
+}
+
+func ensureStringID(id *string) error {
+	if strings.TrimSpace(*id) != "" {
+		return nil
+	}
+	v7, err := uuidx.NewV7()
+	if err != nil {
+		return err
+	}
+	*id = v7
+	return nil
 }
 
 func taxonomyList[R any, D any](
@@ -99,12 +133,12 @@ func taxonomyList[R any, D any](
 func taxonomyGetByID[R any, D any](
 	ctx context.Context,
 	db *gorm.DB,
-	id uint,
+	id string,
 	mapRow func(*R) D,
 ) (*D, error) {
 	var row R
 	q := gormx.ScopeActiveOnly(db.WithContext(ctx))
-	if err := q.First(&row, id).Error; err != nil {
+	if err := q.First(&row, "id = ?", id).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
 	out := mapRow(&row)

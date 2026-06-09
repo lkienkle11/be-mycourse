@@ -22,13 +22,13 @@ type Role struct {
 
 // UserRole binds a user to a role.
 type UserRole struct {
-	UserID uint
+	UserID string
 	RoleID uint
 }
 
 // UserPermission binds a user to an extra permission (beyond role grants).
 type UserPermission struct {
-	UserID       uint
+	UserID       string
 	PermissionID string
 	Permission   Permission
 }

@@ -13,7 +13,7 @@ import (
 // middleware so that the shared middleware layer never imports a concrete domain package.
 type PermissionChecker interface {
 	// UserHasAllPermissions returns (allGranted, firstMissingPermission, error).
-	UserHasAllPermissions(userID uint, requiredActions []string) (bool, string, error)
+	UserHasAllPermissions(userID string, requiredActions []string) (bool, string, error)
 }
 
 // RequirePermission allows the request only if the authenticated user has every listed
@@ -30,7 +30,7 @@ func RequirePermission(checker PermissionChecker, actions ...string) gin.Handler
 			response.AbortFail(c, http.StatusUnauthorized, errors.Unauthorized, "not authenticated", nil)
 			return
 		}
-		userID, _ := v.(uint)
+		userID, _ := v.(string)
 
 		if jwtPermissionsSatisfied(c, actions) {
 			return

@@ -26,15 +26,15 @@ type AuthUseCase interface {
 	ConfirmEmail(ctx context.Context, confirmToken string) (domain.TokenPairResult, error)
 	RefreshSession(ctx context.Context, sessionStr, refreshTokenStr string) (domain.TokenPairResult, error)
 	Logout(ctx context.Context, sessionStr, refreshTokenStr string) error
-	GetMe(ctx context.Context, userID uint) (*domain.MeProfile, error)
-	UpdateMe(ctx context.Context, userID uint, avatarFileID *string) (*domain.MeProfile, error)
-	SoftDeleteUser(ctx context.Context, userID uint) error
-	HardDeleteUser(ctx context.Context, userID uint) error
+	GetMe(ctx context.Context, userID string) (*domain.MeProfile, error)
+	UpdateMe(ctx context.Context, userID string, avatarFileID *string) (*domain.MeProfile, error)
+	SoftDeleteUser(ctx context.Context, userID string) error
+	HardDeleteUser(ctx context.Context, userID string) error
 }
 
 // PermissionUseCase provides a user's permissions set (used by /me/permissions).
 type PermissionUseCase interface {
-	PermissionCodesForUser(userID uint) (map[string]struct{}, error)
+	PermissionCodesForUser(userID string) (map[string]struct{}, error)
 }
 
 var accessTokenMaxAge = int(domain.AccessTokenTTL.Seconds())

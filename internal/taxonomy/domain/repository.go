@@ -5,11 +5,11 @@ import "context"
 // taxonomyRepository is the shared CRUD contract for taxonomy aggregates.
 type taxonomyRepository[T any] interface {
 	List(ctx context.Context, filter TaxonomyFilter) ([]T, int64, error)
-	GetByID(ctx context.Context, id uint) (*T, error)
+	GetByID(ctx context.Context, id string) (*T, error)
 	Create(ctx context.Context, t *T) error
 	Save(ctx context.Context, t *T) error
-	SoftDelete(ctx context.Context, id uint) error
-	HardDelete(ctx context.Context, id uint) error
+	SoftDelete(ctx context.Context, id string) error
+	HardDelete(ctx context.Context, id string) error
 }
 
 // CourseTopicRepository defines persistence for the CourseTopic aggregate.

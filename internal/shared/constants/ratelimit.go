@@ -5,6 +5,7 @@ const (
 	CLIAttempts = 5
 	CLIMinutes  = 3
 
-	CLIOpSystemLogin = "CLI_SYSTEM_LOGIN"
-	CLIOpRegister    = "CLI_REGISTER_NEW_SYSTEM_USER"
+	CLIOpSystemLogin  = "CLI_SYSTEM_LOGIN"
+	CLIOpRegister     = "CLI_REGISTER_NEW_SYSTEM_USER"
+	CLIOpLegacyImport = "CLI_IMPORT_LEGACY_DATA"
 )

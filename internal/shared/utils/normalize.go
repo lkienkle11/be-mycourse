@@ -25,14 +25,24 @@ func SameStringSet(a, b []string) bool {
 
 // UniqueUint removes duplicated ids while preserving first-seen order.
 func UniqueUint(ids []uint) []uint {
-	set := make(map[uint]struct{}, len(ids))
-	out := make([]uint, 0, len(ids))
-	for _, id := range ids {
-		if _, ok := set[id]; ok {
+	return uniqueBy(ids, func(id uint) uint { return id })
+}
+
+// UniqueString removes duplicated ids while preserving first-seen order.
+func UniqueString(ids []string) []string {
+	return uniqueBy(ids, func(id string) string { return id })
+}
+
+func uniqueBy[T any, K comparable](items []T, keyFn func(T) K) []T {
+	set := make(map[K]struct{}, len(items))
+	out := make([]T, 0, len(items))
+	for _, item := range items {
+		key := keyFn(item)
+		if _, ok := set[key]; ok {
 			continue
 		}
-		set[id] = struct{}{}
-		out = append(out, id)
+		set[key] = struct{}{}
+		out = append(out, item)
 	}
 	return out
 }

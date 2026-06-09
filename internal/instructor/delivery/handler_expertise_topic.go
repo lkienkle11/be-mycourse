@@ -41,7 +41,7 @@ func (h *Handler) addExpertiseTopic(c *gin.Context) {
 }
 
 func (h *Handler) deleteExpertiseTopicByRow(c *gin.Context) {
-	id, ok := utils.ParseUintPathParam(c, "topicRowId")
+	id, ok := utils.ParseUUIDPathParam(c, "topicRowId")
 	if !ok {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 		return
@@ -52,6 +52,11 @@ func (h *Handler) deleteExpertiseTopicByRow(c *gin.Context) {
 	response.OK(c, "deleted", nil)
 }
 
-func parseUserIDParam(c *gin.Context) (uint, bool) {
-	return parseIDParam(c)
+func parseUserIDParam(c *gin.Context) (string, bool) {
+	id, ok := utils.ParseUUIDParam(c, "id")
+	if !ok {
+		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
+		return "", false
+	}
+	return id, true
 }

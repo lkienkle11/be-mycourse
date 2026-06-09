@@ -5,12 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
-
 	"mycourse-io-be/internal/auth/domain"
 	"mycourse-io-be/internal/shared/setting"
 	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/token"
+	"mycourse-io-be/internal/shared/uuidx"
 )
 
 // RefreshSession rotates the token pair for an existing session.
@@ -80,7 +79,7 @@ func (s *AuthService) Logout(ctx context.Context, sessionStr, refreshTokenStr st
 
 func (s *AuthService) rotateSession(ctx context.Context, user *domain.User, sessionStr string, entry domain.RefreshSessionEntry, newTTL time.Duration) (domain.TokenPairResult, error) {
 	secret := setting.AppSetting.JWTSecret
-	newUUID := uuid.New().String()
+	newUUID := uuidx.NewV4()
 	perms, err := s.permissionSlice(user.ID)
 	if err != nil {
 		return domain.TokenPairResult{}, err
@@ -115,7 +114,7 @@ func (s *AuthService) issueTokenPair(ctx context.Context, user *domain.User, rem
 	if err != nil {
 		return domain.TokenPairResult{}, err
 	}
-	sessionUUID := uuid.New().String()
+	sessionUUID := uuidx.NewV4()
 	perms, err := s.permissionSlice(user.ID)
 	if err != nil {
 		return domain.TokenPairResult{}, err

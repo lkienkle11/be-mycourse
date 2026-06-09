@@ -27,6 +27,19 @@ go test ./...
 
 See **`docs/patterns.md`** (Linting and quality gate) for what each target enforces. DDD rules: **no `internal/*/entity` package**; auth JSONB and GORM rows stay in **`infra`**; media/system use **`domain` ports** wired in **`internal/server/wire.go`**.
 
+### Restore legacy SQL backup (UUID v7)
+
+After migrations (`MIGRATE=1`), import a `pg_dump` data file that still uses **numeric** primary keys. The CLI remaps entity ids to **UUID v7**, assigns new **ULID** `user_code` values, skips seed rows already present (`permissions`, `roles`, `role_permissions`), and writes an id map JSON next to the dump.
+
+```bash
+# From be-mycourse root; DATABASE_URL must target the empty/migrated database.
+CLI_IMPORT_LEGACY_DATA=1 \
+CLI_IMPORT_LEGACY_DATA_DUMP=/absolute/path/to/backup-09062026-112831.sql \
+go run .
+```
+
+Verify row counts with `psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM users;"` (and other tables) against the backup. Smoke-test login and a UUID path param, e.g. `GET /api/v1/courses/<uuid>`.
+
 ---
 
 ## Deployment runbook (do these in order)

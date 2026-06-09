@@ -48,7 +48,8 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
   - `OWNER` — delete course, manage collaborator membership
   - `EDITOR` — update basic info, outline, submit draft for review
 - Optimistic locking:
-  - mutable versioned rows carry `row_version`
+  - mutable versioned rows carry `row_version` (starts at `1` on create — GORM must set `RowVersion: 1` explicitly because zero-value inserts override the column `DEFAULT 1`)
+  - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success
   - stale saves return a conflict (`ErrCourseOptimisticLock`)
 - Resource leases:
   - stored in `course_edit_leases`

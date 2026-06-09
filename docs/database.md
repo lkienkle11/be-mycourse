@@ -613,6 +613,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000017 | `instructor_expertise_drop_legacy_fk_cols` | Finalizes expertise junction schema on drifted DBs: backfills `topic_id` / `skill_id`, drops legacy `course_topic_id` / `course_skill_id`, sets canonical columns NOT NULL, and adds FK constraints on `topic_id` / `skill_id`. Required after `000015` on environments that still enforce NOT NULL on legacy columns. |
 | 000018 | `instructor_tickets_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on `instructor_tickets` and `instructor_ticket_messages`, rebuild partial status index. Required when GET `/api/v1/instructor-tickets` fails with `column "deleted_at" does not exist`. |
 | 000019 | `instructor_profiles_apps_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on profiles/applications; add `id` PK column on `instructor_profiles` when drifted DB uses `user_id` PK only. Required when GET `/api/v1/instructor-profiles/:id` fails with `column ip.id does not exist`. |
+| 000020 | `course_version_row_version_backfill` | Backfill `course_versions.row_version` from `0` to `1` for legacy rows where GORM inserted the Go zero value instead of relying on the column `DEFAULT 1`. Required so `PATCH /api/v1/courses/:id/basic-info` accepts `expected_row_version >= 1`. |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

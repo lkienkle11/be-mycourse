@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/machineidentity"
 	"mycourse-io-be/internal/shared/ratelimit"
 	"mycourse-io-be/internal/shared/resilience"
 )
@@ -43,7 +44,7 @@ func cliRateLimitKey(opKind string) (string, error) {
 }
 
 func stableMachineMaterialForRateLimit() (string, error) {
-	path, err := machineIdentityPath()
+	path, err := machineidentity.IdentityFilePath()
 	if err != nil {
 		return fallbackHostPlatformMaterial(), nil
 	}
@@ -58,7 +59,7 @@ func stableMachineMaterialForRateLimit() (string, error) {
 	if secret == "" {
 		return fallbackHostPlatformMaterial(), nil
 	}
-	return buildHybridMachineBindingMaterial(secret)
+	return machineidentity.BuildHybridMachineBindingMaterial(secret)
 }
 
 func fallbackHostPlatformMaterial() string {

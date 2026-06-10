@@ -1,4 +1,4 @@
-package appcli
+package machineidentity
 
 import (
 	"fmt"
@@ -16,9 +16,9 @@ type machineFingerprint struct {
 	Platform     string
 }
 
-// buildHybridMachineBindingMaterial combines enrollment file secret with live OS fingerprint.
-// HMAC input = versioned canonical string; DeriveMachineSecret hashes this with app_system_env.
-func buildHybridMachineBindingMaterial(fileSecret string) (string, error) {
+// BuildHybridMachineBindingMaterial combines enrollment file secret with live OS fingerprint.
+// HMAC input = versioned canonical string; callers hash this with app_system_env.
+func BuildHybridMachineBindingMaterial(fileSecret string) (string, error) {
 	fileSecret = strings.TrimSpace(fileSecret)
 	if fileSecret == "" {
 		return "", fmt.Errorf("machine file secret is empty")

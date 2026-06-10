@@ -10,6 +10,7 @@ import (
 
 	authinfra "mycourse-io-be/internal/auth/infra"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/machineidentity"
 	"mycourse-io-be/internal/shared/parsebool"
 	sysinfra "mycourse-io-be/internal/system/infra"
 )
@@ -35,7 +36,7 @@ func runRegister(db *gorm.DB) {
 	if !ok {
 		return
 	}
-	material, err := LoadOrCreateMachineIdentityMaterial()
+	material, err := machineidentity.LoadOrCreateMachineIdentityMaterial()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failure: could not load machine identity (%v).\n", err)
 		return

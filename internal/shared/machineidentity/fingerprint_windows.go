@@ -1,6 +1,6 @@
 //go:build windows
 
-package appcli
+package machineidentity
 
 import (
 	"fmt"

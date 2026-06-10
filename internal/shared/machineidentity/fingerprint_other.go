@@ -1,6 +1,6 @@
 //go:build !linux && !darwin && !windows
 
-package appcli
+package machineidentity
 
 import "fmt"
 

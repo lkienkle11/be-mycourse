@@ -1,4 +1,4 @@
-package appcli
+package machineidentity
 
 import (
 	"crypto/rand"
@@ -20,7 +20,7 @@ func LoadOrCreateMachineIdentityMaterial() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return buildHybridMachineBindingMaterial(secret)
+	return BuildHybridMachineBindingMaterial(secret)
 }
 
 // LoadMachineIdentityMaterial returns hybrid binding material for login (file secret must exist).
@@ -29,11 +29,16 @@ func LoadMachineIdentityMaterial() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return buildHybridMachineBindingMaterial(secret)
+	return BuildHybridMachineBindingMaterial(secret)
+}
+
+// IdentityFilePath returns the enrollment secret file path under XDG config home.
+func IdentityFilePath() (string, error) {
+	return identityFilePath()
 }
 
 func loadOrCreateFileSecret() (string, error) {
-	path, err := machineIdentityPath()
+	path, err := identityFilePath()
 	if err != nil {
 		return "", err
 	}
@@ -57,7 +62,7 @@ func loadOrCreateFileSecret() (string, error) {
 }
 
 func loadFileSecret() (string, error) {
-	path, err := machineIdentityPath()
+	path, err := identityFilePath()
 	if err != nil {
 		return "", err
 	}
@@ -75,7 +80,7 @@ func loadFileSecret() (string, error) {
 	return secret, nil
 }
 
-func machineIdentityPath() (string, error) {
+func identityFilePath() (string, error) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()

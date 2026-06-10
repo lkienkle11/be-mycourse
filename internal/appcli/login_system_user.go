@@ -11,6 +11,7 @@ import (
 
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/machineidentity"
 	"mycourse-io-be/internal/shared/parsebool"
 	sysinfra "mycourse-io-be/internal/system/infra"
 )
@@ -33,7 +34,7 @@ func runLogin(db *gorm.DB) {
 	if !ok {
 		return
 	}
-	material, err := LoadMachineIdentityMaterial()
+	material, err := machineidentity.LoadMachineIdentityMaterial()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failure: %v\n", err)
 		return

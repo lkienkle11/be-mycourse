@@ -535,7 +535,7 @@ sequenceDiagram
     participant SVC as system/application.SystemService
     participant DB as PostgreSQL (system tables)
     participant Crypto as system/infra + shared/cryptox
-    participant ID as Enrollment file + OS fingerprint
+    participant ID as shared/machineidentity
 
     Op->>CLI: CLI_SYSTEM_LOGIN=1 go run .
     CLI->>CLI: guardCLIOperation (circuit breaker + file rate limit 5/3min)

@@ -3,7 +3,7 @@
 
 ## Architecture (current)
 
-Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,constants,setting,cache,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
+Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,machineidentity,constants,setting,cache,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
 
 **Domain types** live in `internal/<domain>/domain/` (no GORM tags). **HTTP DTOs** in `internal/<domain>/delivery/`. **GORM rows** in `internal/<domain>/infra/`. Auth refresh-session JSONB: `internal/auth/infra/gormjsonb.go`.
 
@@ -40,6 +40,15 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - **Scope:** `middleware.CircuitBreakerMiddleware`, `appcli.guardCLIOperation`, `main` bootstrap.
 - **Dependencies:** `shareddb.StdDB`, `cache.Redis`, `setting.ResilienceSetting`.
 - **Reuse:** Single global instance; HTTP 503 + `9018 ServiceUnavailable`, APPCLI stderr guard message.
+
+### Asset: internal/shared/machineidentity (hybrid machine binding)
+- **Name:** `LoadOrCreateMachineIdentityMaterial`, `LoadMachineIdentityMaterial`, `BuildHybridMachineBindingMaterial`, `IdentityFilePath`
+- **Type:** Package (`internal/shared/machineidentity`)
+- **Path:** `internal/shared/machineidentity/`
+- **Purpose:** Enrollment file (`$XDG_CONFIG_HOME/mycourse/machine_identity`) + live OS fingerprint (machine-id / hardware UUID, hostname, `GOOS/GOARCH`) → canonical hybrid binding material (`v1|file:…|mid:…|hw:…|host:…|plat:…`).
+- **Scope:** `appcli` register/login (`DeriveMachineSecret` in `machine_secret.go`), `appcli.cli_guard` rate-limit key derivation.
+- **Dependencies:** stdlib only (`crypto/rand`, `os`, `os/exec` per platform build tags).
+- **Reuse:** Do not duplicate enrollment path or fingerprint readers in `appcli` or domain layers.
 
 ### Asset: timex (audit epoch seconds)
 - **Name:** `NowUnix`, `PtrUnix`, `UnixOrZero`

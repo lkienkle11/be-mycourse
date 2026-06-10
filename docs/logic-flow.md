@@ -12,7 +12,7 @@
 2. Initialize primary DB (`shareddb.Setup()`).
 3. Setup Redis (`cache.SetupRedis()`).
 4. Configure circuit breaker + start DB probe (`resilience.ConfigureFromSettings`, `resilience.StartDBProbe`).
-5. Optional CLI branch (`internal/appcli`) can short-circuit server startup (guarded by `cli_guard.go`).
+5. Optional CLI branch (`internal/appcli`) can short-circuit server startup (guarded by `cli_guard.go`; machine enrollment + OS fingerprint via `internal/shared/machineidentity`).
 6. Setup Supabase clients.
 7. Setup media SDK clients.
 8. Optional SQL migration mode: `MIGRATE=1` runs up migration then continues startup; `MIGRATE=2` runs down by `MIGRATE_VERSION_FILE` then exits.

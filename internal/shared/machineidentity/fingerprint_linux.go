@@ -1,6 +1,6 @@
 //go:build linux
 
-package appcli
+package machineidentity
 
 import (
 	"os"

@@ -90,6 +90,7 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/taxonomy/` | Taxonomy JSONB tree nodes and validators (used by `internal/taxonomy`) |
 | `internal/shared/httperr/` | Global Gin error middleware, panic recovery, `HTTPError` helpers |
 | `internal/shared/parsebool/` | Loose boolean parsing for env vars and YAML flags |
+| `internal/shared/machineidentity/` | Hybrid machine binding: enrollment file (`~/.config/mycourse/machine_identity`), OS fingerprint (machine-id / hardware UUID, hostname, platform), canonical binding material |
 
 ---
 

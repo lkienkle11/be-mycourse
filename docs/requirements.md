@@ -292,7 +292,7 @@
 - When `CLI_REGISTER_NEW_SYSTEM_USER` env var is truthy (`true`, `1`, `yes`, `y`, `on`), the binary **MUST** run a CLI flow after DB init, prompt for credentials, bind the account to the local machine, write to `system_privileged_users`, print success, then **exit**.
 - Before registering, the CLI **MUST** verify the operator-entered app password against `system_app_config.app_cli_system_password` using bcrypt (`auth/infra.CheckPassword`).
 - The CLI **MUST** read or create a local enrollment secret file and combine it with a live OS machine fingerprint (machine-id / hardware UUID, hostname, platform) into hybrid binding material, then derive `machine_secret = CredentialHMACHex(app_system_env, hybridMaterial)` stored on the user row.
-- Source: `internal/appcli/register_system_user.go`, `internal/appcli/machine_identity.go`, `internal/appcli/machine_fingerprint*.go`.
+- Source: `internal/appcli/register_system_user.go`, `internal/shared/machineidentity/` (`LoadOrCreateMachineIdentityMaterial`, platform fingerprint readers).
 
 #### FR-4.3 System Configuration
 

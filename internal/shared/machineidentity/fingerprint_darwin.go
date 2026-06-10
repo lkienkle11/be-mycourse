@@ -1,6 +1,6 @@
 //go:build darwin
 
-package appcli
+package machineidentity
 
 import (
 	"fmt"

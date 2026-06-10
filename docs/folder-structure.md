@@ -70,6 +70,7 @@ be-mycourse/
 │   │   ├── taxonomy/               # TreeNode + tree/description validators (taxonomy JSONB)
 │   │   ├── httperr/                # Gin error middleware + panic recovery
 │   │   ├── parsebool/              # Loose bool parsing (env, YAML, forms)
+│   │   ├── machineidentity/        # Enrollment file + OS fingerprint → hybrid binding material
 │   │   ├── mediaquery/             # Shared media file-ID → public URL hydration helpers
 │   │   ├── utils/                  # Generic utilities: image encode, random, fingerprint, request param helpers
 │   │   │   └── webp_test.go
@@ -171,6 +172,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `taxonomy/` | `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs` |
 | `httperr/` | `Middleware`, `Recovery`, `HTTPError`, `Abort` |
 | `parsebool/` | `Loose`, `EnvEnabled` — env/YAML boolean strings |
+| `machineidentity/` | `LoadOrCreateMachineIdentityMaterial`, `LoadMachineIdentityMaterial`, `BuildHybridMachineBindingMaterial`, `IdentityFilePath`; platform files `fingerprint_{linux,darwin,windows,other}.go` |
 | `mediaquery/` | Shared avatar/media file-ID URL hydration helpers reused across bounded contexts without importing media/domain |
 | `utils/` | `CurrentUserID`, `ParseUUIDParam`, `ParseUintParam`, `ParseUUIDPathParam`, `ParseUintPathParam`, `ParsePermissionIDParam`, `RoutePermission`, `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`), `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON` |
 | `brevo/` | Brevo SMTP HTTP wrapper + `constants.go` |
@@ -181,7 +183,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 
 ### `internal/appcli/`
 
-CLI flows for system administration: register privileged user (`CLI_REGISTER_NEW_SYSTEM_USER=1`), obtain system JWT (`CLI_SYSTEM_LOGIN=1`), and restore legacy SQL dumps into the UUID-v7 schema (`CLI_IMPORT_LEGACY_DATA=1` + `CLI_IMPORT_LEGACY_DATA_DUMP=/absolute/path/backup-*.sql`). Import logic lives in `import_legacy_data*.go` (parse INSERT statements, remap numeric ids → UUID v7, ULID `user_code`, write `*.idmap.json` beside the dump). `cli_guard.go` enforces circuit breaker + file-backed rate limit (5 ops / 3 min) before credential prompts.
+CLI flows for system administration: register privileged user (`CLI_REGISTER_NEW_SYSTEM_USER=1`), obtain system JWT (`CLI_SYSTEM_LOGIN=1`), and restore legacy SQL dumps into the UUID-v7 schema (`CLI_IMPORT_LEGACY_DATA=1` + `CLI_IMPORT_LEGACY_DATA_DUMP=/absolute/path/backup-*.sql`). Import logic lives in `import_legacy_data*.go` (parse INSERT statements, remap numeric ids → UUID v7, ULID `user_code`, write `*.idmap.json` beside the dump). `cli_guard.go` enforces circuit breaker + file-backed rate limit (5 ops / 3 min) before credential prompts. Machine enrollment + OS fingerprint live in `internal/shared/machineidentity/` (imported by register/login/guard).
 
 ### `internal/server/`
 

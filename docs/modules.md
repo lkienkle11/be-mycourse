@@ -189,7 +189,8 @@ Not a business module — provides cross-cutting concerns consumed by all domain
 - `brevo/` — Brevo SMTP client
 - `mailtmpl/` — email templates
 - `validate/` — request validation
-- `utils/` — image encoding, fingerprinting, random
+- `machineidentity/` — enrollment file + OS fingerprint for system CLI machine binding
+- `utils/` — image encoding, content fingerprint (SHA-256), random
 - `errors/` — shared sentinel errors
 - `constants/` — cross-domain constants (5 files)
 

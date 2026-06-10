@@ -453,7 +453,9 @@ type CourseDetail struct {
 }
 ```
 
-**Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository.
+**Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses`, `course_versions`, and `course_collaborators`.
+
+**Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version`, optional `title` (server slugify + `ensureUniqueCourseSlug`, excluding current course), and draft metadata fields.
 
 **Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, …).
 
@@ -726,11 +728,10 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 201 | 0 | `domain.CourseDetail` |
+| 201 | 0 | `domain.CourseDetail` — `slug` is globally unique among active courses (`uix_courses_slug_active`; duplicate titles get `-2`, `-3`, … suffixes) |
 | 400 | 3001 | `null` — empty slug after slugify |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` — missing permission |
-| 409 | 3005 | `null` — duplicate slug |
 | 500 | 9001 | `null` |
 
 ---

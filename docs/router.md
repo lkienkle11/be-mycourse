@@ -150,7 +150,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | POST | `/api/v1/courses` | `course:create` | Create course root |
 | GET | `/api/v1/courses/:courseId` | `course_instructor:read` | Get course detail |
 | POST | `/api/v1/courses/:courseId/draft/prepare` | `course:update` | Ensure one active draft |
-| PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info |
+| PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info (`title` → server slugify updates `courses.slug`) |
 | DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |
 | GET | `/api/v1/courses/:courseId/collaborators` | `course_instructor:read` | List collaborators |
 | POST | `/api/v1/courses/:courseId/collaborators` | `course:update` | Add collaborator |

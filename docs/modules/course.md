@@ -30,7 +30,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 
 - `courses` is the stable root record and stores:
   - `owner_user_id`
-  - `slug` (derived on create from `title` via `utils.SlugifyName`; not accepted from clients)
+  - `slug` (derived from `title` via `utils.SlugifyName` on create and when `title` changes on `PATCH /basic-info`; not accepted from clients; globally unique among active rows — colliding base slugs get `-2`, `-3`, … suffixes)
   - `current_published_version_id`
   - `current_draft_version_id`
 - `course_versions` stores the editable and published snapshots:
@@ -49,7 +49,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
   - `EDITOR` — update basic info, outline, submit draft for review
 - Optimistic locking:
   - mutable versioned rows carry `row_version` (starts at `1` on create — GORM must set `RowVersion: 1` explicitly because zero-value inserts override the column `DEFAULT 1`)
-  - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success
+  - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success; accepts `title` (server recomputes `courses.slug` with the same uniqueness rules as create)
   - stale saves return a conflict (`ErrCourseOptimisticLock`)
 - Resource leases:
   - stored in `course_edit_leases`
@@ -91,7 +91,7 @@ Routes are registered from `internal/course/delivery/routes.go` through `interna
 Instructor / collaborator routes:
 
 - `GET /api/v1/courses/my`
-- `POST /api/v1/courses` — body `{ "title" }` only; slug is computed server-side (rejected only when slugify yields empty)
+- `POST /api/v1/courses` — body `{ "title" }` only; slug is computed server-side from `title` via `SlugifyName`. When the base slug is already used by another active course, the server allocates the next free variant (`base`, then `base-2`, `base-3`, …) so each active course has a globally unique slug (`uix_courses_slug_active`). Rejected only when slugify yields empty.
 - `GET /api/v1/courses/:courseId`
 - `POST /api/v1/courses/:courseId/draft/prepare`
 - `PATCH /api/v1/courses/:courseId/basic-info`
@@ -156,7 +156,7 @@ Repo-wide validation passed during the latest audit (2026-06-07):
 
 `POST /api/v1/courses` persists everything in one DB transaction (`GormRepository.CreateCourse`):
 
-1. Insert `courses` (`owner_user_id`, server-computed `slug`)
+1. Insert `courses` (`owner_user_id`, server-computed `slug`, UUID v7 `id` via `gormx.EnsureStringID` before GORM `Create`)
 2. Insert initial `course_versions` row (`version_no = 1`, `status = DRAFT`, trimmed `title`)
 3. Set `courses.current_draft_version_id`
 4. Insert `course_collaborators` row (`role = OWNER`)

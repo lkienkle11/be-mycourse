@@ -61,14 +61,14 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - **Reuse:** Never use `time.Now()` directly for persisted audit fields — use `NowUnix()` (see **`docs/patterns.md`** — Audit timestamps).
 
 ### Asset: gormx audit + soft-delete helpers
-- **Name:** `TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`, `ScopeActiveOnly`, `FirstWhere`, `CreateAndThen`
+- **Name:** `TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`, `ScopeActiveOnly`, `FirstWhere`, `CreateAndThen`, `EnsureStringID`
 - **Type:** Package (`internal/shared/gormx`)
 - **Path:** `internal/shared/gormx/`
-- **Purpose:** Shared GORM patterns — audit timestamp writes, active-row scope, generic `First`/`Create` helpers.
-- **Scope:** Taxonomy soft delete, auth `/me` delete, media soft delete, system config sync rows.
-- **Dependencies:** `gorm.io/gorm`, `internal/shared/timex`.
-- **Current usage:** `internal/taxonomy/infra`, `internal/auth/infra`, `internal/media/infra`, `internal/system/infra`.
-- **Reuse:** Prefer these over ad-hoc `Updates(map…)` for `deleted_at` / `updated_at`.
+- **Purpose:** Shared GORM patterns — audit timestamp writes, active-row scope, generic `First`/`Create` helpers, and UUID v7 assignment for empty string primary keys before `Create`.
+- **Scope:** Taxonomy/instructor/course inserts with string `id` columns; auth `/me` delete; media soft delete; system config sync rows.
+- **Dependencies:** `gorm.io/gorm`, `internal/shared/timex`, `internal/shared/uuidx`.
+- **Current usage:** `internal/taxonomy/infra`, `internal/instructor/infra`, `internal/course/infra` (`touchCreateCourseEntity`), `internal/auth/infra`, `internal/media/infra`, `internal/system/infra`.
+- **Reuse:** Prefer these over ad-hoc `Updates(map…)` for `deleted_at` / `updated_at`. Call `EnsureStringID` (or module `touchCreateCourseEntity`) before any GORM `Create` on UUID string PK rows — zero-value `""` is rejected by PostgreSQL.
 
 ### Asset: PendingCloudCleanupCounters (media job metrics boundary)
 - **Name:** `PendingCloudCleanupCounters`
@@ -535,10 +535,19 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Type: Function (util)
 - Path: `internal/shared/utils/slug.go`
 - Purpose: Build URL slug from display name — mirrors FE `slugifyName` / `generateSlug` (trim, lowercase, strip accents, `đ/Đ -> d`, spaces/underscores → `-`, Unicode letters/numbers only, collapse dashes).
-- Scope: Taxonomy create/update (root slug + tree nodes via `NormalizeTreeSlugs`), course create (`title` → `courses.slug`).
+- Scope: Taxonomy create/update (root slug + tree nodes via `NormalizeTreeSlugs`), course create/update (`title` → `courses.slug`).
 - Dependencies: `golang.org/x/text/unicode/norm`, Go `unicode`.
 - Current Usage: `internal/taxonomy/application/service.go`, `internal/shared/taxonomy/tree_slug.go`, `internal/course/application/service.go`.
 - Reuse: Never accept client-provided slug on write — always derive with `SlugifyName`.
+
+### Asset: ensureUniqueCourseSlug (course infra)
+- Name: `ensureUniqueCourseSlug`
+- Type: Function (repo helper)
+- Path: `internal/course/infra/repo_helpers.go`
+- Purpose: After `SlugifyName`, allocate the first free slug among `base`, `base-2`, `base-3`, … for active `courses` rows (`uix_courses_slug_active`). **One** indexed query loads sibling slugs (`slug = base OR slug LIKE base-%`, filtered to numeric suffixes in Go); suffix pick is in-memory (not per-candidate DB round-trips). Used on create and when `title` changes on `PATCH /basic-info` (excludes current course id on update).
+- Scope: Course module only — do not duplicate slug-collision logic in handlers or FE.
+- Dependencies: GORM, `courses` table, `domain.ErrCourseInvalidSlug`.
+- Current Usage: `CreateCourse`, `UpdateBasicInfo` in `internal/course/infra/repo_instructor.go`.
 
 ### Asset: Generic normalization / set primitives (utils)
 - Name: `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON`

@@ -2,12 +2,10 @@ package infra
 
 import (
 	"context"
-	"strings"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/gormx"
-	"mycourse-io-be/internal/shared/uuidx"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
 
@@ -74,30 +72,18 @@ func taxonomyCreateSync[Row any](
 func ensureRowPrimaryKey(row any) error {
 	switch r := row.(type) {
 	case *courseTopicRow:
-		return ensureStringID(&r.ID)
+		return gormx.EnsureStringID(&r.ID)
 	case *courseOutcomeRow:
-		return ensureStringID(&r.ID)
+		return gormx.EnsureStringID(&r.ID)
 	case *courseSkillRow:
-		return ensureStringID(&r.ID)
+		return gormx.EnsureStringID(&r.ID)
 	case *tagRow:
-		return ensureStringID(&r.ID)
+		return gormx.EnsureStringID(&r.ID)
 	case *courseLevelRow:
-		return ensureStringID(&r.ID)
+		return gormx.EnsureStringID(&r.ID)
 	default:
 		return nil
 	}
-}
-
-func ensureStringID(id *string) error {
-	if strings.TrimSpace(*id) != "" {
-		return nil
-	}
-	v7, err := uuidx.NewV7()
-	if err != nil {
-		return err
-	}
-	*id = v7
-	return nil
 }
 
 func taxonomyList[R any, D any](

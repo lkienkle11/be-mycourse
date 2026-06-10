@@ -10,7 +10,6 @@ import (
 
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/constants"
-	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 )
 
@@ -29,8 +28,7 @@ func (r *GormRepository) CreateSection(ctx context.Context, courseID string, act
 			StableID: uuid.NewString(), CourseVersionID: *access.CurrentDraftVersionID,
 			Title: strings.TrimSpace(in.Title), Description: strings.TrimSpace(in.Description), OrderIndex: next, RowVersion: 1,
 		}
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := tx.Create(row).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return err
 		}
 		sec := toSection(row)
@@ -103,8 +101,7 @@ func (r *GormRepository) CreateLesson(ctx context.Context, courseID string, acto
 			StableID: uuid.NewString(), CourseVersionID: *access.CurrentDraftVersionID, SectionID: in.SectionID,
 			Title: strings.TrimSpace(in.Title), Summary: strings.TrimSpace(in.Summary), OrderIndex: next, RowVersion: 1,
 		}
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := tx.Create(row).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return err
 		}
 		lesson := toLesson(row)
@@ -190,8 +187,7 @@ func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID string, a
 			Title: strings.TrimSpace(in.Title), Kind: strings.ToUpper(strings.TrimSpace(in.Kind)), IsPreview: in.IsPreview,
 			OrderIndex: next, RowVersion: 1,
 		}
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := tx.Create(row).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return err
 		}
 		if err := r.upsertSubLessonDetail(ctx, tx, row.ID, in); err != nil {
@@ -421,8 +417,7 @@ func (r *GormRepository) AcquireLease(ctx context.Context, courseID string, acto
 				CourseID: courseID, CourseVersionID: in.CourseVersionID, ResourceType: in.ResourceType, ResourceStableID: in.ResourceStableID,
 				HolderUserID: actorUserID, LeaseToken: uuid.NewString(), ExpiresAt: expiresAt,
 			}
-			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-			if err := tx.Create(&row).Error; err != nil {
+			if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, &row); err != nil {
 				return err
 			}
 		} else {

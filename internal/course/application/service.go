@@ -16,15 +16,23 @@ func NewCourseService(repo domain.Repository) *CourseService {
 	return &CourseService{repo: repo}
 }
 
+func courseTitleAndSlug(title string) (string, string, error) {
+	title = strings.TrimSpace(title)
+	slug := utils.SlugifyName(title)
+	if len(slug) < 1 {
+		return "", "", domain.ErrCourseInvalidSlug
+	}
+	return title, slug, nil
+}
+
 func (s *CourseService) ListEditableCourses(ctx context.Context, userID string) ([]domain.CourseListItem, error) {
 	return s.repo.ListEditableCourses(ctx, userID)
 }
 
 func (s *CourseService) CreateCourse(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
-	title := strings.TrimSpace(in.Title)
-	slug := utils.SlugifyName(title)
-	if len(slug) < 1 {
-		return nil, domain.ErrCourseInvalidSlug
+	title, slug, err := courseTitleAndSlug(in.Title)
+	if err != nil {
+		return nil, err
 	}
 	return s.repo.CreateCourse(ctx, domain.CreateCourseInput{
 		ActorUserID: in.ActorUserID,
@@ -42,6 +50,14 @@ func (s *CourseService) PrepareDraft(ctx context.Context, courseID string, actor
 }
 
 func (s *CourseService) UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in domain.UpdateBasicInfoInput) (*domain.CourseDetail, error) {
+	if in.Title != nil {
+		title, slug, err := courseTitleAndSlug(*in.Title)
+		if err != nil {
+			return nil, err
+		}
+		in.Title = &title
+		in.Slug = &slug
+	}
 	return s.repo.UpdateBasicInfo(ctx, courseID, actorUserID, in)
 }
 

@@ -410,27 +410,27 @@ func (r *GormRepository) getExpertiseByID(ctx context.Context, id string, isTopi
 func touchAndCreate(ctx context.Context, db *gorm.DB, created, updated *int64, row any) error {
 	switch r := row.(type) {
 	case *expertiseTopicRow:
-		if err := ensureStringID(&r.ID); err != nil {
+		if err := gormx.EnsureStringID(&r.ID); err != nil {
 			return err
 		}
 	case *expertiseSkillRow:
-		if err := ensureStringID(&r.ID); err != nil {
+		if err := gormx.EnsureStringID(&r.ID); err != nil {
 			return err
 		}
 	case *applicationRow:
-		if err := ensureStringID(&r.ID); err != nil {
+		if err := gormx.EnsureStringID(&r.ID); err != nil {
 			return err
 		}
 	case *profileRow:
-		if err := ensureStringID(&r.ID); err != nil {
+		if err := gormx.EnsureStringID(&r.ID); err != nil {
 			return err
 		}
 	case *ticketRow:
-		if err := ensureStringID(&r.ID); err != nil {
+		if err := gormx.EnsureStringID(&r.ID); err != nil {
 			return err
 		}
 	case *ticketMessageRow:
-		if err := ensureStringID(&r.ID); err != nil {
+		if err := gormx.EnsureStringID(&r.ID); err != nil {
 			return err
 		}
 	}

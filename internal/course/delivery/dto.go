@@ -5,14 +5,14 @@ type createCourseRequest struct {
 }
 
 type updateBasicInfoRequest struct {
-	ExpectedRowVersion int64   `json:"expected_row_version" validate:"required,min=1"`
-	Title              *string `json:"title" validate:"omitempty,min=1,max=255"`
-	ShortDescription   *string `json:"short_description" validate:"omitempty,max=500"`
-	AboutCourse        *string `json:"about_course"`
-	ThumbnailFileID    *string `json:"thumbnail_file_id" validate:"omitempty,uuid"`
-	PreviewVideoFileID *string `json:"preview_video_file_id" validate:"omitempty,uuid"`
-	CourseLevelID      *string `json:"course_level_id" validate:"omitempty,uuid"`
-	CourseTopicID      *string `json:"course_topic_id" validate:"omitempty,uuid"`
+	ExpectedRowVersion int64    `json:"expected_row_version" validate:"required,min=1"`
+	Title              *string  `json:"title" validate:"omitempty,min=1,max=255"`
+	ShortDescription   *string  `json:"short_description" validate:"omitempty,max=500"`
+	AboutCourse        *string  `json:"about_course"`
+	ThumbnailFileID    *string  `json:"thumbnail_file_id" validate:"omitempty,uuid"`
+	PreviewVideoFileID *string  `json:"preview_video_file_id" validate:"omitempty,uuid"`
+	CourseLevelID      *string  `json:"course_level_id" validate:"omitempty,uuid"`
+	CourseTopicID      *string  `json:"course_topic_id" validate:"omitempty,uuid"`
 	TagIDs             []string `json:"tag_ids" validate:"omitempty,dive,uuid"`
 	SkillIDs           []string `json:"skill_ids" validate:"omitempty,dive,uuid"`
 	OutcomeIDs         []string `json:"outcome_ids" validate:"omitempty,dive,uuid"`

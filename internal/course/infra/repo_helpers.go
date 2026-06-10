@@ -3,11 +3,14 @@ package infra
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/course/domain"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
@@ -59,6 +62,41 @@ var lessonBehavior = draftEntityBehavior[lessonRow, domain.Lesson]{
 	RowID:      lessonRowID,
 	Model:      &lessonRow{},
 	ToDomain:   toLesson,
+}
+
+func ensureCourseRowID(row any) error {
+	switch r := row.(type) {
+	case *courseRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *courseVersionRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *collaboratorRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *sectionRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *lessonRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *subLessonRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *enrollmentRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *progressRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *leaseRow:
+		return gormx.EnsureStringID(&r.ID)
+	case *subLessonQuizOptionRow:
+		return gormx.EnsureStringID(&r.ID)
+	default:
+		return nil
+	}
+}
+
+func touchCreateCourseEntity(ctx context.Context, tx *gorm.DB, created, updated *int64, row any) error {
+	if err := ensureCourseRowID(row); err != nil {
+		return err
+	}
+	gormx.TouchCreatedUpdated(created, updated)
+	return tx.WithContext(ctx).Create(row).Error
 }
 
 func loadActiveRow[T any](ctx context.Context, db *gorm.DB, notFound error, query string, args ...any) (*T, error) {
@@ -256,4 +294,142 @@ func deleteChildrenThenRow(ctx context.Context, tx *gorm.DB, column string, chil
 		return err
 	}
 	return tx.WithContext(ctx).Delete(model, rowID).Error
+}
+
+const (
+	maxCourseSlugLen      = 255
+	courseSlugCreateRetry = 3
+)
+
+// ensureUniqueCourseSlug picks the first available slug among base, base-2, base-3, …
+// among active courses. One indexed query loads sibling slugs; suffix selection is in-memory.
+// excludeCourseID skips the current course on title/slug updates.
+func ensureUniqueCourseSlug(ctx context.Context, db *gorm.DB, baseSlug string, excludeCourseID *string) (string, error) {
+	baseSlug = strings.TrimSpace(baseSlug)
+	if baseSlug == "" {
+		return "", domain.ErrCourseInvalidSlug
+	}
+	taken, err := listCollidingCourseSlugs(ctx, db, baseSlug, excludeCourseID)
+	if err != nil {
+		return "", err
+	}
+	return nextFreeCourseSlug(baseSlug, taken), nil
+}
+
+// listCollidingCourseSlugs returns active slugs equal to base or base-<digits> only.
+// LIKE base-% is a broad prefilter; non-numeric tails (e.g. base-advanced) are dropped in Go.
+func listCollidingCourseSlugs(ctx context.Context, db *gorm.DB, baseSlug string, excludeCourseID *string) (map[string]struct{}, error) {
+	var rows []string
+	q := db.WithContext(ctx).Model(&courseRow{}).
+		Where("deleted_at IS NULL").
+		Where("slug = ? OR slug LIKE ?", baseSlug, baseSlug+"-%")
+	if excludeCourseID != nil {
+		if id := strings.TrimSpace(*excludeCourseID); id != "" {
+			q = q.Where("id != ?", id)
+		}
+	}
+	if err := q.Pluck("slug", &rows).Error; err != nil {
+		return nil, err
+	}
+	taken := make(map[string]struct{}, len(rows))
+	for _, slug := range rows {
+		if isCourseSlugNumericSuffixVariant(slug, baseSlug) {
+			taken[slug] = struct{}{}
+		}
+	}
+	return taken, nil
+}
+
+func isCourseSlugNumericSuffixVariant(slug, base string) bool {
+	if slug == base {
+		return true
+	}
+	prefix := base + "-"
+	if !strings.HasPrefix(slug, prefix) {
+		return false
+	}
+	suffix := slug[len(prefix):]
+	if suffix == "" {
+		return false
+	}
+	for _, r := range suffix {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func nextFreeCourseSlug(base string, taken map[string]struct{}) string {
+	if _, exists := taken[base]; !exists {
+		return courseSlugCandidate(base, 1)
+	}
+	maxSuffix := 1
+	for slug := range taken {
+		if n, ok := courseSlugNumericSuffix(slug, base); ok && n > maxSuffix {
+			maxSuffix = n
+		}
+	}
+	for i := 2; i <= maxSuffix+1; i++ {
+		candidate := courseSlugCandidate(base, i)
+		if _, exists := taken[candidate]; !exists {
+			return candidate
+		}
+	}
+	return courseSlugCandidate(base, maxSuffix+1)
+}
+
+// courseSlugNumericSuffix returns n when slug is base-n (n >= 2).
+func courseSlugNumericSuffix(slug, base string) (int, bool) {
+	prefix := base + "-"
+	if !strings.HasPrefix(slug, prefix) {
+		return 0, false
+	}
+	suffix := slug[len(prefix):]
+	if suffix == "" {
+		return 0, false
+	}
+	n := 0
+	for _, r := range suffix {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+		n = n*10 + int(r-'0')
+	}
+	if n < 2 {
+		return 0, false
+	}
+	return n, true
+}
+
+func courseSlugCandidate(base string, attempt int) string {
+	if attempt <= 1 {
+		return truncateCourseSlugBase(base, maxCourseSlugLen)
+	}
+	suffix := fmt.Sprintf("-%d", attempt)
+	maxBase := maxCourseSlugLen - len(suffix)
+	return truncateCourseSlugBase(base, maxBase) + suffix
+}
+
+func truncateCourseSlugBase(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
+		return strings.TrimRight(s, "-")
+	}
+	cut := s[:maxBytes]
+	for !utf8.ValidString(cut) {
+		cut = cut[:len(cut)-1]
+	}
+	return strings.TrimRight(cut, "-")
+}
+
+func isCourseSlugDuplicateKey(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key") &&
+		(strings.Contains(msg, "uix_courses_slug_active") || strings.Contains(msg, "courses_slug"))
 }

@@ -557,6 +557,14 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Dependencies: GORM, `courses` table, `domain.ErrCourseInvalidSlug`.
 - Current Usage: `CreateCourse`, `UpdateBasicInfo` in `internal/course/infra/repo_instructor.go`.
 
+### Asset: Outline reorder helper (`reorderStableIDRows`)
+- Name: `reorderStableIDRows`
+- Type: Function (`internal/course/infra/repo_helpers.go`)
+- Purpose: Reassign `order_index` for active outline rows scoped by a parent column (`course_version_id`, `section_id`, or `lesson_id`) and a list of `stable_id` values. Uses a two-phase update (temporary negative indices, then final `0..n-1`) to avoid unique-index collisions during in-place reorder.
+- Scope: Course outline reorder only — do not duplicate reorder loops in `repo_outline.go`.
+- Dependencies: GORM, `timex.NowUnix()`.
+- Current Usage: `ReorderSections`, `ReorderLessons`, `ReorderSubLessons` in `internal/course/infra/repo_outline.go`.
+
 ### Asset: Generic normalization / set primitives (utils)
 - Name: `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON`
 - Type: Util

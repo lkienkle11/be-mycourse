@@ -66,7 +66,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 - `course_lessons` belong to a section and a version
 - `course_sub_lessons` belong to a lesson and a version
 - each outline node has a stable business UUID (`stable_id`) that survives version cloning
-- reordering is version-local and atomic
+- reordering is version-local and atomic; `reorderStableIDRows` applies a two-phase `order_index` update (temporary negative indices, then `0..n-1`) so partial reorders never violate `uix_*_order_per_*_active` unique indexes
 
 Sub-lesson content types:
 
@@ -84,8 +84,8 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 |-------------------|-------|
 | Create course | `title` ≥5 non-whitespace |
 | Basic info PATCH | title ≥5; short_description ≥20; about_course Delta ≥30; thumbnail, level, topic UUID required; tag_ids/skill_ids min 1; outcome_ids len 1; preview_video optional |
-| Section | title ≥5; description ≥20 |
-| Lesson | title ≥5; summary ≥20 |
+| Section | title ≥5; description Delta JSON ≥20 non-whitespace text (legacy plain text accepted on read/validate) |
+| Lesson | title ≥5; summary Delta JSON ≥20 non-whitespace text (legacy plain text accepted on read/validate) |
 | Sub-lesson | title ≥5; `is_preview` allowed only for `VIDEO` and `TEXT` (QUIZ → `ErrCoursePreviewNotAllowedForQuiz`; learner preview outline filters QUIZ) |
 
 ## Learner model

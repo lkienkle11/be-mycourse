@@ -76,6 +76,18 @@ Sub-lesson content types:
 
 Text lesson content is stored as Quill Delta JSON text, not HTML.
 
+### Field validation (delivery DTOs)
+
+Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_nonwhitespace_min`) use `internal/shared/utils/text_rules.go`.
+
+| Endpoint / entity | Rules |
+|-------------------|-------|
+| Create course | `title` ≥5 non-whitespace |
+| Basic info PATCH | title ≥5; short_description ≥20; about_course Delta ≥30; thumbnail, level, topic UUID required; tag_ids/skill_ids min 1; outcome_ids len 1; preview_video optional |
+| Section | title ≥5; description ≥20 |
+| Lesson | title ≥5; summary ≥20 |
+| Sub-lesson | title ≥5; `is_preview` allowed only for `VIDEO` and `TEXT` (QUIZ → `ErrCoursePreviewNotAllowedForQuiz`; learner preview outline filters QUIZ) |
+
 ## Learner model
 
 There is no separate `internal/enrollment/` package. Learner enrollment and progress currently live inside `internal/course/`.
@@ -91,7 +103,8 @@ Routes are registered from `internal/course/delivery/routes.go` through `interna
 Instructor / collaborator routes:
 
 - `GET /api/v1/courses/my`
-- `POST /api/v1/courses` — body `{ "title" }` only; slug is computed server-side from `title` via `SlugifyName`. When the base slug is already used by another active course, the server allocates the next free variant (`base`, then `base-2`, `base-3`, …) so each active course has a globally unique slug (`uix_courses_slug_active`). Rejected only when slugify yields empty.
+- `POST /api/v1/courses` — body `{ "title" }` only (`nonwhitespace_min=5`, max 255); slug is computed server-side from `title` via `SlugifyName`. When the base slug is already used by another active course, the server allocates the next free variant (`base`, then `base-2`, `base-3`, …) so each active course has a globally unique slug (`uix_courses_slug_active`).
+- `PATCH /api/v1/courses/:courseId/basic-info` — all listed fields required on save except `preview_video_file_id` (optional UUID): `title` (≥5 non-whitespace, server slugify), `short_description` (≥20), `about_course` (Delta JSON, ≥30 non-whitespace text), `thumbnail_file_id`, `course_level_id`, `course_topic_id`, `tag_ids` (≥1), `skill_ids` (≥1), `outcome_ids` (exactly 1), `expected_row_version`.
 - `GET /api/v1/courses/:courseId`
 - `POST /api/v1/courses/:courseId/draft/prepare`
 - `PATCH /api/v1/courses/:courseId/basic-info`

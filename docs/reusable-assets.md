@@ -540,6 +540,14 @@ Business constants, permissions, Redis key prefixes, and user-facing messages: *
 - Current Usage: `internal/taxonomy/application/service.go`, `internal/shared/taxonomy/tree_slug.go`, `internal/course/application/service.go`.
 - Reuse: Never accept client-provided slug on write — always derive with `SlugifyName`.
 
+### Asset: Text rules validators (utils + validate)
+- Name: `CountNonWhitespace`, `CountDeltaNonWhitespace`, `nonwhitespace_min`, `delta_nonwhitespace_min`
+- Type: Util + validator tags
+- Path: `internal/shared/utils/text_rules.go`, `internal/shared/validate/text_rules.go`
+- Purpose: Count visible characters (Unicode whitespace excluded) for plain strings and Quill Delta JSON; register custom `go-playground/validator` tags used by course delivery DTOs.
+- Scope: Course field validation (title, descriptions, about-course Delta); reuse for any future rich-text or min-length rules.
+- Current Usage: `internal/course/delivery/dto.go`, `courseTitleAndSlug` in `internal/course/application/service.go`.
+
 ### Asset: ensureUniqueCourseSlug (course infra)
 - Name: `ensureUniqueCourseSlug`
 - Type: Function (repo helper)

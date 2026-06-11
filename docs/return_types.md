@@ -455,9 +455,9 @@ type CourseDetail struct {
 
 **Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses`, `course_versions`, and `course_collaborators`.
 
-**Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version`, optional `title` (server slugify + `ensureUniqueCourseSlug`, excluding current course), and draft metadata fields.
+**Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH (except optional `preview_video_file_id`); handler passes trimmed pointers. When `title` is set, service slugifies via `courseTitleAndSlug` (≥5 non-whitespace) and `ensureUniqueCourseSlug` (excluding current course).
 
-**Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, …).
+**Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, `ErrCourseTitleTooShort`, `ErrCoursePreviewNotAllowedForQuiz`, …).
 
 ---
 

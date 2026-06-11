@@ -26,14 +26,14 @@ type addCollaboratorRequest struct {
 type sectionRequest struct {
 	ExpectedRowVersion int64  `json:"expected_row_version"`
 	Title              string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
-	Description        string `json:"description" validate:"required,nonwhitespace_min=20"`
+	Description        string `json:"description" validate:"required,delta_nonwhitespace_min=20"`
 }
 
 type lessonRequest struct {
 	SectionID          string `json:"section_id" validate:"required,uuid"`
 	ExpectedRowVersion int64  `json:"expected_row_version"`
 	Title              string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
-	Summary            string `json:"summary" validate:"required,nonwhitespace_min=20"`
+	Summary            string `json:"summary" validate:"required,delta_nonwhitespace_min=20"`
 }
 
 type videoRequest struct {

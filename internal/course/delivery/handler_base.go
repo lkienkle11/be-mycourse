@@ -33,7 +33,8 @@ func mapCourseError(c *gin.Context, err error) bool {
 	case domain.ErrCourseDraftRequired, domain.ErrCourseDraftInReview, domain.ErrCourseDraftRejectedOnly,
 		domain.ErrCourseInvalidSubLessonKind, domain.ErrCourseInvalidReviewState, domain.ErrCourseInvalidOrdering,
 		domain.ErrCourseInstructorRequired, domain.ErrCourseOwnerCannotBeRemoved, domain.ErrCoursePublishedRequired,
-		domain.ErrCourseLeaseTokenInvalid, domain.ErrCourseInvalidSlug:
+		domain.ErrCourseLeaseTokenInvalid, domain.ErrCourseInvalidSlug, domain.ErrCourseTitleTooShort,
+		domain.ErrCoursePreviewNotAllowedForQuiz:
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 	case apperrors.ErrNotFound, apperrors.ErrInvalidProfileMediaFile:
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)

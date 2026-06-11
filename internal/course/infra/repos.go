@@ -491,7 +491,7 @@ func filterPreviewOutline(rows []domain.Section) []domain.Section {
 		for _, lesson := range section.Lessons {
 			subs := make([]domain.SubLesson, 0, len(lesson.SubLessons))
 			for _, sub := range lesson.SubLessons {
-				if sub.IsPreview {
+				if sub.IsPreview && sub.Kind != domain.SubLessonKindQuiz {
 					subs = append(subs, sub)
 				}
 			}

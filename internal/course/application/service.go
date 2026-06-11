@@ -18,6 +18,9 @@ func NewCourseService(repo domain.Repository) *CourseService {
 
 func courseTitleAndSlug(title string) (string, string, error) {
 	title = strings.TrimSpace(title)
+	if utils.CountNonWhitespace(title) < 5 {
+		return "", "", domain.ErrCourseTitleTooShort
+	}
 	slug := utils.SlugifyName(title)
 	if len(slug) < 1 {
 		return "", "", domain.ErrCourseInvalidSlug

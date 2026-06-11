@@ -1,6 +1,8 @@
 package delivery
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	"mycourse-io-be/internal/course/domain"
@@ -43,21 +45,38 @@ func (h *Handler) prepareDraft(c *gin.Context) {
 
 func (h *Handler) updateBasicInfo(c *gin.Context) {
 	courseBodyOK(h, c, "updated", func(courseID string, req *updateBasicInfoRequest) (any, error) {
+		title := strings.TrimSpace(req.Title)
+		shortDescription := strings.TrimSpace(req.ShortDescription)
+		aboutCourse := strings.TrimSpace(req.AboutCourse)
+		thumbnailFileID := strings.TrimSpace(req.ThumbnailFileID)
+		courseLevelID := strings.TrimSpace(req.CourseLevelID)
+		courseTopicID := strings.TrimSpace(req.CourseTopicID)
 		return h.svc.UpdateBasicInfo(c.Request.Context(), courseID, utils.CurrentUserID(c), domain.UpdateBasicInfoInput{
 			ActorUserID:        utils.CurrentUserID(c),
 			ExpectedRowVersion: req.ExpectedRowVersion,
-			Title:              req.Title,
-			ShortDescription:   req.ShortDescription,
-			AboutCourse:        req.AboutCourse,
-			ThumbnailFileID:    req.ThumbnailFileID,
-			PreviewVideoFileID: req.PreviewVideoFileID,
-			CourseLevelID:      req.CourseLevelID,
-			CourseTopicID:      req.CourseTopicID,
+			Title:              &title,
+			ShortDescription:   &shortDescription,
+			AboutCourse:        &aboutCourse,
+			ThumbnailFileID:    &thumbnailFileID,
+			PreviewVideoFileID: optionalTrimmedStringPtr(req.PreviewVideoFileID),
+			CourseLevelID:      &courseLevelID,
+			CourseTopicID:      &courseTopicID,
 			TagIDs:             req.TagIDs,
 			SkillIDs:           req.SkillIDs,
 			OutcomeIDs:         req.OutcomeIDs,
 		})
 	})
+}
+
+func optionalTrimmedStringPtr(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*v)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func (h *Handler) deleteCourse(c *gin.Context) {

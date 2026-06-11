@@ -376,7 +376,11 @@ func (r *GormRepository) validateLookupIDs(ctx context.Context, tx *gorm.DB, tab
 }
 
 func (r *GormRepository) validateSubLessonPayload(ctx context.Context, tx *gorm.DB, in domain.UpsertSubLessonInput) error {
-	switch strings.ToUpper(strings.TrimSpace(in.Kind)) {
+	kind := strings.ToUpper(strings.TrimSpace(in.Kind))
+	if kind == domain.SubLessonKindQuiz && in.IsPreview {
+		return domain.ErrCoursePreviewNotAllowedForQuiz
+	}
+	switch kind {
 	case domain.SubLessonKindVideo:
 		if in.Video == nil || strings.TrimSpace(in.Video.MediaFileID) == "" {
 			return domain.ErrCourseInvalidSubLessonKind

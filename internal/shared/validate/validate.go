@@ -11,6 +11,7 @@ var V *validator.Validate
 
 func init() {
 	V = validator.New()
+	registerTextRules(V)
 }
 
 // Struct runs validation tags on s (use `validate:"required"` etc.).
@@ -50,6 +51,8 @@ func humanTag(e validator.FieldError) string {
 		return "must have length " + e.Param()
 	case "oneof":
 		return "must be one of: " + e.Param()
+	case "nonwhitespace_min", "delta_nonwhitespace_min":
+		return "below minimum " + e.Param() + " non-whitespace characters"
 	default:
 		return "failed on " + e.Tag()
 	}

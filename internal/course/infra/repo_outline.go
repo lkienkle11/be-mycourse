@@ -70,12 +70,8 @@ func (r *GormRepository) ReorderSections(ctx context.Context, courseID string, a
 		if !sameStableIDs(rows, orderedStableIDs, func(row sectionRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
-		for idx, stableID := range orderedStableIDs {
-			if err := tx.Model(&sectionRow{}).
-				Where("course_version_id = ? AND stable_id = ?", *access.CurrentDraftVersionID, stableID).
-				Updates(map[string]any{"order_index": idx, "updated_at": timex.NowUnix(), "row_version": gorm.Expr("row_version + 1")}).Error; err != nil {
-				return err
-			}
+		if err := reorderStableIDRows(ctx, tx, &sectionRow{}, "course_version_id = ?", *access.CurrentDraftVersionID, orderedStableIDs); err != nil {
+			return err
 		}
 		outline, err = r.loadOutline(ctx, tx, *access.CurrentDraftVersionID)
 		return err
@@ -146,11 +142,8 @@ func (r *GormRepository) ReorderLessons(ctx context.Context, courseID string, ac
 		if !sameStableIDs(rows, orderedStableIDs, func(row lessonRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
-		for idx, stableID := range orderedStableIDs {
-			if err := tx.Model(&lessonRow{}).Where("section_id = ? AND stable_id = ?", sectionID, stableID).
-				Updates(map[string]any{"order_index": idx, "updated_at": timex.NowUnix(), "row_version": gorm.Expr("row_version + 1")}).Error; err != nil {
-				return err
-			}
+		if err := reorderStableIDRows(ctx, tx, &lessonRow{}, "section_id = ?", sectionID, orderedStableIDs); err != nil {
+			return err
 		}
 		rows, err = r.loadLessonsBySection(ctx, tx, sectionID)
 		if err != nil {
@@ -294,11 +287,8 @@ func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID string,
 		if !sameStableIDs(rows, orderedStableIDs, func(row subLessonRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
-		for idx, stableID := range orderedStableIDs {
-			if err := tx.Model(&subLessonRow{}).Where("lesson_id = ? AND stable_id = ?", lessonID, stableID).
-				Updates(map[string]any{"order_index": idx, "updated_at": timex.NowUnix(), "row_version": gorm.Expr("row_version + 1")}).Error; err != nil {
-				return err
-			}
+		if err := reorderStableIDRows(ctx, tx, &subLessonRow{}, "lesson_id = ?", lessonID, orderedStableIDs); err != nil {
+			return err
 		}
 		rows, err = r.loadSubLessonsByLesson(ctx, tx, lessonID)
 		if err != nil {

@@ -433,3 +433,37 @@ func isCourseSlugDuplicateKey(err error) bool {
 	return strings.Contains(msg, "duplicate key") &&
 		(strings.Contains(msg, "uix_courses_slug_active") || strings.Contains(msg, "courses_slug"))
 }
+
+// reorderStableIDRows assigns order_index for active rows scoped by scopeQuery/scopeValue.
+// It uses a two-phase update (temporary negative indices, then final 0..n-1) so partial
+// reorders cannot violate unique (scope, order_index) indexes mid-transaction.
+func reorderStableIDRows(
+	ctx context.Context,
+	tx *gorm.DB,
+	model any,
+	scopeQuery string,
+	scopeValue string,
+	orderedStableIDs []string,
+) error {
+	now := timex.NowUnix()
+	apply := func(orderIndex int, stableID string) error {
+		return tx.WithContext(ctx).Model(model).
+			Where(scopeQuery+" AND stable_id = ? AND deleted_at IS NULL", scopeValue, stableID).
+			Updates(map[string]any{
+				"order_index": orderIndex,
+				"updated_at":  now,
+				"row_version": gorm.Expr("row_version + 1"),
+			}).Error
+	}
+	for idx, stableID := range orderedStableIDs {
+		if err := apply(-(idx+1), stableID); err != nil {
+			return err
+		}
+	}
+	for idx, stableID := range orderedStableIDs {
+		if err := apply(idx, stableID); err != nil {
+			return err
+		}
+	}
+	return nil
+}

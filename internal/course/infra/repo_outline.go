@@ -10,7 +10,6 @@ import (
 
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/constants"
-	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 )
 
@@ -29,8 +28,7 @@ func (r *GormRepository) CreateSection(ctx context.Context, courseID string, act
 			StableID: uuid.NewString(), CourseVersionID: *access.CurrentDraftVersionID,
 			Title: strings.TrimSpace(in.Title), Description: strings.TrimSpace(in.Description), OrderIndex: next, RowVersion: 1,
 		}
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := tx.Create(row).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return err
 		}
 		sec := toSection(row)
@@ -72,12 +70,8 @@ func (r *GormRepository) ReorderSections(ctx context.Context, courseID string, a
 		if !sameStableIDs(rows, orderedStableIDs, func(row sectionRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
-		for idx, stableID := range orderedStableIDs {
-			if err := tx.Model(&sectionRow{}).
-				Where("course_version_id = ? AND stable_id = ?", *access.CurrentDraftVersionID, stableID).
-				Updates(map[string]any{"order_index": idx, "updated_at": timex.NowUnix(), "row_version": gorm.Expr("row_version + 1")}).Error; err != nil {
-				return err
-			}
+		if err := reorderStableIDRows(ctx, tx, &sectionRow{}, "course_version_id = ?", *access.CurrentDraftVersionID, orderedStableIDs); err != nil {
+			return err
 		}
 		outline, err = r.loadOutline(ctx, tx, *access.CurrentDraftVersionID)
 		return err
@@ -103,8 +97,7 @@ func (r *GormRepository) CreateLesson(ctx context.Context, courseID string, acto
 			StableID: uuid.NewString(), CourseVersionID: *access.CurrentDraftVersionID, SectionID: in.SectionID,
 			Title: strings.TrimSpace(in.Title), Summary: strings.TrimSpace(in.Summary), OrderIndex: next, RowVersion: 1,
 		}
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := tx.Create(row).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return err
 		}
 		lesson := toLesson(row)
@@ -149,11 +142,8 @@ func (r *GormRepository) ReorderLessons(ctx context.Context, courseID string, ac
 		if !sameStableIDs(rows, orderedStableIDs, func(row lessonRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
-		for idx, stableID := range orderedStableIDs {
-			if err := tx.Model(&lessonRow{}).Where("section_id = ? AND stable_id = ?", sectionID, stableID).
-				Updates(map[string]any{"order_index": idx, "updated_at": timex.NowUnix(), "row_version": gorm.Expr("row_version + 1")}).Error; err != nil {
-				return err
-			}
+		if err := reorderStableIDRows(ctx, tx, &lessonRow{}, "section_id = ?", sectionID, orderedStableIDs); err != nil {
+			return err
 		}
 		rows, err = r.loadLessonsBySection(ctx, tx, sectionID)
 		if err != nil {
@@ -190,8 +180,7 @@ func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID string, a
 			Title: strings.TrimSpace(in.Title), Kind: strings.ToUpper(strings.TrimSpace(in.Kind)), IsPreview: in.IsPreview,
 			OrderIndex: next, RowVersion: 1,
 		}
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := tx.Create(row).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return err
 		}
 		if err := r.upsertSubLessonDetail(ctx, tx, row.ID, in); err != nil {
@@ -298,11 +287,8 @@ func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID string,
 		if !sameStableIDs(rows, orderedStableIDs, func(row subLessonRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
-		for idx, stableID := range orderedStableIDs {
-			if err := tx.Model(&subLessonRow{}).Where("lesson_id = ? AND stable_id = ?", lessonID, stableID).
-				Updates(map[string]any{"order_index": idx, "updated_at": timex.NowUnix(), "row_version": gorm.Expr("row_version + 1")}).Error; err != nil {
-				return err
-			}
+		if err := reorderStableIDRows(ctx, tx, &subLessonRow{}, "lesson_id = ?", lessonID, orderedStableIDs); err != nil {
+			return err
 		}
 		rows, err = r.loadSubLessonsByLesson(ctx, tx, lessonID)
 		if err != nil {
@@ -421,8 +407,7 @@ func (r *GormRepository) AcquireLease(ctx context.Context, courseID string, acto
 				CourseID: courseID, CourseVersionID: in.CourseVersionID, ResourceType: in.ResourceType, ResourceStableID: in.ResourceStableID,
 				HolderUserID: actorUserID, LeaseToken: uuid.NewString(), ExpiresAt: expiresAt,
 			}
-			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-			if err := tx.Create(&row).Error; err != nil {
+			if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, &row); err != nil {
 				return err
 			}
 		} else {

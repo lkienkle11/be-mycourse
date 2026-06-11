@@ -1632,7 +1632,20 @@ curl -sS "{{BASE_URL}}/api/v1/courses/1" \
 
 Success `data`: `CourseDetail` with draft + published version context when available.
 
-Other instructor routes (basic info, outline CRUD/reorder, leases, collaborators, review submit/reopen) follow the same Bearer + permission pattern — see **`docs/router.md`**.
+### 14.4 Update draft basic info
+
+**`PATCH /api/v1/courses/:courseId/basic-info`** — permission `course:update`
+
+Request body: `expected_row_version` (required, `>= 1`) plus optional metadata fields. **`title` is not accepted** (set only on `POST /courses`).
+
+```bash
+curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"expected_row_version":1,"short_description":"Short blurb"}'
+```
+
+Other instructor routes (outline CRUD/reorder, leases, collaborators, review submit/reopen) follow the same Bearer + permission pattern — see **`docs/router.md`**.
 
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
 

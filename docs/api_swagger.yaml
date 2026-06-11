@@ -47,7 +47,7 @@ x-mycourse:
       - "      var c = pm.cookies.get(cookieKey);"
       - "      if (c) { return String(c); }"
       - "    } catch (e) {}"
-      - "    return \"\";"
+      - '    return "";'
       - "  }"
       - "  function setAuthVar(key, val) {"
       - "    if (!val) { return; }"
@@ -56,25 +56,25 @@ x-mycourse:
       - "    try { pm.collectionVariables.set(key, val); } catch (e2) {}"
       - "    try { pm.moduleVariables.set(key, val); } catch (e3) {}"
       - "  }"
-      - "  setAuthVar(\"ACCESS_TOKEN\", pick(\"access_token\", \"access_token\"));"
-      - "  setAuthVar(\"REFRESH_TOKEN\", pick(\"refresh_token\", \"refresh_token\"));"
-      - "  setAuthVar(\"SESSION_ID\", pick(\"session_id\", \"session_id\"));"
+      - '  setAuthVar("ACCESS_TOKEN", pick("access_token", "access_token"));'
+      - '  setAuthVar("REFRESH_TOKEN", pick("refresh_token", "refresh_token"));'
+      - '  setAuthVar("SESSION_ID", pick("session_id", "session_id"));'
       - "} catch (e) {"
-      - "  console.warn(\"save_auth_tokens failed:\", e && e.message ? e.message : e);"
+      - '  console.warn("save_auth_tokens failed:", e && e.message ? e.message : e);'
       - "}"
     saveSystemToken: &saveSystemTokenExec
       - "try {"
       - "  var json = pm.response.json();"
       - "  if (!json || Number(json.code) !== 0) { return; }"
       - "  var d = json.data || {};"
-      - "  var token = d.access_token ? String(d.access_token) : \"\";"
+      - '  var token = d.access_token ? String(d.access_token) : "";'
       - "  if (!token) { return; }"
-      - "  try { pm.variables.set(\"SYSTEM_TOKEN\", token); } catch (e0) {}"
-      - "  try { pm.environment.set(\"SYSTEM_TOKEN\", token); } catch (e1) {}"
-      - "  try { pm.collectionVariables.set(\"SYSTEM_TOKEN\", token); } catch (e2) {}"
-      - "  try { pm.moduleVariables.set(\"SYSTEM_TOKEN\", token); } catch (e3) {}"
+      - '  try { pm.variables.set("SYSTEM_TOKEN", token); } catch (e0) {}'
+      - '  try { pm.environment.set("SYSTEM_TOKEN", token); } catch (e1) {}'
+      - '  try { pm.collectionVariables.set("SYSTEM_TOKEN", token); } catch (e2) {}'
+      - '  try { pm.moduleVariables.set("SYSTEM_TOKEN", token); } catch (e3) {}'
       - "} catch (e) {"
-      - "  console.warn(\"save_system_token failed:\", e && e.message ? e.message : e);"
+      - '  console.warn("save_system_token failed:", e && e.message ? e.message : e);'
       - "}"
   postmanEvents:
     saveUserTokens: &postmanSaveUserTokens
@@ -460,7 +460,12 @@ components:
     UpdateMeRequest:
       type: object
       properties:
-        avatar_file_id: { type: string, format: uuid, description: "Set to empty string to clear" }
+        avatar_file_id:
+          {
+            type: string,
+            format: uuid,
+            description: "Set to empty string to clear",
+          }
     TreeNode:
       type: object
       required: [id, name]
@@ -470,7 +475,12 @@ components:
         slug: algebra
         children: []
       properties:
-        id: { type: string, format: uuid, description: Client-generated UUID per node }
+        id:
+          {
+            type: string,
+            format: uuid,
+            description: Client-generated UUID per node,
+          }
         name: { type: string, maxLength: 255 }
         slug:
           type: string
@@ -685,7 +695,10 @@ paths:
           description: Created
         "400": { description: Validation / weak password }
         "409": { description: Email already exists (confirmed account) }
-        "410": { description: Registration abandoned — lifetime confirmation email cap (code 4009) }
+        "410":
+          {
+            description: Registration abandoned — lifetime confirmation email cap (code 4009),
+          }
         "429":
           description: Registration email rate limited (code 4010); includes Retry-After and X-Mycourse-Register-Retry-After
         "502": { description: Confirmation email send failed (code 4011) }
@@ -1481,7 +1494,11 @@ paths:
         - name: metadata
           in: query
           required: false
-          schema: { type: string, description: Optional JSON metadata for delete flow }
+          schema:
+            {
+              type: string,
+              description: Optional JSON metadata for delete flow,
+            }
       responses:
         "200":
           description: Deleted
@@ -1499,7 +1516,7 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: 'JSON data contains object_key string'
+          description: "JSON data contains object_key string"
 
   /api/v1/media/videos/{id}/status:
     get:
@@ -1619,8 +1636,8 @@ paths:
               type: object
               required: [expected_row_version]
               properties:
-                expected_row_version: { type: integer, format: int64, minimum: 1 }
-                title: { type: string }
+                expected_row_version:
+                  { type: integer, format: int64, minimum: 1 }
                 short_description: { type: string }
                 about_course: { type: string }
                 thumbnail_file_id: { type: string, format: uuid }
@@ -2067,7 +2084,11 @@ paths:
               required: [course_version_id, resource_type, resource_stable_id]
               properties:
                 course_version_id: { type: integer }
-                resource_type: { type: string, enum: [OUTLINE_ROOT, SECTION, LESSON, SUB_LESSON] }
+                resource_type:
+                  {
+                    type: string,
+                    enum: [OUTLINE_ROOT, SECTION, LESSON, SUB_LESSON],
+                  }
                 resource_stable_id: { type: string, format: uuid }
       responses:
         "200":
@@ -2269,7 +2290,8 @@ paths:
               properties:
                 stable_content_id: { type: string, format: uuid }
                 content_type: { type: string }
-                status: { type: string, enum: [NOT_STARTED, IN_PROGRESS, COMPLETED] }
+                status:
+                  { type: string, enum: [NOT_STARTED, IN_PROGRESS, COMPLETED] }
                 score: { type: number, format: double }
                 quiz_attempt: { type: string }
       responses:

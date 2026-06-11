@@ -27,8 +27,8 @@ const (
 
 type Course struct {
 	ID                        string  `json:"id"`
-	OwnerUserID               string `json:"owner_user_id"`
-	Slug                      string `json:"slug"`
+	OwnerUserID               string  `json:"owner_user_id"`
+	Slug                      string  `json:"slug"`
 	CurrentPublishedVersionID *string `json:"current_published_version_id,omitempty"`
 	CurrentDraftVersionID     *string `json:"current_draft_version_id,omitempty"`
 	CreatedAt                 int64   `json:"created_at"`
@@ -236,6 +236,7 @@ type UpdateBasicInfoInput struct {
 	ActorUserID        string
 	ExpectedRowVersion int64
 	Title              *string
+	Slug               *string // application layer only; derived from Title via SlugifyName
 	ShortDescription   *string
 	AboutCourse        *string
 	ThumbnailFileID    *string

@@ -53,11 +53,28 @@ ORDER BY c.id DESC`
 }
 
 func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
+	var (
+		detail *domain.CourseDetail
+		err    error
+	)
+	for range courseSlugCreateRetry {
+		detail, err = r.createCourseOnce(ctx, in)
+		if err == nil || !isCourseSlugDuplicateKey(err) {
+			return detail, err
+		}
+	}
+	return nil, err
+}
+
+func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
 	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		course := &courseRow{OwnerUserID: in.ActorUserID, Slug: strings.TrimSpace(in.Slug)}
-		gormx.TouchCreatedUpdated(&course.CreatedAt, &course.UpdatedAt)
-		if err := tx.Create(course).Error; err != nil {
+		slug, err := ensureUniqueCourseSlug(ctx, tx, in.Slug, nil)
+		if err != nil {
+			return err
+		}
+		course := &courseRow{OwnerUserID: in.ActorUserID, Slug: slug}
+		if err := touchCreateCourseEntity(ctx, tx, &course.CreatedAt, &course.UpdatedAt, course); err != nil {
 			return err
 		}
 
@@ -65,8 +82,7 @@ func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCours
 			CourseID: course.ID, VersionNo: 1, Status: domain.VersionStatusDraft,
 			Title: strings.TrimSpace(in.Title), RowVersion: 1,
 		}
-		gormx.TouchCreatedUpdated(&version.CreatedAt, &version.UpdatedAt)
-		if err := tx.Create(version).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &version.CreatedAt, &version.UpdatedAt, version); err != nil {
 			return err
 		}
 		if err := tx.Model(&courseRow{}).Where("id = ?", course.ID).
@@ -75,11 +91,9 @@ func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCours
 		}
 
 		collab := &collaboratorRow{CourseID: course.ID, UserID: in.ActorUserID, Role: domain.CollaboratorRoleOwner}
-		gormx.TouchCreatedUpdated(&collab.CreatedAt, &collab.UpdatedAt)
-		if err := tx.Create(collab).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &collab.CreatedAt, &collab.UpdatedAt, collab); err != nil {
 			return err
 		}
-		var err error
 		detail, err = r.loadCourseDetail(ctx, tx, course.ID, in.ActorUserID, true)
 		return err
 	})
@@ -146,6 +160,16 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 		}
 		if err := r.replaceVersionRefs(ctx, tx, version.ID, in.TagIDs, in.SkillIDs, in.OutcomeIDs); err != nil {
 			return err
+		}
+		if in.Slug != nil {
+			slug, err := ensureUniqueCourseSlug(ctx, tx, *in.Slug, &access.ID)
+			if err != nil {
+				return err
+			}
+			if err := tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
+				Updates(map[string]any{"slug": slug, "updated_at": timex.NowUnix()}).Error; err != nil {
+				return err
+			}
 		}
 		detail, err = r.loadCourseDetail(ctx, tx, courseID, actorUserID, true)
 		return err
@@ -228,11 +252,10 @@ func (r *GormRepository) AddCollaborator(ctx context.Context, courseID string, a
 			return err
 		} else {
 			row := &collaboratorRow{CourseID: access.ID, UserID: userID, Role: strings.ToUpper(strings.TrimSpace(role))}
-			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 			if row.Role == "" {
 				row.Role = domain.CollaboratorRoleEditor
 			}
-			if err := tx.Create(row).Error; err != nil {
+			if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 				return err
 			}
 		}

@@ -12,7 +12,6 @@ import (
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
-	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
@@ -81,8 +80,7 @@ func (r *GormRepository) createDraftVersion(ctx context.Context, tx *gorm.DB, co
 		draft.CourseLevelID = live.CourseLevelID
 		draft.CourseTopicID = live.CourseTopicID
 	}
-	gormx.TouchCreatedUpdated(&draft.CreatedAt, &draft.UpdatedAt)
-	if err := tx.Create(draft).Error; err != nil {
+	if err := touchCreateCourseEntity(ctx, tx, &draft.CreatedAt, &draft.UpdatedAt, draft); err != nil {
 		return "", err
 	}
 	if course.CurrentPublishedVersionID != nil {
@@ -167,8 +165,7 @@ func (r *GormRepository) cloneSectionRows(ctx context.Context, tx *gorm.DB, sect
 		clone.ID = ""
 		clone.CourseVersionID = toVersionID
 		clone.RowVersion = 1
-		gormx.TouchCreatedUpdated(&clone.CreatedAt, &clone.UpdatedAt)
-		if err := tx.WithContext(ctx).Create(&clone).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &clone.CreatedAt, &clone.UpdatedAt, &clone); err != nil {
 			return nil, err
 		}
 		sectionMap[section.ID] = clone.ID
@@ -184,8 +181,7 @@ func (r *GormRepository) cloneLessonRows(ctx context.Context, tx *gorm.DB, lesso
 		clone.CourseVersionID = toVersionID
 		clone.SectionID = sectionMap[lesson.SectionID]
 		clone.RowVersion = 1
-		gormx.TouchCreatedUpdated(&clone.CreatedAt, &clone.UpdatedAt)
-		if err := tx.WithContext(ctx).Create(&clone).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &clone.CreatedAt, &clone.UpdatedAt, &clone); err != nil {
 			return nil, err
 		}
 		lessonMap[lesson.ID] = clone.ID
@@ -200,8 +196,7 @@ func (r *GormRepository) cloneSubLessonRows(ctx context.Context, tx *gorm.DB, su
 		clone.CourseVersionID = toVersionID
 		clone.LessonID = lessonMap[subLesson.LessonID]
 		clone.RowVersion = 1
-		gormx.TouchCreatedUpdated(&clone.CreatedAt, &clone.UpdatedAt)
-		if err := tx.WithContext(ctx).Create(&clone).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &clone.CreatedAt, &clone.UpdatedAt, &clone); err != nil {
 			return err
 		}
 		if err := r.cloneSubLessonDetail(ctx, tx, subLesson.ID, clone.ID); err != nil {
@@ -243,6 +238,9 @@ func (r *GormRepository) cloneSubLessonDetail(ctx context.Context, tx *gorm.DB, 
 		for i := range opts {
 			opts[i].ID = ""
 			opts[i].SubLessonID = toID
+			if err := ensureCourseRowID(&opts[i]); err != nil {
+				return err
+			}
 		}
 		if len(opts) > 0 {
 			if err := tx.Create(&opts).Error; err != nil {
@@ -378,7 +376,11 @@ func (r *GormRepository) validateLookupIDs(ctx context.Context, tx *gorm.DB, tab
 }
 
 func (r *GormRepository) validateSubLessonPayload(ctx context.Context, tx *gorm.DB, in domain.UpsertSubLessonInput) error {
-	switch strings.ToUpper(strings.TrimSpace(in.Kind)) {
+	kind := strings.ToUpper(strings.TrimSpace(in.Kind))
+	if kind == domain.SubLessonKindQuiz && in.IsPreview {
+		return domain.ErrCoursePreviewNotAllowedForQuiz
+	}
+	switch kind {
 	case domain.SubLessonKindVideo:
 		if in.Video == nil || strings.TrimSpace(in.Video.MediaFileID) == "" {
 			return domain.ErrCourseInvalidSubLessonKind
@@ -426,6 +428,9 @@ func (r *GormRepository) upsertSubLessonDetail(ctx context.Context, tx *gorm.DB,
 			options[i] = subLessonQuizOptionRow{
 				SubLessonID: subLessonID, OptionKey: key, Body: strings.TrimSpace(option.Body),
 				IsCorrect: option.IsCorrect, OrderIndex: i, CreatedAt: now, UpdatedAt: now,
+			}
+			if err := ensureCourseRowID(&options[i]); err != nil {
+				return err
 			}
 		}
 		return tx.WithContext(ctx).Create(&options).Error

@@ -1,21 +1,21 @@
 package delivery
 
 type createCourseRequest struct {
-	Title string `json:"title" validate:"required,min=1,max=255"`
+	Title string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
 }
 
 type updateBasicInfoRequest struct {
-	ExpectedRowVersion int64   `json:"expected_row_version" validate:"required,min=1"`
-	Title              *string `json:"title" validate:"omitempty,min=1,max=255"`
-	ShortDescription   *string `json:"short_description" validate:"omitempty,max=500"`
-	AboutCourse        *string `json:"about_course"`
-	ThumbnailFileID    *string `json:"thumbnail_file_id" validate:"omitempty,uuid"`
-	PreviewVideoFileID *string `json:"preview_video_file_id" validate:"omitempty,uuid"`
-	CourseLevelID      *string `json:"course_level_id" validate:"omitempty,uuid"`
-	CourseTopicID      *string `json:"course_topic_id" validate:"omitempty,uuid"`
-	TagIDs             []string `json:"tag_ids" validate:"omitempty,dive,uuid"`
-	SkillIDs           []string `json:"skill_ids" validate:"omitempty,dive,uuid"`
-	OutcomeIDs         []string `json:"outcome_ids" validate:"omitempty,dive,uuid"`
+	ExpectedRowVersion int64    `json:"expected_row_version" validate:"required,min=1"`
+	Title              string   `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
+	ShortDescription   string   `json:"short_description" validate:"required,nonwhitespace_min=20,max=500"`
+	AboutCourse        string   `json:"about_course" validate:"required,delta_nonwhitespace_min=30"`
+	ThumbnailFileID    string   `json:"thumbnail_file_id" validate:"required,uuid"`
+	PreviewVideoFileID *string  `json:"preview_video_file_id" validate:"omitempty,uuid"`
+	CourseLevelID      string   `json:"course_level_id" validate:"required,uuid"`
+	CourseTopicID      string   `json:"course_topic_id" validate:"required,uuid"`
+	TagIDs             []string `json:"tag_ids" validate:"required,min=1,dive,uuid"`
+	SkillIDs           []string `json:"skill_ids" validate:"required,min=1,dive,uuid"`
+	OutcomeIDs         []string `json:"outcome_ids" validate:"required,len=1,dive,uuid"`
 }
 
 type addCollaboratorRequest struct {
@@ -25,15 +25,15 @@ type addCollaboratorRequest struct {
 
 type sectionRequest struct {
 	ExpectedRowVersion int64  `json:"expected_row_version"`
-	Title              string `json:"title" validate:"required,min=1,max=255"`
-	Description        string `json:"description"`
+	Title              string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
+	Description        string `json:"description" validate:"required,delta_nonwhitespace_min=20"`
 }
 
 type lessonRequest struct {
 	SectionID          string `json:"section_id" validate:"required,uuid"`
 	ExpectedRowVersion int64  `json:"expected_row_version"`
-	Title              string `json:"title" validate:"required,min=1,max=255"`
-	Summary            string `json:"summary"`
+	Title              string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
+	Summary            string `json:"summary" validate:"required,delta_nonwhitespace_min=20"`
 }
 
 type videoRequest struct {
@@ -59,7 +59,7 @@ type quizRequest struct {
 type subLessonRequest struct {
 	LessonID           string        `json:"lesson_id" validate:"required,uuid"`
 	ExpectedRowVersion int64         `json:"expected_row_version"`
-	Title              string        `json:"title" validate:"required,min=1,max=255"`
+	Title              string        `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
 	Kind               string        `json:"kind" validate:"required,oneof=VIDEO QUIZ TEXT"`
 	IsPreview          bool          `json:"is_preview"`
 	Video              *videoRequest `json:"video"`

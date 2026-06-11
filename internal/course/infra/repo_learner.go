@@ -8,7 +8,6 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/course/domain"
-	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
@@ -73,8 +72,7 @@ func (r *GormRepository) Enroll(ctx context.Context, courseID string, userID str
 			return err
 		}
 		row = enrollmentRow{CourseID: courseID, UserID: userID, CurrentVersionID: *course.CurrentPublishedVersionID}
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := tx.Create(&row).Error; err != nil {
+		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, &row); err != nil {
 			return err
 		}
 		enrollment := toEnrollment(&row)
@@ -117,8 +115,7 @@ func (r *GormRepository) SaveProgress(ctx context.Context, courseID string, user
 				EnrollmentID: enrollment.ID, StableContentID: in.StableContentID, ContentType: strings.TrimSpace(in.ContentType),
 				Status: strings.TrimSpace(in.Status), Score: in.Score, QuizAttempt: sharedutils.NormalizeJSON(in.QuizAttempt, "{}"), LastInteractedAt: &now,
 			}
-			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-			if err := tx.Create(row).Error; err != nil {
+			if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 				return err
 			}
 		}

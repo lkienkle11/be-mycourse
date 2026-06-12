@@ -48,11 +48,14 @@ be-mycourse/
 │   ├── shared/
 │   │   ├── brevo/                  # Brevo SMTP email client + constants.go
 │   │   ├── cache/                  # Redis client setup (go-redis v9)
+│   │   ├── mq/                     # LavinMQ / RabbitMQ AMQP (topic publish + consume)
 │   │   ├── constants/              # Cross-domain constants (5 files only)
 │   │   │   ├── dbschema_name.go    # PostgreSQL table/relation names
 │   │   │   ├── error_msg.go        # Reusable error message strings + numeric caps
 │   │   │   ├── media.go            # Media limits, multipart constants
 │   │   │   ├── permissions.go      # AllPermissions catalog (permission IDs)
+│   │   │   ├── mq_topics.go        # LavinMQ exchange default + topic routing keys
+│   │   │   ├── ratelimit.go        # Shared rate-limit keys / caps
 │   │   │   └── register_http.go    # Registration rate-limit HTTP header names
 │   │   ├── db/                     # GORM setup, PostgreSQL connection, migrations runner
 │   │   ├── errors/                 # ErrXXX sentinel vars, error code constants
@@ -95,7 +98,7 @@ be-mycourse/
 
 | Path | Purpose |
 |------|---------|
-| `main.go` | Process entry: settings, logger, DB, Redis, migrations, wiring, background jobs, HTTP server |
+| `main.go` | Process entry: settings, logger, DB, Redis, LavinMQ (optional), migrations, wiring, background jobs, topic consumers, HTTP server |
 | `go.mod` | Go module definition (`mycourse-io-be`, Go 1.25) |
 
 ### `internal/auth/`

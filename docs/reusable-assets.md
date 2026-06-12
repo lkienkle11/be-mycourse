@@ -3,15 +3,25 @@
 
 ## Architecture (current)
 
-Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,machineidentity,constants,setting,cache,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
+Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,machineidentity,constants,setting,cache,mq,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
 
 **Domain types** live in `internal/<domain>/domain/` (no GORM tags). **HTTP DTOs** in `internal/<domain>/delivery/`. **GORM rows** in `internal/<domain>/infra/`. Auth refresh-session JSONB: `internal/auth/infra/gormjsonb.go`.
 
 ## Constants (mandatory)
 
-Business constants, permissions, Redis key prefixes, and user-facing messages: **`internal/shared/constants/`**. Do not add new business constants under `application/` or `delivery/` except re-exports for tests.
+Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys, and user-facing messages: **`internal/shared/constants/`**. Do not add new business constants under `application/` or `delivery/` except re-exports for tests.
 
 ## Function / Method Assets
+
+### Asset: internal/shared/mq (LavinMQ topic messaging)
+- **Name:** `SetupLavinMQ`, `Available`, `PublishTopic`, `StartConsumers`, `StartDefaultConsumers`, `Close`
+- **Type:** Package (`internal/shared/mq`)
+- **Path:** `internal/shared/mq/`
+- **Purpose:** CloudAMQP LavinMQ connection (`amqp091-go`), publish to topic exchange routing keys, durable queue bind + consume with manual ack.
+- **Scope:** Cross-domain async messaging; routing keys in `internal/shared/constants/mq_topics.go`.
+- **Dependencies:** `github.com/rabbitmq/amqp091-go`, `internal/shared/setting` (`LavinMQSetting`), env `CLOUDAMQP_URL`, `LAVINMQ_EXCHANGE`, `LAVINMQ_ENABLED`.
+- **Current usage:** `main.go` (`SetupLavinMQ`, `StartDefaultConsumers`); domain modules should call `PublishTopic` / register `Subscription` handlers — no parallel AMQP clients.
+- **Reuse:** Add new topics to `mq_topics.go`; register consumers via `StartConsumers` or extend `StartDefaultConsumers`.
 
 ### Asset: internal/shared/logger (Zap bootstrap + context)
 - **Name:** `InitFromSettings`, `Init`, `Sync`, `WithRequestID`, `FromContext`

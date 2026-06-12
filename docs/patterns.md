@@ -35,11 +35,13 @@ server/wire    → all layers (composition root)
 ## Constants Placement
 
 - Domain-specific constants (TTLs, limits, status values unique to one domain) belong **inside** that domain package (e.g. `internal/auth/domain/token_ttl.go`, `internal/media/domain/bunny_status_codes.go`).
-- **Cross-domain constants** belong in `internal/shared/constants/` — currently only 5 files:
+- **Cross-domain constants** belong in `internal/shared/constants/`:
   - `dbschema_name.go` — PostgreSQL table/relation names
   - `error_msg.go` — reusable error message strings + numeric caps
   - `media.go` — media upload limits, multipart constants
+  - `mq_topics.go` — LavinMQ topic exchange default + routing keys
   - `permissions.go` — `AllPermissions` catalog
+  - `ratelimit.go` — shared rate-limit keys / caps
   - `register_http.go` — registration rate-limit HTTP header names
 - Do NOT declare business constants inline inside service, infra, or delivery files.
 
@@ -102,6 +104,37 @@ Repository interfaces remain in `domain/repository.go`; ports cover **stateless 
   - **permission-gated** — `RequirePermission` checks the JWT embedded permission set
   - **internal** — `RequireInternalAPIKey` for RBAC admin API
   - **system** — `RequireSystemAccessToken` for privileged operations
+
+---
+
+## LavinMQ / CloudAMQP (topic messaging)
+
+Optional async messaging via [CloudAMQP LavinMQ](https://www.cloudamqp.com/docs/lavinmq-server.html) using the official Go client [`github.com/rabbitmq/amqp091-go`](https://www.cloudamqp.com/docs/go.html).
+
+| Concern | Location |
+|---------|----------|
+| Config | `config/app*.yaml` → `lavinmq:` block; env `CLOUDAMQP_URL`, `LAVINMQ_EXCHANGE` (default `amq.topic`), `LAVINMQ_ENABLED` |
+| Connection bootstrap | `internal/shared/mq/setup.go` — `SetupLavinMQ()` (non-fatal when disabled or URL empty, same as Redis warn-on-fail) |
+| Publish | `mq.PublishTopic(ctx, routingKey, mq.Publishing{...})` |
+| Subscribe | `mq.StartConsumers(ctx, mq.Subscription{RoutingKey, Handler, ...})` — one AMQP channel per consumer |
+| Built-in consumers | `mq.StartDefaultConsumers` from `main.go` (health ping topic) |
+| Topic routing keys | `internal/shared/constants/mq_topics.go` |
+
+Domain modules that need async work should **publish/consume via `internal/shared/mq`** and add routing keys to `mq_topics.go` — do not open parallel AMQP clients in `infra/`.
+
+```go
+// Publish from application/infra when LavinMQ is enabled
+_ = mq.PublishTopic(ctx, constants.TopicCoursePublished, mq.Publishing{
+    Body:        payload,
+    ContentType: "application/json",
+})
+
+// Register a consumer (e.g. from jobs/ or main via StartDefaultConsumers)
+mq.StartConsumers(ctx, mq.Subscription{
+    RoutingKey: constants.TopicMediaUploadCompleted,
+    Handler:    myHandler,
+})
+```
 
 ---
 

@@ -10,6 +10,7 @@
 | `github.com/golang-jwt/jwt/v5` | v5.3.1 | JWT sign and validation (HS256) |
 | `github.com/go-playground/validator/v10` | v10.30.1 | Request struct validation |
 | `github.com/redis/go-redis/v9` | v9.18.0 | Redis client (cache for auth/me) |
+| `github.com/rabbitmq/amqp091-go` | v1.10.0 | LavinMQ / RabbitMQ AMQP client (topic publish + consume) |
 | `github.com/golang-migrate/migrate/v4` | v4.19.1 | SQL migration runner |
 | `go.uber.org/zap` | v1.27.1 | Structured logging |
 | `gopkg.in/yaml.v3` | v3.0.1 | YAML config file parsing |
@@ -81,6 +82,7 @@ Cross-domain dependencies (e.g. Auth calling RBAC) use **interface adapters** de
 | `internal/shared/logger` | Uber Zap bootstrap and per-request context |
 | `internal/shared/db` | PostgreSQL GORM setup and migration runner |
 | `internal/shared/cache` | Redis client |
+| `internal/shared/mq` | CloudAMQP LavinMQ connection, topic publisher, consumer registry |
 | `internal/shared/httperr` | Gin error middleware and panic recovery |
 | `internal/shared/parsebool` | Parse loose boolean strings (`Loose`, `EnvEnabled`) |
 | `internal/shared/taxonomy` | Taxonomy tree/description validators and `TreeNode` type |

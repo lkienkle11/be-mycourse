@@ -86,10 +86,22 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://mycourse.io
 # Logging (all optional)
 LOG_LEVEL=info          # debug | info | warn | error
 LOG_FORMAT=json         # json | console
-LOG_FILE_PATH=          # append-only NDJSON file for Filebeat (empty = disabled)
+LOG_FILE_PATH=          # legacy single-file NDJSON tee (when set, overrides dual-file mode)
+LOG_FILE_ENABLED=false  # true enables rotated app.log + access.log when LOG_FILE_PATH is empty
+LOG_DIR=                # optional explicit directory override for dual-file mode
+LOG_APP_NAME=be-mycourse
+LOG_VENDOR=mycourse
+LOG_PATH_MODE=user      # user | service
+LOG_CONSOLE=true        # tee logs to stdout in dual-file mode
+LOG_MAX_SIZE_MB=100
+LOG_MAX_BACKUPS=10
+LOG_MAX_AGE_DAYS=14
+LOG_COMPRESS=true
+LOG_INSTANCE_ID=        # optional suffix for multi-instance hosts
 LOG_SERVICE_NAME=be-mycourse
 LOG_ENVIRONMENT=development
 APP_VERSION=0.1.0
+LOG_REDIRECT_STDLOG=false
 ```
 
 2. Install dependencies and run:
@@ -145,6 +157,13 @@ go run ./cmd/syncpermissions
 # Rebuild role_permissions from constants.RolePermissions
 go run ./cmd/syncrolepermissions
 ```
+
+### Loki/Alloy shipping
+
+For local/hosted log shipping to Grafana Cloud Loki, use:
+
+- `docs/observability/loki-alloy.md` for setup and label rules.
+- `config/alloy/be-mycourse.example.alloy` as a pipeline template.
 
 Alternatively, use the system API after startup (obtain token via CLI first):
 

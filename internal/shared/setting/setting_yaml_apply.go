@@ -2,6 +2,7 @@ package setting
 
 import (
 	"os"
+	"strconv"
 	"strings"
 
 	"mycourse-io-be/internal/shared/constants"
@@ -61,6 +62,17 @@ func expandYAMLLoggingSection(c *yamlConfig, expand func(string) string) {
 	c.Logging.Level = expand(c.Logging.Level)
 	c.Logging.Format = expand(c.Logging.Format)
 	c.Logging.FilePath = expand(c.Logging.FilePath)
+	c.Logging.LogDir = expand(c.Logging.LogDir)
+	c.Logging.AppName = expand(c.Logging.AppName)
+	c.Logging.Vendor = expand(c.Logging.Vendor)
+	c.Logging.PathMode = expand(c.Logging.PathMode)
+	c.Logging.FileEnabled = expand(c.Logging.FileEnabled)
+	c.Logging.ConsoleAlso = expand(c.Logging.ConsoleAlso)
+	c.Logging.MaxSizeMB = expand(c.Logging.MaxSizeMB)
+	c.Logging.MaxBackups = expand(c.Logging.MaxBackups)
+	c.Logging.MaxAgeDays = expand(c.Logging.MaxAgeDays)
+	c.Logging.Compress = expand(c.Logging.Compress)
+	c.Logging.InstanceID = expand(c.Logging.InstanceID)
 	c.Logging.ServiceName = expand(c.Logging.ServiceName)
 	c.Logging.Environment = expand(c.Logging.Environment)
 	c.Logging.Version = expand(c.Logging.Version)
@@ -111,6 +123,17 @@ func applyYAMLLoggingGlobals(c *yamlConfig) {
 	LogSetting.Format = format
 
 	LogSetting.FilePath = strings.TrimSpace(c.Logging.FilePath)
+	LogSetting.LogDir = strings.TrimSpace(c.Logging.LogDir)
+	LogSetting.AppName = effectiveLogAppName(c.Logging.AppName)
+	LogSetting.Vendor = effectiveLogVendor(c.Logging.Vendor)
+	LogSetting.PathMode = effectiveLogPathMode(c.Logging.PathMode)
+	LogSetting.FileEnabled = parsebool.Loose(c.Logging.FileEnabled)
+	LogSetting.ConsoleAlso = parseBoolDefault(c.Logging.ConsoleAlso, true)
+	LogSetting.MaxSizeMB = parseIntDefault(c.Logging.MaxSizeMB, 100)
+	LogSetting.MaxBackups = parseIntDefault(c.Logging.MaxBackups, 10)
+	LogSetting.MaxAgeDays = parseIntDefault(c.Logging.MaxAgeDays, 14)
+	LogSetting.Compress = parseBoolDefault(c.Logging.Compress, true)
+	LogSetting.InstanceID = strings.TrimSpace(c.Logging.InstanceID)
 	LogSetting.ServiceName = effectiveLogServiceName(c.Logging.ServiceName)
 	LogSetting.Environment = effectiveLogEnvironment(c.Logging.Environment)
 	LogSetting.Version = effectiveLogVersion(c.Logging.Version)
@@ -129,7 +152,31 @@ func effectiveLogServiceName(s string) string {
 	if s != "" {
 		return s
 	}
+	return effectiveLogAppName("")
+}
+
+func effectiveLogAppName(s string) string {
+	s = strings.TrimSpace(s)
+	if s != "" {
+		return s
+	}
 	return "be-mycourse"
+}
+
+func effectiveLogVendor(s string) string {
+	s = strings.TrimSpace(s)
+	if s != "" {
+		return s
+	}
+	return "mycourse"
+}
+
+func effectiveLogPathMode(s string) string {
+	mode := strings.ToLower(strings.TrimSpace(s))
+	if mode == "service" {
+		return "service"
+	}
+	return "user"
 }
 
 func effectiveLogEnvironment(s string) string {
@@ -149,6 +196,26 @@ func effectiveLogVersion(s string) string {
 		return s
 	}
 	return strings.TrimSpace(os.Getenv("APP_VERSION"))
+}
+
+func parseIntDefault(raw string, fallback int) int {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(v)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func parseBoolDefault(raw string, fallback bool) bool {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return fallback
+	}
+	return parsebool.Loose(v)
 }
 
 func applyYAMLServerGlobals(c *yamlConfig) {

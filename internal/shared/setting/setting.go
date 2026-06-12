@@ -75,6 +75,17 @@ type Logging struct {
 	Level          string
 	Format         string // "json" | "console"
 	FilePath       string
+	LogDir         string
+	AppName        string
+	Vendor         string
+	PathMode       string
+	FileEnabled    bool
+	ConsoleAlso    bool
+	MaxSizeMB      int
+	MaxBackups     int
+	MaxAgeDays     int
+	Compress       bool
+	InstanceID     string
 	ServiceName    string
 	Environment    string
 	Version        string
@@ -114,35 +125,46 @@ type Media struct {
 }
 
 var (
-	AppSetting      = &App{}
-	ServerSetting   = &Server{}
-	DatabaseSetting = &Database{}
-	RedisSetting    = &Redis{}
-	LavinMQSetting  = &LavinMQ{}
-	SupabaseSetting = &Supabase{}
-	BrevoSetting    = &Brevo{}
-	MediaSetting    = &Media{}
+	AppSetting        = &App{}
+	ServerSetting     = &Server{}
+	DatabaseSetting   = &Database{}
+	RedisSetting      = &Redis{}
+	LavinMQSetting    = &LavinMQ{}
+	SupabaseSetting   = &Supabase{}
+	BrevoSetting      = &Brevo{}
+	MediaSetting      = &Media{}
 	LogSetting        = &Logging{}
 	ResilienceSetting = &Resilience{}
 )
 
 type yamlConfig struct {
-	Server   yamlServer   `yaml:"server"`
-	Database yamlDatabase `yaml:"database"`
-	App      yamlApp      `yaml:"app"`
-	Redis    yamlRedis    `yaml:"redis"`
-	LavinMQ  yamlLavinMQ  `yaml:"lavinmq"`
-	Supabase yamlSupabase `yaml:"supabase"`
-	Brevo    yamlBrevo    `yaml:"brevo"`
-	Media    yamlMedia    `yaml:"media"`
-	Logging     yamlLogging     `yaml:"logging"`
-	Resilience  yamlResilience  `yaml:"resilience"`
+	Server     yamlServer     `yaml:"server"`
+	Database   yamlDatabase   `yaml:"database"`
+	App        yamlApp        `yaml:"app"`
+	Redis      yamlRedis      `yaml:"redis"`
+	LavinMQ    yamlLavinMQ    `yaml:"lavinmq"`
+	Supabase   yamlSupabase   `yaml:"supabase"`
+	Brevo      yamlBrevo      `yaml:"brevo"`
+	Media      yamlMedia      `yaml:"media"`
+	Logging    yamlLogging    `yaml:"logging"`
+	Resilience yamlResilience `yaml:"resilience"`
 }
 
 type yamlLogging struct {
 	Level          string `yaml:"level"`
 	Format         string `yaml:"format"`
 	FilePath       string `yaml:"file_path"`
+	LogDir         string `yaml:"log_dir"`
+	AppName        string `yaml:"app_name"`
+	Vendor         string `yaml:"vendor"`
+	PathMode       string `yaml:"path_mode"`
+	FileEnabled    string `yaml:"file_enabled"`
+	ConsoleAlso    string `yaml:"console_also"`
+	MaxSizeMB      string `yaml:"max_size_mb"`
+	MaxBackups     string `yaml:"max_backups"`
+	MaxAgeDays     string `yaml:"max_age_days"`
+	Compress       string `yaml:"compress"`
+	InstanceID     string `yaml:"instance_id"`
 	ServiceName    string `yaml:"service_name"`
 	Environment    string `yaml:"environment"`
 	Version        string `yaml:"version"`

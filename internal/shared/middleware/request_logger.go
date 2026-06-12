@@ -27,21 +27,40 @@ func RequestLogger() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 
 		path := c.Request.URL.Path
+		route := c.FullPath()
+		if route == "" {
+			route = "unmatched"
+		}
 		start := time.Now()
 		c.Next()
 
 		latency := time.Since(start)
 		status := c.Writer.Status()
 		written := c.Writer.Size()
+		latencyMS := latency.Milliseconds()
 
-		zap.L().Info("http_request",
+		fields := []zap.Field{
+			zap.String("kind", "access"),
 			zap.String("request_id", rid),
 			zap.String("method", c.Request.Method),
 			zap.String("path", path),
+			zap.String("route", route),
 			zap.Int("status", status),
 			zap.Duration("latency", latency),
+			zap.Int64("latency_ms", latencyMS),
+			zap.Int("bytes", written),
 			zap.Int("response_bytes", written),
 			zap.String("client_ip", c.ClientIP()),
-		)
+			zap.String("user_agent", c.Request.UserAgent()),
+		}
+
+		switch {
+		case status >= 500:
+			logger.Access().Error("http_request", fields...)
+		case status >= 400:
+			logger.Access().Warn("http_request", fields...)
+		default:
+			logger.Access().Info("http_request", fields...)
+		}
 	}
 }

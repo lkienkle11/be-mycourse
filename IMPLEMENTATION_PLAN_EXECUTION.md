@@ -11,6 +11,18 @@
 - **`LOG_FILE_PATH`:** when set, **`zapcore.NewTee`** adds a **second core** writing **NDJSON** (always JSON, one object per line) regardless of stdout format — intended for **Filebeat** sidecar / host path mount. Infra (Elasticsearch, Kibana, ingest pipelines) stays **outside** this repository.
 - **Suggested env keys:** `LOG_LEVEL`, `LOG_FORMAT`, `LOG_FILE_PATH`, `LOG_SERVICE_NAME`, `LOG_ENVIRONMENT`, `APP_VERSION`, `LOG_REDIRECT_STDLOG` — all wired through `config/app*.yaml` `logging:` + `${VAR}` expansion.
 
+### Update (2026-06-12) — Alloy/Loki local file mode
+
+- Added dual rotated-file support in `internal/shared/logger`:
+  - `app.log` (`log_file=app`) for app/business logs
+  - `access.log` (`log_file=access`) for HTTP access logs via `logger.Access()`
+- Added path resolver + config-driven OS defaults (`LOG_DIR`, `LOG_APP_NAME`, `LOG_VENDOR`, `LOG_PATH_MODE`, `LOG_INSTANCE_ID`).
+- Added rotation settings (`LOG_MAX_SIZE_MB`, `LOG_MAX_BACKUPS`, `LOG_MAX_AGE_DAYS`, `LOG_COMPRESS`) using `lumberjack`.
+- Preserved legacy compatibility: if `LOG_FILE_PATH` is set, legacy single-file tee remains active.
+- Added observability docs and Alloy example:
+  - `docs/observability/loki-alloy.md`
+  - `config/alloy/be-mycourse.example.alloy`
+
 ### HTTP / Gin
 - **`middleware.RequestLogger`:** first global middleware; generates or honors **`X-Request-ID`** (`constants.HeaderRequestID`); sets Gin key `constants.GinContextKeyRequestID`; **`logger.WithRequestID`** stores the id on `context.Context` using an **unexported sentinel type + `var` in `pkg/logger`** (avoids `const` in `pkg/` per Rule 1 and string keys per staticcheck SA1029); access log field **`http_request`** with method, path, status, latency, `response_bytes`, `client_ip`, `request_id` — **no body** (PII-safe default).
 - **`pkg/httperr.Recovery`:** logs panic with **`logger.FromContext`** + **`zap.Stack`**.

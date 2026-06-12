@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"mycourse-io-be/internal/shared/xdgx"
 )
 
 const machineIdentityDir = "mycourse"
@@ -81,13 +83,9 @@ func loadFileSecret() (string, error) {
 }
 
 func identityFilePath() (string, error) {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
+	base, err := xdgx.ConfigHome()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(base, machineIdentityDir, machineIdentityFile), nil
 }

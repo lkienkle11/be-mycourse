@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"mycourse-io-be/internal/shared/xdgx"
 )
 
 const cliRateLimitDir = "mycourse"
@@ -46,13 +48,9 @@ func cliRateLimitPath() (string, error) {
 	if override := os.Getenv("MYCOURSE_CLI_RATE_LIMIT_PATH"); override != "" {
 		return override, nil
 	}
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
+	base, err := xdgx.ConfigHome()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(base, cliRateLimitDir, cliRateLimitFile), nil
 }

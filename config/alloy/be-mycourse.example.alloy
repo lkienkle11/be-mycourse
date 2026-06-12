@@ -1,0 +1,64 @@
+// Grafana Alloy example for be-mycourse logs -> Grafana Cloud Loki.
+// Replace placeholders before use:
+// - __LOG_GLOB__
+// - __HOSTNAME__
+// - __LOKI_URL__
+// - __LOKI_USERNAME__
+// - __LOKI_PASSWORD__
+
+local.file_match "be_mycourse_logs" {
+  path_targets = [
+    {
+      __path__ = "__LOG_GLOB__"
+      service  = "be-mycourse"
+      env      = "local"
+      host     = "__HOSTNAME__"
+    },
+  ]
+}
+
+loki.source.file "be_mycourse_logs" {
+  targets    = local.file_match.be_mycourse_logs.targets
+  forward_to = [loki.process.be_mycourse_pipeline.receiver]
+}
+
+loki.process "be_mycourse_pipeline" {
+  forward_to = [loki.write.grafana_cloud.receiver]
+
+  stage.json {
+    expressions = {
+      ts       = "ts"
+      level    = "level"
+      kind     = "kind"
+      log_file = "log_file"
+      service  = "service"
+      env      = "env"
+    }
+  }
+
+  stage.timestamp {
+    source = "ts"
+    format = "RFC3339Nano"
+  }
+
+  stage.labels {
+    values = {
+      service  = ""
+      env      = ""
+      host     = ""
+      log_file = ""
+      level    = ""
+      kind     = ""
+    }
+  }
+}
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = "__LOKI_URL__"
+    basic_auth {
+      username = "__LOKI_USERNAME__"
+      password = "__LOKI_PASSWORD__"
+    }
+  }
+}

@@ -24,14 +24,14 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - **Reuse:** Add new topics to `mq_topics.go`; register consumers via `StartConsumers` or extend `StartDefaultConsumers`.
 
 ### Asset: internal/shared/logger (Zap bootstrap + context)
-- **Name:** `InitFromSettings`, `Init`, `Sync`, `WithRequestID`, `FromContext`
+- **Name:** `InitFromSettings`, `Init`, `Sync`, `WithRequestID`, `FromContext`, `Access`, `ResolveLogDir`
 - **Type:** Package (`internal/shared/logger`)
 - **Path:** `internal/shared/logger/`
-- **Purpose:** Single process-wide logger (via `zap.ReplaceGlobals`), optional JSON file tee for ELK/Filebeat, request correlation fields, optional `zap.RedirectStdLog`.
+- **Purpose:** Single process-wide logger (via `zap.ReplaceGlobals`) with legacy file tee compatibility and dual rotated sinks (`app.log`, `access.log`) for Loki/Alloy shipping, request correlation fields, optional `zap.RedirectStdLog`.
 - **Scope:** All layers after `main` bootstrap; HTTP handlers use `FromContext` for `request_id`. Context correlation uses an **unexported sentinel + `var` in `internal/shared/logger`** (Rule 1 / staticcheck SA1029 — not a `const` in `pkg/`, not a string `context` key).
-- **Dependencies:** `go.uber.org/zap`, `internal/shared/setting` (`LogSetting`), `zapcore.NewTee` when `LOG_FILE_PATH` set.
+- **Dependencies:** `go.uber.org/zap`, `internal/shared/setting` (`LogSetting`), `gopkg.in/natefinch/lumberjack.v2` (rotation), `internal/shared/xdgx` (path helpers).
 - **Current usage:** `main.go`, `middleware/request_logger.go`, `internal/shared/httperr`, `internal/media/jobs/*`, `internal/shared/cache`, media webhook handlers.
-- **Reuse:** Prefer `logger.FromContext(ctx)` in new handlers/services; use `zap.L()` only where no context exists.
+- **Reuse:** Prefer `logger.FromContext(ctx)` in new handlers/services; use `logger.Access()` for HTTP access lines; use `zap.L()` only where no context exists.
 
 ### Asset: internal/shared/ratelimit (fixed-window counters)
 - **Name:** `AllowFixedWindow`, `InMemoryStore`, `FileStore`, `AllowCLI`

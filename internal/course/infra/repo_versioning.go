@@ -16,6 +16,14 @@ import (
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
 
+type subLessonValidationInput struct {
+	Kind      string
+	IsPreview bool
+	Video     *domain.VideoContent
+	Text      *domain.TextContent
+	Quiz      *domain.QuizContent
+}
+
 func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID string, actorUserID string, fromStatus, toStatus, reason string, setSubmitted bool) (*domain.CourseDetail, error) {
 	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -31,6 +39,11 @@ func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID string,
 				return domain.ErrCourseDraftRejectedOnly
 			}
 			return domain.ErrCourseInvalidReviewState
+		}
+		if setSubmitted {
+			if err := r.validateDraftForReview(ctx, tx, course, version); err != nil {
+				return err
+			}
 		}
 		updates := map[string]any{
 			"status":           toStatus,
@@ -376,33 +389,81 @@ func (r *GormRepository) validateLookupIDs(ctx context.Context, tx *gorm.DB, tab
 }
 
 func (r *GormRepository) validateSubLessonPayload(ctx context.Context, tx *gorm.DB, in domain.UpsertSubLessonInput) error {
+	return r.validateSubLessonContent(ctx, tx, subLessonValidationInput{
+		Kind:      in.Kind,
+		IsPreview: in.IsPreview,
+		Video:     in.Video,
+		Text:      in.Text,
+		Quiz:      in.Quiz,
+	})
+}
+
+func (r *GormRepository) validateSubLessonContent(ctx context.Context, tx *gorm.DB, in subLessonValidationInput) error {
 	kind := strings.ToUpper(strings.TrimSpace(in.Kind))
 	if kind == domain.SubLessonKindQuiz && in.IsPreview {
 		return domain.ErrCoursePreviewNotAllowedForQuiz
 	}
 	switch kind {
 	case domain.SubLessonKindVideo:
-		if in.Video == nil || strings.TrimSpace(in.Video.MediaFileID) == "" {
-			return domain.ErrCourseInvalidSubLessonKind
-		}
-		return r.validateMediaFile(ctx, tx, &in.Video.MediaFileID, constants.FileKindVideo)
+		return r.validateVideoSubLesson(ctx, tx, in.Video)
 	case domain.SubLessonKindText:
-		if in.Text == nil {
-			return domain.ErrCourseInvalidSubLessonKind
-		}
-		var payload any
-		if err := json.Unmarshal([]byte(sharedutils.NormalizeJSON(in.Text.ContentDelta, "[]")), &payload); err != nil {
-			return err
-		}
-		return nil
+		return validateTextSubLesson(in.Text)
 	case domain.SubLessonKindQuiz:
-		if in.Quiz == nil || len(in.Quiz.Options) == 0 {
-			return domain.ErrCourseInvalidSubLessonKind
-		}
-		return nil
+		return validateQuizSubLesson(in.Quiz)
 	default:
 		return domain.ErrCourseInvalidSubLessonKind
 	}
+}
+
+func (r *GormRepository) validateVideoSubLesson(ctx context.Context, tx *gorm.DB, video *domain.VideoContent) error {
+	if video == nil {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	mediaID := strings.TrimSpace(video.MediaFileID)
+	if mediaID == "" {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	return r.validateMediaFile(ctx, tx, &mediaID, constants.FileKindVideo)
+}
+
+func validateTextSubLesson(text *domain.TextContent) error {
+	if text == nil {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	content := sharedutils.NormalizeJSON(text.ContentDelta, "[]")
+	var payload any
+	if err := json.Unmarshal([]byte(content), &payload); err != nil {
+		return err
+	}
+	if sharedutils.CountDeltaNonWhitespace(content) < 1 {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	return nil
+}
+
+func validateQuizSubLesson(quiz *domain.QuizContent) error {
+	if quiz == nil {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	if strings.TrimSpace(quiz.Prompt) == "" {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	if len(quiz.Options) == 0 {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	hasCorrect := false
+	for _, option := range quiz.Options {
+		if strings.TrimSpace(option.Body) == "" {
+			return domain.ErrCourseInvalidSubLessonKind
+		}
+		if option.IsCorrect {
+			hasCorrect = true
+		}
+	}
+	if !hasCorrect {
+		return domain.ErrCourseInvalidSubLessonKind
+	}
+	return nil
 }
 
 func (r *GormRepository) upsertSubLessonDetail(ctx context.Context, tx *gorm.DB, subLessonID string, in domain.UpsertSubLessonInput) error {

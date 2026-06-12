@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-12 (submit-for-review validation, shared useraccess helper, quiz preview enforcement)._
+_Last audited: 2026-06-12 (outline delete cascade fix, submit-for-review validation, shared useraccess helper, quiz preview enforcement)._
 
 ## Overview
 
@@ -67,6 +67,10 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 - `course_sub_lessons` belong to a lesson and a version
 - each outline node has a stable business UUID (`stable_id`) that survives version cloning
 - reordering is version-local and atomic; `reorderStableIDRows` applies a two-phase `order_index` update (temporary negative indices, then `0..n-1`) so partial reorders never violate `uix_*_order_per_*_active` unique indexes
+- outline deletes run inside `deleteDraftOutline` (draft lease + version guard, then reload outline):
+  - `DELETE …/sections/:sectionId` → `deleteSectionTree` → `deleteChildrenThenRow` removes child lessons (`section_id = ?`) then the section row
+  - `DELETE …/lessons/:lessonId` → `deleteLessonTree` → same helper removes sub-lessons (`lesson_id = ?`) then the lesson row
+  - parent row delete must use `Where("id = ?", rowID).Delete(model)` — GORM treats a bare string UUID passed to `Delete(model, rowID)` as raw SQL (`WHERE 019e…`) and PostgreSQL rejects it; child deletes already used parameterized `Where`
 
 Sub-lesson content types:
 

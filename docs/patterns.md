@@ -143,8 +143,13 @@ mq.StartConsumers(ctx, mq.Subscription{
 - **Bootstrap:** `main.go` calls `setting.Setup()` first, then `logger.InitFromSettings()`, then `defer logger.Sync()`. Only stdlib `log` is used before logger init.
 - **Global logger:** `logger.InitFromSettings()` calls `zap.ReplaceGlobals`. Any package may use `zap.L()` or `zap.S()` after that.
 - **Per-request fields:** `middleware.RequestLogger()` generates `X-Request-ID`, attaches it to `c.Request.Context()` via `logger.WithRequestID`. Handlers and services log with `logger.FromContext(ctx)` for automatic `request_id` inclusion.
-- **Do not log HTTP bodies** (PII risk). Access log includes method, path, status, latency, bytes, IP, and `request_id`.
-- **Config keys** (all optional): `LOG_LEVEL`, `LOG_FORMAT` (`json`/`console`), `LOG_FILE_PATH` (append-only NDJSON for Filebeat), `LOG_SERVICE_NAME`, `LOG_ENVIRONMENT`, `APP_VERSION`.
+- **Do not log HTTP bodies** (PII risk). Access log includes method, path, route, status, latency, bytes, user agent, IP, and `request_id`.
+- **File logging modes:**
+  - Legacy mode: `LOG_FILE_PATH` writes one NDJSON file (kept for backward compatibility).
+  - Dual-file mode: `LOG_FILE_ENABLED=true` with empty `LOG_FILE_PATH` writes rotated `app.log` and `access.log`.
+- **Rotation and path config keys** (all optional): `LOG_DIR`, `LOG_APP_NAME`, `LOG_VENDOR`, `LOG_PATH_MODE`, `LOG_FILE_ENABLED`, `LOG_CONSOLE`, `LOG_MAX_SIZE_MB`, `LOG_MAX_BACKUPS`, `LOG_MAX_AGE_DAYS`, `LOG_COMPRESS`, `LOG_INSTANCE_ID`.
+- **Base keys** remain: `LOG_LEVEL`, `LOG_FORMAT`, `LOG_FILE_PATH`, `LOG_SERVICE_NAME`, `LOG_ENVIRONMENT`, `APP_VERSION`, `LOG_REDIRECT_STDLOG`.
+- **Observability doc:** `docs/observability/loki-alloy.md` + `config/alloy/be-mycourse.example.alloy`.
 
 ```go
 // In a handler

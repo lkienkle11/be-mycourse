@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-07 (multi-instructor draft editing, review, publish, learner progress versioning, zero-logic review refactor cleanup)._
+_Last audited: 2026-06-12 (submit-for-review validation, shared useraccess helper, quiz preview enforcement)._
 
 ## Overview
 
@@ -88,6 +88,33 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 | Lesson | title ≥5; summary Delta JSON ≥20 non-whitespace text (legacy plain text accepted on read/validate) |
 | Sub-lesson | title ≥5; `is_preview` allowed only for `VIDEO` and `TEXT` (QUIZ → `ErrCoursePreviewNotAllowedForQuiz`; learner preview outline filters QUIZ) |
 
+## Submit-for-review validation
+
+`POST /api/v1/courses/:courseId/submit-review` triggers `validateDraftForReview` before changing the version status to `IN_REVIEW`. The validation runs inside the same DB transaction and returns `400 Bad Request` if any rule fails.
+
+### Rules checked by `validateDraftForReview`
+
+| Area | Rule | Domain error |
+|------|------|-------------|
+| Basic info | `title` ≥5, `short_description` ≥20, `about_course` Delta ≥30 non-whitespace chars | `ErrCourseSubmitBasicInfoIncomplete` |
+| Basic info | `thumbnail_file_id`, `course_level_id`, `course_topic_id` — non-empty UUID, existing and not-deleted | `ErrCourseSubmitBasicInfoIncomplete` |
+| Basic info | `tag_ids` ≥1, `skill_ids` ≥1, `outcome_ids` == 1 | `ErrCourseSubmitBasicInfoIncomplete` |
+| Outline | at least 1 section | `ErrCourseSubmitOutlineIncomplete` |
+| Outline | each section has at least 1 lesson | `ErrCourseSubmitOutlineIncomplete` |
+| Outline | each lesson has at least 1 sub-lesson | `ErrCourseSubmitOutlineIncomplete` |
+| Sub-lesson | `VIDEO` — `media_file_id` non-empty, existing, `READY` status | `ErrCourseSubmitInvalidSubLesson` |
+| Sub-lesson | `TEXT` — Delta JSON non-whitespace chars ≥1 | `ErrCourseSubmitInvalidSubLesson` |
+| Sub-lesson | `QUIZ` — prompt non-empty, ≥1 option, ≥1 correct answer, all option bodies non-empty | `ErrCourseSubmitInvalidSubLesson` |
+| Sub-lesson | `QUIZ` with `is_preview = true` — blocked | `ErrCourseSubmitInvalidSubLesson` (wraps `ErrCoursePreviewNotAllowedForQuiz`) |
+| Collaborators | at least 1 collaborator | `ErrCourseSubmitCollaboratorRequired` |
+| Collaborators | every collaborator must be an active (non-deleted, non-disabled, non-banned) instructor | `ErrCourseCollaboratorInactive` |
+
+All submit domain errors are mapped to HTTP `400` in `mapCourseError` (`delivery/handler_base.go`).
+
+### Shared user access helper
+
+`internal/shared/useraccess` exposes `CheckAccessible(snapshot *Snapshot, now int64) error` and is used by both the submit collaborator validator and the auth service access checks. This avoids duplicated accessibility logic across modules.
+
 ## Learner model
 
 There is no separate `internal/enrollment/` package. Learner enrollment and progress currently live inside `internal/course/`.
@@ -155,15 +182,14 @@ The module reuses the existing permission catalog:
 
 ## Validation snapshot
 
-Repo-wide validation passed during the latest audit (2026-06-07):
+Repo-wide validation passed during the latest audit (2026-06-12):
 
-- `golangci-lint run`
-- `go test ./...`
-- `go build ./...`
-- `make check-architecture`
-- `make check-dupl`
-- `make check-layout`
-- `make build`
+- `golangci-lint run` — 0 issues
+- `go test ./...` — PASS
+- `go build ./...` — PASS
+- `make check-architecture` — OK
+- `make check-dupl` — OK
+- `make check-layout` — OK
 
 ## Create course transaction
 

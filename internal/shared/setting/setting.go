@@ -53,6 +53,14 @@ type Redis struct {
 	DB       int
 }
 
+// LavinMQ holds CloudAMQP LavinMQ (RabbitMQ-compatible) connection settings.
+// URL should be the AMQP URL from the CloudAMQP console (env CLOUDAMQP_URL).
+type LavinMQ struct {
+	URL      string
+	Exchange string
+	Enabled  bool
+}
+
 type Supabase struct {
 	ProjectRef     string
 	URL            string
@@ -110,6 +118,7 @@ var (
 	ServerSetting   = &Server{}
 	DatabaseSetting = &Database{}
 	RedisSetting    = &Redis{}
+	LavinMQSetting  = &LavinMQ{}
 	SupabaseSetting = &Supabase{}
 	BrevoSetting    = &Brevo{}
 	MediaSetting    = &Media{}
@@ -122,6 +131,7 @@ type yamlConfig struct {
 	Database yamlDatabase `yaml:"database"`
 	App      yamlApp      `yaml:"app"`
 	Redis    yamlRedis    `yaml:"redis"`
+	LavinMQ  yamlLavinMQ  `yaml:"lavinmq"`
 	Supabase yamlSupabase `yaml:"supabase"`
 	Brevo    yamlBrevo    `yaml:"brevo"`
 	Media    yamlMedia    `yaml:"media"`
@@ -188,6 +198,12 @@ type yamlRedis struct {
 	Addr     string `yaml:"addr"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+}
+
+type yamlLavinMQ struct {
+	URL      string `yaml:"url"`
+	Exchange string `yaml:"exchange"`
+	Enabled  string `yaml:"enabled"`
 }
 
 type yamlSupabase struct {

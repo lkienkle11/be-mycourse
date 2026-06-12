@@ -54,6 +54,7 @@ Verify row counts with `psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM users;"` (
 3. **Data stores:** Decide per component:
    - **PostgreSQL** — usually **managed** (e.g. Supabase, RDS, Neon). The VPS then does **not** need the PostgreSQL *server* package; you only need connectivity + secrets in `.env`. Installing Postgres **on Ubuntu** is **optional** and only if you want the engine on the same machine.
    - **Redis** — **optional** for this stack when you use **hosted Redis** (or skip cache-heavy paths): point `REDIS_ADDR` at the cloud endpoint. A local `redis-server` on Ubuntu is **optional** and only if you want an on-box engine.
+   - **LavinMQ (CloudAMQP)** — **optional** for async topic messaging. Create a LavinMQ instance in [CloudAMQP](https://www.cloudamqp.com/docs/lavinmq-server.html), copy the **AMQP URL** into `CLOUDAMQP_URL`, set `LAVINMQ_ENABLED=true`. Default topic exchange: `amq.topic` (`LAVINMQ_EXCHANGE`). Leave disabled locally when not needed.
 4. **API keys:** Fill `.env.example` / `.env.prod.example` (Supabase, JWT, etc.).
 
 ---

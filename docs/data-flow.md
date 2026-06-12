@@ -219,6 +219,7 @@ GET/POST /api/v1/learner-courses/:courseId/progress
 
 - **PostgreSQL** via GORM (primary datastore for all domains).
 - **Redis** optional cache: auth `/me` responses, login negative cache, email confirmation sliding window.
+- **LavinMQ** optional topic messaging: publish/consume via `internal/shared/mq` when `LAVINMQ_ENABLED=true` and `CLOUDAMQP_URL` is set (CloudAMQP console AMQP URL). Default exchange `amq.topic`; routing keys in `internal/shared/constants/mq_topics.go`.
 - **SQL migrations** via embedded files + `golang-migrate` (`shareddb.MigrateDatabase()`).
 - **B2 / BunnyCDN** object storage for media files.
 

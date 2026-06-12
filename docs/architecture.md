@@ -4,7 +4,7 @@
 
 The **MyCourse** backend is a **Go 1.25** monolith (`module mycourse-io-be`) organized with **Domain-Driven Design (DDD)**. Each business capability is a bounded context under `internal/<domain>/`, divided into four layers with a strict dependency rule.
 
-**Tech stack:** Gin (HTTP), GORM + PostgreSQL (persistence), Redis (cache), golang-jwt (auth), Brevo SMTP (email), Backblaze B2 + BunnyCDN (storage/streaming), Uber Zap (logging), Viper/YAML (config).
+**Tech stack:** Gin (HTTP), GORM + PostgreSQL (persistence), Redis (cache), CloudAMQP LavinMQ (optional topic messaging), golang-jwt (auth), Brevo SMTP (email), Backblaze B2 + BunnyCDN (storage/streaming), Uber Zap (logging), YAML + env (config).
 
 ---
 
@@ -72,6 +72,7 @@ Cross-cutting concerns that are not domain-specific:
 |---------|---------|
 | `internal/shared/db/` | GORM setup, PostgreSQL connection, SQL migrations |
 | `internal/shared/cache/` | Redis client (`go-redis v9`) |
+| `internal/shared/mq/` | LavinMQ / RabbitMQ AMQP client (`amqp091-go`): topic publish, durable queue bind, consumer registry |
 | `internal/shared/setting/` | YAML config loading with env-var substitution |
 | `internal/shared/logger/` | Uber Zap bootstrap, `WithRequestID`, `FromContext` |
 | `internal/shared/token/` | JWT generation and validation |
@@ -81,7 +82,7 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/brevo/` | Brevo SMTP email client |
 | `internal/shared/mailtmpl/` | HTML email templates |
 | `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
-| `internal/shared/constants/` | Cross-domain constants (only 5 files: dbschema names, error messages, media limits, permission IDs, register HTTP headers) |
+| `internal/shared/constants/` | Cross-domain constants (dbschema names, error messages, media limits, permission IDs, register HTTP headers, LavinMQ topic routing keys, rate-limit keys) |
 | `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint, normalization/set helpers) |
 | `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `TouchCreatedUpdated`, `ScopeActiveOnly`, `SoftDeleteWithAudit`) — see **`docs/patterns.md`** |
 | `internal/shared/timex/` | Unix epoch second helpers for audit columns (`NowUnix`, `PtrUnix`) |
@@ -123,6 +124,7 @@ main.go
   └── logger.InitFromSettings() — init Uber Zap global logger
   └── shareddb.Setup()        — connect PostgreSQL (GORM)
   └── cache.SetupRedis()      — connect Redis (before APPCLI branch)
+  └── mq.SetupLavinMQ()       — optional CloudAMQP LavinMQ (skipped when LAVINMQ_ENABLED=false or URL empty)
   └── resilience.ConfigureFromSettings() + StartDBProbe()
   └── appcli MaybeRun*        — optional CLI short-circuit (register / login)
   └── supabasepkg.Setup()     — Supabase HTTP client (optional)
@@ -130,6 +132,7 @@ main.go
   └── maybeMigrateFromEnv()   — SQL migration mode (`MIGRATE=1` up then continue startup; `MIGRATE=2` down by file then exit)
   └── server.Wire(db, redis)  — dependency injection
   └── mediajobs.StartMediaPendingCleanupJob() — background worker
+  └── mq.StartDefaultConsumers(ctx) — topic consumers (health ping + future domain topics)
   └── server.InitRouter(svcs, handlers)
         └── gin.New()
         └── middleware.RequestLogger()  — structured access log + X-Request-ID
@@ -163,7 +166,7 @@ main.go
 
 - YAML files under `config/` (`app.yaml`, `app-<STAGE>.yaml`) with values replaced from environment variables.
 - `STAGE` environment variable selects the config file (e.g. `STAGE=prod` loads `app-prod.yaml`).
-- Key environment variables: `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_BASE_URL`, `APP_CLIENT_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `MIGRATE`, `MIGRATE_VERSION_FILE`, `CLI_REGISTER_NEW_SYSTEM_USER`, `CLI_SYSTEM_LOGIN`.
+- Key environment variables: `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_BASE_URL`, `APP_CLIENT_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `CLOUDAMQP_URL`, `LAVINMQ_EXCHANGE`, `LAVINMQ_ENABLED`, `MIGRATE`, `MIGRATE_VERSION_FILE`, `CLI_REGISTER_NEW_SYSTEM_USER`, `CLI_SYSTEM_LOGIN`.
 
 ---
 
@@ -172,6 +175,7 @@ main.go
 | Job | Location | Trigger |
 |-----|----------|---------|
 | Media pending cleanup worker | `internal/media/jobs/` | Started in `main.go` after wiring |
+| LavinMQ topic consumers | `internal/shared/mq/` | `mq.StartDefaultConsumers` in `main.go` when LavinMQ connected |
 | RBAC permission sync | `internal/system/` | `/api/system/permission-sync-now` or scheduled |
 | Role-permission sync | `internal/system/` | `/api/system/role-permission-sync-now` or scheduled |
 

@@ -40,7 +40,7 @@ Dependency rule: `delivery` → `application` → `infra` → `domain`. The `dom
 
 Bounded contexts: **auth**, **media**, **rbac**, **taxonomy**, **system**.
 
-Shared infrastructure lives in `internal/shared/` (db, cache, logger, middleware, token, response, etc.).
+Shared infrastructure lives in `internal/shared/` (db, cache, mq, logger, middleware, token, response, etc.).
 
 Dependency injection is performed in `internal/server/wire.go` — all `Services` and `Handlers` are constructed there and passed to `internal/server/router.go`.
 
@@ -52,7 +52,8 @@ Dependency injection is performed in `internal/server/wire.go` — all `Services
 
 - Go 1.25+
 - PostgreSQL
-- Redis
+- Redis (optional — cache degrades gracefully)
+- CloudAMQP LavinMQ (optional — set `LAVINMQ_ENABLED=true` + `CLOUDAMQP_URL`)
 - `libvips-dev` and `pkg-config` (for CGO image encoding — `bimg`)
 
 ### Setup
@@ -76,6 +77,11 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://mycourse.io
 
 # Optional: register first system user then exit
 # CLI_REGISTER_NEW_SYSTEM_USER=1
+
+# Optional: CloudAMQP LavinMQ (topic messaging)
+# CLOUDAMQP_URL=amqps://user:pass@host/vhost
+# LAVINMQ_EXCHANGE=amq.topic
+# LAVINMQ_ENABLED=true
 
 # Logging (all optional)
 LOG_LEVEL=info          # debug | info | warn | error

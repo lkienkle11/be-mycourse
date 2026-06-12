@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-12 (outline delete cascade fix, submit-for-review validation, shared useraccess helper, quiz preview enforcement)._
+_Last audited: 2026-06-12 (quiz single-choice correct-answer validation, outline delete cascade fix, submit-for-review validation, shared useraccess helper, quiz preview enforcement)._
 
 ## Overview
 
@@ -109,6 +109,7 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 | Sub-lesson | `VIDEO` — `media_file_id` non-empty, existing, `READY` status | `ErrCourseSubmitInvalidSubLesson` |
 | Sub-lesson | `TEXT` — Delta JSON non-whitespace chars ≥1 | `ErrCourseSubmitInvalidSubLesson` |
 | Sub-lesson | `QUIZ` — prompt non-empty, ≥1 option, ≥1 correct answer, all option bodies non-empty | `ErrCourseSubmitInvalidSubLesson` |
+| Sub-lesson | `QUIZ` with `allow_multiple = false` — exactly one `is_correct = true` | `ErrCourseQuizSingleChoiceMultipleCorrect` on upsert; `ErrCourseSubmitInvalidSubLesson` on submit |
 | Sub-lesson | `QUIZ` with `is_preview = true` — blocked | `ErrCourseSubmitInvalidSubLesson` (wraps `ErrCoursePreviewNotAllowedForQuiz`) |
 | Collaborators | at least 1 collaborator | `ErrCourseSubmitCollaboratorRequired` |
 | Collaborators | every collaborator must be an active (non-deleted, non-disabled, non-banned) instructor | `ErrCourseCollaboratorInactive` |

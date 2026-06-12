@@ -457,7 +457,7 @@ type CourseDetail struct {
 
 **Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH (except optional `preview_video_file_id`); handler passes trimmed pointers. When `title` is set, service slugifies via `courseTitleAndSlug` (≥5 non-whitespace) and `ensureUniqueCourseSlug` (excluding current course).
 
-**Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, `ErrCourseTitleTooShort`, `ErrCoursePreviewNotAllowedForQuiz`, …).
+**Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, `ErrCourseTitleTooShort`, `ErrCoursePreviewNotAllowedForQuiz`, `ErrCourseQuizSingleChoiceMultipleCorrect`, …).
 
 ---
 

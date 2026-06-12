@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/parsebool"
 )
 
@@ -42,6 +43,9 @@ func expandYAMLServerDBApp(c *yamlConfig, expand func(string) string) {
 func expandYAMLIntegrations(c *yamlConfig, expand func(string) string) {
 	c.Redis.Addr = expand(c.Redis.Addr)
 	c.Redis.Password = expand(c.Redis.Password)
+	c.LavinMQ.URL = expand(c.LavinMQ.URL)
+	c.LavinMQ.Exchange = expand(c.LavinMQ.Exchange)
+	c.LavinMQ.Enabled = expand(c.LavinMQ.Enabled)
 	c.Supabase.ProjectRef = expand(c.Supabase.ProjectRef)
 	c.Supabase.URL = expand(c.Supabase.URL)
 	c.Supabase.AnonKey = expand(c.Supabase.AnonKey)
@@ -87,7 +91,7 @@ func applyYAMLToGlobals(c *yamlConfig) {
 	applyYAMLServerGlobals(c)
 	applyYAMLDatabaseGlobals(c)
 	applyYAMLAppBrevoGlobals(c)
-	applyYAMLRedisSupabaseGlobals(c)
+	applyYAMLRedisLavinMQSupabaseGlobals(c)
 	applyYAMLMediaGlobals(c)
 	applyYAMLLoggingGlobals(c)
 	applyYAMLResilienceGlobals(c)
@@ -214,7 +218,7 @@ func applyYAMLAppBrevoGlobals(c *yamlConfig) {
 	}
 }
 
-func applyYAMLRedisSupabaseGlobals(c *yamlConfig) {
+func applyYAMLRedisLavinMQSupabaseGlobals(c *yamlConfig) {
 	if strings.TrimSpace(c.Redis.Addr) != "" {
 		RedisSetting.Addr = c.Redis.Addr
 	} else {
@@ -222,6 +226,15 @@ func applyYAMLRedisSupabaseGlobals(c *yamlConfig) {
 	}
 	RedisSetting.Password = c.Redis.Password
 	RedisSetting.DB = c.Redis.DB
+
+	LavinMQSetting.URL = strings.TrimSpace(c.LavinMQ.URL)
+	if strings.TrimSpace(c.LavinMQ.Exchange) != "" {
+		LavinMQSetting.Exchange = strings.TrimSpace(c.LavinMQ.Exchange)
+	} else {
+		LavinMQSetting.Exchange = constants.LavinMQExchangeDefault
+	}
+	LavinMQSetting.Enabled = parsebool.Loose(c.LavinMQ.Enabled)
+
 	SupabaseSetting.ProjectRef = c.Supabase.ProjectRef
 	SupabaseSetting.URL = c.Supabase.URL
 	SupabaseSetting.AnonKey = c.Supabase.AnonKey

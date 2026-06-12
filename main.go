@@ -16,6 +16,7 @@ import (
 	"mycourse-io-be/internal/server"
 	"mycourse-io-be/internal/shared/cache"
 	shareddb "mycourse-io-be/internal/shared/db"
+	"mycourse-io-be/internal/shared/mq"
 	"mycourse-io-be/internal/shared/logger"
 	"mycourse-io-be/internal/shared/resilience"
 	"mycourse-io-be/internal/shared/setting"
@@ -27,6 +28,7 @@ func mustCoreSettingsAndDB() {
 		zap.L().Fatal("setup postgres ([database]) failed", zap.Error(err))
 	}
 	cache.SetupRedis()
+	mq.SetupLavinMQ()
 	resilience.ConfigureFromSettings()
 	if stdDB, err := shareddb.StdDB(); err == nil {
 		resilience.StartDBProbe(context.Background(), stdDB)
@@ -99,6 +101,13 @@ func main() {
 
 	// Start background jobs that require wired services.
 	mediajobs.StartMediaPendingCleanupJob(mediainfra.NewGormPendingCleanupRepository(shareddb.Conn()))
+
+	mqCtx, mqCancel := context.WithCancel(context.Background())
+	defer mqCancel()
+	mq.StartDefaultConsumers(mqCtx)
+	defer func() {
+		_ = mq.Close()
+	}()
 
 	router := server.InitRouter(svcs, handlers)
 	if err := router.Run(":" + setting.ServerSetting.Port); err != nil {

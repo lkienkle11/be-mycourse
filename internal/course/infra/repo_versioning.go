@@ -451,17 +451,20 @@ func validateQuizSubLesson(quiz *domain.QuizContent) error {
 	if len(quiz.Options) == 0 {
 		return domain.ErrCourseInvalidSubLessonKind
 	}
-	hasCorrect := false
+	correctCount := 0
 	for _, option := range quiz.Options {
 		if strings.TrimSpace(option.Body) == "" {
 			return domain.ErrCourseInvalidSubLessonKind
 		}
 		if option.IsCorrect {
-			hasCorrect = true
+			correctCount++
 		}
 	}
-	if !hasCorrect {
+	if correctCount == 0 {
 		return domain.ErrCourseInvalidSubLessonKind
+	}
+	if !quiz.AllowMultiple && correctCount > 1 {
+		return domain.ErrCourseQuizSingleChoiceMultipleCorrect
 	}
 	return nil
 }

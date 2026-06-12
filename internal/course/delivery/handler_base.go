@@ -34,7 +34,8 @@ func mapCourseError(c *gin.Context, err error) bool {
 		domain.ErrCourseInvalidSubLessonKind, domain.ErrCourseInvalidReviewState, domain.ErrCourseInvalidOrdering,
 		domain.ErrCourseInstructorRequired, domain.ErrCourseOwnerCannotBeRemoved, domain.ErrCoursePublishedRequired,
 		domain.ErrCourseLeaseTokenInvalid, domain.ErrCourseInvalidSlug, domain.ErrCourseTitleTooShort,
-		domain.ErrCoursePreviewNotAllowedForQuiz, domain.ErrCourseSubmitBasicInfoIncomplete,
+		domain.ErrCoursePreviewNotAllowedForQuiz, domain.ErrCourseQuizSingleChoiceMultipleCorrect,
+		domain.ErrCourseSubmitBasicInfoIncomplete,
 		domain.ErrCourseSubmitOutlineIncomplete, domain.ErrCourseSubmitInvalidSubLesson,
 		domain.ErrCourseSubmitCollaboratorRequired, domain.ErrCourseCollaboratorInactive:
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)

@@ -106,7 +106,9 @@ func (r *GormRepository) validateDraftOutline(ctx context.Context, tx *gorm.DB, 
 		if err == nil {
 			return nil
 		}
-		if stderrors.Is(err, domain.ErrCourseInvalidSubLessonKind) || stderrors.Is(err, domain.ErrCoursePreviewNotAllowedForQuiz) {
+		if stderrors.Is(err, domain.ErrCourseInvalidSubLessonKind) ||
+			stderrors.Is(err, domain.ErrCoursePreviewNotAllowedForQuiz) ||
+			stderrors.Is(err, domain.ErrCourseQuizSingleChoiceMultipleCorrect) {
 			return domain.ErrCourseSubmitInvalidSubLesson
 		}
 		return domain.ErrCourseSubmitInvalidSubLesson

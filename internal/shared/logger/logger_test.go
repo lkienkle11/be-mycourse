@@ -1,11 +1,15 @@
 package logger_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -107,4 +111,161 @@ func TestInit_levelError_dropsInfo(t *testing.T) {
 	if row["msg"] != "should_appear" {
 		t.Fatalf("expected only error-level msg on file sink, got msg=%v", row["msg"])
 	}
+}
+
+func TestResolveLogDir_ExplicitOverrideWins(t *testing.T) {
+	t.Setenv("LOG_TEST_BASE", t.TempDir())
+	dir, err := logger.ResolveLogDir(
+		logger.PathConfig{AppName: "be-mycourse", Vendor: "mycourse", PathMode: "user"},
+		"${LOG_TEST_BASE}/logs",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(dir) != "logs" {
+		t.Fatalf("expected explicit dir ending with logs, got %q", dir)
+	}
+}
+
+func TestResolveLogDir_UnixStateHomeUserMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix path expectation")
+	}
+	tmp := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmp)
+	if runtime.GOOS == "darwin" {
+		dir, err := logger.ResolveLogDir(
+			logger.PathConfig{AppName: "be-mycourse", Vendor: "mycourse", PathMode: "user"},
+			"",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantSuffix := filepath.Join("Library", "Logs", "mycourse", "be-mycourse")
+		if !strings.HasSuffix(dir, filepath.Join("Library", "Logs", "mycourse", "be-mycourse")) {
+			t.Fatalf("expected macOS user-mode path ending with %q, got %q", wantSuffix, dir)
+		}
+		return
+	}
+	dir, err := logger.ResolveLogDir(
+		logger.PathConfig{AppName: "be-mycourse", Vendor: "mycourse", PathMode: "user"},
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(tmp, "be-mycourse", "logs")
+	if dir != want {
+		t.Fatalf("expected %q, got %q", want, dir)
+	}
+}
+
+func TestInit_DualFileModeWritesLokiJSON(t *testing.T) {
+	resetGlobalLogger(t)
+	dir := t.TempDir()
+	opts := logger.Options{
+		Level:       "info",
+		Format:      "console",
+		LogDir:      dir,
+		AppName:     "be-mycourse",
+		Vendor:      "mycourse",
+		PathMode:    "user",
+		FileEnabled: true,
+		ConsoleAlso: false,
+		MaxSizeMB:   100,
+		MaxBackups:  10,
+		MaxAgeDays:  14,
+		Compress:    true,
+		ServiceName: "be-mycourse",
+		Environment: "test",
+		Version:     "1.0.0-test",
+	}
+	_, err := logger.Init(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	zap.L().Info("app_entry")
+	logger.Access().Info("access_entry", zap.String("kind", "access"))
+	logger.Sync()
+
+	appPath := filepath.Join(dir, "app.log")
+	accessPath := filepath.Join(dir, "access.log")
+	assertContainsJSONField(t, appPath, "msg", "app_entry")
+	assertContainsJSONField(t, appPath, "log_file", "app")
+	assertContainsJSONField(t, accessPath, "msg", "access_entry")
+	assertContainsJSONField(t, accessPath, "log_file", "access")
+	assertContainsJSONField(t, accessPath, "kind", "access")
+	assertHasRFC3339NanoField(t, appPath, "ts")
+}
+
+func TestInit_LegacyFilePathStillWorks(t *testing.T) {
+	resetGlobalLogger(t)
+	dir := t.TempDir()
+	legacyPath := filepath.Join(dir, "legacy.log")
+	_, err := logger.Init(logger.Options{
+		Level:       "info",
+		Format:      "json",
+		FilePath:    legacyPath,
+		FileEnabled: true,
+		AppName:     "be-mycourse",
+		Vendor:      "mycourse",
+		PathMode:    "user",
+		ConsoleAlso: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	zap.L().Info("legacy_line")
+	logger.Sync()
+	row := readOneJSONLogLine(t, legacyPath)
+	if row["msg"] != "legacy_line" {
+		t.Fatalf("expected legacy line in LOG_FILE_PATH, got %v", row["msg"])
+	}
+}
+
+func assertContainsJSONField(t *testing.T, path, key, want string) {
+	t.Helper()
+	lines := readJSONLines(t, path)
+	for _, row := range lines {
+		if got, ok := row[key].(string); ok && got == want {
+			return
+		}
+	}
+	t.Fatalf("expected key %q=%q in %s", key, want, path)
+}
+
+func assertHasRFC3339NanoField(t *testing.T, path, key string) {
+	t.Helper()
+	lines := readJSONLines(t, path)
+	if len(lines) == 0 {
+		t.Fatalf("no JSON lines in %s", path)
+	}
+	raw, ok := lines[0][key].(string)
+	if !ok || raw == "" {
+		t.Fatalf("expected non-empty %q field in %s", key, path)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, raw); err != nil {
+		t.Fatalf("invalid RFC3339Nano value for %s: %v (%s)", key, err, raw)
+	}
+}
+
+func readJSONLines(t *testing.T, path string) []map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := make([]map[string]any, 0)
+	for _, line := range bytes.Split(bytes.TrimSpace(raw), []byte("\n")) {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var row map[string]any
+		if err := json.Unmarshal(line, &row); err != nil {
+			t.Fatalf("invalid JSON line in %s: %v", path, err)
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }

@@ -83,4 +83,5 @@ require (
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )

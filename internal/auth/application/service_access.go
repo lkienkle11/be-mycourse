@@ -6,26 +6,31 @@ import (
 
 	"mycourse-io-be/internal/auth/domain"
 	sharedErrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/useraccess"
 )
 
 func checkUserAccessible(user *domain.User, now int64) error {
 	if user == nil {
 		return domain.ErrUserNotFound
 	}
-	if user.DeletedAt != nil {
+	err := useraccess.CheckAccessible(&useraccess.Snapshot{
+		DeletedAt:   user.DeletedAt,
+		IsDisabled:  user.IsDisable,
+		BannedUntil: user.BannedUntil,
+	}, now)
+	if err == nil {
+		return nil
+	}
+	switch err {
+	case useraccess.ErrUserNotFound:
 		return domain.ErrUserNotFound
-	}
-	if user.IsDisable {
+	case useraccess.ErrUserDisabled:
 		return domain.ErrUserDisabled
-	}
-	if isUserBanned(now, user.BannedUntil) {
+	case useraccess.ErrUserBanned:
 		return domain.ErrUserBanned
+	default:
+		return err
 	}
-	return nil
-}
-
-func isUserBanned(now int64, bannedUntil *int64) bool {
-	return bannedUntil != nil && *bannedUntil > now
 }
 
 // EnsureActiveUser verifies the user is not soft-deleted, disabled, or actively banned.

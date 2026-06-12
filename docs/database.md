@@ -649,7 +649,7 @@ API and RBAC: **`docs/modules/instructor.md`**.
 | `course_sub_lessons` | Version-scoped lesson items under a lesson; stable business id, kind, preview flag, sortable `order_index`, `row_version` |
 | `course_sub_lesson_videos` | Video payload attached to one sub-lesson |
 | `course_sub_lesson_texts` | Quill Delta JSON payload attached to one sub-lesson |
-| `course_sub_lesson_quizzes` | Quiz payload attached to one sub-lesson (`SINGLE`, `MULTIPLE`) |
+| `course_sub_lesson_quizzes` | Quiz payload attached to one sub-lesson (`prompt`, `allow_multiple` boolean) |
 | `course_sub_lesson_quiz_options` | Ordered answer options for a quiz sub-lesson |
 | `course_edit_leases` | Resource-level edit leases for `OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON` |
 | `course_enrollments` | Learner-course membership and the learner's active approved version |

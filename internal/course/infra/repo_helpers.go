@@ -293,7 +293,7 @@ func deleteChildrenThenRow(ctx context.Context, tx *gorm.DB, column string, chil
 	if err := tx.WithContext(ctx).Where(column+" = ?", rowID).Delete(childModel).Error; err != nil {
 		return err
 	}
-	return tx.WithContext(ctx).Delete(model, rowID).Error
+	return tx.WithContext(ctx).Where("id = ?", rowID).Delete(model).Error
 }
 
 const (

@@ -85,12 +85,17 @@ func populateContext(c *gin.Context, claims *token.Claims) {
 	c.Set(ContextPermissions, permSet)
 }
 
-// extractBearerToken reads the raw JWT string from the Authorization: Bearer header.
-// Returns an empty string when the header is absent or malformed.
+// extractBearerToken reads the access JWT from Authorization: Bearer, falling back to
+// the HttpOnly access_token cookie when the header is absent.
 func extractBearerToken(c *gin.Context) string {
 	const prefix = "Bearer "
 	if raw := c.GetHeader("Authorization"); strings.HasPrefix(raw, prefix) {
 		if tok := strings.TrimSpace(raw[len(prefix):]); tok != "" {
+			return tok
+		}
+	}
+	if tok, err := c.Cookie(CookieAccessToken); err == nil {
+		if tok = strings.TrimSpace(tok); tok != "" {
 			return tok
 		}
 	}

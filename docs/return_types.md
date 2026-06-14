@@ -607,7 +607,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 }
 ```
 
-**Also sets cookies:** `access_token` (MaxAge = 900s), `refresh_token` (MaxAge = refresh TTL seconds), `session_id` (MaxAge = refresh TTL seconds). All are non-HttpOnly, SameSite=Lax.
+**Also sets cookies:** `access_token` (MaxAge = 900s), `refresh_token` (MaxAge = refresh TTL seconds), `session_id` (MaxAge = refresh TTL seconds). All are **HttpOnly**, SameSite=Lax.
 
 ---
 

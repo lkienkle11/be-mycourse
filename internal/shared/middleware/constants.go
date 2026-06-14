@@ -13,3 +13,10 @@ const GinContextKeyRequestID = "request_id"
 
 // CookieCSRFToken is the cookie used by double-submit CSRF protection.
 const CookieCSRFToken = "csrf_token"
+
+// Auth session cookies (HttpOnly; browser sends them with credentials).
+const (
+	CookieAccessToken  = "access_token"
+	CookieRefreshToken = "refresh_token"
+	CookieSessionID    = "session_id"
+)

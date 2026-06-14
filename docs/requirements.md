@@ -118,7 +118,7 @@
 - The system **MUST** persist the session entry in `users.refresh_token_session` (JSONB, max 5 entries; evict the oldest-expiring entry on overflow, inside a DB transaction).
 - `remember_me = false` → initial refresh TTL = **30 days**; subsequent rotations carry forward the remaining lifetime.
 - `remember_me = true` → initial and all subsequent refresh TTLs = **14 days** from the moment of rotation (sliding window).
-- The system **MUST** set three non-HttpOnly, SameSite=Lax cookies (`access_token`, `refresh_token`, `session_id`), and return the same values in the JSON body.
+- The system **MUST** set three **HttpOnly**, SameSite=Lax cookies (`access_token`, `refresh_token`, `session_id`), and return the same values in the JSON body (JSON body retained for Server Action relay during migration; see BE-03 follow-up).
 
 **Error cases:**
 
@@ -135,7 +135,7 @@
 
 #### FR-1.4 Token Refresh (Session Rotation)
 
-- The client **MUST** supply `X-Refresh-Token` and `X-Session-Id` request headers (no body required).
+- The client **MUST** supply `X-Refresh-Token` and `X-Session-Id` request headers **or** equivalent HttpOnly cookies (`refresh_token`, `session_id`) when using browser credentials (no body required).
 - The system **MUST** parse the refresh JWT ignoring expiry (the DB record is authoritative), verify the `session_id` key exists in `users.refresh_token_session`, and confirm the embedded UUID matches the stored `refresh_token_uuid`.
 - The system **MUST** check `refresh_token_expired` in Postgres. If the stored timestamp is in the past, return `4008 RefreshTokenExpired`.
 - On valid rotation, the system **MUST**:
@@ -523,9 +523,9 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 
 #### NFR-2.3 Cookie Security
 
-- Auth cookies (`access_token`, `refresh_token`, `session_id`) **MUST** be set with `SameSite=Lax`.
+- Auth cookies (`access_token`, `refresh_token`, `session_id`) **MUST** be set with `SameSite=Lax` and **`HttpOnly=true`**.
 - In production (`RunMode=release`) cookies **MUST** have `Secure=true`.
-- Cookies are **non-HttpOnly** by design: they are readable by JavaScript to be sent as custom `Authorization`, `X-Refresh-Token`, and `X-Session-Id` headers (CSRF is mitigated via SameSite=Lax and the use of custom headers).
+- The backend **MUST** accept the access JWT from `Authorization: Bearer …` **or** the HttpOnly `access_token` cookie. Refresh/logout **MUST** accept session credentials from custom headers **or** HttpOnly cookies.
 
 #### NFR-2.4 CORS
 

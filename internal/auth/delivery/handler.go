@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -315,23 +316,53 @@ func extractSessionCredentials(c *gin.Context) (refreshToken, sessionID string) 
 	return refreshToken, sessionID
 }
 
+// normalizeAuthCookieDomain mirrors FE getCookieDomain: parent domain for cross-subdomain auth.
+// Empty on localhost or when unset.
+func normalizeAuthCookieDomain(raw string) string {
+	normalized := strings.TrimSpace(raw)
+	if normalized == "" || normalized == "localhost" {
+		return ""
+	}
+	if strings.HasPrefix(normalized, ".") {
+		return normalized[1:]
+	}
+	return normalized
+}
+
+func (h *Handler) writeAuthCookies(
+	c *gin.Context,
+	accessToken, refreshToken, sessionID string,
+	accessMaxAge, refreshMaxAge int,
+	domain string,
+	secure bool,
+) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(middleware.CookieAccessToken, accessToken, accessMaxAge, "/", domain, secure, true)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(middleware.CookieRefreshToken, refreshToken, refreshMaxAge, "/", domain, secure, true)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(middleware.CookieSessionID, sessionID, refreshMaxAge, "/", domain, secure, true)
+}
+
 func (h *Handler) setAuthCookies(c *gin.Context, accessToken, refreshToken, sessionID string, refreshTTLSeconds float64) {
 	secure := setting.ServerSetting.RunMode == "release"
 	refreshMaxAge := int(refreshTTLSeconds)
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.CookieAccessToken, accessToken, accessTokenMaxAge, "/", "", secure, true)
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.CookieRefreshToken, refreshToken, refreshMaxAge, "/", "", secure, true)
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.CookieSessionID, sessionID, refreshMaxAge, "/", "", secure, true)
+	domain := normalizeAuthCookieDomain(setting.AppSetting.AuthCookieDomain)
+
+	h.writeAuthCookies(c, accessToken, refreshToken, sessionID, accessTokenMaxAge, refreshMaxAge, domain, secure)
+
+	// Expire legacy host-only cookies (api subdomain) after parent-domain alignment.
+	if domain != "" {
+		h.writeAuthCookies(c, "", "", "", -1, -1, "", secure)
+	}
 }
 
 func (h *Handler) clearAuthCookies(c *gin.Context) {
 	secure := setting.ServerSetting.RunMode == "release"
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.CookieAccessToken, "", -1, "/", "", secure, true)
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.CookieRefreshToken, "", -1, "/", "", secure, true)
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.CookieSessionID, "", -1, "/", "", secure, true)
+	domain := normalizeAuthCookieDomain(setting.AppSetting.AuthCookieDomain)
+
+	h.writeAuthCookies(c, "", "", "", -1, -1, domain, secure)
+	if domain != "" {
+		h.writeAuthCookies(c, "", "", "", -1, -1, "", secure)
+	}
 }

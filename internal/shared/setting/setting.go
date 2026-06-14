@@ -20,6 +20,7 @@ type App struct {
 	ApiKey             string
 	AppBaseURL         string
 	AppClientBaseURL   string
+	AuthCookieDomain   string
 	CorsAllowedOrigins []string
 }
 
@@ -207,6 +208,7 @@ type yamlApp struct {
 	ApiKey           string   `yaml:"api_key"`
 	AppBaseURL       string   `yaml:"app_base_url"`
 	AppClientBaseURL string   `yaml:"app_client_base_url"`
+	AuthCookieDomain string   `yaml:"auth_cookie_domain"`
 	Cors             yamlCors `yaml:"cors"`
 }
 

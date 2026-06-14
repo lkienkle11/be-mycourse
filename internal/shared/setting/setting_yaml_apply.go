@@ -39,6 +39,7 @@ func expandYAMLServerDBApp(c *yamlConfig, expand func(string) string) {
 	c.App.ApiKey = expand(c.App.ApiKey)
 	c.App.AppBaseURL = expand(c.App.AppBaseURL)
 	c.App.AppClientBaseURL = expand(c.App.AppClientBaseURL)
+	c.App.AuthCookieDomain = expand(c.App.AuthCookieDomain)
 }
 
 func expandYAMLIntegrations(c *yamlConfig, expand func(string) string) {
@@ -263,6 +264,7 @@ func applyYAMLAppBrevoGlobals(c *yamlConfig) {
 	AppSetting.ApiKey = c.App.ApiKey
 	AppSetting.AppBaseURL = strings.TrimRight(strings.TrimSpace(c.App.AppBaseURL), "/")
 	AppSetting.AppClientBaseURL = strings.TrimRight(strings.TrimSpace(c.App.AppClientBaseURL), "/")
+	AppSetting.AuthCookieDomain = strings.TrimSpace(c.App.AuthCookieDomain)
 	rawOrigins := strings.TrimSpace(c.App.Cors.AllowedOrigins)
 	if rawOrigins != "" {
 		parts := strings.Split(rawOrigins, ",")

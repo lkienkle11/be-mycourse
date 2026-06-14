@@ -1,0 +1,15 @@
+.git
+.gitignore
+.github
+.context
+.cursor
+.gitnexus
+.claude
+*.md
+.env
+.env.*
+bin/
+*.log
+coverage.out
+tmp/
+tools/

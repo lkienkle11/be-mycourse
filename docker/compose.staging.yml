@@ -1,0 +1,32 @@
+# Docker Compose — STAGE=staging (host port 8080)
+name: mycourse-be-staging
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        STAGE: staging
+    image: mycourse-io-be:staging
+    env_file:
+      - ../.env
+      - ../.env.staging
+    environment:
+      STAGE: staging
+      CGO_ENABLED: "1"
+      MIGRATE: "1"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # --- OPTIONAL local infra (commented out) ---
+  # postgres:
+  #   image: postgres:16-alpine
+  # redis:
+  #   image: redis:7-alpine

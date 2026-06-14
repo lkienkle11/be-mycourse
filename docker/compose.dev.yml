@@ -1,0 +1,34 @@
+# Docker Compose — STAGE=dev (host port 8080)
+name: mycourse-be-dev
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        STAGE: dev
+    image: mycourse-io-be:dev
+    env_file:
+      - ../.env
+      - ../.env.dev
+    environment:
+      STAGE: dev
+      CGO_ENABLED: "1"
+      MIGRATE: "1"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # --- OPTIONAL local infra (commented out — default uses cloud DB/Redis URLs) ---
+  # postgres:
+  #   image: postgres:16-alpine
+  #   ...
+  # redis:
+  #   image: redis:7-alpine
+  #   ...

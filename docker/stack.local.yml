@@ -1,0 +1,30 @@
+# Swarm stack demo — STAGE=local. DO NOT use for CI/tests. Requires: docker swarm init
+version: "3.8"
+
+services:
+  api:
+    image: mycourse-io-be:local
+    env_file:
+      - ../.env
+      - ../.env.local
+    environment:
+      STAGE: local
+      CGO_ENABLED: "1"
+      MIGRATE: "1"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first

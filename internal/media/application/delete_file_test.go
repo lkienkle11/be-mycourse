@@ -137,6 +137,9 @@ func (f *fakeMediaGateway) MergeMediaMetadataJSON(_ []byte, _ domain.RawMetadata
 func (f *fakeMediaGateway) ApplyBunnyDetailToMetadata(_ domain.RawMetadata, _ *domain.BunnyVideoDetail, _, _ string) {
 }
 
+func (f *fakeMediaGateway) ApplyBunnyStreamFileColumns(_ *domain.File, _ *domain.BunnyVideoDetail, _, _ string) {
+}
+
 func (f *fakeMediaGateway) BuildTypedMetadata(
 	_,
 	_,

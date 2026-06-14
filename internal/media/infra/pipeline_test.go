@@ -261,3 +261,36 @@ func TestToUploadFileResponsePtr_WidthHeight(t *testing.T) {
 		t.Fatalf("unexpected public mapping: %+v", pub)
 	}
 }
+
+func TestSanitizeMetadataURL_rejectsNilPlaceholder(t *testing.T) {
+	if got := mediainfra.SanitizeMetadataURL("<nil>"); got != "" {
+		t.Fatalf("expected empty, got %q", got)
+	}
+}
+
+func TestResolveBunnyStreamDeliveryURLs(t *testing.T) {
+	prev := *setting.MediaSetting
+	t.Cleanup(func() { *setting.MediaSetting = prev })
+	setting.MediaSetting.BunnyStreamCDNHostname = "vz-27784991-d75.b-cdn.net"
+
+	guid := "f76b2795-ba9c-4330-bd43-73c368e9b8a9"
+	lib := "650694"
+	direct := mediainfra.ResolveBunnyDirectPlayURL(lib, guid)
+	wantDirect := "https://player.mediadelivery.net/play/650694/f76b2795-ba9c-4330-bd43-73c368e9b8a9"
+	if direct != wantDirect {
+		t.Fatalf("direct play: got %q want %q", direct, wantDirect)
+	}
+	hls := mediainfra.ResolveBunnyHLSPlaylistURL("vz-27784991-d75.b-cdn.net", guid)
+	if hls != "https://vz-27784991-d75.b-cdn.net/"+guid+"/playlist.m3u8" {
+		t.Fatalf("unexpected hls url: %q", hls)
+	}
+	detail := &mediadomain.BunnyVideoDetail{GUID: guid, ThumbnailFileName: "thumbnail.jpg"}
+	file := &mediadomain.File{BunnyLibraryID: lib}
+	mediainfra.ApplyBunnyStreamFileColumns(file, detail, lib, "https://iframe.mediadelivery.net/play")
+	if file.ThumbnailURL != "https://vz-27784991-d75.b-cdn.net/"+guid+"/thumbnail.jpg" {
+		t.Fatalf("unexpected thumbnail: %q", file.ThumbnailURL)
+	}
+	if file.DirectPlayURL != wantDirect {
+		t.Fatalf("unexpected direct play on file: %q", file.DirectPlayURL)
+	}
+}

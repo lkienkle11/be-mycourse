@@ -26,6 +26,7 @@ type MediaGateway interface {
 	ShouldEnqueueSupersededCloudCleanup(prevObjectKey, prevBunnyVideoID, newObjectKey, newBunnyVideoID string) bool
 	MergeMediaMetadataJSON(prevJSON []byte, overlay RawMetadata) ([]byte, error)
 	ApplyBunnyDetailToMetadata(meta RawMetadata, d *BunnyVideoDetail, libraryID, streamPlayBase string)
+	ApplyBunnyStreamFileColumns(f *File, d *BunnyVideoDetail, libraryID, streamPlayBase string)
 	BuildTypedMetadata(kind, mimeType, filename string, sizeBytes int64, payload []byte, raw RawMetadata) UploadFileMetadata
 	ApplyTypedMetadataToRaw(raw RawMetadata, typed UploadFileMetadata)
 	EffectiveBunnyThumbnailURL(d *BunnyVideoDetail) string

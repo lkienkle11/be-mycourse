@@ -18,6 +18,7 @@ app:
   api_key: "${API_KEY}"
   app_base_url: "${APP_BASE_URL}"
   app_client_base_url: "${APP_CLIENT_BASE_URL}"
+  auth_cookie_domain: "${AUTH_COOKIE_DOMAIN}"
   cors:
     allowed_origins: "${CORS_ALLOWED_ORIGINS}"
 

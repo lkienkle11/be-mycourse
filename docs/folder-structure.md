@@ -61,7 +61,7 @@ be-mycourse/
 │   │   ├── errors/                 # ErrXXX sentinel vars, error code constants
 │   │   ├── logger/                 # Uber Zap bootstrap, WithRequestID, FromContext
 │   │   │   └── logger_test.go
-│   │   ├── mailtmpl/               # HTML email templates + constants.go
+│   │   ├── mailtmpl/               # HTML email render + i18n loader (template/languages/)
 │   │   ├── middleware/             # Gin middleware: CORS, AuthJWT, RBAC, rate limit, request logger
 │   │   ├── response/               # Unified response envelope helpers
 │   │   ├── setting/                # YAML config loading + env substitution
@@ -82,6 +82,9 @@ be-mycourse/
 │       ├── wire.go                 # Dependency injection: constructs all Services + Handlers
 │       └── router.go               # Gin router setup, route group mounting
 ├── migrations/                     # Versioned SQL migration files (embedded)
+├── template/
+│   ├── html/email/                 # HTML email shells (confirm_account.html)
+│   └── languages/confirm_account/  # Per-locale JS i18n maps (en.js, vi.js)
 ├── pkg/
 │   └── supabase/                   # Supabase HTTP client + DB helpers (optional integration)
 ├── scripts/                        # Deploy helpers: pm2-reload…, docker/*.sh + *.ps1 + *.cmd (Windows)
@@ -182,7 +185,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `mediaquery/` | Shared avatar/media file-ID URL hydration helpers reused across bounded contexts without importing media/domain |
 | `utils/` | `CurrentUserID`, `ParseUUIDParam`, `ParseUintParam`, `ParseUUIDPathParam`, `ParseUintPathParam`, `ParsePermissionIDParam`, `RoutePermission`, `EncodeWebP`, `ContentFingerprint`, `ParseBoolLoose` (delegates to `parsebool`), `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON` |
 | `brevo/` | Brevo SMTP HTTP wrapper + `constants.go` |
-| `mailtmpl/` | HTML email template rendering + `constants.go` |
+| `mailtmpl/` | HTML email template rendering, JS i18n loader (`template/languages/`), `constants.go` |
 | `errors/` | Sentinel `Err*` vars and error code constants |
 | `ratelimit/` | Fixed-window counters: `InMemoryStore` (HTTP), `FileStore` (APPCLI) |
 | `resilience/` | Global circuit breaker, DB probe, optional Redis state |

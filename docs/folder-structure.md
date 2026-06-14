@@ -84,7 +84,10 @@ be-mycourse/
 ├── migrations/                     # Versioned SQL migration files (embedded)
 ├── pkg/
 │   └── supabase/                   # Supabase HTTP client + DB helpers (optional integration)
-├── scripts/                        # Deploy helper scripts (pm2-reload-with-binary-rollback.sh)
+├── scripts/                        # Deploy helpers: pm2-reload…, docker/*.sh + *.ps1 + *.cmd (Windows)
+├── docker/                         # compose.*.yml + stack.*.yml (optional container deploy)
+├── Dockerfile                      # Multi-stage CGO image (see docs/docker.md)
+├── .dockerignore
 ├── go.mod
 ├── go.sum
 └── main.go                         # Process entry point

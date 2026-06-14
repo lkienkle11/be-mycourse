@@ -22,6 +22,8 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 | [`docs/modules/media.md`](docs/modules/media.md) | Media module deep-dive (B2/Bunny, upload pipeline, webhooks) |
 | [`docs/modules/rbac.md`](docs/modules/rbac.md) | RBAC module deep-dive (roles, permissions, sync) |
 | [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy module (topics, outcomes, skills, tags, levels) |
+| [`docs/docker.md`](docs/docker.md) | Docker Compose alternative (local/VPS manual; PM2/CI unchanged) |
+| [`docs/deploy.md`](docs/deploy.md) | VPS runbook (PM2 + CI) |
 
 ---
 
@@ -55,6 +57,7 @@ Dependency injection is performed in `internal/server/wire.go` — all `Services
 - Redis (optional — cache degrades gracefully)
 - CloudAMQP LavinMQ (optional — set `LAVINMQ_ENABLED=true` + `CLOUDAMQP_URL`)
 - `libvips-dev` and `pkg-config` (for CGO image encoding — `bimg`)
+- **Optional:** Docker (see [`docs/docker.md`](docs/docker.md)) instead of local `go run`
 
 ### Setup
 
@@ -116,6 +119,21 @@ go run .
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
+
+### Docker (optional)
+
+Same API with cloud Postgres/Redis from `.env` + `.env.local`:
+
+```bash
+cp .env.example .env && cp .env.local.example .env.local
+./scripts/docker/compose-up.sh local
+./scripts/docker/health-check.sh local
+./scripts/docker/compose-down.sh local
+```
+
+**Windows 10/11:** `scripts\docker\compose-up.cmd local` (hoặc `.\scripts\docker\compose-up.ps1 local`) — xem [`docs/docker.md`](docs/docker.md).
+
+See [`docs/docker.md`](docs/docker.md). CI/CD still uses PM2 + binary rsync.
 
 ### Database migrations
 

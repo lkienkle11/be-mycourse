@@ -150,10 +150,9 @@ func (h *Handler) ConfirmEmail(c *gin.Context) {
 
 // RefreshToken — POST /api/v1/auth/refresh
 func (h *Handler) RefreshToken(c *gin.Context) {
-	refreshTokenStr := c.GetHeader("X-Refresh-Token")
-	sessionStr := c.GetHeader("X-Session-Id")
+	refreshTokenStr, sessionStr := extractSessionCredentials(c)
 	if refreshTokenStr == "" || sessionStr == "" {
-		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "missing X-Refresh-Token or X-Session-Id header", nil)
+		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "missing refresh session credentials", nil)
 		return
 	}
 	result, err := h.auth.RefreshSession(c.Request.Context(), sessionStr, refreshTokenStr)
@@ -172,13 +171,13 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		}
 		return
 	}
+	h.setAuthCookies(c, result.AccessToken, result.RefreshToken, result.SessionStr, result.RefreshTTL.Seconds())
 	response.OK(c, "token_refreshed", toTokensResponse(result))
 }
 
 // Logout — POST /api/v1/auth/logout
 func (h *Handler) Logout(c *gin.Context) {
-	refreshTokenStr := c.GetHeader("X-Refresh-Token")
-	sessionStr := c.GetHeader("X-Session-Id")
+	refreshTokenStr, sessionStr := extractSessionCredentials(c)
 	if refreshTokenStr == "" || sessionStr == "" {
 		h.clearAuthCookies(c)
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "missing X-Refresh-Token or X-Session-Id header", nil)
@@ -304,23 +303,35 @@ func toMeResponse(me *domain.MeProfile) *MeResponse {
 	}
 }
 
+func extractSessionCredentials(c *gin.Context) (refreshToken, sessionID string) {
+	refreshToken = c.GetHeader("X-Refresh-Token")
+	sessionID = c.GetHeader("X-Session-Id")
+	if refreshToken == "" {
+		refreshToken, _ = c.Cookie(middleware.CookieRefreshToken)
+	}
+	if sessionID == "" {
+		sessionID, _ = c.Cookie(middleware.CookieSessionID)
+	}
+	return refreshToken, sessionID
+}
+
 func (h *Handler) setAuthCookies(c *gin.Context, accessToken, refreshToken, sessionID string, refreshTTLSeconds float64) {
 	secure := setting.ServerSetting.RunMode == "release"
 	refreshMaxAge := int(refreshTTLSeconds)
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access_token", accessToken, accessTokenMaxAge, "/", "", secure, false)
+	c.SetCookie(middleware.CookieAccessToken, accessToken, accessTokenMaxAge, "/", "", secure, true)
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", refreshToken, refreshMaxAge, "/", "", secure, false)
+	c.SetCookie(middleware.CookieRefreshToken, refreshToken, refreshMaxAge, "/", "", secure, true)
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("session_id", sessionID, refreshMaxAge, "/", "", secure, false)
+	c.SetCookie(middleware.CookieSessionID, sessionID, refreshMaxAge, "/", "", secure, true)
 }
 
 func (h *Handler) clearAuthCookies(c *gin.Context) {
 	secure := setting.ServerSetting.RunMode == "release"
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access_token", "", -1, "/", "", secure, false)
+	c.SetCookie(middleware.CookieAccessToken, "", -1, "/", "", secure, true)
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("refresh_token", "", -1, "/", "", secure, false)
+	c.SetCookie(middleware.CookieRefreshToken, "", -1, "/", "", secure, true)
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("session_id", "", -1, "/", "", secure, false)
+	c.SetCookie(middleware.CookieSessionID, "", -1, "/", "", secure, true)
 }

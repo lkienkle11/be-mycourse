@@ -191,6 +191,9 @@ The flat scalar columns are also populated for fast lookups:
 | `video_id`                     | `video_id`           | Numeric ID when available, else GUID   |
 | `thumbnail_url`                | `thumbnail_url`      | See "Thumbnail URL" below              |
 | `embeded_html`                 | `embeded_html`       | iframe embed snippet                   |
+| `direct_play_url`              | `direct_play_url`    | Direct play page on player.mediadelivery.net |
+| `hls_playlist_url`             | `hls_playlist_url`   | CDN HLS master playlist                |
+| `preview_animation_url`        | `preview_animation_url` | CDN animated preview WebP           |
 | `length`                       | `duration`           | Seconds (int)                          |
 | `video_provider`               | `video_provider`     | `bunny_stream`                         |
 | `b2_bucket_name`               | `b2_bucket_name`     | Set on B2 uploads                      |
@@ -261,7 +264,14 @@ The resolution priority inside `EnrichBunnyVideoDetail` is:
 
 1. `thumbnailUrl` (if Bunny ever populates it directly)
 2. `defaultThumbnailUrl` (legacy alias)
-3. `{cdn_hostname}/{guid}/{thumbnailFileName}` (the canonical case today)
+3. `{cdn_hostname}/{guid}/{thumbnailFileName}` (the canonical case today; filename
+   defaults to `thumbnail.jpg` when Bunny omits `thumbnailFileName`)
+
+> **Regression fix (Jun 2026).** Upload metadata parsing used `fmt.Sprintf("%v", nil)`
+> for optional Bunny keys, which persisted the literal string `"<nil>"` into
+> `thumbnail_url`. Parsing now uses `utils.StringFromRaw` plus
+> `SanitizeMetadataURL`, and webhook refresh overwrites columns via
+> `ApplyBunnyStreamFileColumns`.
 
 ### Bunny webhook (`POST /webhook/bunny`)
 
@@ -273,10 +283,13 @@ Mounted on the **no-filter lane** (no JWT, no rate limit).
    - Signing secret: `setting.MediaSetting.BunnyStreamReadOnlyAPIKey` (fallback: `BunnyStreamAPIKey`)
 2. Parse and validate JSON payload (`VideoLibraryId`, `VideoGuid`, `Status` 0..10).
 3. Handle by status:
-   - `Finished (3)` and `Resolution finished (4)`: load row, fetch Bunny detail,
-     **merge metadata additively** (never overwrite valid prior data with zero
-     values), update DB. The `thumbnail_url` and `duration` columns are only
-     overwritten when the new value is non-empty / positive.
+   - `Finished (3)` and `Resolution finished (4)`: load row, fetch Bunny detail via
+     `GetBunnyVideoByID`, **merge metadata additively** (never overwrite valid
+     prior data with zero values), call `ApplyBunnyStreamFileColumns` to persist
+     delivery URLs (`thumbnail_url`, `direct_play_url`, `hls_playlist_url`,
+     `preview_animation_url`, `embeded_html`), update DB. Column values are only
+     overwritten when the resolved URL is non-empty (legacy `"<nil>"` placeholders
+     are sanitised on read and replaced on the next successful webhook).
    - `Failed (5)` and `PresignedUploadFailed (8)`: mark row `FAILED` (idempotent).
    - Other statuses: accepted and intentionally ignored (idempotent callbacks).
 
@@ -309,8 +322,11 @@ Public fields returned in API responses:
 | `bunny_video_id` | Bunny video GUID |
 | `bunny_library_id` | Bunny library ID |
 | `video_id` | Numeric Bunny ID or GUID |
-| `thumbnail_url` | Built from `BunnyStreamCDNHostname` + `guid` + `thumbnailFileName` (current Bunny API); falls back to `thumbnailUrl` / `defaultThumbnailUrl` if Bunny ever populates them |
+| `thumbnail_url` | Built from `BunnyStreamCDNHostname` + `guid` + `thumbnailFileName` (defaults to `thumbnail.jpg` when Bunny omits the filename); falls back to `thumbnailUrl` / `defaultThumbnailUrl` if Bunny ever populates them |
 | `embeded_html` | Escaped `<iframe ...>` embed HTML |
+| `direct_play_url` | Bunny direct play page: `https://player.mediadelivery.net/play/{libraryId}/{guid}` |
+| `hls_playlist_url` | HLS master playlist on CDN: `https://{cdn}/{guid}/playlist.m3u8` |
+| `preview_animation_url` | Animated preview WebP on CDN: `https://{cdn}/{guid}/preview.webp` |
 | `duration` | Video duration in seconds |
 | `row_version` | Optimistic concurrency version (Sub 06) |
 | `content_fingerprint` | SHA-256 hex of file bytes (Sub 06) |
@@ -370,6 +386,9 @@ videos this includes:
   "video_provider": "bunny_stream",
   "video_id": "7312c208-054f-413f-82b2-3666a271f4f4",
   "thumbnail_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/.../thumbnail.jpg",
+  "direct_play_url": "https://player.mediadelivery.net/play/650694/7312c208-054f-413f-82b2-3666a271f4f4",
+  "hls_playlist_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/7312c208-054f-413f-82b2-3666a271f4f4/playlist.m3u8",
+  "preview_animation_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/7312c208-054f-413f-82b2-3666a271f4f4/preview.webp",
   "embeded_html": "<iframe ...></iframe>",
   // Provider-native Bunny keys
   "length": 190,

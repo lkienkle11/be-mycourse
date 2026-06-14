@@ -347,20 +347,20 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Name: `ResolveMediaKind`, `ResolveMediaProvider`, `ResolveMediaKindFromServer`, `ResolveUploadProvider`, plus `EnrichBunnyVideoDetail`, `EffectiveBunnyThumbnailURL`, `FormatBunnyVideoIDString`, `ResolveBunnyEmbedURL`, `ResolveBunnyEmbedHTML`, `ApplyBunnyDetailToMetadata`
 - Type: Util/Helper
 - Path: `pkg/media/media_resolver.go`
-- Purpose: Normalize upload kind/provider with server-owned inference. Map Bunny GET-video payload into metadata keys **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (see `internal/shared/constants/media_meta_keys.go`).
-- Scope: Media upload + finished webhook; HTTP stays in `pkg/media/clients.go`.
-- Dependencies: `internal/shared/constants/media.go`, `internal/shared/constants/media_meta_keys.go`, `internal/<domain>/domain`, `fmt`, `html`, `path/filepath`, `strconv`, `strings`, `mycourse-io-be/pkg/setting` (resolver config).
+- Purpose: Normalize upload kind/provider with server-owned inference. Map Bunny GET-video payload into metadata keys **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** (see `internal/media/domain/meta_keys.go`).
+- Scope: Media upload + finished webhook; HTTP stays in `internal/media/infra/clients.go`.
+- Dependencies: `internal/shared/constants/media.go`, `internal/media/domain/meta_keys.go`, `internal/media/domain`, `fmt`, `html`, `path/filepath`, `strconv`, `strings`, `mycourse-io-be/internal/shared/setting` (resolver config).
 - Current Usage: `internal/media/application/file_service.go`, `internal/media/application/video_service.go`, `pkg/media/clients.go`.
 - Reuse Opportunity:
   - Reuse for any future media ingestion endpoints to keep provider-kind and Bunny contracts identical.
 
 ### Asset: Media metadata JSON key constants
-- Name: `MediaMetaKeyVideoGUID`, `MediaMetaKeyBunnyVideoID`, `MediaMetaKeyVideoID`, `MediaMetaKeyThumbnailURL`, `MediaMetaKeyEmbededHTML`
+- Name: `MediaMetaKeyVideoGUID`, `MediaMetaKeyBunnyVideoID`, `MediaMetaKeyVideoID`, `MediaMetaKeyThumbnailURL`, `MediaMetaKeyEmbededHTML`, `MediaMetaKeyDirectPlayURL`, `MediaMetaKeyHLSPlaylistURL`, `MediaMetaKeyPreviewAnimationURL`
 - Type: Constants
-- Path: `internal/shared/constants/media_meta_keys.go`
-- Purpose: Single source of truth for string keys used in `metadata_json` and merged raw maps (Bunny parity Sub 09).
-- Scope: **`pkg/media`**, mapping, services; do not duplicate literal key strings elsewhere.
-- Current Usage: `pkg/media/media_resolver.go`, `pkg/media/media_upload_entity.go`, `pkg/logic/mapping/media_model_mapping.go`, `internal/media/application/video_service.go`.
+- Path: `internal/media/domain/meta_keys.go`
+- Purpose: Single source of truth for string keys used in `metadata_json` and merged raw maps (Bunny delivery URLs).
+- Scope: **`internal/media/infra`**, mapping, services; do not duplicate literal key strings elsewhere.
+- Current Usage: `internal/media/infra/media_resolver.go`, `internal/media/infra/media_upload_entity.go`, `internal/media/application/service.go`.
 - Reuse Opportunity: Any new writer of `metadata_json` for Bunny should import these constants.
 
 ### Asset: Mapping helpers for API DTO contracts

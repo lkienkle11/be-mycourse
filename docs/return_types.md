@@ -787,7 +787,7 @@ Media endpoints are implemented and return the standard envelope. Public payload
 
 `dto.UploadFileResponse`:
 
-Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (JSON spelling; `omitempty` when empty). Full behaviour: **`docs/modules/media.md`** (Sub 09).
+Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** (`omitempty` when empty). Full behaviour: **`docs/modules/media.md`**.
 
 **Sub 12:** Public media responses **do not include** `origin_url` (`dto.UploadFileResponse` has no such field). Canonical storage URL exists only server-side (`media_files.origin_url`, `entities.File.OriginURL` with `json:"-"`).
 
@@ -799,6 +799,9 @@ Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embed
   "bunny_library_id": "123456",
   "video_id": "987654321",
   "thumbnail_url": "https://...",
+  "direct_play_url": "https://player.mediadelivery.net/play/123456/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "hls_playlist_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/playlist.m3u8",
+  "preview_animation_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/preview.webp",
   "embeded_html": "<iframe src=\"https://iframe.mediadelivery.net/embed/123456/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\" ...></iframe>",
   "metadata": {
     "size_bytes": 12345,

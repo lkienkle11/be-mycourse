@@ -641,10 +641,19 @@ components:
           description: Bunny Stream numeric id when API returns it; else guid (see docs/modules/media.md)
         thumbnail_url:
           type: string
-          description: Thumbnail URL when Bunny API provides thumbnailUrl/defaultThumbnailUrl
+          description: CDN thumbnail built from MEDIA_BUNNY_STREAM_CDN_HOSTNAME + guid + thumbnailFileName (defaults to thumbnail.jpg)
         embeded_html:
           type: string
           description: Escaped iframe HTML; JSON key spelling matches dto (embeded_html)
+        direct_play_url:
+          type: string
+          description: Bunny direct play page (player.mediadelivery.net/play/{libraryId}/{guid})
+        hls_playlist_url:
+          type: string
+          description: HLS master playlist on the Bunny Stream CDN pull zone
+        preview_animation_url:
+          type: string
+          description: Animated preview WebP on the Bunny Stream CDN pull zone
         duration: { type: integer, format: int64 }
         video_provider: { type: string }
         metadata:

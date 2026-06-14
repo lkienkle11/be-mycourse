@@ -135,7 +135,7 @@ func buildBunnyThumbnailFromCDN(d *domain.BunnyVideoDetail) string {
 }
 
 // ResolveBunnyStreamCDNHostname returns the configured Bunny Stream CDN pull-zone
-// hostname (without scheme), e.g. vz-27784991-d75.b-cdn.net.
+// hostname (without scheme), e.g. vz-XXXXXXXX-XXXX.b-cdn.net.
 func ResolveBunnyStreamCDNHostname() string {
 	host := strings.TrimSpace(setting.MediaSetting.BunnyStreamCDNHostname)
 	if host == "" {

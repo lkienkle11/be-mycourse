@@ -86,9 +86,12 @@ type File struct {
 	BunnyVideoID       string
 	BunnyLibraryID     string
 	VideoID            string
-	ThumbnailURL       string
-	EmbededHTML        string
-	Duration           int64
+	ThumbnailURL        string
+	EmbededHTML         string
+	DirectPlayURL       string
+	HLSPlaylistURL      string
+	PreviewAnimationURL string
+	Duration            int64
 	VideoProvider      string
 	RowVersion         int64
 	ContentFingerprint string

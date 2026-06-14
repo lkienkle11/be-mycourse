@@ -1284,7 +1284,7 @@ curl -X GET "{{BASE_URL}}/api/v1/media/files/cleanup-metrics" \
 
 Form fields: **`files`** (repeat **1–5** parts per request; legacy single **`file`** still works), optional `kind` (`FILE`/`VIDEO`), `object_key`, `metadata` (JSON string). Per-part max **2 GiB**, combined parts max **2 GiB** total — see `constants.MaxMediaUploadFileBytes`, `MaxMediaMultipartTotalBytes` (`docs/modules/media.md`).
 
-Success envelope `data` = **array** of **`dto.UploadFileResponse`** (one per part; no **`origin_url`** — Sub 12). Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
+Success envelope `data` = **array** of **`dto.UploadFileResponse`** (one per part; no **`origin_url`** — Sub 12). Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/media/files \
@@ -1667,7 +1667,7 @@ JSON body:
 | `video_guid` | string | yes |
 | `status` | int | yes |
 
-On **finished** status the service refreshes persisted **`media_files`** duration/metadata and Bunny parity fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`** (see `docs/modules/media.md`).
+On **finished** status the service refreshes persisted **`media_files`** duration/metadata and Bunny delivery fields **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** via `GetBunnyVideoByID` + `ApplyBunnyStreamFileColumns` (see `docs/modules/media.md`).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \

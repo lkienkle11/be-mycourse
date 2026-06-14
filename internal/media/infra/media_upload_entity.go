@@ -38,25 +38,30 @@ func mergeUploadInputMetadata(in domain.MediaUploadEntityInput) domain.RawMetada
 
 func streamMetadataFromMerged(merged domain.RawMetadata, typed domain.UploadFileMetadata) (
 	bunnyVideoID, videoID, thumbnailURL, embededHTML, bunnyLibraryID, videoProvider string,
+	directPlayURL, hlsPlaylistURL, previewAnimationURL string,
 	duration int64,
 ) {
-	bunnyVideoID = strings.TrimSpace(fmt.Sprintf("%v", merged["bunny_video_id"]))
+	bunnyVideoID = utils.StringFromRaw(merged, "bunny_video_id")
 	if bunnyVideoID == "" {
-		bunnyVideoID = strings.TrimSpace(fmt.Sprintf("%v", merged["video_guid"]))
+		bunnyVideoID = utils.StringFromRaw(merged, "video_guid")
 	}
-	videoID = strings.TrimSpace(fmt.Sprintf("%v", merged[domain.MediaMetaKeyVideoID]))
+	videoID = utils.StringFromRaw(merged, domain.MediaMetaKeyVideoID)
 	if videoID == "" {
 		videoID = bunnyVideoID
 	}
-	thumbnailURL = strings.TrimSpace(fmt.Sprintf("%v", merged[domain.MediaMetaKeyThumbnailURL]))
-	embededHTML = strings.TrimSpace(fmt.Sprintf("%v", merged[domain.MediaMetaKeyEmbededHTML]))
-	bunnyLibraryID = strings.TrimSpace(fmt.Sprintf("%v", merged["bunny_library_id"]))
-	videoProvider = strings.TrimSpace(fmt.Sprintf("%v", merged["video_provider"]))
+	thumbnailURL = SanitizeMetadataURL(utils.StringFromRaw(merged, domain.MediaMetaKeyThumbnailURL))
+	embededHTML = SanitizeMetadataURL(utils.StringFromRaw(merged, domain.MediaMetaKeyEmbededHTML))
+	bunnyLibraryID = utils.StringFromRaw(merged, "bunny_library_id")
+	videoProvider = utils.StringFromRaw(merged, "video_provider")
+	directPlayURL = SanitizeMetadataURL(utils.StringFromRaw(merged, domain.MediaMetaKeyDirectPlayURL))
+	hlsPlaylistURL = SanitizeMetadataURL(utils.StringFromRaw(merged, domain.MediaMetaKeyHLSPlaylistURL))
+	previewAnimationURL = SanitizeMetadataURL(utils.StringFromRaw(merged, domain.MediaMetaKeyPreviewAnimationURL))
 	duration = int64(typed.DurationSeconds)
 	if duration <= 0 {
 		duration = int64(utils.FloatFromRaw(merged, "length"))
 	}
-	return bunnyVideoID, videoID, thumbnailURL, embededHTML, bunnyLibraryID, videoProvider, duration
+	return bunnyVideoID, videoID, thumbnailURL, embededHTML, bunnyLibraryID, videoProvider,
+		directPlayURL, hlsPlaylistURL, previewAnimationURL, duration
 }
 
 func b2BucketFromUploadInput(in domain.MediaUploadEntityInput, merged domain.RawMetadata) string {
@@ -102,13 +107,16 @@ func newFileEntityUploadCore(in domain.MediaUploadEntityInput, merged domain.Raw
 }
 
 type uploadStreamFields struct {
-	bunnyVideoID   string
-	videoID        string
-	thumbnailURL   string
-	embededHTML    string
-	bunnyLibraryID string
-	videoProvider  string
-	duration       int64
+	bunnyVideoID        string
+	videoID             string
+	thumbnailURL        string
+	embededHTML         string
+	bunnyLibraryID      string
+	videoProvider       string
+	directPlayURL       string
+	hlsPlaylistURL      string
+	previewAnimationURL string
+	duration            int64
 }
 
 func attachStreamFieldsToFile(f *domain.File, stream uploadStreamFields) {
@@ -117,6 +125,9 @@ func attachStreamFieldsToFile(f *domain.File, stream uploadStreamFields) {
 	f.VideoID = stream.videoID
 	f.ThumbnailURL = stream.thumbnailURL
 	f.EmbededHTML = stream.embededHTML
+	f.DirectPlayURL = stream.directPlayURL
+	f.HLSPlaylistURL = stream.hlsPlaylistURL
+	f.PreviewAnimationURL = stream.previewAnimationURL
 	f.Duration = stream.duration
 	f.VideoProvider = stream.videoProvider
 }
@@ -136,9 +147,11 @@ func BuildMediaFileEntityFromUpload(in domain.MediaUploadEntityInput) *domain.Fi
 	merged := mergeUploadInputMetadata(in)
 	typed := BuildTypedMetadata(in.Kind, in.ContentType, in.Filename, in.SizeBytes, in.Payload, merged)
 	ApplyTypedMetadataToRaw(merged, typed)
-	bv, vid, thumb, embed, lib, vprov, dur := streamMetadataFromMerged(merged, typed)
+	bv, vid, thumb, embed, lib, vprov, direct, hls, preview, dur := streamMetadataFromMerged(merged, typed)
 	return fileEntityFromUploadStreamFields(in, merged, typed, uploadStreamFields{
 		bunnyVideoID: bv, videoID: vid, thumbnailURL: thumb, embededHTML: embed,
-		bunnyLibraryID: lib, videoProvider: vprov, duration: dur,
+		bunnyLibraryID: lib, videoProvider: vprov,
+		directPlayURL: direct, hlsPlaylistURL: hls, previewAnimationURL: preview,
+		duration: dur,
 	})
 }

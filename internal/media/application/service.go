@@ -615,6 +615,7 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 	streamBase := utils.NormalizeBaseURL(setting.MediaSetting.BunnyStreamBaseURL, "https://iframe.mediadelivery.net/play")
 	libID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	s.gw.ApplyBunnyDetailToMetadata(raw, video, libID, streamBase)
+	s.gw.ApplyBunnyStreamFileColumns(row, video, libID, streamBase)
 	typed := s.gw.BuildTypedMetadata(row.Kind, row.MimeType, row.Filename, row.SizeBytes, nil, raw)
 	s.gw.ApplyTypedMetadataToRaw(raw, typed)
 
@@ -624,9 +625,6 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 	}
 	row.MetadataJSON = string(blob)
 	row.Status = constants.FileStatusReady
-	if thumb := s.gw.EffectiveBunnyThumbnailURL(video); thumb != "" {
-		row.ThumbnailURL = thumb
-	}
 	if dur := int64(typed.DurationSeconds); dur > 0 {
 		row.Duration = dur
 	}

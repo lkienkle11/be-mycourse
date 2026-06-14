@@ -100,6 +100,10 @@ func (StorageGateway) ApplyBunnyDetailToMetadata(meta domain.RawMetadata, d *dom
 	ApplyBunnyDetailToMetadata(meta, d, libraryID, streamPlayBase)
 }
 
+func (StorageGateway) ApplyBunnyStreamFileColumns(f *domain.File, d *domain.BunnyVideoDetail, libraryID, streamPlayBase string) {
+	ApplyBunnyStreamFileColumns(f, d, libraryID, streamPlayBase)
+}
+
 func (StorageGateway) BuildTypedMetadata(kind, mimeType, filename string, sizeBytes int64, payload []byte, raw domain.RawMetadata) domain.UploadFileMetadata {
 	return BuildTypedMetadata(kind, mimeType, filename, sizeBytes, payload, raw)
 }

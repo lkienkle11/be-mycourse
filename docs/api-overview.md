@@ -88,7 +88,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `kind` is inferred server-side from MIME/extension.
   - if kind cannot be inferred and no configured provider exists, provider fallback is `Local`.
   - response `metadata` uses typed contract `UploadFileMetadata` (not `any`) with zero-value defaults for unavailable fields.
-  - Bunny videos: success `data` may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`** on `UploadFileResponse` (`docs/modules/media.md`, `docs/return_types.md`, `docs/api_swagger.yaml`).
+  - Bunny videos: success `data` may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** on `UploadFileResponse` (`docs/modules/media.md`, `docs/return_types.md`, `docs/api_swagger.yaml`).
   - **No `origin_url`** on `UploadFileResponse` (Sub 12 — canonical B2/origin URL is server-only; not in public JSON — `docs/modules/media.md`).
 - **Sub 11 upload policies:**
   - Image uploads are **converted to WebP** (bimg/libvips, `CGO_ENABLED=1`) before cloud upload. Concurrency gate: `constants.MaxConcurrentImageEncode` (4). Build requires **libvips** dev packages (CI also installs **libhdf5-dev** for **matio**/HDF5 **pkg-config** on Ubuntu). Encode failure → HTTP **503** + code **9017** (`ImageEncodeBusy`).

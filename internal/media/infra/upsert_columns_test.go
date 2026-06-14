@@ -28,6 +28,8 @@ func TestBuildUpsertUpdateColumns_persistsWebhookFields(t *testing.T) {
 		Status:       constants.FileStatusReady,
 		BunnyVideoID: "abc",
 		ThumbnailURL: "https://cdn.example/thumb.jpg",
+		DirectPlayURL: "https://player.mediadelivery.net/play/650694/abc",
+		HLSPlaylistURL: "https://cdn.example/abc/playlist.m3u8",
 		Duration:     190,
 		MetadataJSON: `{"length":190,"duration_seconds":190,"width":1920,"height":1080}`,
 	}
@@ -38,7 +40,8 @@ func TestBuildUpsertUpdateColumns_persistsWebhookFields(t *testing.T) {
 		"kind", "provider", "filename", "mime_type", "size_bytes",
 		"url", "origin_url", "status", "b2_bucket_name",
 		"bunny_video_id", "bunny_library_id", "video_id",
-		"thumbnail_url", "embeded_html", "duration", "video_provider",
+		"thumbnail_url", "embeded_html", "direct_play_url", "hls_playlist_url",
+		"preview_animation_url", "duration", "video_provider",
 		"content_fingerprint", "metadata_json",
 	}
 	for _, key := range mustHave {
@@ -77,7 +80,7 @@ func TestBuildUpsertUpdateColumns_zeroValuesStillPresent(t *testing.T) {
 	})
 	cols := buildUpsertUpdateColumns(row)
 
-	for _, key := range []string{"duration", "thumbnail_url", "embeded_html", "metadata_json"} {
+	for _, key := range []string{"duration", "thumbnail_url", "embeded_html", "direct_play_url", "hls_playlist_url", "preview_animation_url", "metadata_json"} {
 		if _, ok := cols[key]; !ok {
 			t.Fatalf("expected column %q in upsert map even when zero, missing", key)
 		}

@@ -10,7 +10,20 @@ import (
 	"mycourse-io-be/internal/media/domain"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/setting"
+	"mycourse-io-be/internal/shared/utils"
 )
+
+const bunnyDefaultThumbnailFileName = "thumbnail.jpg"
+
+// SanitizeMetadataURL normalises stored URL strings and rejects Go fmt nil
+// placeholders that can appear when metadata values are nil.
+func SanitizeMetadataURL(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" || strings.EqualFold(s, "<nil>") {
+		return ""
+	}
+	return s
+}
 
 func ResolveMediaKind(kindRaw, mime, filename string) string {
 	kind := string(strings.TrimSpace(kindRaw))
@@ -109,19 +122,61 @@ func EnrichBunnyVideoDetail(d *domain.BunnyVideoDetail) {
 // CDN pull-zone hostname and the video's thumbnail filename. Returns "" when
 // either piece is missing.
 func buildBunnyThumbnailFromCDN(d *domain.BunnyVideoDetail) string {
-	host := strings.TrimSpace(setting.MediaSetting.BunnyStreamCDNHostname)
+	host := ResolveBunnyStreamCDNHostname()
 	file := strings.TrimSpace(d.ThumbnailFileName)
+	if file == "" {
+		file = bunnyDefaultThumbnailFileName
+	}
 	guid := strings.TrimSpace(d.GUID)
 	if host == "" || file == "" || guid == "" {
 		return ""
 	}
-	base := host
-	if !strings.HasPrefix(strings.ToLower(host), "http://") &&
-		!strings.HasPrefix(strings.ToLower(host), "https://") {
-		base = "https://" + host
+	return resolveBunnyCDNAssetURL(host, guid, file)
+}
+
+// ResolveBunnyStreamCDNHostname returns the configured Bunny Stream CDN pull-zone
+// hostname (without scheme), e.g. vz-27784991-d75.b-cdn.net.
+func ResolveBunnyStreamCDNHostname() string {
+	host := strings.TrimSpace(setting.MediaSetting.BunnyStreamCDNHostname)
+	if host == "" {
+		return ""
 	}
-	base = strings.TrimRight(base, "/")
-	return fmt.Sprintf("%s/%s/%s", base, guid, file)
+	host = strings.TrimPrefix(host, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	return strings.TrimRight(host, "/")
+}
+
+// ResolveBunnyDirectPlayURL builds the Bunny Stream direct play page URL.
+func ResolveBunnyDirectPlayURL(libraryID, videoGUID string) string {
+	lib := strings.TrimSpace(libraryID)
+	guid := strings.TrimSpace(videoGUID)
+	if lib == "" || guid == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://player.mediadelivery.net/play/%s/%s", lib, guid)
+}
+
+// ResolveBunnyHLSPlaylistURL builds the HLS master playlist URL on the CDN.
+func ResolveBunnyHLSPlaylistURL(cdnHostname, videoGUID string) string {
+	return resolveBunnyCDNAssetURL(cdnHostname, videoGUID, "playlist.m3u8")
+}
+
+// ResolveBunnyPreviewAnimationURL builds the animated preview WebP URL on the CDN.
+func ResolveBunnyPreviewAnimationURL(cdnHostname, videoGUID string) string {
+	return resolveBunnyCDNAssetURL(cdnHostname, videoGUID, "preview.webp")
+}
+
+func resolveBunnyCDNAssetURL(cdnHostname, videoGUID, assetPath string) string {
+	host := strings.TrimSpace(cdnHostname)
+	guid := strings.TrimSpace(videoGUID)
+	asset := strings.TrimLeft(strings.TrimSpace(assetPath), "/")
+	if host == "" || guid == "" || asset == "" {
+		return ""
+	}
+	host = strings.TrimPrefix(host, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	host = strings.TrimRight(host, "/")
+	return fmt.Sprintf("https://%s/%s/%s", host, guid, asset)
 }
 
 // EffectiveBunnyThumbnailURL returns the best-known thumbnail URL after enrichment.
@@ -130,7 +185,44 @@ func EffectiveBunnyThumbnailURL(d *domain.BunnyVideoDetail) string {
 		return ""
 	}
 	EnrichBunnyVideoDetail(d)
-	return strings.TrimSpace(d.ThumbnailURL)
+	return SanitizeMetadataURL(d.ThumbnailURL)
+}
+
+// ApplyBunnyStreamFileColumns writes Bunny delivery URLs onto the File entity.
+// Only non-empty resolved values overwrite existing columns so webhook retries
+// remain idempotent while still fixing legacy "<nil>" placeholders.
+func ApplyBunnyStreamFileColumns(f *domain.File, d *domain.BunnyVideoDetail, libraryID, streamPlayBase string) {
+	if f == nil || d == nil {
+		return
+	}
+	lib := utils.NonEmpty(strings.TrimSpace(libraryID), strings.TrimSpace(f.BunnyLibraryID))
+	EnrichBunnyVideoDetail(d)
+	cdn := ResolveBunnyStreamCDNHostname()
+
+	if thumb := EffectiveBunnyThumbnailURL(d); thumb != "" {
+		f.ThumbnailURL = thumb
+	} else {
+		f.ThumbnailURL = SanitizeMetadataURL(f.ThumbnailURL)
+	}
+	if direct := ResolveBunnyDirectPlayURL(lib, d.GUID); direct != "" {
+		f.DirectPlayURL = direct
+	} else {
+		f.DirectPlayURL = SanitizeMetadataURL(f.DirectPlayURL)
+	}
+	if cdn != "" {
+		guid := strings.TrimSpace(d.GUID)
+		if hls := ResolveBunnyHLSPlaylistURL(cdn, guid); hls != "" {
+			f.HLSPlaylistURL = hls
+		}
+		if preview := ResolveBunnyPreviewAnimationURL(cdn, guid); preview != "" {
+			f.PreviewAnimationURL = preview
+		}
+	}
+	f.HLSPlaylistURL = SanitizeMetadataURL(f.HLSPlaylistURL)
+	f.PreviewAnimationURL = SanitizeMetadataURL(f.PreviewAnimationURL)
+	if embed := ResolveBunnyEmbedHTML(lib, d.GUID, streamPlayBase); embed != "" {
+		f.EmbededHTML = embed
+	}
 }
 
 // FormatBunnyVideoIDString prefers Bunny’s numeric id when present; otherwise returns guid.
@@ -272,6 +364,18 @@ func ApplyBunnyDetailToMetadata(meta domain.RawMetadata, d *domain.BunnyVideoDet
 	}
 	if thumb := EffectiveBunnyThumbnailURL(d); thumb != "" {
 		meta[domain.MediaMetaKeyThumbnailURL] = thumb
+	}
+	if direct := ResolveBunnyDirectPlayURL(libraryID, d.GUID); direct != "" {
+		meta[domain.MediaMetaKeyDirectPlayURL] = direct
+	}
+	if cdn := ResolveBunnyStreamCDNHostname(); cdn != "" {
+		guid := strings.TrimSpace(d.GUID)
+		if hls := ResolveBunnyHLSPlaylistURL(cdn, guid); hls != "" {
+			meta[domain.MediaMetaKeyHLSPlaylistURL] = hls
+		}
+		if preview := ResolveBunnyPreviewAnimationURL(cdn, guid); preview != "" {
+			meta[domain.MediaMetaKeyPreviewAnimationURL] = preview
+		}
 	}
 	if embed := ResolveBunnyEmbedHTML(libraryID, d.GUID, streamPlayBase); embed != "" {
 		meta[domain.MediaMetaKeyEmbededHTML] = embed

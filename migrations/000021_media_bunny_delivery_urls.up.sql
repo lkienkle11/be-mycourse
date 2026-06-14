@@ -1,0 +1,3 @@
+ALTER TABLE media_files ADD COLUMN IF NOT EXISTS direct_play_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE media_files ADD COLUMN IF NOT EXISTS hls_playlist_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE media_files ADD COLUMN IF NOT EXISTS preview_animation_url TEXT NOT NULL DEFAULT '';

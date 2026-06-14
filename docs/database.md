@@ -471,8 +471,11 @@ Product media (B2 files, Bunny Stream videos, local signed URLs, etc.).
 | `bunny_video_id` | `VARCHAR(255)` | nullable | Bunny GUID |
 | `bunny_library_id` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | Bunny library id |
 | `video_id` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | Bunny numeric id or guid string (API `video_id`) |
-| `thumbnail_url` | `TEXT` | NOT NULL DEFAULT `''` | CDN thumbnail |
+| `thumbnail_url` | `TEXT` | NOT NULL DEFAULT `''` | CDN thumbnail (`https://{cdn}/{guid}/{thumbnailFileName}`; defaults to `thumbnail.jpg`) |
 | `embeded_html` | `TEXT` | NOT NULL DEFAULT `''` | Escaped iframe HTML (JSON key spelling `embeded_html`) |
+| `direct_play_url` | `TEXT` | NOT NULL DEFAULT `''` | Bunny direct play page (`https://player.mediadelivery.net/play/{libraryId}/{guid}`) |
+| `hls_playlist_url` | `TEXT` | NOT NULL DEFAULT `''` | HLS master playlist on CDN (`https://{cdn}/{guid}/playlist.m3u8`) |
+| `preview_animation_url` | `TEXT` | NOT NULL DEFAULT `''` | Animated preview WebP on CDN (`https://{cdn}/{guid}/preview.webp`) |
 | `duration` | `BIGINT` | NOT NULL DEFAULT `0` | Flat duration field (seconds) for listings |
 | `video_provider` | `VARCHAR(64)` | NOT NULL DEFAULT `''` | |
 | `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic concurrency / orphan safety (`000004`) |
@@ -490,7 +493,7 @@ Product media (B2 files, Bunny Stream videos, local signed URLs, etc.).
 #### `metadata_json` (server-side)
 
 - Default `{}` on insert.
-- Holds provider-native keys plus normalized typed keys used by `BuildTypedMetadata` / API DTOs, for example: `duration_seconds`, `width_bytes`, `height_bytes`, `fps`, `mime_type`, `extension`, `bitrate`, `video_codec`, `audio_codec`, `has_audio`, `is_hdr`, `page_count`, `has_password`, `archive_entries`, and Bunny parity keys (`video_id`, `thumbnail_url`, `embeded_html`) — see `internal/media/domain/meta_keys.go` and `internal/media/infra/media_metadata.go`.
+- Holds provider-native keys plus normalized typed keys used by `BuildTypedMetadata` / API DTOs, for example: `duration_seconds`, `width_bytes`, `height_bytes`, `fps`, `mime_type`, `extension`, `bitrate`, `video_codec`, `audio_codec`, `has_audio`, `is_hdr`, `page_count`, `has_password`, `archive_entries`, and Bunny parity keys (`video_id`, `thumbnail_url`, `embeded_html`, `direct_play_url`, `hls_playlist_url`, `preview_animation_url`) — see `internal/media/domain/meta_keys.go` and `internal/media/infra/media_metadata.go`.
 - Migration `000008` backfills typed keys from legacy aliases (`width`, `height`, `duration`, `length`, `framerate`, …).
 
 #### Upsert persistence (`UpsertByObjectKey`)
@@ -614,6 +617,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000018 | `instructor_tickets_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on `instructor_tickets` and `instructor_ticket_messages`, rebuild partial status index. Required when GET `/api/v1/instructor-tickets` fails with `column "deleted_at" does not exist`. |
 | 000019 | `instructor_profiles_apps_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on profiles/applications; add `id` PK column on `instructor_profiles` when drifted DB uses `user_id` PK only. Required when GET `/api/v1/instructor-profiles/:id` fails with `column ip.id does not exist`. |
 | 000020 | `course_version_row_version_backfill` | Backfill `course_versions.row_version` from `0` to `1` for legacy rows where GORM inserted the Go zero value instead of relying on the column `DEFAULT 1`. Required so `PATCH /api/v1/courses/:id/basic-info` accepts `expected_row_version >= 1`. |
+| 000021 | `media_bunny_delivery_urls` | `media_files.direct_play_url`, `hls_playlist_url`, `preview_animation_url` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

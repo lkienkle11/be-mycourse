@@ -37,7 +37,7 @@
 - Error handling is centralized through middleware and errcode mapping.
 
 ## Media / Bunny (high level)
-- Upload and webhook paths persist **`media_files`** and map public JSON to **`dto.UploadFileResponse`** (no **`origin_url`** key — Sub 12; optional **`video_id`**, **`thumbnail_url`**, **`embeded_html`** when populated). There is no dedicated sequence diagram in this repo for media; see **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/router.md`** for the authoritative flow and layering (`media_resolver.go` vs `pkg/media`).
+- Upload and webhook paths persist **`media_files`** and map public JSON to **`dto.UploadFileResponse`** (no **`origin_url`** key — Sub 12; optional Bunny delivery fields when populated). There is no dedicated sequence diagram in this repo for media; see **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/router.md`** for the authoritative flow and layering (`internal/media/infra/media_resolver.go`).
 
 ## Course / Instructor Logic
 - Course authoring: `internal/course` owns draft lifecycle, collaborator roles (`OWNER`, `EDITOR`), review transitions, outline stable IDs, and learner progress.

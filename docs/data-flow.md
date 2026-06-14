@@ -159,7 +159,8 @@ POST /webhook/bunny  (no-auth, no rate limit — no-filter lane)
        ├─ Parse + validate JSON (VideoLibraryId, VideoGuid, Status)
        └─ MediaService.HandleBunnyVideoWebhook
             ├─ Status 3/4 (finished): load row, fetch Bunny detail,
-            │   merge metadata (video_id, thumbnail_url, embeded_html, telemetry),
+            │   merge metadata (video_id, thumbnail_url, embeded_html, direct_play_url,
+            │   hls_playlist_url, preview_animation_url, telemetry),
             │   upsert media_files row
             ├─ Status 5/8 (failed): mark row FAILED (idempotent)
             └─ Other statuses: intentionally ignored

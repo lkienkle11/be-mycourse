@@ -31,9 +31,12 @@ type mediaFileRow struct {
 	BunnyVideoID       string `gorm:"column:bunny_video_id;type:varchar(255)"`
 	BunnyLibraryID     string `gorm:"column:bunny_library_id;type:varchar(255)"`
 	VideoID            string `gorm:"column:video_id;type:varchar(255);not null;default:''"`
-	ThumbnailURL       string `gorm:"column:thumbnail_url;type:text;not null;default:''"`
-	EmbededHTML        string `gorm:"column:embeded_html;type:text;not null;default:''"`
-	Duration           int64  `gorm:"column:duration;not null;default:0"`
+	ThumbnailURL        string `gorm:"column:thumbnail_url;type:text;not null;default:''"`
+	EmbededHTML         string `gorm:"column:embeded_html;type:text;not null;default:''"`
+	DirectPlayURL       string `gorm:"column:direct_play_url;type:text;not null;default:''"`
+	HLSPlaylistURL      string `gorm:"column:hls_playlist_url;type:text;not null;default:''"`
+	PreviewAnimationURL string `gorm:"column:preview_animation_url;type:text;not null;default:''"`
+	Duration            int64  `gorm:"column:duration;not null;default:0"`
 	VideoProvider      string `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
 	RowVersion         int64  `gorm:"column:row_version;not null;default:1"`
 	ContentFingerprint string `gorm:"column:content_fingerprint;type:varchar(128);not null;default:''"`
@@ -69,7 +72,9 @@ func rowToFile(r *mediaFileRow) *domain.File {
 		Filename: r.Filename, MimeType: r.MimeType, SizeBytes: r.SizeBytes,
 		URL: r.URL, OriginURL: r.OriginURL, Status: r.Status,
 		B2BucketName: r.B2BucketName, BunnyVideoID: r.BunnyVideoID, BunnyLibraryID: r.BunnyLibraryID,
-		VideoID: r.VideoID, ThumbnailURL: r.ThumbnailURL, EmbededHTML: r.EmbededHTML,
+		VideoID: r.VideoID, ThumbnailURL: SanitizeMetadataURL(r.ThumbnailURL), EmbededHTML: r.EmbededHTML,
+		DirectPlayURL: SanitizeMetadataURL(r.DirectPlayURL), HLSPlaylistURL: SanitizeMetadataURL(r.HLSPlaylistURL),
+		PreviewAnimationURL: SanitizeMetadataURL(r.PreviewAnimationURL),
 		Duration: r.Duration, VideoProvider: r.VideoProvider, RowVersion: r.RowVersion,
 		ContentFingerprint: r.ContentFingerprint, MetadataJSON: string(r.MetadataJSON),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
@@ -99,7 +104,9 @@ func fileToRow(f *domain.File) *mediaFileRow {
 		Filename: f.Filename, MimeType: f.MimeType, SizeBytes: f.SizeBytes,
 		URL: f.URL, OriginURL: f.OriginURL, Status: f.Status,
 		B2BucketName: f.B2BucketName, BunnyVideoID: f.BunnyVideoID, BunnyLibraryID: f.BunnyLibraryID,
-		VideoID: f.VideoID, ThumbnailURL: f.ThumbnailURL, EmbededHTML: f.EmbededHTML,
+		VideoID: f.VideoID, ThumbnailURL: SanitizeMetadataURL(f.ThumbnailURL), EmbededHTML: f.EmbededHTML,
+		DirectPlayURL: SanitizeMetadataURL(f.DirectPlayURL), HLSPlaylistURL: SanitizeMetadataURL(f.HLSPlaylistURL),
+		PreviewAnimationURL: SanitizeMetadataURL(f.PreviewAnimationURL),
 		Duration: f.Duration, VideoProvider: f.VideoProvider, RowVersion: f.RowVersion,
 		ContentFingerprint: f.ContentFingerprint, MetadataJSON: metaJSON,
 		CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
@@ -207,9 +214,12 @@ func buildUpsertUpdateColumns(row *mediaFileRow) map[string]any {
 		"bunny_video_id":      row.BunnyVideoID,
 		"bunny_library_id":    row.BunnyLibraryID,
 		"video_id":            row.VideoID,
-		"thumbnail_url":       row.ThumbnailURL,
-		"embeded_html":        row.EmbededHTML,
-		"duration":            row.Duration,
+		"thumbnail_url":         row.ThumbnailURL,
+		"embeded_html":          row.EmbededHTML,
+		"direct_play_url":       row.DirectPlayURL,
+		"hls_playlist_url":      row.HLSPlaylistURL,
+		"preview_animation_url": row.PreviewAnimationURL,
+		"duration":              row.Duration,
 		"video_provider":      row.VideoProvider,
 		"content_fingerprint": row.ContentFingerprint,
 		"metadata_json":       row.MetadataJSON,
@@ -228,6 +238,8 @@ func (r *GormFileRepository) SaveWithRowVersionCheck(ctx context.Context, f *dom
 			"b2_bucket_name": row.B2BucketName, "bunny_video_id": row.BunnyVideoID,
 			"bunny_library_id": row.BunnyLibraryID, "video_id": row.VideoID,
 			"thumbnail_url": row.ThumbnailURL, "embeded_html": row.EmbededHTML,
+			"direct_play_url": row.DirectPlayURL, "hls_playlist_url": row.HLSPlaylistURL,
+			"preview_animation_url": row.PreviewAnimationURL,
 			"duration": row.Duration, "video_provider": row.VideoProvider,
 			"content_fingerprint": row.ContentFingerprint, "metadata_json": row.MetadataJSON,
 			"updated_at":  timex.NowUnix(),

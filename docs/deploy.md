@@ -740,6 +740,7 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | CI/CD | `.github/workflows/deploy-dev.yml` | Active workflow: **test** → **build** → **deploy** on **`master`** |
 | Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |
+| Docker (optional) | `Dockerfile`, `docker/compose.*.yml`, `scripts/docker/*` | Manual container deploy — see **[Appendix E](#appendix-e--docker-alternative-optional)** and [`docs/docker.md`](docker.md) |
 | Docs | `docs/modules/auth.md`, `docs/architecture.md` | Module-level docs |
 
 **Server paths (matching `ecosystem.config.cjs`):**
@@ -757,6 +758,20 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | Production env file | `/var/www/be-mycourse/.env.prod` |
 
 For HTTP/router relationships, GitNexus (repo `be`) queries such as *InitRouter Gin API* surface `InitRouter`, JWT middleware, and response helpers.
+
+---
+
+## Appendix E — Docker alternative (optional)
+
+The primary production path remains **CI-built binary + PM2 + Nginx** (Appendices C and Step 16). For local development or manual VPS deploy without PM2, use **Docker Compose**:
+
+```bash
+cp .env.example .env && cp .env.local.example .env.local
+./scripts/docker/compose-up.sh local
+./scripts/docker/health-check.sh local
+```
+
+Full reference: **[`docs/docker.md`](docker.md)** — env matrix, CGO runtime libs, commented local Postgres/Redis, Swarm demo (not for CI). **Do not** modify `.github/workflows/*` when adopting Docker; CI stays on the rsync + PM2 path until you change it separately.
 
 ---
 

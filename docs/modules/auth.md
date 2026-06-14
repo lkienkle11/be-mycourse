@@ -10,7 +10,7 @@ The auth module (`internal/auth/`) manages user authentication using **stateful 
 | `refresh_token` | Signed HS256 JWT with `user_id` + `uuid` (session correlator) | 30 days (standard) / 14 days (remember-me) |
 | `session_id` | 128-char hex string — identifies the device session in the DB | Same as `refresh_token` |
 
-All three are issued as **non-HttpOnly** cookies (`SameSite=Lax`, `Secure` in production) and also returned in the JSON response body, so server-side callers can relay them without parsing `Set-Cookie`.
+All three are issued as **HttpOnly** cookies (`SameSite=Lax`, `Secure` in production) and also returned in the JSON response body, so server-side callers can relay them without parsing `Set-Cookie`. The backend reads tokens from cookies when custom headers are absent (`AuthJWT`, refresh, logout).
 
 ---
 

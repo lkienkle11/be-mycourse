@@ -44,7 +44,7 @@ POST /api/v1/auth/login
             ├─ Issue access token + refresh token + session_id
             ├─ Persist refresh session to users.refresh_token_session JSONB
             │   └─ Evict oldest session if count > MaxActiveSessions (5)
-            ├─ Set auth cookies (non-HttpOnly, SameSite=Lax)
+            ├─ Set auth cookies (HttpOnly, SameSite=Lax)
             └─ Return JSON body with tokens
 ```
 

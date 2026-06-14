@@ -217,7 +217,7 @@ func (s *AuthService) sendRegistrationEmail(ctx context.Context, norm, email, di
 		baseURL = strings.TrimRight(setting.AppSetting.AppBaseURL, "/")
 	}
 	confirmURL := fmt.Sprintf("%s/%s/confirm-email?token=%s", baseURL, locale, *user.ConfirmationToken)
-	if err := brevo.SendConfirmationEmail(email, displayName, confirmURL); err != nil {
+	if err := brevo.SendConfirmationEmail(email, displayName, confirmURL, locale); err != nil {
 		s.releaseEmailSendReservation(ctx, user.ID, reservationID)
 		return domain.ErrConfirmationEmailSendFailed
 	}

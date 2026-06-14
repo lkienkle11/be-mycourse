@@ -24,12 +24,12 @@ type sendEmailPayload struct {
 	HTMLContent string    `json:"htmlContent"`
 }
 
-func confirmationEmailPayload(toEmail, displayName, html string) sendEmailPayload {
+func confirmationEmailPayload(toEmail, displayName, subject, html string) sendEmailPayload {
 	cfg := setting.BrevoSetting
 	return sendEmailPayload{
 		Sender:      contact{Name: cfg.SenderName, Email: cfg.SenderEmail},
 		To:          []contact{{Email: toEmail, Name: displayName}},
-		Subject:     "Xác nhận tài khoản MyCourse của bạn",
+		Subject:     subject,
 		HTMLContent: html,
 	}
 }
@@ -59,13 +59,10 @@ func postBrevoSMTP(payload sendEmailPayload) error {
 }
 
 // SendConfirmationEmail sends an account confirmation link to the registering user.
-func SendConfirmationEmail(toEmail, displayName, confirmURL string) error {
-	html, err := mailtmpl.RenderConfirmAccount(mailtmpl.ConfirmAccountData{
-		DisplayName: displayName,
-		ConfirmURL:  confirmURL,
-	})
+func SendConfirmationEmail(toEmail, displayName, confirmURL, languageCode string) error {
+	html, subject, err := mailtmpl.RenderConfirmAccount(languageCode, displayName, confirmURL)
 	if err != nil {
 		return fmt.Errorf(constants.MsgBrevoRenderTemplate, err)
 	}
-	return postBrevoSMTP(confirmationEmailPayload(toEmail, displayName, html))
+	return postBrevoSMTP(confirmationEmailPayload(toEmail, displayName, subject, html))
 }

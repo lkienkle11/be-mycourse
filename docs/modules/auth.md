@@ -125,7 +125,7 @@ The email confirmation action must point to the FE client URL from `APP_CLIENT_B
 { "email": "user@example.com", "password": "Str0ng!pw", "display_name": "Alice", "locale": "vi" }
 ```
 
-Optional `locale`: `"en"` or `"vi"` (default `"vi"` if omitted or invalid). Used to build the confirmation link: `{APP_CLIENT_BASE_URL}/{locale}/confirm-email?token={uuid}`.
+Optional `locale`: `"en"` or `"vi"` (default `"vi"`). Controls confirmation email language (subject/body via `template/languages/confirm_account/{lang}.js`) and link path `{APP_CLIENT_BASE_URL}/{locale}/confirm-email?token={uuid}`.
 
 **Password rules:** minimum 8 characters, at least one uppercase, one lowercase, one special character.
 

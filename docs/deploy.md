@@ -324,7 +324,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000011_audit_timestamps_bi
 ```bash
 curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
   -H 'Content-Type: application/json' \
-  -d '{"email":"user01@yopmail.com","password":"Test@1234","remember_me":false}'
+  -d '{"email":"user@example.com","password":"Str0ng!pw","remember_me":false}'
 
 # Then GET /api/v1/taxonomy/outcomes with Bearer access_token from login
 ```

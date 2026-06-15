@@ -57,14 +57,15 @@ type quizRequest struct {
 }
 
 type subLessonRequest struct {
-	LessonID           string        `json:"lesson_id" validate:"required,uuid"`
-	ExpectedRowVersion int64         `json:"expected_row_version"`
-	Title              string        `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
-	Kind               string        `json:"kind" validate:"required,oneof=VIDEO QUIZ TEXT"`
-	IsPreview          bool          `json:"is_preview"`
-	Video              *videoRequest `json:"video"`
-	Text               *textRequest  `json:"text"`
-	Quiz               *quizRequest  `json:"quiz"`
+	LessonID            string        `json:"lesson_id" validate:"required,uuid"`
+	ExpectedRowVersion  int64         `json:"expected_row_version"`
+	Title               string        `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
+	Kind                string        `json:"kind" validate:"required,oneof=VIDEO QUIZ TEXT"`
+	IsPreview           bool          `json:"is_preview"`
+	EstimatedDurationMs *int64        `json:"estimated_duration_ms,omitempty"`
+	Video               *videoRequest `json:"video"`
+	Text                *textRequest  `json:"text"`
+	Quiz                *quizRequest  `json:"quiz"`
 }
 
 type reorderRequest struct {

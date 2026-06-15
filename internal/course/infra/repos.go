@@ -5,6 +5,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -125,18 +126,19 @@ type lessonRow struct {
 func (lessonRow) TableName() string { return constants.TableCourseLessons }
 
 type subLessonRow struct {
-	ID              string   `gorm:"column:id;primaryKey"`
-	StableID        string `gorm:"column:stable_id;type:uuid;not null"`
-	CourseVersionID string   `gorm:"column:course_version_id;not null"`
-	LessonID        string   `gorm:"column:lesson_id;not null"`
-	Title           string `gorm:"column:title;type:varchar(255);not null"`
-	Kind            string `gorm:"column:kind;type:varchar(16);not null"`
-	IsPreview       bool   `gorm:"column:is_preview;not null"`
-	OrderIndex      int    `gorm:"column:order_index;not null"`
-	RowVersion      int64  `gorm:"column:row_version;not null"`
-	CreatedAt       int64  `gorm:"column:created_at;not null"`
-	UpdatedAt       int64  `gorm:"column:updated_at;not null"`
-	DeletedAt       *int64 `gorm:"column:deleted_at"`
+	ID                  string   `gorm:"column:id;primaryKey"`
+	StableID            string `gorm:"column:stable_id;type:uuid;not null"`
+	CourseVersionID     string   `gorm:"column:course_version_id;not null"`
+	LessonID            string   `gorm:"column:lesson_id;not null"`
+	Title               string `gorm:"column:title;type:varchar(255);not null"`
+	Kind                string `gorm:"column:kind;type:varchar(16);not null"`
+	IsPreview           bool   `gorm:"column:is_preview;not null"`
+	OrderIndex          int    `gorm:"column:order_index;not null"`
+	EstimatedDurationMs int64  `gorm:"column:estimated_duration_ms;not null"`
+	RowVersion          int64  `gorm:"column:row_version;not null"`
+	CreatedAt           int64  `gorm:"column:created_at;not null"`
+	UpdatedAt           int64  `gorm:"column:updated_at;not null"`
+	DeletedAt           *int64 `gorm:"column:deleted_at"`
 }
 
 func (subLessonRow) TableName() string { return constants.TableCourseSubLessons }
@@ -375,6 +377,51 @@ func (r *GormRepository) mediaURL(ctx context.Context, db *gorm.DB, fileID strin
 	return row.URL, nil
 }
 
+func (r *GormRepository) batchMediaDurationMs(ctx context.Context, db *gorm.DB, fileIDs []string) (map[string]int64, error) {
+	out := make(map[string]int64, len(fileIDs))
+	if len(fileIDs) == 0 {
+		return out, nil
+	}
+	type durationRow struct {
+		ID           string `gorm:"column:id"`
+		Duration     int64  `gorm:"column:duration"`
+		MetadataJSON []byte `gorm:"column:metadata_json"`
+	}
+	var rows []durationRow
+	if err := db.WithContext(ctx).Table(constants.TableMediaFiles).
+		Select("id, duration, metadata_json").
+		Where("id IN ? AND deleted_at IS NULL", fileIDs).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		sec := mediaDurationSecondsFromStored(row.Duration, row.MetadataJSON)
+		if sec > 0 {
+			out[row.ID] = durationSecondsToMs(sec)
+		}
+	}
+	return out, nil
+}
+
+func (r *GormRepository) resolveSubLessonDomainDuration(ctx context.Context, db *gorm.DB, sub *domain.SubLesson) error {
+	if sub == nil {
+		return nil
+	}
+	var mediaMs int64
+	if sub.Kind == domain.SubLessonKindVideo && sub.Video != nil {
+		fileID := strings.TrimSpace(sub.Video.MediaFileID)
+		if fileID != "" {
+			durations, err := r.batchMediaDurationMs(ctx, db, []string{fileID})
+			if err != nil {
+				return err
+			}
+			mediaMs = durations[fileID]
+		}
+	}
+	sub.EstimatedDurationMs = resolveSubLessonEstimatedDurationMs(*sub, mediaMs)
+	return nil
+}
+
 func (r *GormRepository) userIsInstructor(ctx context.Context, db *gorm.DB, userID string) bool {
 	var count int64
 	_ = db.WithContext(ctx).Raw(`
@@ -437,6 +484,7 @@ func toSubLesson(row *subLessonRow) domain.SubLesson {
 	return domain.SubLesson{
 		ID: row.ID, StableID: row.StableID, Title: row.Title, Kind: row.Kind,
 		IsPreview: row.IsPreview, OrderIndex: row.OrderIndex, RowVersion: row.RowVersion,
+		EstimatedDurationMs: row.EstimatedDurationMs,
 	}
 }
 

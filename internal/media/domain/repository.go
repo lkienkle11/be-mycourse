@@ -20,6 +20,7 @@ type FileRepository interface {
 	GetByID(ctx context.Context, id string) (*File, error)
 	GetByObjectKey(ctx context.Context, objectKey string) (*File, error)
 	GetByBunnyVideoID(ctx context.Context, videoGUID string) (*File, error)
+	ListBunnyVideoGUIDsWithMissingDuration(ctx context.Context, limit int) ([]string, error)
 	UpsertByObjectKey(ctx context.Context, f *File) error
 	SaveWithRowVersionCheck(ctx context.Context, f *File, expectedVersion int64) error
 	SoftDeleteByObjectKey(ctx context.Context, objectKey string) error

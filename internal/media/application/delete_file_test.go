@@ -41,6 +41,10 @@ func (f *fakeFileRepo) GetByBunnyVideoID(_ context.Context, _ string) (*domain.F
 	return nil, apperrors.ErrNotFound
 }
 
+func (f *fakeFileRepo) ListBunnyVideoGUIDsWithMissingDuration(_ context.Context, _ int) ([]string, error) {
+	return nil, nil
+}
+
 func (f *fakeFileRepo) UpsertByObjectKey(_ context.Context, _ *domain.File) error {
 	return nil
 }

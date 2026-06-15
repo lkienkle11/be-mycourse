@@ -171,6 +171,10 @@ func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID string, a
 		if err := r.validateSubLessonPayload(ctx, tx, in); err != nil {
 			return err
 		}
+		estimatedMs, err := normalizeSubLessonEstimatedDurationMs(in.Kind, in.EstimatedDurationMs)
+		if err != nil {
+			return err
+		}
 		next, err := r.nextOrderIndex(ctx, tx, constants.TableCourseSubLessons, "lesson_id = ? AND deleted_at IS NULL", in.LessonID)
 		if err != nil {
 			return err
@@ -178,7 +182,7 @@ func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID string, a
 		row := &subLessonRow{
 			StableID: uuid.NewString(), CourseVersionID: *access.CurrentDraftVersionID, LessonID: in.LessonID,
 			Title: strings.TrimSpace(in.Title), Kind: strings.ToUpper(strings.TrimSpace(in.Kind)), IsPreview: in.IsPreview,
-			OrderIndex: next, RowVersion: 1,
+			EstimatedDurationMs: estimatedMs, OrderIndex: next, RowVersion: 1,
 		}
 		if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 			return err
@@ -188,6 +192,9 @@ func (r *GormRepository) CreateSubLesson(ctx context.Context, courseID string, a
 		}
 		sub, err := r.loadSubLessonDomain(ctx, tx, row.ID)
 		if err != nil {
+			return err
+		}
+		if err := r.resolveSubLessonDomainDuration(ctx, tx, sub); err != nil {
 			return err
 		}
 		out = sub
@@ -216,14 +223,19 @@ func (r *GormRepository) UpdateSubLesson(ctx context.Context, courseID string, a
 		if err := r.validateSubLessonPayload(ctx, tx, in); err != nil {
 			return err
 		}
+		estimatedMs, err := normalizeSubLessonEstimatedDurationMs(in.Kind, in.EstimatedDurationMs)
+		if err != nil {
+			return err
+		}
 		result := tx.Model(&subLessonRow{}).
 			Where("id = ? AND row_version = ? AND deleted_at IS NULL", row.ID, in.ExpectedRowVersion).
 			Updates(map[string]any{
-				"title":       strings.TrimSpace(in.Title),
-				"kind":        strings.ToUpper(strings.TrimSpace(in.Kind)),
-				"is_preview":  in.IsPreview,
-				"updated_at":  timex.NowUnix(),
-				"row_version": gorm.Expr("row_version + 1"),
+				"title":                 strings.TrimSpace(in.Title),
+				"kind":                  strings.ToUpper(strings.TrimSpace(in.Kind)),
+				"is_preview":            in.IsPreview,
+				"estimated_duration_ms": estimatedMs,
+				"updated_at":            timex.NowUnix(),
+				"row_version":           gorm.Expr("row_version + 1"),
 			})
 		if result.Error != nil {
 			return result.Error
@@ -239,6 +251,9 @@ func (r *GormRepository) UpdateSubLesson(ctx context.Context, courseID string, a
 		}
 		sub, err := r.loadSubLessonDomain(ctx, tx, row.ID)
 		if err != nil {
+			return err
+		}
+		if err := r.resolveSubLessonDomainDuration(ctx, tx, sub); err != nil {
 			return err
 		}
 		out = sub
@@ -302,6 +317,12 @@ func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID string,
 			}
 			out[i] = *sub
 		}
+		videoIDs := collectVideoMediaFileIDsFromSubLessons(out)
+		videoMediaMs, err := r.batchMediaDurationMs(ctx, tx, videoIDs)
+		if err != nil {
+			return err
+		}
+		applySubLessonListEstimatedDurations(out, videoMediaMs)
 		return nil
 	})
 	return out, err

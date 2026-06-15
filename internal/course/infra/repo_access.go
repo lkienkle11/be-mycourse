@@ -296,6 +296,12 @@ func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID
 			out[i].Lessons[j].SubLessons = subLessons[lesson.ID]
 		}
 	}
+	videoIDs := collectVideoMediaFileIDs(out)
+	videoMediaMs, err := r.batchMediaDurationMs(ctx, db, videoIDs)
+	if err != nil {
+		return nil, err
+	}
+	applyOutlineEstimatedDurations(out, videoMediaMs)
 	return out, nil
 }
 

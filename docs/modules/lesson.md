@@ -1,6 +1,6 @@
 # Lesson Module
 
-_Last audited: 2026-06-04._
+_Last audited: 2026-06-15._
 
 There is still no standalone `internal/lesson/` package.
 
@@ -29,6 +29,7 @@ Course version
 - every section / lesson / sub-lesson has a stable UUID (`stable_id`) for progress migration across approved versions
 - lesson edits use optimistic locking (`row_version`)
 - lesson and sub-lesson edits can be coordinated through course edit leases
+- outline API responses include `estimated_duration_ms` on sections, lessons, and sub-lessons (see **`docs/modules/course.md`** → Estimated duration)
 
 ## Learner visibility
 

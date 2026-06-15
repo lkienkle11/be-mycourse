@@ -101,6 +101,7 @@ func main() {
 
 	// Start background jobs that require wired services.
 	mediajobs.StartMediaPendingCleanupJob(mediainfra.NewGormPendingCleanupRepository(shareddb.Conn()))
+	mediajobs.StartVideoDurationBackfillJob(svcs.Media)
 
 	mqCtx, mqCancel := context.WithCancel(context.Background())
 	defer mqCancel()

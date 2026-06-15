@@ -26,6 +26,8 @@
 | `000018_instructor_tickets_soft_delete_compat` | Drift-safe compatibility patch for `instructor_tickets` / `instructor_ticket_messages`: ensures `deleted_at` and rebuilds partial status index (`WHERE deleted_at IS NULL`). |
 | `000019_instructor_profiles_apps_soft_delete_compat` | Drift-safe patch for `instructor_profiles` / `instructor_applications`: ensures `deleted_at`, adds `id` PK on profiles when DB only has `user_id` PK, rebuilds partial unique indexes. |
 | `000020_course_version_row_version_backfill` | Backfills `course_versions.row_version` from `0` to `1` for rows created before GORM explicitly set `RowVersion: 1` on insert (column default alone is overridden by zero-value inserts). |
+| `000021_media_bunny_delivery_urls` | Adds Bunny Stream delivery URL columns on `media_files` (see `docs/modules/media.md`). |
+| `000022_course_sub_lesson_estimated_duration` | Adds `course_sub_lessons.estimated_duration_ms` (`BIGINT NOT NULL DEFAULT 0`) for TEXT/QUIZ user estimates; VIDEO resolves from `media_files.duration` at read time. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

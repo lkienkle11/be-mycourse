@@ -1647,6 +1647,81 @@ curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
 
 Other instructor routes (outline CRUD/reorder, leases, collaborators, review submit/reopen) follow the same Bearer + permission pattern — see **`docs/router.md`**.
 
+Requires migration **`000022_course_sub_lesson_estimated_duration`** (or `MIGRATE=1`) for `estimated_duration_ms` on sub-lessons.
+
+### 14.5 Create / update sub-lesson (estimated duration)
+
+**`POST /api/v1/courses/:courseId/sub-lessons`** and **`PATCH /api/v1/courses/:courseId/sub-lessons/:subLessonId`** — permission `course:update`
+
+Outline nodes in `CourseDetail.outline` (and single-item create/update responses) include **`estimated_duration_ms`** (int64 milliseconds):
+
+| Kind | Request `estimated_duration_ms` | Response value |
+|------|----------------------------------|----------------|
+| `TEXT` / `QUIZ` | Optional; persisted when `0 <= ms <= 999h` | Stored column value |
+| `VIDEO` | Ignored (forced to `0` in DB) | `media_files.duration` (seconds) × 1000 |
+| Lesson / section | N/A (not writable) | Sum of child resolved durations |
+
+**TEXT example** — 1h 25m 30s = `5130000` ms:
+
+```bash
+curl -sS -X POST "{{BASE_URL}}/api/v1/courses/{{courseId}}/sub-lessons" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lesson_id": "{{lessonUuid}}",
+    "title": "Reading assignment",
+    "kind": "TEXT",
+    "is_preview": false,
+    "estimated_duration_ms": 5130000,
+    "text": { "content_delta": "[{\"insert\":\"Read chapter 1\\n\"}]" }
+  }'
+```
+
+**VIDEO example** — omit `estimated_duration_ms`; response resolves from linked media:
+
+```bash
+curl -sS -X POST "{{BASE_URL}}/api/v1/courses/{{courseId}}/sub-lessons" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lesson_id": "{{lessonUuid}}",
+    "title": "Intro video",
+    "kind": "VIDEO",
+    "is_preview": true,
+    "video": { "media_file_id": "{{videoMediaUuid}}" }
+  }'
+```
+
+Example outline fragment in `GET /api/v1/courses/:courseId` (truncated):
+
+```json
+{
+  "outline": [
+    {
+      "id": "019e…",
+      "title": "Module 1",
+      "estimated_duration_ms": 5130000,
+      "lessons": [
+        {
+          "id": "019e…",
+          "title": "Lesson 1",
+          "estimated_duration_ms": 5130000,
+          "sub_lessons": [
+            {
+              "id": "019e…",
+              "kind": "TEXT",
+              "estimated_duration_ms": 5130000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Full semantics: **`docs/modules/course.md`** → Estimated duration.
+
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
 
 ---

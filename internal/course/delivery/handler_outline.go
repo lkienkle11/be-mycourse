@@ -97,16 +97,21 @@ func (h *Handler) updateSubLesson(c *gin.Context) { h.upsertSubLesson(c, false) 
 
 func (h *Handler) upsertSubLesson(c *gin.Context, create bool) {
 	handler := func(courseID string, subLessonID *string, req *subLessonRequest) {
+		estimatedMs := int64(0)
+		if req.EstimatedDurationMs != nil {
+			estimatedMs = *req.EstimatedDurationMs
+		}
 		input := domain.UpsertSubLessonInput{
-			SubLessonID:        subLessonID,
-			LessonID:           req.LessonID,
-			ExpectedRowVersion: req.ExpectedRowVersion,
-			Title:              req.Title,
-			Kind:               req.Kind,
-			IsPreview:          req.IsPreview,
-			Video:              toVideoContent(req.Video),
-			Text:               toTextContent(req.Text),
-			Quiz:               toQuizContent(req.Quiz),
+			SubLessonID:         subLessonID,
+			LessonID:            req.LessonID,
+			ExpectedRowVersion:  req.ExpectedRowVersion,
+			Title:               req.Title,
+			Kind:                req.Kind,
+			IsPreview:           req.IsPreview,
+			EstimatedDurationMs: estimatedMs,
+			Video:               toVideoContent(req.Video),
+			Text:                toTextContent(req.Text),
+			Quiz:                toQuizContent(req.Quiz),
 		}
 		if create {
 			row, err := h.svc.CreateSubLesson(c.Request.Context(), courseID, utils.CurrentUserID(c), input)

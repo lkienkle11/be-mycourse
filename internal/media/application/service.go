@@ -69,7 +69,12 @@ var MediaUploadParallelStartProbe func()
 
 // ListFiles returns a paginated list of media files.
 func (s *MediaService) ListFiles(ctx context.Context, filter domain.FileFilter) ([]domain.File, int64, error) {
-	return s.fileRepo.List(ctx, filter)
+	files, total, err := s.fileRepo.List(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	s.scheduleVideoDurationRefresh(context.WithoutCancel(ctx), files)
+	return files, total, nil
 }
 
 // GetFile resolves a file by object key. If not in DB it synthesises a domain.File from infra defaults.
@@ -80,6 +85,7 @@ func (s *MediaService) GetFile(ctx context.Context, objectKey, kind string) (*do
 	}
 	f, err := s.fileRepo.GetByObjectKey(ctx, key)
 	if err == nil {
+		s.scheduleVideoDurationRefresh(context.WithoutCancel(ctx), []domain.File{*f})
 		return f, nil
 	}
 	resolvedProvider := s.gw.DefaultMediaProvider(kind)
@@ -625,7 +631,7 @@ func (s *MediaService) applyBunnyWebhookFinishedStatus(ctx context.Context, vide
 	}
 	row.MetadataJSON = string(blob)
 	row.Status = constants.FileStatusReady
-	if dur := int64(typed.DurationSeconds); dur > 0 {
+	if dur := videoDurationSecondsFromTelemetry(typed.DurationSeconds, video.Length); dur > 0 {
 		row.Duration = dur
 	}
 

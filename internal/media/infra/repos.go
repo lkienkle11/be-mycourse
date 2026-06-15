@@ -161,6 +161,18 @@ func (r *GormFileRepository) GetByBunnyVideoID(ctx context.Context, videoGUID st
 	return firstActiveMediaFile(ctx, r.db, "bunny_video_id = ? AND deleted_at IS NULL", videoGUID)
 }
 
+func (r *GormFileRepository) ListBunnyVideoGUIDsWithMissingDuration(ctx context.Context, limit int) ([]string, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	var guids []string
+	err := r.db.WithContext(ctx).Model(&mediaFileRow{}).
+		Where("deleted_at IS NULL AND kind = ? AND duration = 0 AND bunny_video_id <> ''", constants.FileKindVideo).
+		Limit(limit).
+		Pluck("bunny_video_id", &guids).Error
+	return guids, err
+}
+
 func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.File) error {
 	row := fileToRow(f)
 	db := r.db.WithContext(ctx)

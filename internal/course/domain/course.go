@@ -88,36 +88,39 @@ type Collaborator struct {
 }
 
 type Section struct {
-	ID          string   `json:"id"`
-	StableID    string   `json:"stable_id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	OrderIndex  int      `json:"order_index"`
-	RowVersion  int64    `json:"row_version"`
-	Lessons     []Lesson `json:"lessons"`
+	ID                  string   `json:"id"`
+	StableID            string   `json:"stable_id"`
+	Title               string   `json:"title"`
+	Description         string   `json:"description"`
+	OrderIndex          int      `json:"order_index"`
+	RowVersion          int64    `json:"row_version"`
+	EstimatedDurationMs int64    `json:"estimated_duration_ms"`
+	Lessons             []Lesson `json:"lessons"`
 }
 
 type Lesson struct {
-	ID         string      `json:"id"`
-	StableID   string      `json:"stable_id"`
-	Title      string      `json:"title"`
-	Summary    string      `json:"summary"`
-	OrderIndex int         `json:"order_index"`
-	RowVersion int64       `json:"row_version"`
-	SubLessons []SubLesson `json:"sub_lessons"`
+	ID                  string      `json:"id"`
+	StableID            string      `json:"stable_id"`
+	Title               string      `json:"title"`
+	Summary             string      `json:"summary"`
+	OrderIndex          int         `json:"order_index"`
+	RowVersion          int64       `json:"row_version"`
+	EstimatedDurationMs int64       `json:"estimated_duration_ms"`
+	SubLessons          []SubLesson `json:"sub_lessons"`
 }
 
 type SubLesson struct {
-	ID         string        `json:"id"`
-	StableID   string        `json:"stable_id"`
-	Title      string        `json:"title"`
-	Kind       string        `json:"kind"`
-	IsPreview  bool          `json:"is_preview"`
-	OrderIndex int           `json:"order_index"`
-	RowVersion int64         `json:"row_version"`
-	Video      *VideoContent `json:"video,omitempty"`
-	Text       *TextContent  `json:"text,omitempty"`
-	Quiz       *QuizContent  `json:"quiz,omitempty"`
+	ID                  string        `json:"id"`
+	StableID            string        `json:"stable_id"`
+	Title               string        `json:"title"`
+	Kind                string        `json:"kind"`
+	IsPreview           bool          `json:"is_preview"`
+	OrderIndex          int           `json:"order_index"`
+	RowVersion          int64         `json:"row_version"`
+	EstimatedDurationMs int64         `json:"estimated_duration_ms"`
+	Video               *VideoContent `json:"video,omitempty"`
+	Text                *TextContent  `json:"text,omitempty"`
+	Quiz                *QuizContent  `json:"quiz,omitempty"`
 }
 
 type VideoContent struct {
@@ -264,15 +267,16 @@ type UpsertLessonInput struct {
 }
 
 type UpsertSubLessonInput struct {
-	SubLessonID        *string
-	LessonID           string
-	ExpectedRowVersion int64
-	Title              string
-	Kind               string
-	IsPreview          bool
-	Video              *VideoContent
-	Text               *TextContent
-	Quiz               *QuizContent
+	SubLessonID         *string
+	LessonID            string
+	ExpectedRowVersion  int64
+	Title               string
+	Kind                string
+	IsPreview           bool
+	EstimatedDurationMs int64
+	Video               *VideoContent
+	Text                *TextContent
+	Quiz                *QuizContent
 }
 
 type AcquireLeaseInput struct {

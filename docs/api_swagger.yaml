@@ -1950,6 +1950,10 @@ paths:
                 title: { type: string, minLength: 1, maxLength: 255 }
                 kind: { type: string, enum: [VIDEO, QUIZ, TEXT] }
                 is_preview: { type: boolean }
+                estimated_duration_ms:
+                  type: integer
+                  format: int64
+                  description: TEXT/QUIZ user estimate in milliseconds; ignored for VIDEO (resolved from media on read)
                 video:
                   type: object
                   properties:
@@ -2004,6 +2008,10 @@ paths:
                 title: { type: string, minLength: 1, maxLength: 255 }
                 kind: { type: string, enum: [VIDEO, QUIZ, TEXT] }
                 is_preview: { type: boolean }
+                estimated_duration_ms:
+                  type: integer
+                  format: int64
+                  description: TEXT/QUIZ user estimate in milliseconds; ignored for VIDEO (resolved from media on read)
                 video:
                   type: object
                   properties:

@@ -575,6 +575,14 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Dependencies: GORM, `timex.NowUnix()`.
 - Current Usage: `ReorderSections`, `ReorderLessons`, `ReorderSubLessons` in `internal/course/infra/repo_outline.go`.
 
+### Asset: Curriculum estimated duration helpers
+- Name: `resolveSubLessonEstimatedDurationMs`, `normalizeSubLessonEstimatedDurationMs`, `applyOutlineEstimatedDurations`, `batchMediaDurationMs`
+- Type: Functions (`internal/course/infra/duration.go`, `repos.go`)
+- Purpose: Resolve sub-lesson `estimated_duration_ms` (VIDEO from linked `media_files` DB row — `duration` column or `metadata_json`; TEXT/QUIZ from DB column), validate write input (`0`–`999h`), batch-load media durations in `loadOutline`, and sum lesson/section totals on read. Video length is persisted by the **media** module (Bunny webhook / backfill), not fetched from cloud at course read time.
+- Scope: Course outline read/write only — single resolver for duration semantics (do not duplicate in handlers or components).
+- Dependencies: `domain.SubLesson`, `constants.TableMediaFiles`, GORM.
+- Current Usage: `loadOutline`, `CreateSubLesson`, `UpdateSubLesson`, `ReorderSubLessons` in `internal/course/infra/`.
+
 ### Asset: Generic normalization / set primitives (utils)
 - Name: `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON`
 - Type: Util

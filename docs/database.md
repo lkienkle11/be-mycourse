@@ -650,7 +650,7 @@ API and RBAC: **`docs/modules/instructor.md`**.
 | `course_collaborators` | Course membership with business roles `OWNER` and `EDITOR` |
 | `course_sections` | Version-scoped sections; stable business id + sortable `order_index` + `row_version` |
 | `course_lessons` | Version-scoped lessons under a section; stable business id + sortable `order_index` + `row_version` |
-| `course_sub_lessons` | Version-scoped lesson items under a lesson; stable business id, kind, preview flag, sortable `order_index`, `row_version` |
+| `course_sub_lessons` | Version-scoped lesson items under a lesson; stable business id, kind, preview flag, `estimated_duration_ms` (TEXT/QUIZ user estimate in ms; VIDEO stores 0 and resolves from `media_files.duration` on read), sortable `order_index`, `row_version` |
 | `course_sub_lesson_videos` | Video payload attached to one sub-lesson |
 | `course_sub_lesson_texts` | Quill Delta JSON payload attached to one sub-lesson |
 | `course_sub_lesson_quizzes` | Quiz payload attached to one sub-lesson (`prompt`, `allow_multiple` boolean) |

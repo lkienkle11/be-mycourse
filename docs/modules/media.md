@@ -327,7 +327,10 @@ Public fields returned in API responses:
 | `direct_play_url` | Bunny direct play page: `https://player.mediadelivery.net/play/{libraryId}/{guid}` |
 | `hls_playlist_url` | HLS master playlist on CDN: `https://{cdn}/{guid}/playlist.m3u8` |
 | `preview_animation_url` | Animated preview WebP on CDN: `https://{cdn}/{guid}/preview.webp` |
-| `duration` | Video duration in seconds |
+| `duration` | Video duration in seconds (persisted on `media_files.duration`; sourced from Bunny webhook / backfill, not resolved at course read time) |
+
+**Video duration backfill:** When Bunny encoding finishes but `duration` was still `0`, `applyBunnyWebhookFinishedStatus` persists Bunny `length` into `media_files.duration`. A **delayed** one-shot job (`StartVideoDurationBackfillJob`, ~2 min after process start) backfills stale rows without blocking HTTP startup. `ListFiles` / `GetFile` may enqueue the same sync **asynchronously** (deduped by `bunny_video_id`); responses are never blocked on Bunny. Course outline reads only the DB row.
+
 | `row_version` | Optimistic concurrency version (Sub 06) |
 | `content_fingerprint` | SHA-256 hex of file bytes (Sub 06) |
 

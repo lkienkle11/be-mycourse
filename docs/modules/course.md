@@ -74,9 +74,28 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 
 Sub-lesson content types:
 
-- `VIDEO` → `course_sub_lesson_videos`
+- `VIDEO` → `course_sub_lesson_videos` (duration resolved from linked `media_files.duration` × 1000 ms on read; not stored on sub-lesson row)
 - `QUIZ` → `course_sub_lesson_quizzes` + `course_sub_lesson_quiz_options`
 - `TEXT` → `course_sub_lesson_texts`
+
+### Estimated duration (`estimated_duration_ms`)
+
+All outline nodes expose `estimated_duration_ms` (int64 milliseconds) in API responses:
+
+| Node | Source |
+|------|--------|
+| `VIDEO` sub-lesson | Linked `media_files` row only: `duration` column, else `metadata_json` (`duration_seconds` / `duration` / `length`); 0 if unknown. **Course never calls Bunny** — media module persists length on webhook / startup backfill / list. |
+| `TEXT` / `QUIZ` sub-lesson | `course_sub_lessons.estimated_duration_ms` column (user input; default 0) |
+| Lesson | Sum of child sub-lesson resolved durations |
+| Section | Sum of child lesson durations |
+
+Write rules on `POST/PATCH …/sub-lessons`:
+
+- `VIDEO`: client `estimated_duration_ms` is ignored; column forced to `0`
+- `TEXT` / `QUIZ`: optional `estimated_duration_ms` persisted; must be `0 <= ms <= 999h`
+- Switching kind to `VIDEO` resets stored ms to `0`
+
+Lesson and section totals are computed on read only (not stored).
 
 Text lesson content is stored as Quill Delta JSON text, not HTML.
 
@@ -91,6 +110,7 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 | Section | title ≥5; description Delta JSON ≥20 non-whitespace text (legacy plain text accepted on read/validate) |
 | Lesson | title ≥5; summary Delta JSON ≥20 non-whitespace text (legacy plain text accepted on read/validate) |
 | Sub-lesson | title ≥5; `is_preview` allowed only for `VIDEO` and `TEXT` (QUIZ → `ErrCoursePreviewNotAllowedForQuiz`; learner preview outline filters QUIZ) |
+| Sub-lesson | `estimated_duration_ms` optional on upsert; `TEXT`/`QUIZ` only (`0`–`999h` in ms); ignored for `VIDEO` |
 
 ## Submit-for-review validation
 
@@ -143,6 +163,8 @@ Instructor / collaborator routes:
 - `DELETE /api/v1/courses/:courseId`
 - collaborator CRUD under `/api/v1/courses/:courseId/collaborators`
 - outline CRUD / reorder under `/api/v1/courses/:courseId/{sections,lessons,sub-lessons,...}`
+  - sub-lesson upsert body: `lesson_id`, `title`, `kind`, `is_preview`, optional `estimated_duration_ms` (TEXT/QUIZ only), plus kind-specific `video` / `text` / `quiz` payload — see **`docs/curl_api.md` §14.5**
+  - outline responses include computed `estimated_duration_ms` on sections, lessons, and sub-lessons
 - lease routes under `/api/v1/courses/:courseId/leases/*`
 - review submission routes:
   - `POST /api/v1/courses/:courseId/submit-review`
@@ -187,14 +209,13 @@ The module reuses the existing permission catalog:
 
 ## Validation snapshot
 
-Repo-wide validation passed during the latest audit (2026-06-12):
+Repo-wide validation passed during the estimated-duration feature closeout (2026-06-15):
 
+- Migration **`000022_course_sub_lesson_estimated_duration`** adds `course_sub_lessons.estimated_duration_ms`
+- `go test ./internal/course/infra/...` — PASS
 - `golangci-lint run` — 0 issues
-- `go test ./...` — PASS
 - `go build ./...` — PASS
-- `make check-architecture` — OK
-- `make check-dupl` — OK
-- `make check-layout` — OK
+- `make check-architecture` / `check-dupl` / `check-layout` — OK
 
 ## Create course transaction
 

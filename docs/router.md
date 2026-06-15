@@ -163,8 +163,8 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | PATCH | `/api/v1/courses/:courseId/lessons/:lessonId` | `course:update` | Update lesson |
 | DELETE | `/api/v1/courses/:courseId/lessons/:lessonId` | `course:update` | Delete lesson |
 | POST | `/api/v1/courses/:courseId/sections/:sectionId/lessons/reorder` | `course:update` | Reorder lessons |
-| POST | `/api/v1/courses/:courseId/sub-lessons` | `course:update` | Create sub-lesson (`VIDEO`/`QUIZ`/`TEXT`) |
-| PATCH | `/api/v1/courses/:courseId/sub-lessons/:subLessonId` | `course:update` | Update sub-lesson |
+| POST | `/api/v1/courses/:courseId/sub-lessons` | `course:update` | Create sub-lesson (`VIDEO`/`QUIZ`/`TEXT`); optional `estimated_duration_ms` for TEXT/QUIZ |
+| PATCH | `/api/v1/courses/:courseId/sub-lessons/:subLessonId` | `course:update` | Update sub-lesson; VIDEO ignores `estimated_duration_ms` |
 | DELETE | `/api/v1/courses/:courseId/sub-lessons/:subLessonId` | `course:update` | Delete sub-lesson |
 | POST | `/api/v1/courses/:courseId/lessons/:lessonId/sub-lessons/reorder` | `course:update` | Reorder sub-lessons |
 | POST | `/api/v1/courses/:courseId/leases/acquire` | `course:update` | Acquire edit lease |

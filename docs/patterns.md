@@ -65,6 +65,10 @@ server/wire    → all layers (composition root)
 
 Map `gorm.ErrRecordNotFound` to the shared `ErrNotFound` sentinel at the infra/repository boundary. Prefer `internal/shared/gormx.FirstWhere` for repeated `Where(...).First(...)` patterns.
 
+### Parallel GORM reads (`errgroup`)
+
+When an infra repository runs concurrent read queries via `errgroup`, **each goroutine must use its own GORM session** — do not share the same `*gorm.DB` handle (unsafe inside transactions). Course module: `parallelReadDB(db)` in `internal/course/infra/repo_helpers.go` (`db.Session(&gorm.Session{NewDB: true})`). Reuse that helper for new parallel read paths in course infra; do not duplicate the session logic inline.
+
 ### Domain ports (infra behind interfaces)
 
 When `application` or `delivery` needs cloud SDKs, crypto, or multipart helpers that cannot live in `domain` entities:

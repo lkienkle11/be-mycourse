@@ -1,5 +1,7 @@
 # Taxonomy Module
 
+_Last audited: 2026-06-16 (list `taxonomyListTotal` skip-count optimization)._
+
 The taxonomy module (`internal/taxonomy/`) handles classification reference data for courses: **course topics** (formerly categories), **course outcomes**, **course skills**, **course levels**, and **tags**.
 
 ---
@@ -16,7 +18,7 @@ internal/taxonomy/
 │   └── service_helpers.go   # Shared create/update/delete, slug+status entities, orphan image hook
 ├── infra/
 │   ├── repos.go             # GORM repositories (topics, outcomes, skills, tags, levels)
-│   ├── repos_crud_helper.go # Shared list/create helpers to avoid duplicated repo code
+│   ├── repos_crud_helper.go # Shared list/create helpers; taxonomyListTotal skips COUNT on last page
 │   └── jsonb_types.go       # JSONB scanners for tree nodes and description arrays
 └── delivery/
     ├── handler.go           # Thin handlers per resource
@@ -101,6 +103,8 @@ List query contract:
 `/taxonomy/levels` and `/taxonomy/tags` with `course_level:*` and `tag:*`. Each resource supports `GET /full`, soft `DELETE /:id`, and hard `DELETE /:id/hard` (same permission as delete).
 
 **Soft delete:** `deleted_at` Unix seconds on all five taxonomy tables. Default list/get exclude soft-deleted rows. Slug uniqueness is enforced only among active rows (partial unique index).
+
+**List performance:** `taxonomyList` in `repos_crud_helper.go` runs `Find` first; `taxonomyListTotal` skips a separate `COUNT(*)` when `len(rows) < per_page` (total = `(page-1)*per_page + len(rows)`). Topics/outcomes still hydrate `image_file_url` via a second batched `media_files` query (`listTaxonomyWithImageURLs`).
 
 ---
 

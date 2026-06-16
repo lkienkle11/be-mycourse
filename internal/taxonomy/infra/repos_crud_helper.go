@@ -101,12 +101,12 @@ func taxonomyList[R any, D any](
 		q = gormx.ScopeActiveOnly(q)
 	}
 	q = applySearch(q, filter)
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
 	var rows []R
 	if err := applyPagination(q, filter).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	total, err := taxonomyListTotal(q, filter, len(rows))
+	if err != nil {
 		return nil, 0, err
 	}
 	out := make([]D, len(rows))
@@ -114,6 +114,26 @@ func taxonomyList[R any, D any](
 		out[i] = mapRow(&rows[i])
 	}
 	return out, total, nil
+}
+
+// taxonomyListTotal avoids a separate COUNT query when the page is clearly the last one.
+func taxonomyListTotal(q *gorm.DB, filter domain.TaxonomyFilter, rowCount int) (int64, error) {
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if rowCount < pageSize {
+		return int64((page-1)*pageSize + rowCount), nil
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
 }
 
 func taxonomyGetByID[R any, D any](

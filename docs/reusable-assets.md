@@ -583,6 +583,42 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Dependencies: `domain.SubLesson`, `constants.TableMediaFiles`, GORM.
 - Current Usage: `loadOutline`, `CreateSubLesson`, `UpdateSubLesson`, `ReorderSubLessons` in `internal/course/infra/`.
 
+### Asset: Course outline batch read helpers
+- Name: `batchHydrateSubLessons`, `batchMediaURLMap`, `loadOutlineTreeRows`, `assembleOutlineSections`
+- Type: Functions (`internal/course/infra/repo_outline_batch.go`, `repo_access.go`)
+- Purpose: Batch-load sub-lesson VIDEO/TEXT/QUIZ content and media URLs (parallel per kind); load all sections/lessons/sub-lessons for a version in parallel; assemble outline tree without per-sub-lesson N+1 queries. `assembleOutlineSections` returns `domain.ErrCourseNotFound` when a sub-lesson row has no hydrated map entry (same fail-fast rule as `loadSubLessonDomain`).
+- Scope: Course outline read path only — `loadSubLessonDomain` delegates to `batchHydrateSubLessons` for a single row.
+- Dependencies: GORM, `errgroup`, `parallelReadDB`, `domain.SubLesson`, `constants.TableMediaFiles`.
+- Current Usage: `loadOutline`, `loadSubLessonDomain` in `internal/course/infra/`.
+
+### Asset: Parallel GORM read sessions
+- Name: `parallelReadDB`
+- Type: Function (`internal/course/infra/repo_helpers.go`)
+- Purpose: `db.Session(&gorm.Session{NewDB: true})` — each `errgroup` goroutine gets its own GORM session so concurrent reads are safe when callers pass a transaction-scoped `*gorm.DB`.
+- Scope: Course infra parallel read paths only — do not share a raw `*gorm.DB` across goroutines.
+- Current Usage: `loadCourseDetailParts`, `loadOutlineTreeRows`, `batchHydrateSubLessons`, `loadCourseVersionAssets`.
+
+### Asset: Course version read assembly
+- Name: `loadCourseVersionAssets`, `mapCourseVersionRow`, `loadCourseDetailParts`, `loadPublishedDraftVersionRows`
+- Type: Functions (`internal/course/infra/repos.go`, `repo_access.go`)
+- Purpose: Parallel load of version tag/skill/outcome refs and thumbnail/preview media URLs; parallel assembly of `CourseDetail` (live/draft version, collaborators, outline).
+- Scope: Course detail read path — same `domain.CourseVersion` / `domain.CourseDetail` output as before.
+- Current Usage: `GetCourseDetail`, `loadCourseDetail`, `toCourseVersion`.
+
+### Asset: Taxonomy list total inference
+- Name: `taxonomyListTotal`
+- Type: Function (`internal/taxonomy/infra/repos_crud_helper.go`)
+- Purpose: After paginated `Find`, skip `COUNT(*)` when `len(rows) < pageSize` and derive `total_items` as `(page-1)*pageSize + len(rows)`; otherwise run `Count` as before.
+- Scope: All five taxonomy list repositories via shared `taxonomyList`.
+- Current Usage: `GormCourseTopicRepository.List`, outcomes/skills/tags/levels `List`.
+
+### Asset: PostgreSQL pool tuning
+- Name: `tunePool`
+- Type: Function (`internal/shared/db/db.go`)
+- Purpose: After `gorm.Open`, configure `database/sql` pool (`MaxOpenConns=50`, `MaxIdleConns=25`, `ConnMaxLifetime=5m`, `ConnMaxIdleTime=1m`) so parallel API requests (e.g. course info + five taxonomy lists) do not queue on the default tiny idle pool.
+- Scope: Process startup — called from `db.Setup()`.
+- Current Usage: `main` bootstrap via `shareddb.Setup()`.
+
 ### Asset: Generic normalization / set primitives (utils)
 - Name: `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON`
 - Type: Util

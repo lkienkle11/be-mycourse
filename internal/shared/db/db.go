@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -46,7 +47,24 @@ func Setup() error {
 	if err != nil {
 		return err
 	}
+	if err := tunePool(db); err != nil {
+		return err
+	}
 	primary = db
+	return nil
+}
+
+func tunePool(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	// Default database/sql idle pool is tiny (2), which serializes parallel API
+	// requests against a remote PostgreSQL host. These values match typical dev/prod load.
+	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetMaxIdleConns(25)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(time.Minute)
 	return nil
 }
 

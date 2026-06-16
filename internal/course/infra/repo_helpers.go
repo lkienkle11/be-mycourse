@@ -99,6 +99,12 @@ func touchCreateCourseEntity(ctx context.Context, tx *gorm.DB, created, updated 
 	return tx.WithContext(ctx).Create(row).Error
 }
 
+// parallelReadDB returns a GORM session safe for concurrent read queries (e.g. errgroup).
+// Each goroutine must use its own session so transaction-scoped *gorm.DB handles are not shared.
+func parallelReadDB(db *gorm.DB) *gorm.DB {
+	return db.Session(&gorm.Session{NewDB: true})
+}
+
 func loadActiveRow[T any](ctx context.Context, db *gorm.DB, notFound error, query string, args ...any) (*T, error) {
 	var row T
 	if err := db.WithContext(ctx).Where(query, args...).First(&row).Error; err != nil {

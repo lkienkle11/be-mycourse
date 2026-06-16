@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-12 (quiz single-choice correct-answer validation, outline delete cascade fix, submit-for-review validation, shared useraccess helper, quiz preview enforcement)._
+_Last audited: 2026-06-12 (quiz single-choice correct-answer validation, outline delete cascade fix, submit-for-review validation, shared useraccess helper, quiz preview enforcement). Read-path batching/parallelism: 2026-06-16._
 
 ## Overview
 
@@ -22,6 +22,14 @@ internal/course/
 ├── delivery/
 ├── domain/
 └── infra/
+    ├── repos.go                 # GormRepository core + version mapping
+    ├── repo_access.go           # loadCourseDetail, loadOutline (parallel/batch reads)
+    ├── repo_outline_batch.go    # batchHydrateSubLessons, batchMediaURLMap
+    ├── repo_outline.go          # outline CRUD + reorder
+    ├── repo_versioning.go       # version clone / publish
+    ├── repo_submit_validation.go
+    ├── repo_instructor.go / repo_learner.go / repo_review.go
+    ├── repo_helpers.go / duration.go   # parallelReadDB, shared load/update helpers
 ```
 
 Migration: `migrations/000016_course_management.{up,down}.sql`
@@ -209,13 +217,16 @@ The module reuses the existing permission catalog:
 
 ## Validation snapshot
 
-Repo-wide validation passed during the estimated-duration feature closeout (2026-06-15):
+Repo-wide validation passed during read-path safety fixes (2026-06-16):
 
-- Migration **`000022_course_sub_lesson_estimated_duration`** adds `course_sub_lessons.estimated_duration_ms`
+- `assembleOutlineSections` returns error when hydration map misses a sub-lesson ID (aligned with `loadSubLessonDomain`)
+- `parallelReadDB` — per-goroutine GORM session for all `errgroup` read paths (safe inside transactions)
 - `go test ./internal/course/infra/...` — PASS
 - `golangci-lint run` — 0 issues
 - `go build ./...` — PASS
 - `make check-architecture` / `check-dupl` / `check-layout` — OK
+
+Previous closeout (2026-06-15): migration **`000022_course_sub_lesson_estimated_duration`** adds `course_sub_lessons.estimated_duration_ms`.
 
 ## Create course transaction
 
@@ -235,7 +246,20 @@ Successful response: HTTP **201**, envelope `data` = `domain.CourseDetail` (cour
 
 ## Deferred follow-up
 
-The following repository-internal performance refactors are intentionally deferred to a separate task because they are more invasive than the zero-logic cleanup pass:
+The following repository-internal performance refactors remain intentionally deferred (separate task):
 
-- `internal/course/infra/repo_access.go:loadOutline` multi-level N+1 query reduction
 - `internal/course/infra/repo_versioning.go` version-clone batching / per-row insert reduction
+
+## Read-path performance (2026-06-16)
+
+Course detail and taxonomy list reads were optimized **without changing response shape or business rules**:
+
+| Area | Change | Path |
+|------|--------|------|
+| DB pool | `tunePool` after `gorm.Open` — `MaxOpenConns=50`, `MaxIdleConns=25` | `internal/shared/db/db.go` |
+| Course detail | Parallel fetch of version assets, collaborators, outline (`errgroup` + `parallelReadDB` per goroutine) | `repo_access.go`, `repo_helpers.go` |
+| Course outline | Batch load sections/lessons/sub-lessons per version; `batchHydrateSubLessons` replaces per-row N+1; `assembleOutlineSections` fails fast on missing hydration | `repo_access.go`, `repo_outline_batch.go` |
+| Course version | Parallel tag/skill/outcome refs + batched media URLs (`batchMediaURLMap`, `parallelReadDB`) | `repos.go`, `repo_outline_batch.go` |
+| Taxonomy list | Skip `COUNT(*)` when last page is inferable (`taxonomyListTotal`) | `internal/taxonomy/infra/repos_crud_helper.go` |
+
+Measured warm parallel load (course info page): course **~3s**, each taxonomy list **&lt;1.5s** (remote PostgreSQL latency dependent).

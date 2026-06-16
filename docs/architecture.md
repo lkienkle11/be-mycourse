@@ -70,7 +70,7 @@ Cross-cutting concerns that are not domain-specific:
 
 | Package | Purpose |
 |---------|---------|
-| `internal/shared/db/` | GORM setup, PostgreSQL connection, SQL migrations |
+| `internal/shared/db/` | GORM setup, PostgreSQL connection (`tunePool` on `database/sql` after open), SQL migrations |
 | `internal/shared/cache/` | Redis client (`go-redis v9`) |
 | `internal/shared/mq/` | LavinMQ / RabbitMQ AMQP client (`amqp091-go`): topic publish, durable queue bind, consumer registry |
 | `internal/shared/setting/` | YAML config loading with env-var substitution |
@@ -122,7 +122,7 @@ Dependency injection lives in **`internal/server/wire.go`**. The `Wire()` functi
 main.go
   └── setting.Setup()         — load YAML + env vars
   └── logger.InitFromSettings() — init Uber Zap global logger
-  └── shareddb.Setup()        — connect PostgreSQL (GORM)
+  └── shareddb.Setup()        — connect PostgreSQL (GORM) + tune connection pool
   └── cache.SetupRedis()      — connect Redis (before APPCLI branch)
   └── mq.SetupLavinMQ()       — optional CloudAMQP LavinMQ (skipped when LAVINMQ_ENABLED=false or URL empty)
   └── resilience.ConfigureFromSettings() + StartDBProbe()

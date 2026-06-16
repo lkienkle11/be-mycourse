@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/course/domain"
@@ -14,53 +15,107 @@ func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, cour
 	if err != nil {
 		return nil, err
 	}
-	course := toCourse(&access.courseRow)
-	var live *domain.CourseVersion
-	var draft *domain.CourseVersion
-	outlineVersionID := ""
-	if access.CurrentPublishedVersionID != nil {
-		row, err := r.loadVersionRow(ctx, db, *access.CurrentPublishedVersionID)
-		if err != nil {
-			return nil, err
-		}
-		version, err := r.toCourseVersion(ctx, db, row)
-		if err != nil {
-			return nil, err
-		}
-		live = version
-		outlineVersionID = row.ID
-	}
-	if includeDraft && access.CurrentDraftVersionID != nil {
-		row, err := r.loadVersionRow(ctx, db, *access.CurrentDraftVersionID)
-		if err != nil {
-			return nil, err
-		}
-		version, err := r.toCourseVersion(ctx, db, row)
-		if err != nil {
-			return nil, err
-		}
-		draft = version
-		outlineVersionID = row.ID
-	}
-	collabs, err := r.loadCollaborators(ctx, db, courseID)
+	liveRow, draftRow, outlineVersionID, err := loadPublishedDraftVersionRows(ctx, r, db, access, includeDraft)
 	if err != nil {
 		return nil, err
 	}
-	outline := []domain.Section{}
-	if outlineVersionID != "" {
-		outline, err = r.loadOutline(ctx, db, outlineVersionID)
-		if err != nil {
-			return nil, err
-		}
+	live, draft, collabs, outline, err := r.loadCourseDetailParts(ctx, db, courseID, liveRow, draftRow, outlineVersionID)
+	if err != nil {
+		return nil, err
 	}
 	return &domain.CourseDetail{
-		Course:           course,
+		Course:           toCourse(&access.courseRow),
 		CollaboratorRole: access.Role,
 		LiveVersion:      live,
 		DraftVersion:     draft,
 		Collaborators:    collabs,
 		Outline:          outline,
 	}, nil
+}
+
+func loadPublishedDraftVersionRows(
+	ctx context.Context,
+	r *GormRepository,
+	db *gorm.DB,
+	access *courseAccess,
+	includeDraft bool,
+) (liveRow, draftRow *courseVersionRow, outlineVersionID string, err error) {
+	if access.CurrentPublishedVersionID != nil {
+		liveRow, err = r.loadVersionRow(ctx, db, *access.CurrentPublishedVersionID)
+		if err != nil {
+			return nil, nil, "", err
+		}
+	}
+	if includeDraft && access.CurrentDraftVersionID != nil {
+		draftRow, err = r.loadVersionRow(ctx, db, *access.CurrentDraftVersionID)
+		if err != nil {
+			return nil, nil, "", err
+		}
+	}
+	if draftRow != nil {
+		outlineVersionID = draftRow.ID
+	} else if liveRow != nil {
+		outlineVersionID = liveRow.ID
+	}
+	return liveRow, draftRow, outlineVersionID, nil
+}
+
+func (r *GormRepository) loadCourseDetailParts(
+	ctx context.Context,
+	db *gorm.DB,
+	courseID string,
+	liveRow, draftRow *courseVersionRow,
+	outlineVersionID string,
+) (live, draft *domain.CourseVersion, collabs []domain.Collaborator, outline []domain.Section, err error) {
+	group, gctx := errgroup.WithContext(ctx)
+	if liveRow != nil {
+		row := liveRow
+		group.Go(func() error {
+			version, loadErr := r.toCourseVersion(gctx, parallelReadDB(db), row)
+			if loadErr != nil {
+				return loadErr
+			}
+			live = version
+			return nil
+		})
+	}
+	if draftRow != nil {
+		row := draftRow
+		group.Go(func() error {
+			version, loadErr := r.toCourseVersion(gctx, parallelReadDB(db), row)
+			if loadErr != nil {
+				return loadErr
+			}
+			draft = version
+			return nil
+		})
+	}
+	group.Go(func() error {
+		rows, loadErr := r.loadCollaborators(gctx, parallelReadDB(db), courseID)
+		if loadErr != nil {
+			return loadErr
+		}
+		collabs = rows
+		return nil
+	})
+	if outlineVersionID != "" {
+		versionID := outlineVersionID
+		group.Go(func() error {
+			rows, loadErr := r.loadOutline(gctx, parallelReadDB(db), versionID)
+			if loadErr != nil {
+				return loadErr
+			}
+			outline = rows
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if outline == nil {
+		outline = []domain.Section{}
+	}
+	return live, draft, collabs, outline, nil
 }
 
 func (r *GormRepository) loadLearnerCourseDetail(ctx context.Context, db *gorm.DB, courseID string, userID string) (*domain.CourseDetail, error) {
@@ -258,43 +313,17 @@ func (r *GormRepository) loadSubLessonsByLesson(ctx context.Context, db *gorm.DB
 }
 
 func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID string) ([]domain.Section, error) {
-	sections, err := r.loadSectionsByVersion(ctx, db, versionID)
+	sections, lessonRows, subRows, err := r.loadOutlineTreeRows(ctx, db, versionID)
 	if err != nil {
 		return nil, err
 	}
-	lessons := map[string][]lessonRow{}
-	subLessons := map[string][]domain.SubLesson{}
-	for _, section := range sections {
-		rows, err := r.loadLessonsBySection(ctx, db, section.ID)
-		if err != nil {
-			return nil, err
-		}
-		lessons[section.ID] = rows
-		for _, lesson := range rows {
-			subRows, err := r.loadSubLessonsByLesson(ctx, db, lesson.ID)
-			if err != nil {
-				return nil, err
-			}
-			list := make([]domain.SubLesson, len(subRows))
-			for i := range subRows {
-				sub, err := r.loadSubLessonDomain(ctx, db, subRows[i].ID)
-				if err != nil {
-					return nil, err
-				}
-				list[i] = *sub
-			}
-			subLessons[lesson.ID] = list
-		}
+	subMap, err := r.batchHydrateSubLessons(ctx, db, subRows)
+	if err != nil {
+		return nil, err
 	}
-	out := make([]domain.Section, len(sections))
-	for i, sec := range sections {
-		out[i] = toSection(&sec)
-		lessonRows := lessons[sec.ID]
-		out[i].Lessons = make([]domain.Lesson, len(lessonRows))
-		for j, lesson := range lessonRows {
-			out[i].Lessons[j] = toLesson(&lesson)
-			out[i].Lessons[j].SubLessons = subLessons[lesson.ID]
-		}
+	out, err := assembleOutlineSections(sections, lessonRows, subRows, subMap)
+	if err != nil {
+		return nil, err
 	}
 	videoIDs := collectVideoMediaFileIDs(out)
 	videoMediaMs, err := r.batchMediaDurationMs(ctx, db, videoIDs)
@@ -302,6 +331,76 @@ func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID
 		return nil, err
 	}
 	applyOutlineEstimatedDurations(out, videoMediaMs)
+	return out, nil
+}
+
+func (r *GormRepository) loadOutlineTreeRows(
+	ctx context.Context,
+	db *gorm.DB,
+	versionID string,
+) (sections []sectionRow, lessonRows []lessonRow, subRows []subLessonRow, err error) {
+	group, gctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		rows, loadErr := r.loadSectionsByVersion(gctx, parallelReadDB(db), versionID)
+		if loadErr != nil {
+			return loadErr
+		}
+		sections = rows
+		return nil
+	})
+	group.Go(func() error {
+		rows, loadErr := loadActiveRows[lessonRow](gctx, parallelReadDB(db), "course_version_id = ? AND deleted_at IS NULL", versionID)
+		if loadErr != nil {
+			return loadErr
+		}
+		lessonRows = rows
+		return nil
+	})
+	group.Go(func() error {
+		rows, loadErr := loadActiveRows[subLessonRow](gctx, parallelReadDB(db), "course_version_id = ? AND deleted_at IS NULL", versionID)
+		if loadErr != nil {
+			return loadErr
+		}
+		subRows = rows
+		return nil
+	})
+	if err := group.Wait(); err != nil {
+		return nil, nil, nil, err
+	}
+	return sections, lessonRows, subRows, nil
+}
+
+func assembleOutlineSections(
+	sections []sectionRow,
+	lessonRows []lessonRow,
+	subRows []subLessonRow,
+	subMap map[string]domain.SubLesson,
+) ([]domain.Section, error) {
+	lessonsBySection := make(map[string][]lessonRow, len(sections))
+	for _, lesson := range lessonRows {
+		lessonsBySection[lesson.SectionID] = append(lessonsBySection[lesson.SectionID], lesson)
+	}
+	subLessonsByLesson := make(map[string][]domain.SubLesson, len(lessonRows))
+	for _, sub := range subRows {
+		hydrated, ok := subMap[sub.ID]
+		if !ok {
+			return nil, domain.ErrCourseNotFound
+		}
+		subLessonsByLesson[sub.LessonID] = append(subLessonsByLesson[sub.LessonID], hydrated)
+	}
+	out := make([]domain.Section, len(sections))
+	for i, sec := range sections {
+		out[i] = toSection(&sec)
+		sectionLessons := lessonsBySection[sec.ID]
+		out[i].Lessons = make([]domain.Lesson, len(sectionLessons))
+		for j, lesson := range sectionLessons {
+			out[i].Lessons[j] = toLesson(&lesson)
+			out[i].Lessons[j].SubLessons = subLessonsByLesson[lesson.ID]
+			if out[i].Lessons[j].SubLessons == nil {
+				out[i].Lessons[j].SubLessons = []domain.SubLesson{}
+			}
+		}
+	}
 	return out, nil
 }
 

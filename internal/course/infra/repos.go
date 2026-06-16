@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/course/domain"
@@ -292,68 +293,105 @@ func (r *GormRepository) loadSubLessonDomain(ctx context.Context, db *gorm.DB, s
 		}
 		return nil, err
 	}
-	sub := toSubLesson(&row)
-	switch row.Kind {
-	case domain.SubLessonKindVideo:
-		var video subLessonVideoRow
-		if err := db.WithContext(ctx).Where("sub_lesson_id = ?", row.ID).First(&video).Error; err == nil {
-			url, _ := r.mediaURL(ctx, db, video.MediaFileID)
-			sub.Video = &domain.VideoContent{MediaFileID: video.MediaFileID, MediaURL: url}
-		}
-	case domain.SubLessonKindText:
-		var text subLessonTextRow
-		if err := db.WithContext(ctx).Where("sub_lesson_id = ?", row.ID).First(&text).Error; err == nil {
-			sub.Text = &domain.TextContent{ContentDelta: text.ContentDelta}
-		}
-	case domain.SubLessonKindQuiz:
-		var quiz subLessonQuizRow
-		if err := db.WithContext(ctx).Where("sub_lesson_id = ?", row.ID).First(&quiz).Error; err == nil {
-			var options []subLessonQuizOptionRow
-			if err := db.WithContext(ctx).Where("sub_lesson_id = ?", row.ID).Order("order_index ASC").Find(&options).Error; err != nil {
-				return nil, err
-			}
-			sub.Quiz = &domain.QuizContent{Prompt: quiz.Prompt, AllowMultiple: quiz.AllowMultiple, Options: mapQuizOptions(options)}
-		}
+	subs, err := r.batchHydrateSubLessons(ctx, db, []subLessonRow{row})
+	if err != nil {
+		return nil, err
+	}
+	sub, ok := subs[row.ID]
+	if !ok {
+		return nil, domain.ErrCourseNotFound
 	}
 	return &sub, nil
 }
 
 func (r *GormRepository) toCourseVersion(ctx context.Context, db *gorm.DB, row *courseVersionRow) (*domain.CourseVersion, error) {
-	tagIDs, err := r.loadVersionRefIDs(ctx, db, constants.TableCourseVersionTags, "tag_id", row.ID)
+	assets, err := r.loadCourseVersionAssets(ctx, db, row)
 	if err != nil {
 		return nil, err
 	}
-	skillIDs, err := r.loadVersionRefIDs(ctx, db, constants.TableCourseVersionSkills, "skill_id", row.ID)
-	if err != nil {
+	return mapCourseVersionRow(row, assets), nil
+}
+
+type courseVersionAssets struct {
+	tagIDs     []string
+	skillIDs   []string
+	outcomeIDs []string
+	thumbURL   string
+	videoURL   string
+}
+
+func (r *GormRepository) loadCourseVersionAssets(ctx context.Context, db *gorm.DB, row *courseVersionRow) (*courseVersionAssets, error) {
+	var assets courseVersionAssets
+	group, gctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		ids, err := r.loadVersionRefIDs(gctx, parallelReadDB(db), constants.TableCourseVersionTags, "tag_id", row.ID)
+		if err != nil {
+			return err
+		}
+		assets.tagIDs = ids
+		return nil
+	})
+	group.Go(func() error {
+		ids, err := r.loadVersionRefIDs(gctx, parallelReadDB(db), constants.TableCourseVersionSkills, "skill_id", row.ID)
+		if err != nil {
+			return err
+		}
+		assets.skillIDs = ids
+		return nil
+	})
+	group.Go(func() error {
+		ids, err := r.loadVersionRefIDs(gctx, parallelReadDB(db), constants.TableCourseVersionOutcomes, "outcome_id", row.ID)
+		if err != nil {
+			return err
+		}
+		assets.outcomeIDs = ids
+		return nil
+	})
+	group.Go(func() error {
+		mediaIDs := make([]string, 0, 2)
+		if row.ThumbnailFileID != nil {
+			mediaIDs = append(mediaIDs, *row.ThumbnailFileID)
+		}
+		if row.PreviewVideoFileID != nil {
+			mediaIDs = append(mediaIDs, *row.PreviewVideoFileID)
+		}
+		if len(mediaIDs) == 0 {
+			return nil
+		}
+		urls, err := r.batchMediaURLMap(gctx, parallelReadDB(db), mediaIDs)
+		if err != nil {
+			return err
+		}
+		if row.ThumbnailFileID != nil {
+			assets.thumbURL = urls[*row.ThumbnailFileID]
+		}
+		if row.PreviewVideoFileID != nil {
+			assets.videoURL = urls[*row.PreviewVideoFileID]
+		}
+		return nil
+	})
+	if err := group.Wait(); err != nil {
 		return nil, err
 	}
-	outcomeIDs, err := r.loadVersionRefIDs(ctx, db, constants.TableCourseVersionOutcomes, "outcome_id", row.ID)
-	if err != nil {
-		return nil, err
-	}
-	thumbURL := ""
-	if row.ThumbnailFileID != nil {
-		thumbURL, _ = r.mediaURL(ctx, db, *row.ThumbnailFileID)
-	}
-	videoURL := ""
-	if row.PreviewVideoFileID != nil {
-		videoURL, _ = r.mediaURL(ctx, db, *row.PreviewVideoFileID)
-	}
+	return &assets, nil
+}
+
+func mapCourseVersionRow(row *courseVersionRow, assets *courseVersionAssets) *domain.CourseVersion {
 	return &domain.CourseVersion{
 		ID: row.ID, CourseID: row.CourseID, VersionNo: row.VersionNo, Status: row.Status,
 		BasedOnVersionID: row.BasedOnVersionID,
 		Title:            row.Title, ShortDescription: row.ShortDescription, AboutCourse: row.AboutCourse,
-		ThumbnailFileID: row.ThumbnailFileID, ThumbnailURL: thumbURL,
-		PreviewVideoFileID: row.PreviewVideoFileID, PreviewVideoURL: videoURL,
+		ThumbnailFileID: row.ThumbnailFileID, ThumbnailURL: assets.thumbURL,
+		PreviewVideoFileID: row.PreviewVideoFileID, PreviewVideoURL: assets.videoURL,
 		CourseLevelID: row.CourseLevelID, CourseTopicID: row.CourseTopicID,
-		TagIDs: tagIDs, SkillIDs: skillIDs, OutcomeIDs: outcomeIDs,
+		TagIDs: assets.tagIDs, SkillIDs: assets.skillIDs, OutcomeIDs: assets.outcomeIDs,
 		RowVersion:        row.RowVersion,
 		SubmittedByUserID: row.SubmittedByUserID, SubmittedAt: row.SubmittedAt,
 		ApprovedByUserID: row.ApprovedByUserID, ApprovedAt: row.ApprovedAt,
 		RejectedByUserID: row.RejectedByUserID, RejectedAt: row.RejectedAt,
 		RejectionReason: row.RejectionReason,
 		CreatedAt:       row.CreatedAt, UpdatedAt: row.UpdatedAt,
-	}, nil
+	}
 }
 
 func (r *GormRepository) loadVersionRefIDs(ctx context.Context, db *gorm.DB, table, col string, versionID string) ([]string, error) {
@@ -367,14 +405,6 @@ func (r *GormRepository) loadVersionRefIDs(ctx context.Context, db *gorm.DB, tab
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids, nil
-}
-
-func (r *GormRepository) mediaURL(ctx context.Context, db *gorm.DB, fileID string) (string, error) {
-	var row mediaInfoRow
-	if err := db.WithContext(ctx).Table(constants.TableMediaFiles).Select("id, url").Where("id = ? AND deleted_at IS NULL", fileID).First(&row).Error; err != nil {
-		return "", err
-	}
-	return row.URL, nil
 }
 
 func (r *GormRepository) batchMediaDurationMs(ctx context.Context, db *gorm.DB, fileIDs []string) (map[string]int64, error) {

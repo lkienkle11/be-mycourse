@@ -215,8 +215,11 @@ Tests are **co-located** with their packages — not in a separate `tests/` dire
 gofmt -w .
 go vet ./...
 go test ./...
-golangci-lint run
+golangci-lint run   # includes unused, depguard, revive, funlen, dupl, … — see docs/patterns.md
 go build ./...
+make check-layout
+make check-architecture
+make check-dupl
 ```
 
 Use `make build` when `CGO_ENABLED=1` and `libvips-dev` are available.

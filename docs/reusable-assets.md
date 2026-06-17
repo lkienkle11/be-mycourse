@@ -568,28 +568,28 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Current Usage: `CreateCourse`, `UpdateBasicInfo` in `internal/course/infra/repo_instructor.go`.
 
 ### Asset: Outline reorder helper (`reorderStableIDRows`)
-- Name: `reorderStableIDRows`
+- Name: `reorderStableIDRows`, `applyStableIDReorderRowMeta`, `tableNameForModel`, `buildStableIDOrderIndexCase`
 - Type: Function (`internal/course/infra/repo_helpers.go`)
-- Purpose: Reassign `order_index` for active outline rows scoped by a parent column (`course_version_id`, `section_id`, or `lesson_id`) and a list of `stable_id` values. Uses a two-phase update (temporary negative indices, then final `0..n-1`) to avoid unique-index collisions during in-place reorder.
+- Purpose: Reassign `order_index` for active outline rows scoped by a parent column (`course_version_id`, `section_id`, or `lesson_id`) and a list of `stable_id` values. Uses a two-phase update (temporary negative indices, then final `0..n-1`) implemented as **two bulk `CASE stable_id` UPDATEs** per reorder (not one UPDATE per stable id) to avoid unique-index collisions and cut DB round-trips. `applyStableIDReorderRowMeta` mirrors the resulting `order_index` / `row_version` (+2, one increment per phase) on in-memory rows so write paths can return fresh metadata without a reload query.
 - Scope: Course outline reorder only — do not duplicate reorder loops in `repo_outline.go`.
 - Dependencies: GORM, `timex.NowUnix()`.
 - Current Usage: `ReorderSections`, `ReorderLessons`, `ReorderSubLessons` in `internal/course/infra/repo_outline.go`.
 
 ### Asset: Curriculum estimated duration helpers
-- Name: `resolveSubLessonEstimatedDurationMs`, `normalizeSubLessonEstimatedDurationMs`, `applyOutlineEstimatedDurations`, `batchMediaDurationMs`
-- Type: Functions (`internal/course/infra/duration.go`, `repos.go`)
-- Purpose: Resolve sub-lesson `estimated_duration_ms` (VIDEO from linked `media_files` DB row — `duration` column or `metadata_json`; TEXT/QUIZ from DB column), validate write input (`0`–`999h`), batch-load media durations in `loadOutline`, and sum lesson/section totals on read. Video length is persisted by the **media** module (Bunny webhook / backfill), not fetched from cloud at course read time.
+- Name: `resolveSubLessonEstimatedDurationMs`, `normalizeSubLessonEstimatedDurationMs`, `applyOutlineEstimatedDurations`, `applySubLessonListEstimatedDurations`, `batchMediaDurationMs`, `batchMediaURLAndDurationMsMaps`
+- Type: Functions (`internal/course/infra/duration.go`, `repos.go`, `repo_outline_batch.go`)
+- Purpose: Resolve sub-lesson `estimated_duration_ms` (VIDEO from linked `media_files` DB row — `duration` column or `metadata_json`; TEXT/QUIZ from DB column), validate write input (`0`–`999h`), batch-load media durations in `loadOutline`, and sum lesson/section totals on read. `batchMediaDurationMs` and `batchMediaURLMap` both delegate to `batchMediaURLAndDurationMsMaps` (one `media_files` query for URL + duration). Video length is persisted by the **media** module (Bunny webhook / backfill), not fetched from cloud at course read time.
 - Scope: Course outline read/write only — single resolver for duration semantics (do not duplicate in handlers or components).
 - Dependencies: `domain.SubLesson`, `constants.TableMediaFiles`, GORM.
 - Current Usage: `loadOutline`, `CreateSubLesson`, `UpdateSubLesson`, `ReorderSubLessons` in `internal/course/infra/`.
 
 ### Asset: Course outline batch read helpers
-- Name: `batchHydrateSubLessons`, `batchMediaURLMap`, `loadOutlineTreeRows`, `assembleOutlineSections`
+- Name: `batchHydrateSubLessons`, `hydrateSubLessonKinds`, `batchMediaURLMap`, `batchMediaURLAndDurationMsMaps`, `loadOutlineTreeRows`, `assembleOutlineSections`
 - Type: Functions (`internal/course/infra/repo_outline_batch.go`, `repo_access.go`)
-- Purpose: Batch-load sub-lesson VIDEO/TEXT/QUIZ content and media URLs (parallel per kind); load all sections/lessons/sub-lessons for a version in parallel; assemble outline tree without per-sub-lesson N+1 queries. `assembleOutlineSections` returns `domain.ErrCourseNotFound` when a sub-lesson row has no hydrated map entry (same fail-fast rule as `loadSubLessonDomain`).
-- Scope: Course outline read path only — `loadSubLessonDomain` delegates to `batchHydrateSubLessons` for a single row.
-- Dependencies: GORM, `errgroup`, `parallelReadDB`, `domain.SubLesson`, `constants.TableMediaFiles`.
-- Current Usage: `loadOutline`, `loadSubLessonDomain` in `internal/course/infra/`.
+- Purpose: Batch-load sub-lesson VIDEO/TEXT/QUIZ content and media metadata. **Parallel** when `batchHydrateSubLessons(..., durationByFileID=nil)` — `errgroup` + `parallelReadDB` per kind (read paths). **Sequential** when `durationByFileID` is non-nil — single DB session, no goroutines; video file durations are collected into the map from the same query as URLs (used by `ReorderSubLessons`). Load all sections/lessons/sub-lessons for a version in parallel; assemble outline tree without per-sub-lesson N+1 queries. `assembleOutlineSections` returns `domain.ErrCourseNotFound` when a sub-lesson row has no hydrated map entry (same fail-fast rule as `loadSubLessonDomain`).
+- Scope: Course outline read/write — `loadSubLessonDomain` delegates to `batchHydrateSubLessons` for a single row.
+- Dependencies: GORM, `errgroup` (parallel path only), `parallelReadDB`, `domain.SubLesson`, `constants.TableMediaFiles`.
+- Current Usage: `loadOutline`, `loadSubLessonDomain`, `ReorderSubLessons` in `internal/course/infra/`.
 
 ### Asset: Parallel GORM read sessions
 - Name: `parallelReadDB`

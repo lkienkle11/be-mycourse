@@ -317,7 +317,7 @@ func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID
 	if err != nil {
 		return nil, err
 	}
-	subMap, err := r.batchHydrateSubLessons(ctx, db, subRows)
+	subMap, err := r.batchHydrateSubLessons(ctx, db, subRows, nil)
 	if err != nil {
 		return nil, err
 	}

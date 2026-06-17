@@ -29,6 +29,7 @@ Course version
 - every section / lesson / sub-lesson has a stable UUID (`stable_id`) for progress migration across approved versions
 - lesson edits use optimistic locking (`row_version`)
 - lesson and sub-lesson edits can be coordinated through course edit leases
+- sub-lesson reorder (`POST …/sub-lessons/reorder`) returns fully hydrated sub-lessons in the new order; write path is batch-hydrated (see **`docs/modules/course.md`** → Write-path performance)
 - outline API responses include `estimated_duration_ms` on sections, lessons, and sub-lessons (see **`docs/modules/course.md`** → Estimated duration)
 
 ## Learner visibility

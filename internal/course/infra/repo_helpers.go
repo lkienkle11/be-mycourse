@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -451,25 +452,61 @@ func reorderStableIDRows(
 	scopeValue string,
 	orderedStableIDs []string,
 ) error {
+	if len(orderedStableIDs) == 0 {
+		return nil
+	}
+	table, err := tableNameForModel(tx, model)
+	if err != nil {
+		return err
+	}
 	now := timex.NowUnix()
-	apply := func(orderIndex int, stableID string) error {
-		return tx.WithContext(ctx).Model(model).
-			Where(scopeQuery+" AND stable_id = ? AND deleted_at IS NULL", scopeValue, stableID).
-			Updates(map[string]any{
-				"order_index": orderIndex,
-				"updated_at":  now,
-				"row_version": gorm.Expr("row_version + 1"),
-			}).Error
+	applyPhase := func(indexFn func(int) int) error {
+		orderCase, orderArgs := buildStableIDOrderIndexCase(orderedStableIDs, indexFn)
+		query := fmt.Sprintf(
+			`UPDATE %s SET order_index = %s, updated_at = ?, row_version = row_version + 1 WHERE %s AND deleted_at IS NULL AND stable_id IN ?`,
+			table, orderCase, scopeQuery,
+		)
+		args := append(orderArgs, now, scopeValue, orderedStableIDs)
+		return tx.WithContext(ctx).Exec(query, args...).Error
 	}
+	if err := applyPhase(func(idx int) int { return -(idx + 1) }); err != nil {
+		return err
+	}
+	return applyPhase(func(idx int) int { return idx })
+}
+
+func tableNameForModel(tx *gorm.DB, model any) (string, error) {
+	stmt := &gorm.Statement{DB: tx}
+	if err := stmt.Parse(model); err != nil {
+		return "", err
+	}
+	return stmt.Schema.Table, nil
+}
+
+func buildStableIDOrderIndexCase(orderedStableIDs []string, indexFn func(int) int) (string, []any) {
+	var b strings.Builder
+	args := make([]any, 0, len(orderedStableIDs)*2)
+	b.WriteString("CASE stable_id ")
 	for idx, stableID := range orderedStableIDs {
-		if err := apply(-(idx+1), stableID); err != nil {
-			return err
-		}
+		b.WriteString("WHEN ? THEN ? ")
+		args = append(args, stableID, indexFn(idx))
 	}
-	for idx, stableID := range orderedStableIDs {
-		if err := apply(idx, stableID); err != nil {
-			return err
-		}
+	b.WriteString("ELSE order_index END")
+	return b.String(), args
+}
+
+// applyStableIDReorderRowMeta mirrors reorderStableIDRows DB updates on in-memory rows
+// so callers can avoid a reload query while returning the same order_index/row_version values.
+func applyStableIDReorderRowMeta(rows []subLessonRow, orderedStableIDs []string) {
+	orderByStable := make(map[string]int, len(orderedStableIDs))
+	for i, stableID := range orderedStableIDs {
+		orderByStable[stableID] = i
 	}
-	return nil
+	sort.Slice(rows, func(i, j int) bool {
+		return orderByStable[rows[i].StableID] < orderByStable[rows[j].StableID]
+	})
+	for i := range rows {
+		rows[i].OrderIndex = i
+		rows[i].RowVersion += 2
+	}
 }

@@ -15,10 +15,6 @@ type identityProjection struct {
 	AvatarFileID string `gorm:"column:avatar_file_id"`
 }
 
-func loadActiveRow(ctx context.Context, db *gorm.DB, dest any, query string, args ...any) error {
-	return activeScope(db.WithContext(ctx)).Where(query, args...).First(dest).Error
-}
-
 func loadApplicationRow(ctx context.Context, db *gorm.DB, query string, args ...any) (*domain.Application, error) {
 	return loadEntityWithIdentity(
 		ctx, db, constants.TableInstructorApplications, "ia", query, args, mapApplicationWithIdentity,

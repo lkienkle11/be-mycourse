@@ -483,6 +483,9 @@ func listTaxonomyWithImageURLs[R any, D any](
 	if err != nil {
 		return nil, 0, err
 	}
+	if !filter.IncludeImages {
+		return rows, total, nil
+	}
 	rows, err = hydrateImageURLs(ctx, db, rows, getID, setImage)
 	if err != nil {
 		return nil, 0, err

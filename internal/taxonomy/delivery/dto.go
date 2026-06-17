@@ -5,13 +5,14 @@ import taxpkg "mycourse-io-be/internal/shared/taxonomy"
 
 // TaxonomyBaseFilter is the shared pagination/search query params for taxonomy list endpoints.
 type TaxonomyBaseFilter struct {
-	Page        int     `form:"page"`
-	PerPage     int     `form:"per_page"`
-	Status      *string `form:"status" binding:"omitempty,oneof=ACTIVE INACTIVE"`
-	SortBy      string  `form:"sort_by"`
-	SortDesc    bool    `form:"sort_desc"`
-	SearchBy    string  `form:"search_by"`
-	SearchValue string  `form:"search_value"`
+	Page          int     `form:"page"`
+	PerPage       int     `form:"per_page"`
+	Status        *string `form:"status" binding:"omitempty,oneof=ACTIVE INACTIVE"`
+	SortBy        string  `form:"sort_by"`
+	SortDesc      bool    `form:"sort_desc"`
+	SearchBy      string  `form:"search_by"`
+	SearchValue   string  `form:"search_value"`
+	IncludeImages *bool   `form:"include_images"`
 }
 
 func (f TaxonomyBaseFilter) getPage() int {

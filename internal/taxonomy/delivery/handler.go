@@ -188,11 +188,16 @@ func (h *Handler) hardDeleteCourseLevel(c *gin.Context) {
 // --- mapping helpers ---------------------------------------------------------
 
 func toFilter(q TaxonomyBaseFilter, includeDeleted bool) domain.TaxonomyFilter {
+	includeImages := true
+	if q.IncludeImages != nil {
+		includeImages = *q.IncludeImages
+	}
 	return domain.TaxonomyFilter{
 		Page: q.getPage(), PageSize: q.getPerPage(),
 		Status: q.Status, SearchBy: q.SearchBy, SearchValue: q.SearchValue,
 		SortBy: q.SortBy, SortDesc: q.SortDesc,
 		IncludeDeleted: includeDeleted,
+		IncludeImages:  includeImages,
 	}
 }
 

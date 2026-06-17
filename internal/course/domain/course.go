@@ -31,6 +31,7 @@ type Course struct {
 	Slug                      string  `json:"slug"`
 	CurrentPublishedVersionID *string `json:"current_published_version_id,omitempty"`
 	CurrentDraftVersionID     *string `json:"current_draft_version_id,omitempty"`
+	TrashedAt                 *int64  `json:"trashed_at,omitempty"`
 	CreatedAt                 int64   `json:"created_at"`
 	UpdatedAt                 int64   `json:"updated_at"`
 }
@@ -39,6 +40,7 @@ type CourseListItem struct {
 	Course
 	Title              string `json:"title"`
 	ReviewStatus       string `json:"review_status"`
+	VersionID          string `json:"version_id,omitempty"`
 	VersionNo          int    `json:"version_no"`
 	CollaboratorRole   string `json:"collaborator_role"`
 	HasPublished       bool   `json:"has_published"`
@@ -46,6 +48,10 @@ type CourseListItem struct {
 	ThumbnailFileID    string `json:"thumbnail_file_id,omitempty"`
 	ThumbnailURL       string `json:"thumbnail_url,omitempty"`
 	PreviewVideoFileID string `json:"preview_video_file_id,omitempty"`
+}
+
+type AdminCourseListFilter struct {
+	ApprovedOnly bool
 }
 
 type CourseVersion struct {
@@ -220,6 +226,11 @@ type Repository interface {
 	SubmitForReview(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
 	ReopenDraft(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
 	ListPendingReviews(ctx context.Context) ([]CourseListItem, error)
+	ListAdminCourses(ctx context.Context, filter AdminCourseListFilter) ([]CourseListItem, error)
+	ListTrashedCourses(ctx context.Context) ([]CourseListItem, error)
+	TrashCourse(ctx context.Context, courseID string) error
+	RestoreCourse(ctx context.Context, courseID string) error
+	PermanentDeleteCourse(ctx context.Context, courseID string) error
 	ApproveDraft(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
 	RejectDraft(ctx context.Context, courseID string, actorUserID string, reason string) (*CourseDetail, error)
 	ListPublishedCourses(ctx context.Context) ([]CourseListItem, error)

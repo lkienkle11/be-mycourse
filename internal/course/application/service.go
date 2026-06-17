@@ -152,6 +152,26 @@ func (s *CourseService) ListPendingReviews(ctx context.Context) ([]domain.Course
 	return s.repo.ListPendingReviews(ctx)
 }
 
+func (s *CourseService) ListAdminCourses(ctx context.Context, filter domain.AdminCourseListFilter) ([]domain.CourseListItem, error) {
+	return s.repo.ListAdminCourses(ctx, filter)
+}
+
+func (s *CourseService) ListTrashedCourses(ctx context.Context) ([]domain.CourseListItem, error) {
+	return s.repo.ListTrashedCourses(ctx)
+}
+
+func (s *CourseService) TrashCourse(ctx context.Context, courseID string) error {
+	return s.repo.TrashCourse(ctx, courseID)
+}
+
+func (s *CourseService) RestoreCourse(ctx context.Context, courseID string) error {
+	return s.repo.RestoreCourse(ctx, courseID)
+}
+
+func (s *CourseService) PermanentDeleteCourse(ctx context.Context, courseID string) error {
+	return s.repo.PermanentDeleteCourse(ctx, courseID)
+}
+
 func (s *CourseService) ApproveDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	return s.repo.ApproveDraft(ctx, courseID, actorUserID)
 }

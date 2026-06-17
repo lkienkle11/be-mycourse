@@ -255,6 +255,14 @@ func (r *GormRepository) requireDraftVersion(ctx context.Context, tx *gorm.DB, c
 }
 
 func (r *GormRepository) loadCourse(ctx context.Context, db *gorm.DB, courseID string) (*courseRow, error) {
+	return loadActiveRow[courseRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND deleted_at IS NULL AND trashed_at IS NULL", courseID)
+}
+
+func (r *GormRepository) loadTrashedCourse(ctx context.Context, db *gorm.DB, courseID string) (*courseRow, error) {
+	return loadActiveRow[courseRow](ctx, db, domain.ErrCourseNotTrashed, "id = ? AND deleted_at IS NULL AND trashed_at IS NOT NULL", courseID)
+}
+
+func (r *GormRepository) loadCourseForAdmin(ctx context.Context, db *gorm.DB, courseID string) (*courseRow, error) {
 	return loadActiveRow[courseRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND deleted_at IS NULL", courseID)
 }
 

@@ -44,9 +44,11 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 	courses.POST("/:courseId/reopen-draft", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.reopenDraft)
 
 	reviews := rg.Group("/course-reviews")
-	reviews.GET("/pending", utils.RoutePermission(pc, constants.AllPermissions.AdminModify), h.listPendingReviews)
-	reviews.POST("/:courseId/approve", utils.RoutePermission(pc, constants.AllPermissions.AdminModify), h.approveDraft)
-	reviews.POST("/:courseId/reject", utils.RoutePermission(pc, constants.AllPermissions.AdminModify), h.rejectDraft)
+	reviews.GET("/pending", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewRead), h.listPendingReviews)
+	reviews.POST("/:courseId/approve", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewApprove), h.approveDraft)
+	reviews.POST("/:courseId/reject", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewReject), h.rejectDraft)
+
+	registerCourseAdminRoutes(rg, h, pc)
 
 	learner := rg.Group("/learner-courses")
 	learner.GET("", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.listPublishedCourses)
@@ -54,4 +56,13 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 	learner.POST("/:courseId/enroll", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.enroll)
 	learner.GET("/:courseId/progress", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.getProgress)
 	learner.POST("/:courseId/progress", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.saveProgress)
+}
+
+func registerCourseAdminRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
+	adminCourses := rg.Group("/course-admin")
+	adminCourses.GET("/courses", utils.RoutePermission(pc, constants.AllPermissions.CourseCatalogRead), h.listAdminCourses)
+	adminCourses.GET("/courses/trash", utils.RoutePermission(pc, constants.AllPermissions.CourseTrashRead), h.listTrashedCourses)
+	adminCourses.POST("/courses/:courseId/trash", utils.RoutePermission(pc, constants.AllPermissions.CourseCatalogTrash), h.trashCourse)
+	adminCourses.POST("/courses/:courseId/restore", utils.RoutePermission(pc, constants.AllPermissions.CourseTrashRestore), h.restoreCourse)
+	adminCourses.DELETE("/courses/:courseId/permanent", utils.RoutePermission(pc, constants.AllPermissions.CourseTrashDelete), h.permanentDeleteCourse)
 }

@@ -34,9 +34,9 @@ func TestResolveSubLessonEstimatedDurationMs(t *testing.T) {
 			want:    90_000,
 		},
 		{
-			name:    "quiz uses stored column",
-			sub:     domain.SubLesson{Kind: domain.SubLessonKindQuiz, EstimatedDurationMs: 60_000},
-			want:    60_000,
+			name: "quiz uses stored column",
+			sub:  domain.SubLesson{Kind: domain.SubLessonKindQuiz, EstimatedDurationMs: 60_000},
+			want: 60_000,
 		},
 	}
 

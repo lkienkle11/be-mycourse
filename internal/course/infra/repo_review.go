@@ -30,13 +30,15 @@ SELECT
     TRUE AS has_draft,
     COALESCE(dv.thumbnail_file_id::text, '') AS thumbnail_file_id,
     COALESCE(dm.url, '') AS thumbnail_url,
-    COALESCE(dv.preview_video_file_id::text, '') AS preview_video_file_id
+    COALESCE(dv.preview_video_file_id::text, '') AS preview_video_file_id,
+    dv.id::text AS version_id
 FROM courses c
 INNER JOIN course_versions dv
     ON dv.id = c.current_draft_version_id AND dv.status = @status AND dv.deleted_at IS NULL
 LEFT JOIN media_files dm
     ON dm.id = dv.thumbnail_file_id AND dm.deleted_at IS NULL
 WHERE c.deleted_at IS NULL
+  AND c.trashed_at IS NULL
 ORDER BY dv.updated_at DESC`
 	var rows []courseListScanRow
 	if err := r.db.WithContext(ctx).Raw(q, map[string]any{"status": domain.VersionStatusInReview}).Scan(&rows).Error; err != nil {

@@ -38,6 +38,7 @@ LEFT JOIN media_files dm
 LEFT JOIN media_files pm
     ON pm.id = pv.thumbnail_file_id AND pm.deleted_at IS NULL
 WHERE c.deleted_at IS NULL
+  AND c.trashed_at IS NULL
   AND (c.owner_user_id = @user_id OR cc.id IS NOT NULL)
 ORDER BY c.id DESC`
 
@@ -186,39 +187,16 @@ func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, acto
 		if err != nil {
 			return err
 		}
-		now := timex.NowUnix()
-		for _, model := range []any{&courseRow{}, &courseVersionRow{}, &collaboratorRow{}, &enrollmentRow{}, &progressRow{}} {
-			switch model.(type) {
-			case *courseRow:
-				if err := tx.Model(model).Where("id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *courseVersionRow:
-				if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *collaboratorRow:
-				if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *enrollmentRow:
-				if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *progressRow:
-				if err := tx.Exec(`
-UPDATE course_progress_items
-SET deleted_at = ?, updated_at = ?
-WHERE deleted_at IS NULL
-  AND enrollment_id IN (
-      SELECT id FROM course_enrollments
-      WHERE course_id = ? AND deleted_at IS NULL
-  )`, now, now, access.ID).Error; err != nil {
-					return err
-				}
-			}
+		published, draft, err := r.loadPublishedAndDraftVersions(ctx, tx, &access.courseRow)
+		if err != nil {
+			return err
 		}
-		return nil
+		if courseEligibleForTrash(published, draft) {
+			now := timex.NowUnix()
+			return tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
+				Updates(map[string]any{"trashed_at": now, "updated_at": now}).Error
+		}
+		return r.softDeleteCourseTree(ctx, tx, access.ID)
 	})
 }
 

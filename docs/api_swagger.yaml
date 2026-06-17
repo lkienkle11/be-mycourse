@@ -2242,6 +2242,75 @@ paths:
         "200":
           description: Updated
 
+  /api/v1/course-admin/courses:
+    get:
+      tags: [Course]
+      summary: List all courses for sysadmin (excludes trash)
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: approval
+          in: query
+          schema: { type: string, enum: [all, approved] }
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/course-admin/courses/trash:
+    get:
+      tags: [Course]
+      summary: List trashed approved courses
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/course-admin/courses/{courseId}/trash:
+    post:
+      tags: [Course]
+      summary: Move eligible course to trash
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/course-admin/courses/{courseId}/restore:
+    post:
+      tags: [Course]
+      summary: Restore course from trash
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated
+
+  /api/v1/course-admin/courses/{courseId}/permanent:
+    delete:
+      tags: [Course]
+      summary: Permanently delete trashed course
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Deleted
+
   /api/v1/learner-courses:
     get:
       tags: [Course]

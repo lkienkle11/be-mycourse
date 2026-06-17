@@ -137,7 +137,7 @@ Versioned course authoring, collaborator access, outline editing, admin review, 
 - Review workflow: submit, reject, reopen, approve
 - Learner enrollment and progress keyed by stable content ids
 
-**Exposed under:** `/api/v1/courses`, `/api/v1/course-reviews`, `/api/v1/learner-courses`
+**Exposed under:** `/api/v1/courses`, `/api/v1/course-reviews`, `/api/v1/course-admin`, `/api/v1/learner-courses`
 
 **Migration:** `000016_course_management`
 

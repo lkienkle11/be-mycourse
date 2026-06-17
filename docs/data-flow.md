@@ -193,7 +193,7 @@ POST/PATCH /api/v1/courses/*  (JWT + course:update)
 POST /api/v1/courses/:courseId/submit-review
   └─ transition DRAFT -> IN_REVIEW
 
-POST /api/v1/course-reviews/:courseId/approve|reject  (admin:modify)
+POST /api/v1/course-reviews/:courseId/approve|reject  (course_review:approve|reject)
   └─ transition IN_REVIEW -> APPROVED/REJECTED
   └─ on approve: update courses.current_published_version_id
 ```

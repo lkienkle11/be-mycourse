@@ -404,6 +404,8 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 
 - The system **MUST** provide course authoring endpoints under `/api/v1/courses` for create/read/update/delete and collaborator management.
 - The system **MUST** enforce role-gated review endpoints under `/api/v1/course-reviews` for pending queue, approve, and reject actions.
+- The system **MUST** expose sysadmin catalog endpoints under `/api/v1/course-admin` for listing all non-trashed courses, listing trashed approved courses, moving eligible courses to trash, restoring from trash, and permanently deleting trashed courses (granular permissions **P62–P66**, not shell `admin:modify`).
+- Trashed courses (`courses.trashed_at` set) **MUST** be excluded from edit, learn, and normal catalog lists; instructor delete of an approved published course **MUST** move the course to trash when eligible instead of immediate soft-delete.
 - The system **MUST** support draft-first editing with one active draft per course, optimistic locking (`row_version`), and resource edit leases.
 - Learner course delivery and enrollment/progress APIs **MUST** be exposed under `/api/v1/learner-courses`.
 

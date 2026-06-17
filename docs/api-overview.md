@@ -75,6 +75,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - Course management (see **`docs/modules/course.md`**):
   - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId`, `PATCH /courses/:courseId/basic-info`, collaborator CRUD, outline CRUD/reorder, lease acquire/heartbeat/release
   - Review: `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft`, `GET /course-reviews/pending`, `POST /course-reviews/:courseId/approve|reject`
+  - Admin catalog: `GET /course-admin/courses`, `GET /course-admin/courses/trash`, `POST /course-admin/courses/:courseId/trash|restore`, `DELETE /course-admin/courses/:courseId/permanent`
   - Learner: `GET /learner-courses`, `GET /learner-courses/:courseId`, `POST /learner-courses/:courseId/enroll`, `GET|POST /learner-courses/:courseId/progress`
 
 ### `/api/internal-v1/rbac`

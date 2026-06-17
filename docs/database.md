@@ -264,6 +264,14 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 | P56 | `instructor_expertise:update` | Instructor expertise |
 | P57 | `instructor_expertise:delete` | Instructor expertise |
 | P58 | `instructor_ticket:close` | Instructor ticket |
+| P59 | `course_review:read` | Course review queue |
+| P60 | `course_review:approve` | Course review queue |
+| P61 | `course_review:reject` | Course review queue |
+| P62 | `course_catalog:read` | Sysadmin course catalog |
+| P63 | `course_catalog:trash` | Sysadmin course catalog |
+| P64 | `course_trash:read` | Course trash bin |
+| P65 | `course_trash:restore` | Course trash bin |
+| P66 | `course_trash:delete` | Course trash bin |
 
 - **P1–P13** are seeded in `000001_schema.up.sql`.
 - **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
@@ -272,6 +280,7 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 - **P30–P37** are inserted in `000009` and granted to sysadmin/admin (full CRUD) and instructor/learner (read only).
 - **P38–P40** are inserted in `000010_role_modify_permissions` and granted by role tier: sysadmin → P38–P40, admin → P39–P40, instructor → P40 only.
 - **P41–P58** are inserted in **`000013_instructor_management`** (instructor roster, applications, profiles, expertise, ticket close). Migration also seeds role grants; keep **`roles_permission.go`** in sync and run **`go run ./cmd/syncpermissions`** + **`go run ./cmd/syncrolepermissions`** after code changes.
+- **P59–P66** are inserted in **`000024_course_admin_permissions`** (course review queue, catalog, trash). Granted to **sysadmin** and **admin** only.
 
 ---
 
@@ -282,8 +291,8 @@ Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
 
 | Role | Permission IDs (summary) |
 |------|--------------------------|
-| **sysadmin** | P1–P58 (full catalog) |
-| **admin** | P1–P8, P10–P58 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
+| **sysadmin** | P1–P66 (full catalog) |
+| **admin** | P1–P8, P10–P66 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
 | **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, P40, **P45, P47, P49, P55–P58** (applications submit/delete/reject, expertise mutate, ticket close) |
 | **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34, **P45** (submit application / create ticket) |
 
@@ -618,6 +627,9 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000019 | `instructor_profiles_apps_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on profiles/applications; add `id` PK column on `instructor_profiles` when drifted DB uses `user_id` PK only. Required when GET `/api/v1/instructor-profiles/:id` fails with `column ip.id does not exist`. |
 | 000020 | `course_version_row_version_backfill` | Backfill `course_versions.row_version` from `0` to `1` for legacy rows where GORM inserted the Go zero value instead of relying on the column `DEFAULT 1`. Required so `PATCH /api/v1/courses/:id/basic-info` accepts `expected_row_version >= 1`. |
 | 000021 | `media_bunny_delivery_urls` | `media_files.direct_play_url`, `hls_playlist_url`, `preview_animation_url` |
+| 000022 | `course_sub_lesson_estimated_duration` | `course_sub_lessons.estimated_duration_ms` |
+| 000023 | `course_trash` | `courses.trashed_at` — soft trash before permanent delete; trashed courses excluded from edit/learn/catalog |
+| 000024 | `course_admin_permissions` | Seed P59–P66 (course review, catalog, trash) + sysadmin/admin grants |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -642,7 +654,7 @@ API and RBAC: **`docs/modules/instructor.md`**.
 
 | Table | Notes |
 |-------|--------|
-| `courses` | Stable course root; owner, slug, current published version, current draft version |
+| `courses` | Stable course root; owner, slug, current published version, current draft version, `trashed_at` (nullable — in trash when set) |
 | `course_versions` | Versioned course snapshots with status `DRAFT`, `IN_REVIEW`, `APPROVED`, `REJECTED` and `row_version` for optimistic locking |
 | `course_version_tags` | Active tag links for one version |
 | `course_version_skills` | Active course-skill links for one version |

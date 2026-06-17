@@ -1547,7 +1547,7 @@ curl -sS -X POST "{{BASE_URL}}/api/v1/instructor-applications/1/reject" \
 
 ## 14. Course management
 
-> **Auth:** Bearer JWT. Permissions: `course:create`, `course:update`, `course:delete`, `course_instructor:read`, `admin:modify` (review). Full route matrix: **`docs/router.md`**, module notes: **`docs/modules/course.md`**.
+> **Auth:** Bearer JWT. Permissions: `course:create`, `course:update`, `course:delete`, `course_instructor:read`, `course_review:*` (P59–P61), `course_catalog:*` / `course_trash:*` (P62–P66) for admin catalog. Full route matrix: **`docs/router.md`**, module notes: **`docs/modules/course.md`**.
 
 Requires migration **`000016_course_management`** (or `MIGRATE=1`) and permission sync.
 
@@ -1721,6 +1721,52 @@ Example outline fragment in `GET /api/v1/courses/:courseId` (truncated):
 ```
 
 Full semantics: **`docs/modules/course.md`** → Estimated duration.
+
+### 14.6 Sysadmin course catalog + trash (`/api/v1/course-admin`)
+
+Requires migrations **`000023_course_trash`** and **`000024_course_admin_permissions`** (or `MIGRATE=1`). Granular permissions **P59–P66** (not shell `admin:modify`). Dev token: login as **`user01@yopmail.com`** / **`Test@1234`** (see **`AGENTS.md`**).
+
+**List all courses** (optional `?approval=approved`):
+
+```bash
+curl -sS '{{BASE_URL}}/api/v1/course-admin/courses?approval=approved' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**List trashed courses:**
+
+```bash
+curl -sS '{{BASE_URL}}/api/v1/course-admin/courses/trash' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**Move to trash** (eligible: published `APPROVED`, draft not `REJECTED`):
+
+```bash
+curl -sS -X POST '{{BASE_URL}}/api/v1/course-admin/courses/{{courseId}}/trash' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**Restore from trash:**
+
+```bash
+curl -sS -X POST '{{BASE_URL}}/api/v1/course-admin/courses/{{courseId}}/restore' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**Permanent delete** (course must already be in trash):
+
+```bash
+curl -sS -X DELETE '{{BASE_URL}}/api/v1/course-admin/courses/{{courseId}}/permanent' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **200**, `code: 0` on success; **404** when course not found; **409** / business code when trash eligibility fails. Trashed courses return **404** on `GET /api/v1/courses/:courseId` (edit blocked).
 
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
 

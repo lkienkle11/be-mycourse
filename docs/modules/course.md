@@ -179,11 +179,21 @@ Instructor / collaborator routes:
   - `POST /api/v1/courses/:courseId/submit-review`
   - `POST /api/v1/courses/:courseId/reopen-draft`
 
-Admin / sysadmin review routes:
+Admin / sysadmin review routes (P59–P61):
 
-- `GET /api/v1/course-reviews/pending`
-- `POST /api/v1/course-reviews/:courseId/approve`
-- `POST /api/v1/course-reviews/:courseId/reject`
+- `GET /api/v1/course-reviews/pending` — `course_review:read` (P59)
+- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60)
+- `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61)
+
+Admin / sysadmin course catalog routes (P62–P66):
+
+- `GET /api/v1/course-admin/courses` — `course_catalog:read` (P62); all non-trashed courses; `?approval=approved` optional
+- `GET /api/v1/course-admin/courses/trash` — `course_trash:read` (P64); trashed approved courses
+- `POST /api/v1/course-admin/courses/:courseId/trash` — `course_catalog:trash` (P63); move eligible course to trash
+- `POST /api/v1/course-admin/courses/:courseId/restore` — `course_trash:restore` (P65); restore from trash
+- `DELETE /api/v1/course-admin/courses/:courseId/permanent` — `course_trash:delete` (P66); permanently delete trashed course
+
+**Trash semantics:** `courses.trashed_at` (migration `000023`). Trashed courses cannot be edited or learned. Instructor delete of an approved published course moves it to trash instead of soft-deleting immediately.
 
 Learner routes:
 
@@ -204,7 +214,16 @@ The module reuses the existing permission catalog:
 | `course:delete` | route-level delete gate; business logic still requires `OWNER` |
 | `course:read` | learner course list/detail/progress |
 | `course_instructor:read` | instructor editable course list and detail |
-| `admin:modify` | approve / reject review queue |
+| `course_review:read` | list pending review queue (P59) |
+| `course_review:approve` | approve draft / publish (P60) |
+| `course_review:reject` | reject draft with reason (P61) |
+| `course_catalog:read` | sysadmin list all courses (P62) |
+| `course_catalog:trash` | move eligible course to trash (P63) |
+| `course_trash:read` | list trashed courses (P64) |
+| `course_trash:restore` | restore from trash (P65) |
+| `course_trash:delete` | permanently delete trashed course (P66) |
+
+Shell permissions (`sysadmin:modify`, `admin:modify`) gate dashboard layout only — not these API routes.
 
 ## Wiring
 

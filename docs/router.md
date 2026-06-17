@@ -171,10 +171,10 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | POST | `/api/v1/courses/:courseId/leases/heartbeat` | `course:update` | Refresh edit lease |
 | POST | `/api/v1/courses/:courseId/leases/release` | `course:update` | Release edit lease |
 | POST | `/api/v1/courses/:courseId/submit-review` | `course:update` | Submit draft for review |
-| POST | `/api/v1/courses/:courseId/reopen-draft` | `course:update` | Reopen rejected draft |
+| POST | `/api/v1/courses/:courseId/reopen-draft` | `course:update` | Fork new draft from legacy rejected version (`max(version_no)+1`) |
 | GET | `/api/v1/course-reviews/pending` | `course_review:read` (P59) | List pending drafts |
-| POST | `/api/v1/course-reviews/:courseId/approve` | `course_review:approve` (P60) | Approve draft/publish |
-| POST | `/api/v1/course-reviews/:courseId/reject` | `course_review:reject` (P61) | Reject draft with reason |
+| POST | `/api/v1/course-reviews/:courseId/approve` | `course_review:approve` (P60) | Approve draft; published version = submitted row |
+| POST | `/api/v1/course-reviews/:courseId/reject` | `course_review:reject` (P61) | Reject submitted row; auto-fork new draft at `max+1` |
 | GET | `/api/v1/course-admin/courses` | `course_catalog:read` (P62) | List approved published courses (not in trash) |
 | GET | `/api/v1/course-admin/courses/trash` | `course_trash:read` (P64) | List trashed approved courses |
 | POST | `/api/v1/course-admin/courses/:courseId/trash` | `course_catalog:trash` (P63) | Move eligible course to trash |

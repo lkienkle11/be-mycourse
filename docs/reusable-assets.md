@@ -575,6 +575,25 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Dependencies: GORM, `timex.NowUnix()`.
 - Current Usage: `ReorderSections`, `ReorderLessons`, `ReorderSubLessons` in `internal/course/infra/repo_outline.go`.
 
+### Asset: Draft version fork (`createNextDraftVersion`)
+- Name: `createNextDraftVersion`, `createDraftVersion`, `resolveLastRejectionReason`
+- Type: Functions (`internal/course/infra/repo_versioning.go`, `repo_access.go`)
+- Purpose: Allocate `version_no = MAX(version_no)+1`, optionally clone metadata/refs/outline from a source version (`based_on_version_id`). Used when preparing a draft from published content, when rejecting a submission (fork editable draft), and when reopening a legacy rejected pointer. `resolveLastRejectionReason` surfaces the rejected parent's `rejection_reason` on `CourseDetail` when the current draft was forked from a `REJECTED` row.
+- Scope: Course versioning only — do not duplicate version-clone logic in handlers.
+- Current Usage: `PrepareDraft`, `RejectDraft`, `ReopenDraft`, `ensureEditableDraft`, `loadCourseDetail`.
+
+### Asset: Lesson reorder hydration (`hydrateLessonRowsWithSubLessons`)
+- Name: `hydrateLessonRowsWithSubLessons`
+- Type: Function (`internal/course/infra/repo_outline.go`)
+- Purpose: After `ReorderLessons`, batch-hydrate `sub_lessons` on returned lesson rows (sequential `batchHydrateSubLessons` inside transactions). Prevents empty nested items in reorder API responses.
+- Current Usage: `ReorderLessons` in `internal/course/infra/repo_outline.go`.
+
+### Asset: Transaction-safe outline load (`loadOutlineSequential`)
+- Name: `loadOutlineSequential`
+- Type: Function (`internal/course/infra/repo_access.go`)
+- Purpose: Load full outline without `errgroup` parallel reads — safe inside GORM transactions (`conn busy` / `driver: bad connection` avoidance).
+- Current Usage: `validateDraftOutline`, `deleteDraftOutline`, `DeleteSubLesson`; `ReorderSections` reloads via parallel `loadOutline` **after** tx commit.
+
 ### Asset: Curriculum estimated duration helpers
 - Name: `resolveSubLessonEstimatedDurationMs`, `normalizeSubLessonEstimatedDurationMs`, `applyOutlineEstimatedDurations`, `applySubLessonListEstimatedDurations`, `batchMediaDurationMs`, `batchMediaURLAndDurationMsMaps`
 - Type: Functions (`internal/course/infra/duration.go`, `repos.go`, `repo_outline_batch.go`)

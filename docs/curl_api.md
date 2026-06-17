@@ -1630,19 +1630,19 @@ curl -sS "{{BASE_URL}}/api/v1/courses/1" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-Success `data`: `CourseDetail` with draft + published version context when available.
+Success `data`: `CourseDetail` with `live_version`, `draft_version`, optional `last_rejection_reason` (when new draft was forked from a rejected version), collaborators, and outline for the active draft (or published when no draft).
 
 ### 14.4 Update draft basic info
 
 **`PATCH /api/v1/courses/:courseId/basic-info`** — permission `course:update`
 
-Request body: `expected_row_version` (required, `>= 1`) plus optional metadata fields. **`title` is not accepted** (set only on `POST /courses`).
+Request body: `expected_row_version` (required, `>= 1`) plus required metadata fields (`title` ≥5 non-whitespace, server slugify; `short_description`, `about_course`, `thumbnail_file_id`, `course_level_id`, `course_topic_id`, `tag_ids`, `skill_ids`, `outcome_ids`). `preview_video_file_id` is optional.
 
 ```bash
 curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"expected_row_version":1,"short_description":"Short blurb"}'
+  -d '{"expected_row_version":1,"title":"Introduction to Go","short_description":"Short blurb"}'
 ```
 
 Other instructor routes (outline CRUD/reorder, leases, collaborators, review submit/reopen) follow the same Bearer + permission pattern — see **`docs/router.md`**.

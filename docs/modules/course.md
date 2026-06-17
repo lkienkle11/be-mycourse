@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-17 (outline reorder write-path performance, batch media meta query, lease read-after-write removal). Read-path batching/parallelism: 2026-06-16._
+_Last audited: 2026-06-17 (course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads). Prior: outline reorder write-path performance, batch media meta query, lease read-after-write removal. Read-path batching/parallelism: 2026-06-16._
 
 ## Overview
 
@@ -49,6 +49,27 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 - Only one active draft exists per course at a time.
 - Learners always read from `current_published_version_id`.
 - Instructor edits always write to the draft version, never directly to the published version.
+
+## Version numbering (`version_no`)
+
+`version_no` is monotonic per course (`MAX(version_no) + 1` on each new draft row). Rules:
+
+| Event | `version_no` | Notes |
+|-------|--------------|-------|
+| Create course | `1` | Initial `DRAFT` row |
+| Submit for review (`DRAFT` → `IN_REVIEW`) | unchanged | Same edit generation |
+| Approve | submitted row keeps its number; becomes `live_version` | `current_draft_version_id` cleared; next `POST …/draft/prepare` creates `max + 1` |
+| Reject | rejected row frozen in history; **new** `DRAFT` at `max + 1` | Cloned from rejected version via `createNextDraftVersion`; `current_draft_version_id` points to new draft |
+| Reopen draft (legacy `REJECTED` pointer) | **new** `DRAFT` at `max + 1` | Same fork as reject — does not flip status on the rejected row |
+| Prepare draft (after approve) | `max + 1` | Clones from `current_published_version_id` when present |
+
+`GET /api/v1/courses/:courseId` may return:
+
+- `live_version` — approved snapshot learners use (`APPROVED` status on that row)
+- `draft_version` — current editable pointer (`DRAFT`, `IN_REVIEW`, or legacy `REJECTED`)
+- `last_rejection_reason` — when `draft_version.based_on_version_id` references a `REJECTED` row, surfaces that row's `rejection_reason` on the new draft for instructor UI
+
+Editable mutations (`ensureEditableDraft`) allow only `DRAFT` status (`IN_REVIEW` and `REJECTED` are blocked).
 
 ## Collaboration and conflict control
 
@@ -176,14 +197,14 @@ Instructor / collaborator routes:
   - outline responses include computed `estimated_duration_ms` on sections, lessons, and sub-lessons
 - lease routes under `/api/v1/courses/:courseId/leases/*`
 - review submission routes:
-  - `POST /api/v1/courses/:courseId/submit-review`
-  - `POST /api/v1/courses/:courseId/reopen-draft`
+  - `POST /api/v1/courses/:courseId/submit-review` — same `version_no`; runs `validateDraftForReview`
+  - `POST /api/v1/courses/:courseId/reopen-draft` — legacy: fork new `DRAFT` at `max + 1` from rejected version (prefer auto-fork on reject for new data)
 
 Admin / sysadmin review routes (P59–P61):
 
 - `GET /api/v1/course-reviews/pending` — `course_review:read` (P59)
-- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60)
-- `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61)
+- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60); sets `current_published_version_id` to submitted version, clears draft pointer
+- `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61); marks submitted version `REJECTED`, forks new `DRAFT` at `max + 1`
 
 Admin / sysadmin course catalog routes (P62–P66):
 
@@ -291,8 +312,14 @@ Outline reorder and lease endpoints were optimized **without changing response s
 | Area | Change | Path |
 |------|--------|------|
 | Sub-lesson reorder | `ReorderSubLessons` uses one `batchHydrateSubLessons` call (sequential when `durationByFileID` map is passed — no `errgroup`); skips post-reorder reload via `applyStableIDReorderRowMeta`; video durations come from the same `media_files` query as URLs | `repo_outline.go`, `repo_outline_batch.go`, `repo_helpers.go` |
+| Lesson reorder | `ReorderLessons` hydrates `sub_lessons` via `hydrateLessonRowsWithSubLessons` (sequential batch inside transactions) so API responses retain nested items | `repo_outline.go` |
+| Section reorder | `ReorderSections` reloads full outline **after** transaction commit (`loadOutline` outside tx) to avoid `conn busy` / `driver: bad connection` from parallel reads inside transactions | `repo_outline.go` |
+| Transaction outline reads | `loadOutlineSequential` — no `errgroup` parallel reads; used in submit validation, draft outline delete, and other in-tx paths | `repo_access.go`, `repo_submit_validation.go`, `repo_helpers.go` |
 | All outline reorders | `reorderStableIDRows` bulk `CASE stable_id` UPDATEs (2 queries per reorder instead of 2×N) | `repo_helpers.go` |
 | Media duration reads | `batchMediaDurationMs` delegates to `batchMediaURLAndDurationMsMaps` (single source for URL + duration resolution) | `repos.go`, `repo_outline_batch.go` |
 | Edit leases | `AcquireLease` / `HeartbeatLease` avoid redundant row reload after update | `repo_outline.go` |
+| Course detail / review mutations | `loadCourseDetail` runs **after** transaction commit for approve, reject, reopen, prepare, basic-info, create | `repo_review.go`, `repo_versioning.go`, `repo_instructor.go` |
 
 Measured warm reorder (2 sub-lessons, remote PostgreSQL): **~935ms–990ms** (down from ~2.35s+).
+
+**Frontend pairing:** `mergeReorderedLessons` / `mergeReorderedSections` in `fe-mycourse/src/lib/utils/course.ts` preserve nested `sub_lessons` / `lessons` when reorder API returns partial trees.

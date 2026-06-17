@@ -134,7 +134,7 @@ Versioned course authoring, collaborator access, outline editing, admin review, 
 - Edit leases for outline resources (`OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON`)
 - Version-scoped sections, lessons, and sub-lessons
 - Sub-lesson types: video, quiz, text (Quill Delta JSON)
-- Review workflow: submit, reject, reopen, approve
+- Review workflow: submit (same `version_no`), reject (fork `max+1` draft), reopen (legacy fork), approve (publish submitted row)
 - Learner enrollment and progress keyed by stable content ids
 
 **Exposed under:** `/api/v1/courses`, `/api/v1/course-reviews`, `/api/v1/course-admin`, `/api/v1/learner-courses`

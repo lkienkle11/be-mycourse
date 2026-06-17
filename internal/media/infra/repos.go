@@ -17,33 +17,33 @@ import (
 
 // mediaFileRow is the GORM model for the media_files table.
 type mediaFileRow struct {
-	ID                 string `gorm:"column:id;type:uuid;primaryKey"`
-	ObjectKey          string `gorm:"column:object_key;type:varchar(512);uniqueIndex;not null"`
-	Kind               string `gorm:"column:kind;type:varchar(16);not null"`
-	Provider           string `gorm:"column:provider;type:varchar(16);not null"`
-	Filename           string `gorm:"column:filename;type:varchar(512);not null"`
-	MimeType           string `gorm:"column:mime_type;type:varchar(255);not null;default:''"`
-	SizeBytes          int64  `gorm:"column:size_bytes;not null;default:0"`
-	URL                string `gorm:"column:url;type:text;not null"`
-	OriginURL          string `gorm:"column:origin_url;type:text;not null"`
-	Status             string `gorm:"column:status;type:varchar(16);not null"`
-	B2BucketName       string `gorm:"column:b2_bucket_name;type:varchar(255);not null;default:''"`
-	BunnyVideoID       string `gorm:"column:bunny_video_id;type:varchar(255)"`
-	BunnyLibraryID     string `gorm:"column:bunny_library_id;type:varchar(255)"`
-	VideoID            string `gorm:"column:video_id;type:varchar(255);not null;default:''"`
+	ID                  string `gorm:"column:id;type:uuid;primaryKey"`
+	ObjectKey           string `gorm:"column:object_key;type:varchar(512);uniqueIndex;not null"`
+	Kind                string `gorm:"column:kind;type:varchar(16);not null"`
+	Provider            string `gorm:"column:provider;type:varchar(16);not null"`
+	Filename            string `gorm:"column:filename;type:varchar(512);not null"`
+	MimeType            string `gorm:"column:mime_type;type:varchar(255);not null;default:''"`
+	SizeBytes           int64  `gorm:"column:size_bytes;not null;default:0"`
+	URL                 string `gorm:"column:url;type:text;not null"`
+	OriginURL           string `gorm:"column:origin_url;type:text;not null"`
+	Status              string `gorm:"column:status;type:varchar(16);not null"`
+	B2BucketName        string `gorm:"column:b2_bucket_name;type:varchar(255);not null;default:''"`
+	BunnyVideoID        string `gorm:"column:bunny_video_id;type:varchar(255)"`
+	BunnyLibraryID      string `gorm:"column:bunny_library_id;type:varchar(255)"`
+	VideoID             string `gorm:"column:video_id;type:varchar(255);not null;default:''"`
 	ThumbnailURL        string `gorm:"column:thumbnail_url;type:text;not null;default:''"`
 	EmbededHTML         string `gorm:"column:embeded_html;type:text;not null;default:''"`
 	DirectPlayURL       string `gorm:"column:direct_play_url;type:text;not null;default:''"`
 	HLSPlaylistURL      string `gorm:"column:hls_playlist_url;type:text;not null;default:''"`
 	PreviewAnimationURL string `gorm:"column:preview_animation_url;type:text;not null;default:''"`
 	Duration            int64  `gorm:"column:duration;not null;default:0"`
-	VideoProvider      string `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
-	RowVersion         int64  `gorm:"column:row_version;not null;default:1"`
-	ContentFingerprint string `gorm:"column:content_fingerprint;type:varchar(128);not null;default:''"`
-	MetadataJSON       []byte `gorm:"column:metadata_json;type:jsonb;not null;default:'{}'::jsonb"`
-	CreatedAt          int64  `gorm:"column:created_at;not null"`
-	UpdatedAt          int64  `gorm:"column:updated_at;not null"`
-	DeletedAt          *int64 `gorm:"column:deleted_at"`
+	VideoProvider       string `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
+	RowVersion          int64  `gorm:"column:row_version;not null;default:1"`
+	ContentFingerprint  string `gorm:"column:content_fingerprint;type:varchar(128);not null;default:''"`
+	MetadataJSON        []byte `gorm:"column:metadata_json;type:jsonb;not null;default:'{}'::jsonb"`
+	CreatedAt           int64  `gorm:"column:created_at;not null"`
+	UpdatedAt           int64  `gorm:"column:updated_at;not null"`
+	DeletedAt           *int64 `gorm:"column:deleted_at"`
 }
 
 func (mediaFileRow) TableName() string { return constants.TableMediaFiles }
@@ -75,7 +75,7 @@ func rowToFile(r *mediaFileRow) *domain.File {
 		VideoID: r.VideoID, ThumbnailURL: SanitizeMetadataURL(r.ThumbnailURL), EmbededHTML: r.EmbededHTML,
 		DirectPlayURL: SanitizeMetadataURL(r.DirectPlayURL), HLSPlaylistURL: SanitizeMetadataURL(r.HLSPlaylistURL),
 		PreviewAnimationURL: SanitizeMetadataURL(r.PreviewAnimationURL),
-		Duration: r.Duration, VideoProvider: r.VideoProvider, RowVersion: r.RowVersion,
+		Duration:            r.Duration, VideoProvider: r.VideoProvider, RowVersion: r.RowVersion,
 		ContentFingerprint: r.ContentFingerprint, MetadataJSON: string(r.MetadataJSON),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
@@ -107,7 +107,7 @@ func fileToRow(f *domain.File) *mediaFileRow {
 		VideoID: f.VideoID, ThumbnailURL: SanitizeMetadataURL(f.ThumbnailURL), EmbededHTML: f.EmbededHTML,
 		DirectPlayURL: SanitizeMetadataURL(f.DirectPlayURL), HLSPlaylistURL: SanitizeMetadataURL(f.HLSPlaylistURL),
 		PreviewAnimationURL: SanitizeMetadataURL(f.PreviewAnimationURL),
-		Duration: f.Duration, VideoProvider: f.VideoProvider, RowVersion: f.RowVersion,
+		Duration:            f.Duration, VideoProvider: f.VideoProvider, RowVersion: f.RowVersion,
 		ContentFingerprint: f.ContentFingerprint, MetadataJSON: metaJSON,
 		CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
 	}
@@ -214,27 +214,27 @@ func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.Fi
 // guarantee is what fixes the "duration stays at 0 after Bunny webhook" bug.
 func buildUpsertUpdateColumns(row *mediaFileRow) map[string]any {
 	return map[string]any{
-		"kind":                row.Kind,
-		"provider":            row.Provider,
-		"filename":            row.Filename,
-		"mime_type":           row.MimeType,
-		"size_bytes":          row.SizeBytes,
-		"url":                 row.URL,
-		"origin_url":          row.OriginURL,
-		"status":              row.Status,
-		"b2_bucket_name":      row.B2BucketName,
-		"bunny_video_id":      row.BunnyVideoID,
-		"bunny_library_id":    row.BunnyLibraryID,
-		"video_id":            row.VideoID,
+		"kind":                  row.Kind,
+		"provider":              row.Provider,
+		"filename":              row.Filename,
+		"mime_type":             row.MimeType,
+		"size_bytes":            row.SizeBytes,
+		"url":                   row.URL,
+		"origin_url":            row.OriginURL,
+		"status":                row.Status,
+		"b2_bucket_name":        row.B2BucketName,
+		"bunny_video_id":        row.BunnyVideoID,
+		"bunny_library_id":      row.BunnyLibraryID,
+		"video_id":              row.VideoID,
 		"thumbnail_url":         row.ThumbnailURL,
 		"embeded_html":          row.EmbededHTML,
 		"direct_play_url":       row.DirectPlayURL,
 		"hls_playlist_url":      row.HLSPlaylistURL,
 		"preview_animation_url": row.PreviewAnimationURL,
 		"duration":              row.Duration,
-		"video_provider":      row.VideoProvider,
-		"content_fingerprint": row.ContentFingerprint,
-		"metadata_json":       row.MetadataJSON,
+		"video_provider":        row.VideoProvider,
+		"content_fingerprint":   row.ContentFingerprint,
+		"metadata_json":         row.MetadataJSON,
 	}
 }
 
@@ -252,7 +252,7 @@ func (r *GormFileRepository) SaveWithRowVersionCheck(ctx context.Context, f *dom
 			"thumbnail_url": row.ThumbnailURL, "embeded_html": row.EmbededHTML,
 			"direct_play_url": row.DirectPlayURL, "hls_playlist_url": row.HLSPlaylistURL,
 			"preview_animation_url": row.PreviewAnimationURL,
-			"duration": row.Duration, "video_provider": row.VideoProvider,
+			"duration":              row.Duration, "video_provider": row.VideoProvider,
 			"content_fingerprint": row.ContentFingerprint, "metadata_json": row.MetadataJSON,
 			"updated_at":  timex.NowUnix(),
 			"row_version": gorm.Expr("row_version + 1"),

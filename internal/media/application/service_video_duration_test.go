@@ -6,10 +6,10 @@ func TestVideoDurationSecondsFromTelemetry(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		typed   float64
-		bunny   float64
-		want    int64
+		name  string
+		typed float64
+		bunny float64
+		want  int64
 	}{
 		{name: "typed wins", typed: 120, bunny: 190, want: 120},
 		{name: "bunny fallback", typed: 0, bunny: 190.4, want: 190},

@@ -72,33 +72,33 @@ type VideoProviderStatus struct {
 
 // File is the full service-layer representation of a media file.
 type File struct {
-	ID                 string
-	Kind               string
-	Provider           string
-	Filename           string
-	MimeType           string
-	SizeBytes          int64
-	URL                string
-	OriginURL          string
-	ObjectKey          string
-	Status             string
-	B2BucketName       string
-	BunnyVideoID       string
-	BunnyLibraryID     string
-	VideoID            string
+	ID                  string
+	Kind                string
+	Provider            string
+	Filename            string
+	MimeType            string
+	SizeBytes           int64
+	URL                 string
+	OriginURL           string
+	ObjectKey           string
+	Status              string
+	B2BucketName        string
+	BunnyVideoID        string
+	BunnyLibraryID      string
+	VideoID             string
 	ThumbnailURL        string
 	EmbededHTML         string
 	DirectPlayURL       string
 	HLSPlaylistURL      string
 	PreviewAnimationURL string
 	Duration            int64
-	VideoProvider      string
-	RowVersion         int64
-	ContentFingerprint string
-	MetadataJSON       string
-	Metadata           UploadFileMetadata
-	CreatedAt          int64
-	UpdatedAt          int64
+	VideoProvider       string
+	RowVersion          int64
+	ContentFingerprint  string
+	MetadataJSON        string
+	Metadata            UploadFileMetadata
+	CreatedAt           int64
+	UpdatedAt           int64
 }
 
 // RawMetadataMap decodes MetadataJSON into a RawMetadata map.

@@ -18,20 +18,20 @@ import (
 // zero/zero-relative fields when generating the UPDATE statement.
 func TestBuildUpsertUpdateColumns_persistsWebhookFields(t *testing.T) {
 	f := &domain.File{
-		ID:           "id-1",
-		ObjectKey:    "abc",
-		Kind:         constants.FileKindVideo,
-		Provider:     constants.FileProviderBunny,
-		Filename:     "v.mp4",
-		MimeType:     "video/mp4",
-		SizeBytes:    1024,
-		Status:       constants.FileStatusReady,
-		BunnyVideoID: "abc",
-		ThumbnailURL: "https://cdn.example/thumb.jpg",
-		DirectPlayURL: "https://player.mediadelivery.net/play/650694/abc",
+		ID:             "id-1",
+		ObjectKey:      "abc",
+		Kind:           constants.FileKindVideo,
+		Provider:       constants.FileProviderBunny,
+		Filename:       "v.mp4",
+		MimeType:       "video/mp4",
+		SizeBytes:      1024,
+		Status:         constants.FileStatusReady,
+		BunnyVideoID:   "abc",
+		ThumbnailURL:   "https://cdn.example/thumb.jpg",
+		DirectPlayURL:  "https://player.mediadelivery.net/play/650694/abc",
 		HLSPlaylistURL: "https://cdn.example/abc/playlist.m3u8",
-		Duration:     190,
-		MetadataJSON: `{"length":190,"duration_seconds":190,"width":1920,"height":1080}`,
+		Duration:       190,
+		MetadataJSON:   `{"length":190,"duration_seconds":190,"width":1920,"height":1080}`,
 	}
 	row := fileToRow(f)
 	cols := buildUpsertUpdateColumns(row)

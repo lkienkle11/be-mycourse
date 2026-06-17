@@ -83,7 +83,7 @@ type rosterResponse struct {
 }
 
 type applicationResponse struct {
-	ID              string        `json:"id"`
+	ID              string      `json:"id"`
 	UserID          string      `json:"user_id"`
 	FullName        string      `json:"full_name"`
 	AvatarURL       string      `json:"avatar"`

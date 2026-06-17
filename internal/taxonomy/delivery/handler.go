@@ -7,11 +7,11 @@ import (
 
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/response"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
 	"mycourse-io-be/internal/taxonomy/application"
 	"mycourse-io-be/internal/taxonomy/domain"
-	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 // Handler holds all taxonomy HTTP handlers.

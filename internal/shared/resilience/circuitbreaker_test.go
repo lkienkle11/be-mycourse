@@ -7,8 +7,8 @@ import (
 
 func TestCircuitBreakerOpensAfterDBFailures(t *testing.T) {
 	cb := NewCircuitBreaker(Config{
-		DBFailuresToOpen: 2,
-		OpenCooldownSec:  30,
+		DBFailuresToOpen:   2,
+		OpenCooldownSec:    30,
 		HalfOpenProbeQuota: 1,
 	})
 	if !cb.Allow() {

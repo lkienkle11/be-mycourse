@@ -19,7 +19,7 @@ import (
 // --- GORM row types ----------------------------------------------------------
 
 type courseTopicRow struct {
-	ID          string           `gorm:"column:id;primaryKey;type:uuid"`
+	ID          string         `gorm:"column:id;primaryKey;type:uuid"`
 	Name        string         `gorm:"size:255;not null"`
 	Slug        string         `gorm:"size:255;not null;index"`
 	ImageFileID *string        `gorm:"column:image_file_id;type:uuid"`
@@ -34,7 +34,7 @@ type courseTopicRow struct {
 func (courseTopicRow) TableName() string { return constants.TableTaxonomyCourseTopics }
 
 type courseOutcomeRow struct {
-	ID               string             `gorm:"column:id;primaryKey;type:uuid"`
+	ID               string           `gorm:"column:id;primaryKey;type:uuid"`
 	ShortDescription string           `gorm:"column:short_description;size:100;not null"`
 	Description      descriptionJSONB `gorm:"type:jsonb;not null;default:'[]'"`
 	ImageFileID      *string          `gorm:"column:image_file_id;type:uuid"`
@@ -48,7 +48,7 @@ type courseOutcomeRow struct {
 func (courseOutcomeRow) TableName() string { return constants.TableTaxonomyCourseOutcomes }
 
 type courseSkillRow struct {
-	ID        string           `gorm:"column:id;primaryKey;type:uuid"`
+	ID        string         `gorm:"column:id;primaryKey;type:uuid"`
 	Name      string         `gorm:"size:255;not null"`
 	Slug      string         `gorm:"size:255;not null;index"`
 	Children  treeNodesJSONB `gorm:"type:jsonb;not null;default:'[]'"`
@@ -62,7 +62,7 @@ type courseSkillRow struct {
 func (courseSkillRow) TableName() string { return constants.TableTaxonomyCourseSkills }
 
 type tagRow struct {
-	ID        string    `gorm:"column:id;primaryKey;type:uuid"`
+	ID        string  `gorm:"column:id;primaryKey;type:uuid"`
 	Name      string  `gorm:"size:255;not null"`
 	Slug      string  `gorm:"size:255;not null;index"`
 	Status    string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
@@ -75,7 +75,7 @@ type tagRow struct {
 func (tagRow) TableName() string { return constants.TableTaxonomyTags }
 
 type courseLevelRow struct {
-	ID        string    `gorm:"column:id;primaryKey;type:uuid"`
+	ID        string  `gorm:"column:id;primaryKey;type:uuid"`
 	Name      string  `gorm:"size:255;not null"`
 	Slug      string  `gorm:"size:255;not null;index"`
 	Status    string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`

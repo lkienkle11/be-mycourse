@@ -48,10 +48,7 @@ type CourseListItem struct {
 	ThumbnailFileID    string `json:"thumbnail_file_id,omitempty"`
 	ThumbnailURL       string `json:"thumbnail_url,omitempty"`
 	PreviewVideoFileID string `json:"preview_video_file_id,omitempty"`
-}
-
-type AdminCourseListFilter struct {
-	ApprovedOnly bool
+	DraftReviewStatus  string `json:"draft_review_status,omitempty"`
 }
 
 type CourseVersion struct {
@@ -226,7 +223,7 @@ type Repository interface {
 	SubmitForReview(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
 	ReopenDraft(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
 	ListPendingReviews(ctx context.Context) ([]CourseListItem, error)
-	ListAdminCourses(ctx context.Context, filter AdminCourseListFilter) ([]CourseListItem, error)
+	ListAdminCourses(ctx context.Context) ([]CourseListItem, error)
 	ListTrashedCourses(ctx context.Context) ([]CourseListItem, error)
 	TrashCourse(ctx context.Context, courseID string) error
 	RestoreCourse(ctx context.Context, courseID string) error

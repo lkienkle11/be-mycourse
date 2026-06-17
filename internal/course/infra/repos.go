@@ -258,7 +258,8 @@ type courseListScanRow struct {
 	HasDraft                  bool    `gorm:"column:has_draft"`
 	ThumbnailFileID           string  `gorm:"column:thumbnail_file_id"`
 	ThumbnailURL              string  `gorm:"column:thumbnail_url"`
-	PreviewVideoFileID        string  `gorm:"column:preview_video_file_id"`
+	PreviewVideoFileID string  `gorm:"column:preview_video_file_id"`
+	DraftReviewStatus  string  `gorm:"column:draft_review_status"`
 }
 
 func (row *courseListScanRow) asCourseRow() courseRow {
@@ -468,6 +469,7 @@ func toCourseListItem(row *courseListScanRow) domain.CourseListItem {
 		ThumbnailFileID:    row.ThumbnailFileID,
 		ThumbnailURL:       row.ThumbnailURL,
 		PreviewVideoFileID: row.PreviewVideoFileID,
+		DraftReviewStatus:  row.DraftReviewStatus,
 	}
 }
 

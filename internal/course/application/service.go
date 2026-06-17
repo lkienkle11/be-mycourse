@@ -152,8 +152,8 @@ func (s *CourseService) ListPendingReviews(ctx context.Context) ([]domain.Course
 	return s.repo.ListPendingReviews(ctx)
 }
 
-func (s *CourseService) ListAdminCourses(ctx context.Context, filter domain.AdminCourseListFilter) ([]domain.CourseListItem, error) {
-	return s.repo.ListAdminCourses(ctx, filter)
+func (s *CourseService) ListAdminCourses(ctx context.Context) ([]domain.CourseListItem, error) {
+	return s.repo.ListAdminCourses(ctx)
 }
 
 func (s *CourseService) ListTrashedCourses(ctx context.Context) ([]domain.CourseListItem, error) {

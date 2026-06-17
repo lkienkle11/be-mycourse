@@ -1,18 +1,13 @@
 package delivery
 
 import (
-	"strings"
-
 	"github.com/gin-gonic/gin"
 
-	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/response"
 )
 
 func (h *Handler) listAdminCourses(c *gin.Context) {
-	approval := strings.ToLower(strings.TrimSpace(c.Query("approval")))
-	filter := domain.AdminCourseListFilter{ApprovedOnly: approval == "approved"}
-	rows, err := h.svc.ListAdminCourses(c.Request.Context(), filter)
+	rows, err := h.svc.ListAdminCourses(c.Request.Context())
 	if mapCourseError(c, err) {
 		return
 	}

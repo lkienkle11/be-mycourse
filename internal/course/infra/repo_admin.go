@@ -9,54 +9,41 @@ import (
 	"mycourse-io-be/internal/shared/timex"
 )
 
-const adminCourseListSelect = `
+const adminCoursePublishedListSelect = `
     ` + courseListBaseColumns + `,
     'ADMIN' AS role,
-    COALESCE(dv.title, pv.title, '') AS title,
-    COALESCE(dv.status, pv.status, '') AS review_status,
-    COALESCE(dv.id::text, pv.id::text, '') AS version_id,
-    COALESCE(dv.version_no, pv.version_no, 0) AS version_no,
-    (c.current_published_version_id IS NOT NULL) AS has_published,
+    pv.title AS title,
+    pv.status AS review_status,
+    pv.id::text AS version_id,
+    pv.version_no AS version_no,
+    true AS has_published,
     (c.current_draft_version_id IS NOT NULL) AS has_draft,
-    COALESCE(dv.thumbnail_file_id::text, pv.thumbnail_file_id::text, '') AS thumbnail_file_id,
-    COALESCE(dm.url, pm.url, '') AS thumbnail_url,
-    COALESCE(dv.preview_video_file_id::text, pv.preview_video_file_id::text, '') AS preview_video_file_id`
+    COALESCE(pv.thumbnail_file_id::text, '') AS thumbnail_file_id,
+    COALESCE(pm.url, '') AS thumbnail_url,
+    COALESCE(pv.preview_video_file_id::text, '') AS preview_video_file_id,
+    COALESCE(dv.status, '') AS draft_review_status`
 
-const adminCourseListJoins = `
+const adminCoursePublishedListJoins = `
 FROM courses c
+INNER JOIN course_versions pv
+    ON pv.id = c.current_published_version_id AND pv.deleted_at IS NULL
 LEFT JOIN course_versions dv
     ON dv.id = c.current_draft_version_id AND dv.deleted_at IS NULL
-LEFT JOIN course_versions pv
-    ON pv.id = c.current_published_version_id AND pv.deleted_at IS NULL
-LEFT JOIN media_files dm
-    ON dm.id = dv.thumbnail_file_id AND dm.deleted_at IS NULL
 LEFT JOIN media_files pm
     ON pm.id = pv.thumbnail_file_id AND pm.deleted_at IS NULL`
 
-func (r *GormRepository) ListAdminCourses(ctx context.Context, filter domain.AdminCourseListFilter) ([]domain.CourseListItem, error) {
+func (r *GormRepository) ListAdminCourses(ctx context.Context) ([]domain.CourseListItem, error) {
 	q := `
-SELECT` + adminCourseListSelect + adminCourseListJoins + `
+SELECT` + adminCoursePublishedListSelect + adminCoursePublishedListJoins + `
 WHERE c.deleted_at IS NULL
-  AND c.trashed_at IS NULL`
-	if filter.ApprovedOnly {
-		q += `
-  AND pv.id IS NOT NULL
-  AND pv.status = @approved_status`
-	}
-	q += `
+  AND c.trashed_at IS NULL
+  AND pv.status = @approved_status
 ORDER BY c.updated_at DESC`
 
 	var rows []courseListScanRow
-	db := r.db.WithContext(ctx)
-	var err error
-	if filter.ApprovedOnly {
-		err = db.Raw(q, map[string]any{
-			"approved_status": domain.VersionStatusApproved,
-		}).Scan(&rows).Error
-	} else {
-		err = db.Raw(q).Scan(&rows).Error
-	}
-	if err != nil {
+	if err := r.db.WithContext(ctx).Raw(q, map[string]any{
+		"approved_status": domain.VersionStatusApproved,
+	}).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	return mapCourseListScanRows(rows), nil
@@ -64,10 +51,9 @@ ORDER BY c.updated_at DESC`
 
 func (r *GormRepository) ListTrashedCourses(ctx context.Context) ([]domain.CourseListItem, error) {
 	q := `
-SELECT` + adminCourseListSelect + adminCourseListJoins + `
+SELECT` + adminCoursePublishedListSelect + adminCoursePublishedListJoins + `
 WHERE c.deleted_at IS NULL
   AND c.trashed_at IS NOT NULL
-  AND pv.id IS NOT NULL
   AND pv.status = @approved_status
   AND (dv.id IS NULL OR dv.status <> @rejected_status)
 ORDER BY c.trashed_at DESC`

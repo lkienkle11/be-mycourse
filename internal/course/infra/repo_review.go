@@ -38,7 +38,7 @@ func (r *GormRepository) ReopenDraft(ctx context.Context, courseID string, actor
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) ListPendingReviews(ctx context.Context) ([]domain.CourseListItem, error) {
@@ -105,7 +105,7 @@ func (r *GormRepository) ApproveDraft(ctx context.Context, courseID string, acto
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) RejectDraft(ctx context.Context, courseID string, actorUserID string, reason string) (*domain.CourseDetail, error) {
@@ -140,5 +140,5 @@ func (r *GormRepository) RejectDraft(ctx context.Context, courseID string, actor
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }

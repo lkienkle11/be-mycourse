@@ -44,8 +44,8 @@ func (s *CourseService) CreateCourse(ctx context.Context, in domain.CreateCourse
 	})
 }
 
-func (s *CourseService) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
-	return s.repo.GetCourseDetail(ctx, courseID, userID, includeDraft)
+func (s *CourseService) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
+	return s.repo.GetCourseDetail(ctx, courseID, userID, includeDraft, includeOutline)
 }
 
 func (s *CourseService) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {

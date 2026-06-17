@@ -98,11 +98,11 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, in.ActorUserID, true)
+	return r.loadCourseDetail(ctx, r.db, courseID, in.ActorUserID, true, true)
 }
 
-func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
-	return r.loadCourseDetail(ctx, r.db.WithContext(ctx), courseID, userID, includeDraft)
+func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
+	return r.loadCourseDetail(ctx, r.db.WithContext(ctx), courseID, userID, includeDraft, includeOutline)
 }
 
 func (r *GormRepository) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
@@ -124,7 +124,7 @@ func (r *GormRepository) PrepareDraft(ctx context.Context, courseID string, acto
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in domain.UpdateBasicInfoInput) (*domain.CourseDetail, error) {
@@ -178,7 +178,7 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, actorUserID string) error {

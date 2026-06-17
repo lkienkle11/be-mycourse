@@ -11,7 +11,7 @@ import (
 	"mycourse-io-be/internal/shared/timex"
 )
 
-func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
+func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, courseID string, userID string, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
 	access, err := r.requireCourseAccess(ctx, db, courseID, userID)
 	if err != nil {
 		return nil, err
@@ -20,11 +20,7 @@ func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, cour
 	if err != nil {
 		return nil, err
 	}
-	live, draft, collabs, outline, err := r.loadCourseDetailParts(ctx, db, courseID, liveRow, draftRow, outlineVersionID)
-	if err != nil {
-		return nil, err
-	}
-	lastRejectionReason, err := r.resolveLastRejectionReason(ctx, db, draftRow)
+	live, draft, collabs, outline, lastRejectionReason, err := r.loadCourseDetailParts(ctx, db, courseID, liveRow, draftRow, outlineVersionID, includeOutline)
 	if err != nil {
 		return nil, err
 	}
@@ -46,17 +42,31 @@ func loadPublishedDraftVersionRows(
 	access *courseAccess,
 	includeDraft bool,
 ) (liveRow, draftRow *courseVersionRow, outlineVersionID string, err error) {
+	group, gctx := errgroup.WithContext(ctx)
 	if access.CurrentPublishedVersionID != nil {
-		liveRow, err = r.loadVersionRow(ctx, db, *access.CurrentPublishedVersionID)
-		if err != nil {
-			return nil, nil, "", err
-		}
+		versionID := *access.CurrentPublishedVersionID
+		group.Go(func() error {
+			row, loadErr := r.loadVersionRow(gctx, parallelReadDB(db), versionID)
+			if loadErr != nil {
+				return loadErr
+			}
+			liveRow = row
+			return nil
+		})
 	}
 	if includeDraft && access.CurrentDraftVersionID != nil {
-		draftRow, err = r.loadVersionRow(ctx, db, *access.CurrentDraftVersionID)
-		if err != nil {
-			return nil, nil, "", err
-		}
+		versionID := *access.CurrentDraftVersionID
+		group.Go(func() error {
+			row, loadErr := r.loadVersionRow(gctx, parallelReadDB(db), versionID)
+			if loadErr != nil {
+				return loadErr
+			}
+			draftRow = row
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, nil, "", err
 	}
 	if draftRow != nil {
 		outlineVersionID = draftRow.ID
@@ -72,30 +82,20 @@ func (r *GormRepository) loadCourseDetailParts(
 	courseID string,
 	liveRow, draftRow *courseVersionRow,
 	outlineVersionID string,
-) (live, draft *domain.CourseVersion, collabs []domain.Collaborator, outline []domain.Section, err error) {
+	includeOutline bool,
+) (live, draft *domain.CourseVersion, collabs []domain.Collaborator, outline []domain.Section, lastRejectionReason string, err error) {
+	versionRows := collectCourseVersionRows(liveRow, draftRow)
+
+	var assetsByVersion map[string]*courseVersionAssets
 	group, gctx := errgroup.WithContext(ctx)
-	if liveRow != nil {
-		row := liveRow
-		group.Go(func() error {
-			version, loadErr := r.toCourseVersion(gctx, parallelReadDB(db), row)
-			if loadErr != nil {
-				return loadErr
-			}
-			live = version
-			return nil
-		})
-	}
-	if draftRow != nil {
-		row := draftRow
-		group.Go(func() error {
-			version, loadErr := r.toCourseVersion(gctx, parallelReadDB(db), row)
-			if loadErr != nil {
-				return loadErr
-			}
-			draft = version
-			return nil
-		})
-	}
+	group.Go(func() error {
+		assets, loadErr := r.loadCourseVersionAssetsBatch(gctx, parallelReadDB(db), versionRows)
+		if loadErr != nil {
+			return loadErr
+		}
+		assetsByVersion = assets
+		return nil
+	})
 	group.Go(func() error {
 		rows, loadErr := r.loadCollaborators(gctx, parallelReadDB(db), courseID)
 		if loadErr != nil {
@@ -104,7 +104,7 @@ func (r *GormRepository) loadCourseDetailParts(
 		collabs = rows
 		return nil
 	})
-	if outlineVersionID != "" {
+	if includeOutline && outlineVersionID != "" {
 		versionID := outlineVersionID
 		group.Go(func() error {
 			rows, loadErr := r.loadOutline(gctx, parallelReadDB(db), versionID)
@@ -115,13 +115,62 @@ func (r *GormRepository) loadCourseDetailParts(
 			return nil
 		})
 	}
+	r.addLastRejectionReasonTask(gctx, group, db, draftRow, &lastRejectionReason)
 	if err := group.Wait(); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, "", err
 	}
+	live, draft = mapCourseVersionsFromAssets(liveRow, draftRow, assetsByVersion)
 	if outline == nil {
 		outline = []domain.Section{}
 	}
-	return live, draft, collabs, outline, nil
+	return live, draft, collabs, outline, lastRejectionReason, nil
+}
+
+func collectCourseVersionRows(liveRow, draftRow *courseVersionRow) []*courseVersionRow {
+	versionRows := make([]*courseVersionRow, 0, 2)
+	if liveRow != nil {
+		versionRows = append(versionRows, liveRow)
+	}
+	if draftRow != nil {
+		versionRows = append(versionRows, draftRow)
+	}
+	return versionRows
+}
+
+func mapCourseVersionsFromAssets(
+	liveRow, draftRow *courseVersionRow,
+	assetsByVersion map[string]*courseVersionAssets,
+) (live, draft *domain.CourseVersion) {
+	if liveRow != nil {
+		live = mapCourseVersionRow(liveRow, assetsByVersion[liveRow.ID])
+	}
+	if draftRow != nil {
+		draft = mapCourseVersionRow(draftRow, assetsByVersion[draftRow.ID])
+	}
+	return live, draft
+}
+
+func (r *GormRepository) addLastRejectionReasonTask(
+	ctx context.Context,
+	group *errgroup.Group,
+	db *gorm.DB,
+	draftRow *courseVersionRow,
+	lastRejectionReason *string,
+) {
+	if draftRow == nil || draftRow.BasedOnVersionID == nil {
+		return
+	}
+	basedOnVersionID := *draftRow.BasedOnVersionID
+	group.Go(func() error {
+		basedOn, loadErr := r.loadVersionRow(ctx, parallelReadDB(db), basedOnVersionID)
+		if loadErr != nil {
+			return loadErr
+		}
+		if basedOn.Status == domain.VersionStatusRejected {
+			*lastRejectionReason = strings.TrimSpace(basedOn.RejectionReason)
+		}
+		return nil
+	})
 }
 
 func (r *GormRepository) loadLearnerCourseDetail(ctx context.Context, db *gorm.DB, courseID string, userID string) (*domain.CourseDetail, error) {
@@ -469,18 +518,4 @@ func (r *GormRepository) loadLesson(ctx context.Context, db *gorm.DB, lessonID, 
 
 func (r *GormRepository) loadSubLesson(ctx context.Context, db *gorm.DB, subLessonID, versionID string) (*subLessonRow, error) {
 	return loadActiveRow[subLessonRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND course_version_id = ? AND deleted_at IS NULL", subLessonID, versionID)
-}
-
-func (r *GormRepository) resolveLastRejectionReason(ctx context.Context, db *gorm.DB, draftRow *courseVersionRow) (string, error) {
-	if draftRow == nil || draftRow.BasedOnVersionID == nil {
-		return "", nil
-	}
-	basedOn, err := r.loadVersionRow(ctx, db, *draftRow.BasedOnVersionID)
-	if err != nil {
-		return "", err
-	}
-	if basedOn.Status != domain.VersionStatusRejected {
-		return "", nil
-	}
-	return strings.TrimSpace(basedOn.RejectionReason), nil
 }

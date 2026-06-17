@@ -319,59 +319,115 @@ type courseVersionAssets struct {
 }
 
 func (r *GormRepository) loadCourseVersionAssets(ctx context.Context, db *gorm.DB, row *courseVersionRow) (*courseVersionAssets, error) {
-	var assets courseVersionAssets
+	assets, err := r.loadCourseVersionAssetsBatch(ctx, db, []*courseVersionRow{row})
+	if err != nil {
+		return nil, err
+	}
+	return assets[row.ID], nil
+}
+
+func (r *GormRepository) loadCourseVersionAssetsBatch(ctx context.Context, db *gorm.DB, rows []*courseVersionRow) (map[string]*courseVersionAssets, error) {
+	out, versionIDs := seedCourseVersionAssets(rows)
+	if len(versionIDs) == 0 {
+		return out, nil
+	}
+
 	group, gctx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		ids, err := r.loadVersionRefIDs(gctx, parallelReadDB(db), constants.TableCourseVersionTags, "tag_id", row.ID)
-		if err != nil {
-			return err
-		}
+	r.addVersionRefBatchTask(gctx, group, db, constants.TableCourseVersionTags, "tag_id", versionIDs, out, func(assets *courseVersionAssets, ids []string) {
 		assets.tagIDs = ids
-		return nil
 	})
-	group.Go(func() error {
-		ids, err := r.loadVersionRefIDs(gctx, parallelReadDB(db), constants.TableCourseVersionSkills, "skill_id", row.ID)
-		if err != nil {
-			return err
-		}
+	r.addVersionRefBatchTask(gctx, group, db, constants.TableCourseVersionSkills, "skill_id", versionIDs, out, func(assets *courseVersionAssets, ids []string) {
 		assets.skillIDs = ids
-		return nil
 	})
-	group.Go(func() error {
-		ids, err := r.loadVersionRefIDs(gctx, parallelReadDB(db), constants.TableCourseVersionOutcomes, "outcome_id", row.ID)
-		if err != nil {
-			return err
-		}
+	r.addVersionRefBatchTask(gctx, group, db, constants.TableCourseVersionOutcomes, "outcome_id", versionIDs, out, func(assets *courseVersionAssets, ids []string) {
 		assets.outcomeIDs = ids
-		return nil
 	})
 	group.Go(func() error {
-		mediaIDs := make([]string, 0, 2)
-		if row.ThumbnailFileID != nil {
-			mediaIDs = append(mediaIDs, *row.ThumbnailFileID)
+		return r.applyBatchVersionMediaURLs(gctx, parallelReadDB(db), rows, out)
+	})
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func seedCourseVersionAssets(rows []*courseVersionRow) (map[string]*courseVersionAssets, []string) {
+	out := make(map[string]*courseVersionAssets, len(rows))
+	versionIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
 		}
-		if row.PreviewVideoFileID != nil {
-			mediaIDs = append(mediaIDs, *row.PreviewVideoFileID)
-		}
-		if len(mediaIDs) == 0 {
-			return nil
-		}
-		urls, err := r.batchMediaURLMap(gctx, parallelReadDB(db), mediaIDs)
+		versionIDs = append(versionIDs, row.ID)
+		out[row.ID] = &courseVersionAssets{}
+	}
+	return out, versionIDs
+}
+
+func (r *GormRepository) addVersionRefBatchTask(
+	ctx context.Context,
+	group *errgroup.Group,
+	db *gorm.DB,
+	table, col string,
+	versionIDs []string,
+	out map[string]*courseVersionAssets,
+	assign func(*courseVersionAssets, []string),
+) {
+	group.Go(func() error {
+		refs, err := r.loadVersionRefIDsBatch(ctx, parallelReadDB(db), table, col, versionIDs)
 		if err != nil {
 			return err
 		}
+		for versionID, ids := range refs {
+			assign(out[versionID], ids)
+		}
+		return nil
+	})
+}
+
+func (r *GormRepository) applyBatchVersionMediaURLs(
+	ctx context.Context,
+	db *gorm.DB,
+	rows []*courseVersionRow,
+	out map[string]*courseVersionAssets,
+) error {
+	mediaIDs := collectVersionMediaFileIDs(rows)
+	if len(mediaIDs) == 0 {
+		return nil
+	}
+	urls, err := r.batchMediaURLMap(ctx, db, mediaIDs)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		assets := out[row.ID]
 		if row.ThumbnailFileID != nil {
 			assets.thumbURL = urls[*row.ThumbnailFileID]
 		}
 		if row.PreviewVideoFileID != nil {
 			assets.videoURL = urls[*row.PreviewVideoFileID]
 		}
-		return nil
-	})
-	if err := group.Wait(); err != nil {
-		return nil, err
 	}
-	return &assets, nil
+	return nil
+}
+
+func collectVersionMediaFileIDs(rows []*courseVersionRow) []string {
+	mediaIDs := make([]string, 0, len(rows)*2)
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		if row.ThumbnailFileID != nil {
+			mediaIDs = append(mediaIDs, *row.ThumbnailFileID)
+		}
+		if row.PreviewVideoFileID != nil {
+			mediaIDs = append(mediaIDs, *row.PreviewVideoFileID)
+		}
+	}
+	return mediaIDs
 }
 
 func mapCourseVersionRow(row *courseVersionRow, assets *courseVersionAssets) *domain.CourseVersion {
@@ -393,13 +449,37 @@ func mapCourseVersionRow(row *courseVersionRow, assets *courseVersionAssets) *do
 }
 
 func (r *GormRepository) loadVersionRefIDs(ctx context.Context, db *gorm.DB, table, col string, versionID string) ([]string, error) {
-	var ids []string
-	query := fmt.Sprintf("SELECT %s AS id FROM %s WHERE course_version_id = ?", col, table)
-	if err := db.WithContext(ctx).Raw(query, versionID).Scan(&ids).Error; err != nil {
+	refs, err := r.loadVersionRefIDsBatch(ctx, db, table, col, []string{versionID})
+	if err != nil {
 		return nil, err
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids, nil
+	return refs[versionID], nil
+}
+
+func (r *GormRepository) loadVersionRefIDsBatch(ctx context.Context, db *gorm.DB, table, col string, versionIDs []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(versionIDs))
+	for _, versionID := range versionIDs {
+		out[versionID] = []string{}
+	}
+	if len(versionIDs) == 0 {
+		return out, nil
+	}
+	type refRow struct {
+		VersionID string `gorm:"column:course_version_id"`
+		RefID     string `gorm:"column:ref_id"`
+	}
+	var rows []refRow
+	query := fmt.Sprintf("SELECT course_version_id, %s AS ref_id FROM %s WHERE course_version_id IN ?", col, table)
+	if err := db.WithContext(ctx).Raw(query, versionIDs).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.VersionID] = append(out[row.VersionID], row.RefID)
+	}
+	for versionID := range out {
+		sort.Slice(out[versionID], func(i, j int) bool { return out[versionID][i] < out[versionID][j] })
+	}
+	return out, nil
 }
 
 func (r *GormRepository) batchMediaDurationMs(ctx context.Context, db *gorm.DB, fileIDs []string) (map[string]int64, error) {

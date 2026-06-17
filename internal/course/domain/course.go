@@ -199,7 +199,7 @@ type CourseProgress struct {
 type Repository interface {
 	ListEditableCourses(ctx context.Context, userID string) ([]CourseListItem, error)
 	CreateCourse(ctx context.Context, in CreateCourseInput) (*CourseDetail, error)
-	GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool) (*CourseDetail, error)
+	GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool, includeOutline bool) (*CourseDetail, error)
 	PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
 	UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in UpdateBasicInfoInput) (*CourseDetail, error)
 	DeleteCourse(ctx context.Context, courseID string, actorUserID string) error

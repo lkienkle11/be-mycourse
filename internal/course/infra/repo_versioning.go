@@ -63,7 +63,7 @@ func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID string,
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) createDraftVersion(ctx context.Context, tx *gorm.DB, course *courseRow) (string, error) {

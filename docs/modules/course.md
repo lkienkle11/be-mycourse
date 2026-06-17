@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-12 (quiz single-choice correct-answer validation, outline delete cascade fix, submit-for-review validation, shared useraccess helper, quiz preview enforcement). Read-path batching/parallelism: 2026-06-16._
+_Last audited: 2026-06-17 (outline reorder write-path performance, batch media meta query, lease read-after-write removal). Read-path batching/parallelism: 2026-06-16._
 
 ## Overview
 
@@ -24,7 +24,7 @@ internal/course/
 └── infra/
     ├── repos.go                 # GormRepository core + version mapping
     ├── repo_access.go           # loadCourseDetail, loadOutline (parallel/batch reads)
-    ├── repo_outline_batch.go    # batchHydrateSubLessons, batchMediaURLMap
+    ├── repo_outline_batch.go    # batchHydrateSubLessons, hydrateSubLessonKinds, batchMediaURLAndDurationMsMaps
     ├── repo_outline.go          # outline CRUD + reorder
     ├── repo_versioning.go       # version clone / publish
     ├── repo_submit_validation.go
@@ -67,6 +67,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
     - `LESSON`
     - `SUB_LESSON`
   - lease acquire / heartbeat / release endpoints exist for instructor UI coordination
+  - `AcquireLease` / `HeartbeatLease` update the in-memory lease row after `Updates` (no extra `SELECT` reload)
 
 ## Outline model
 
@@ -74,7 +75,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 - `course_lessons` belong to a section and a version
 - `course_sub_lessons` belong to a lesson and a version
 - each outline node has a stable business UUID (`stable_id`) that survives version cloning
-- reordering is version-local and atomic; `reorderStableIDRows` applies a two-phase `order_index` update (temporary negative indices, then `0..n-1`) so partial reorders never violate `uix_*_order_per_*_active` unique indexes
+- reordering is version-local and atomic; `reorderStableIDRows` applies a two-phase `order_index` update (temporary negative indices, then `0..n-1`) via **two bulk `CASE stable_id` UPDATEs** (not one UPDATE per row) so partial reorders never violate `uix_*_order_per_*_active` unique indexes; `applyStableIDReorderRowMeta` mirrors DB row metadata in memory so reorder write paths can skip a reload query
 - outline deletes run inside `deleteDraftOutline` (draft lease + version guard, then reload outline):
   - `DELETE …/sections/:sectionId` → `deleteSectionTree` → `deleteChildrenThenRow` removes child lessons (`section_id = ?`) then the section row
   - `DELETE …/lessons/:lessonId` → `deleteLessonTree` → same helper removes sub-lessons (`lesson_id = ?`) then the lesson row
@@ -217,12 +218,12 @@ The module reuses the existing permission catalog:
 
 ## Validation snapshot
 
-Repo-wide validation passed during read-path safety fixes (2026-06-16):
+Repo-wide validation passed during read-path safety fixes (2026-06-16); write-path reorder perf closeout (2026-06-17):
 
 - `assembleOutlineSections` returns error when hydration map misses a sub-lesson ID (aligned with `loadSubLessonDomain`)
 - `parallelReadDB` — per-goroutine GORM session for all `errgroup` read paths (safe inside transactions)
 - `go test ./internal/course/infra/...` — PASS
-- `golangci-lint run` — 0 issues
+- `golangci-lint run` — 0 issues (includes **`unused`** — dead code must be removed, not left orphaned)
 - `go build ./...` — PASS
 - `make check-architecture` / `check-dupl` / `check-layout` — OK
 
@@ -263,3 +264,16 @@ Course detail and taxonomy list reads were optimized **without changing response
 | Taxonomy list | Skip `COUNT(*)` when last page is inferable (`taxonomyListTotal`) | `internal/taxonomy/infra/repos_crud_helper.go` |
 
 Measured warm parallel load (course info page): course **~3s**, each taxonomy list **&lt;1.5s** (remote PostgreSQL latency dependent).
+
+## Write-path performance (2026-06-17)
+
+Outline reorder and lease endpoints were optimized **without changing response shape or business rules**:
+
+| Area | Change | Path |
+|------|--------|------|
+| Sub-lesson reorder | `ReorderSubLessons` uses one `batchHydrateSubLessons` call (sequential when `durationByFileID` map is passed — no `errgroup`); skips post-reorder reload via `applyStableIDReorderRowMeta`; video durations come from the same `media_files` query as URLs | `repo_outline.go`, `repo_outline_batch.go`, `repo_helpers.go` |
+| All outline reorders | `reorderStableIDRows` bulk `CASE stable_id` UPDATEs (2 queries per reorder instead of 2×N) | `repo_helpers.go` |
+| Media duration reads | `batchMediaDurationMs` delegates to `batchMediaURLAndDurationMsMaps` (single source for URL + duration resolution) | `repos.go`, `repo_outline_batch.go` |
+| Edit leases | `AcquireLease` / `HeartbeatLease` avoid redundant row reload after update | `repo_outline.go` |
+
+Measured warm reorder (2 sub-lessons, remote PostgreSQL): **~935ms–990ms** (down from ~2.35s+).

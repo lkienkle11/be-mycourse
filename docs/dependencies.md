@@ -117,7 +117,7 @@ CGO_ENABLED=1 go build -o mycourse-io-be .
 
 | Tool | Purpose |
 |------|---------|
-| `golangci-lint` | Static analysis (configured in `.golangci.yml`) |
+| `golangci-lint` | Static analysis (`.golangci.yml`: `dupl`, `gocyclo`, `funlen`, `depguard`, `errcheck`, `staticcheck`, `govet`, `revive`, `nolintlint`, `unused`) |
 | `golang-migrate` | SQL migration runner |
 | `PM2` | Process manager for deployment |
 | GitHub Actions | CI/CD pipeline (`.github/workflows/deploy-dev.yml`) |

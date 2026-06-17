@@ -271,7 +271,7 @@ Configuration: `.golangci.yml`, `.go-arch-lint.yml`, `Makefile`, `tools/layoutgu
 | Check | Command | What it enforces |
 |-------|---------|------------------|
 | Format | `go fmt ./...` | Standard Go formatting |
-| Static lint | `golangci-lint run` | `dupl` (per-package, threshold **60** — `.golangci.yml` `settings.dupl.threshold`), `depguard`, `revive`, `funlen`, `errcheck`, `staticcheck`, `govet`, `nolintlint` |
+| Static lint | `golangci-lint run` | Enabled in `.golangci.yml`: `dupl` (per-package, threshold **60**), `gocyclo` (min complexity **15**), `funlen` (**60** lines / **40** statements), `depguard`, `errcheck`, `staticcheck`, `govet`, `revive`, `nolintlint`, **`unused`** (dead code — unused funcs/types/vars/consts) |
 | Layer imports | `make check-architecture` | DDD boundaries (`go-arch-lint` v1.15+) |
 | File placement | `make check-layout` | Go files only under allowed top-level dirs |
 | Cross-package clones | `make check-dupl` | `dupl -t 60 internal` via Makefile `DUPL_THRESHOLD` (paths outside a single package) |
@@ -281,6 +281,10 @@ Configuration: `.golangci.yml`, `.go-arch-lint.yml`, `Makefile`, `tools/layoutgu
 **`revive` highlights:** `file-length-limit` max **600** lines (comments/blank lines skipped); `argument-limit` max **8** parameters — use small param structs when needed.
 
 **`funlen`:** max **60** lines / **40** statements per function.
+
+**`gocyclo`:** cyclomatic complexity ≥ **15** fails.
+
+**`unused`:** flags unused functions, types, variables, and constants (including unexported symbols). Remove dead code or wire it up — do not leave orphaned helpers/types after refactors.
 
 **`dupl`:** golangci only sees clones **within one package** (threshold **60**); cross-package similarity must pass `make check-dupl` (same threshold via `DUPL_THRESHOLD` in the root **`Makefile`**).
 

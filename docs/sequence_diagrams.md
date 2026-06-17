@@ -102,7 +102,7 @@ sequenceDiagram
     R->>DB: INSERT course_versions (v1 DRAFT)
     R->>DB: UPDATE courses.current_draft_version_id
     R->>DB: INSERT course_collaborators (OWNER)
-    R->>R: loadCourseDetail → requireCourseAccess (loadCourse + collaborator lookup)
+    R->>R: loadCourseDetail → requireCourseAccess (courses + collaborators JOIN)
     R->>DB: COMMIT
     R-->>S: *CourseDetail
     S-->>H: *CourseDetail

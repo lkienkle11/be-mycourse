@@ -148,7 +148,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 |--------|------|-----------|-------------|
 | GET | `/api/v1/courses/my` | `course_instructor:read` | List editable courses |
 | POST | `/api/v1/courses` | `course:create` | Create course root |
-| GET | `/api/v1/courses/:courseId` | `course_instructor:read` | Get course detail |
+| GET | `/api/v1/courses/:courseId` | `course_instructor:read` | Get course detail; query `include_outline` (default `true`, `false` skips outline) |
 | POST | `/api/v1/courses/:courseId/draft/prepare` | `course:update` | Ensure one active draft |
 | PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info (`title` → server slugify updates `courses.slug`) |
 | DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |

@@ -57,7 +57,7 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 All routes are under `/api/v1/taxonomy/` and require `Authorization: Bearer <token>`.
 
 List query contract:
-- `page`, `per_page`, `sort_by`, `sort_desc`, optional `status`
+- `page`, `per_page`, `sort_by`, `sort_desc`, optional `status`, optional `include_images` (default `true`; `false` skips `media_files` hydration on topics/outcomes list)
 - typed search: `search_by` + `search_value`
 - allowed `search_by` values:
   - levels/topics/skills/tags: `name`, `slug`
@@ -104,7 +104,7 @@ List query contract:
 
 **Soft delete:** `deleted_at` Unix seconds on all five taxonomy tables. Default list/get exclude soft-deleted rows. Slug uniqueness is enforced only among active rows (partial unique index).
 
-**List performance:** `taxonomyList` in `repos_crud_helper.go` runs `Find` first; `taxonomyListTotal` skips a separate `COUNT(*)` when `len(rows) < per_page` (total = `(page-1)*per_page + len(rows)`). Topics/outcomes still hydrate `image_file_url` via a second batched `media_files` query (`listTaxonomyWithImageURLs`).
+**List performance:** `taxonomyList` in `repos_crud_helper.go` runs `Find` first; `taxonomyListTotal` skips a separate `COUNT(*)` when `len(rows) < per_page` (total = `(page-1)*per_page + len(rows)`). Topics/outcomes hydrate `image_file_url` via a second batched `media_files` query (`listTaxonomyWithImageURLs`) unless `include_images=false`.
 
 ---
 

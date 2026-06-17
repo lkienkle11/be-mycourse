@@ -68,6 +68,9 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 - `live_version` — approved snapshot learners use (`APPROVED` status on that row)
 - `draft_version` — current editable pointer (`DRAFT`, `IN_REVIEW`, or legacy `REJECTED`)
 - `last_rejection_reason` — when `draft_version.based_on_version_id` references a `REJECTED` row, surfaces that row's `rejection_reason` on the new draft for instructor UI
+- `outline` — full version tree (sections → lessons → sub-lessons). Omit heavy outline reads with query `include_outline=false` (default `true` for backward compatibility). Instructor **info** and **collaborators** tabs use `include_outline=false`; **outline** tab uses the default.
+
+**Query:** `include_outline` — optional boolean (`false` skips `loadOutline`; response `outline` is `[]`).
 
 Editable mutations (`ensureEditableDraft`) allow only `DRAFT` status (`IN_REVIEW` and `REJECTED` are blocked).
 
@@ -277,9 +280,9 @@ Previous closeout (2026-06-15): migration **`000022_course_sub_lesson_estimated_
 2. Insert initial `course_versions` row (`version_no = 1`, `status = DRAFT`, trimmed `title`)
 3. Set `courses.current_draft_version_id`
 4. Insert `course_collaborators` row (`role = OWNER`)
-5. Reload detail via `loadCourseDetail` → `requireCourseAccess`
+5. Reload detail via `loadCourseDetail` → `requireCourseAccess` (single JOIN: `courses` + optional `course_collaborators`)
 
-Access resolution in step 5 reuses existing helpers (`loadCourse`, `loadActiveRow[collaboratorRow]`) instead of a Raw SQL scan into an embedded `courseRow`. The previous Raw scan could leave `ID = 0` even when SQL returned a row, which surfaced as `404` / `3004` (`course not found`) and rolled back the whole transaction.
+Access resolution in step 5 uses one parameterized query instead of separate `loadCourse` + collaborator lookups.
 
 List endpoints (`GET /courses/my`, learner catalog, pending reviews) use a flat `courseListScanRow` for GORM `Raw().Scan` — embedded `courseRow` is not populated by GORM for joined list queries; rows are mapped back through `asCourseRow()` → `toCourse()`.
 
@@ -291,19 +294,23 @@ The following repository-internal performance refactors remain intentionally def
 
 - `internal/course/infra/repo_versioning.go` version-clone batching / per-row insert reduction
 
-## Read-path performance (2026-06-16)
+## Read-path performance (2026-06-16, updated 2026-06-17)
 
 Course detail and taxonomy list reads were optimized **without changing response shape or business rules**:
 
 | Area | Change | Path |
 |------|--------|------|
 | DB pool | `tunePool` after `gorm.Open` — `MaxOpenConns=50`, `MaxIdleConns=25` | `internal/shared/db/db.go` |
-| Course detail | Parallel fetch of version assets, collaborators, outline (`errgroup` + `parallelReadDB` per goroutine) | `repo_access.go`, `repo_helpers.go` |
+| Course access | `requireCourseAccess` — one JOIN query (`courses` + `course_collaborators`) | `repo_access.go` |
+| Course detail | Optional `include_outline=false` skips outline tree load on GET | `handler_instructor.go`, `repo_access.go` |
+| Course detail | Parallel live/draft version row fetch; batch version assets for both versions (`loadCourseVersionAssetsBatch`, `loadVersionRefIDsBatch`) | `repo_access.go`, `repos.go` |
+| Course detail | Parallel fetch of version assets, collaborators, outline, and `last_rejection_reason` (`errgroup` + `parallelReadDB` per goroutine) | `repo_access.go`, `repo_helpers.go` |
 | Course outline | Batch load sections/lessons/sub-lessons per version; `batchHydrateSubLessons` replaces per-row N+1; `assembleOutlineSections` fails fast on missing hydration | `repo_access.go`, `repo_outline_batch.go` |
 | Course version | Parallel tag/skill/outcome refs + batched media URLs (`batchMediaURLMap`, `parallelReadDB`) | `repos.go`, `repo_outline_batch.go` |
 | Taxonomy list | Skip `COUNT(*)` when last page is inferable (`taxonomyListTotal`) | `internal/taxonomy/infra/repos_crud_helper.go` |
+| Taxonomy list | Optional `include_images=false` skips `media_files` hydration on topics/outcomes list | `taxonomy/domain.TaxonomyFilter`, `repos.go` `listTaxonomyWithImageURLs` |
 
-Measured warm parallel load (course info page): course **~3s**, each taxonomy list **&lt;1.5s** (remote PostgreSQL latency dependent).
+Measured warm load (instructor course **info** tab, remote PostgreSQL, 2026-06-17): `GET /courses/:id?include_outline=false` **~1.6–2.1s** (curl + Chrome DevTools); each taxonomy list with `include_images=false` **~0.65–1.16s** (parallel in browser). Full outline detail **~0.5–1.2s** when outline is small. Browser QA: reject-fork UI (`last_rejection_reason`, draft v2 badge, submit button) verified on `/vi/instructor/courses/019ed517-…/info`.
 
 ## Write-path performance (2026-06-17)
 

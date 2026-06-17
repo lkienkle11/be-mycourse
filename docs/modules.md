@@ -95,6 +95,7 @@ Reference data for classifying course content.
 - **Course topics**, **outcomes**, **skills**, **levels**, **tags** — CRUD with soft delete (`DELETE /:id`), hard delete (`DELETE /:id/hard`), list including deleted (`GET /full`)
 - Partial unique slug indexes among active rows only (re-create slug after soft delete)
 - Optional topic/outcome images linked to `media_files`; orphan cleanup on hard delete only
+- List query `include_images=false` skips image URL hydration (picker UIs)
 
 **Exposed under:** `/api/v1/taxonomy/...` (requires JWT + permission). Convention: **`docs/patterns.md`** (CRUD soft delete).
 
@@ -136,6 +137,7 @@ Versioned course authoring, collaborator access, outline editing, admin review, 
 - Sub-lesson types: video, quiz, text (Quill Delta JSON)
 - Review workflow: submit (same `version_no`), reject (fork `max+1` draft), reopen (legacy fork), approve (publish submitted row)
 - Learner enrollment and progress keyed by stable content ids
+- Read-path tuning: `GET /courses/:id?include_outline=false` for lighter detail loads
 
 **Exposed under:** `/api/v1/courses`, `/api/v1/course-reviews`, `/api/v1/course-admin`, `/api/v1/learner-courses`
 

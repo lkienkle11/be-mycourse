@@ -433,7 +433,7 @@ type ListPermissionsParams struct {
 |----------|-----------|--------------|
 | `CreateCourse` | `CreateCourse(ctx, CreateCourseInput) (*CourseDetail, error)` | `*CourseDetail` on success; `ErrCourseInvalidSlug`; repo errors |
 | `ListEditableCourses` | `ListEditableCourses(ctx, userID string) ([]CourseListItem, error)` | `[]CourseListItem` |
-| `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID string, includeDraft bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
+| `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID string, includeDraft, includeOutline bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
 | `UpdateBasicInfo` | `UpdateBasicInfo(ctx, courseID, actorUserID string, UpdateBasicInfoInput) (*CourseDetail, error)` | `*CourseDetail`; optimistic lock / validation errors |
 | `DeleteCourse` | `DeleteCourse(ctx, courseID, actorUserID string) error` | `nil`; owner-only / not-found errors |
 | Outline CRUD / reorder | `CreateSection`, `UpdateSection`, `DeleteSection`, `ReorderSections`, lesson/sub-lesson variants | Entity or `[]Section`; draft/lease/lock errors |
@@ -754,6 +754,8 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 **Auth:** Bearer JWT + `course_instructor:read`
 
+**Query:** `include_outline` — optional; default `true`. Pass `include_outline=false` to skip outline tree hydration (`outline` is `[]`).
+
 | Status | `code` | `data` |
 |--------|--------|--------|
 | 200 | 0 | `domain.CourseDetail` |
@@ -889,7 +891,7 @@ Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `re
 }
 ```
 
-**List query params:** `page`, `per_page`, `sort_by`, `sort_desc`, `status` (`ACTIVE` | `INACTIVE`), `search_by`, `search_value`.
+**List query params:** `page`, `per_page`, `sort_by`, `sort_desc`, `status` (`ACTIVE` | `INACTIVE`), `search_by`, `search_value`, `include_images` (optional boolean; default `true` — when `false`, topics/outcomes list skips `media_files` URL hydration).
 - Levels / Topics / Skills / Tags: `search_by` in `name | slug`
 - Outcomes: `search_by` in `short_description`
 

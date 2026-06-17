@@ -576,9 +576,9 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Current Usage: `ReorderSections`, `ReorderLessons`, `ReorderSubLessons` in `internal/course/infra/repo_outline.go`.
 
 ### Asset: Draft version fork (`createNextDraftVersion`)
-- Name: `createNextDraftVersion`, `createDraftVersion`, `resolveLastRejectionReason`
+- Name: `createNextDraftVersion`, `createDraftVersion`
 - Type: Functions (`internal/course/infra/repo_versioning.go`, `repo_access.go`)
-- Purpose: Allocate `version_no = MAX(version_no)+1`, optionally clone metadata/refs/outline from a source version (`based_on_version_id`). Used when preparing a draft from published content, when rejecting a submission (fork editable draft), and when reopening a legacy rejected pointer. `resolveLastRejectionReason` surfaces the rejected parent's `rejection_reason` on `CourseDetail` when the current draft was forked from a `REJECTED` row.
+- Purpose: Allocate `version_no = MAX(version_no)+1`, optionally clone metadata/refs/outline from a source version (`based_on_version_id`). Used when preparing a draft from published content, when rejecting a submission (fork editable draft), and when reopening a legacy rejected pointer. `loadCourseDetailParts` loads `last_rejection_reason` in parallel when `draft_version.based_on_version_id` points to a `REJECTED` row.
 - Scope: Course versioning only — do not duplicate version-clone logic in handlers.
 - Current Usage: `PrepareDraft`, `RejectDraft`, `ReopenDraft`, `ensureEditableDraft`, `loadCourseDetail`.
 
@@ -618,16 +618,16 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Current Usage: `loadCourseDetailParts`, `loadOutlineTreeRows`, `batchHydrateSubLessons`, `loadCourseVersionAssets`.
 
 ### Asset: Course version read assembly
-- Name: `loadCourseVersionAssets`, `mapCourseVersionRow`, `loadCourseDetailParts`, `loadPublishedDraftVersionRows`
+- Name: `loadCourseVersionAssets`, `loadCourseVersionAssetsBatch`, `loadVersionRefIDsBatch`, `mapCourseVersionRow`, `loadCourseDetailParts`, `loadPublishedDraftVersionRows`, `requireCourseAccess`
 - Type: Functions (`internal/course/infra/repos.go`, `repo_access.go`)
-- Purpose: Parallel load of version tag/skill/outcome refs and thumbnail/preview media URLs; parallel assembly of `CourseDetail` (live/draft version, collaborators, outline).
+- Purpose: Batch parallel load of version tag/skill/outcome refs and thumbnail/preview media URLs across live + draft versions; parallel assembly of `CourseDetail` (versions, collaborators, optional outline, `last_rejection_reason`). `requireCourseAccess` resolves owner/collaborator role in one JOIN query. GET supports `include_outline=false`.
 - Scope: Course detail read path — same `domain.CourseVersion` / `domain.CourseDetail` output as before.
 - Current Usage: `GetCourseDetail`, `loadCourseDetail`, `toCourseVersion`.
 
 ### Asset: Taxonomy list total inference
-- Name: `taxonomyListTotal`
-- Type: Function (`internal/taxonomy/infra/repos_crud_helper.go`)
-- Purpose: After paginated `Find`, skip `COUNT(*)` when `len(rows) < pageSize` and derive `total_items` as `(page-1)*pageSize + len(rows)`; otherwise run `Count` as before.
+- Name: `taxonomyListTotal`, `listTaxonomyWithImageURLs`
+- Type: Function (`internal/taxonomy/infra/repos_crud_helper.go`, `repos.go`)
+- Purpose: After paginated `Find`, skip `COUNT(*)` when `len(rows) < pageSize` and derive `total_items` as `(page-1)*pageSize + len(rows)`; otherwise run `Count` as before. `listTaxonomyWithImageURLs` skips `hydrateImageURLs` when `TaxonomyFilter.IncludeImages` is `false` (query `include_images=false`).
 - Scope: All five taxonomy list repositories via shared `taxonomyList`.
 - Current Usage: `GormCourseTopicRepository.List`, outcomes/skills/tags/levels `List`.
 

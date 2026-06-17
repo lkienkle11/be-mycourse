@@ -1407,8 +1407,11 @@ Allowed `search_by` values:
 **Update body:** partial `{ "name"?, "status"? }` — when `name` changes, slug is recomputed server-side.
 
 ```bash
-# List
+# List (optional include_images=false for picker UIs — skips image URL hydration on topics/outcomes)
 curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&status=ACTIVE" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/topics?per_page=100&include_images=false" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # Create
@@ -1625,12 +1628,18 @@ Success `data`: `[]CourseListItem` (courses where caller is owner or collaborato
 
 **`GET /api/v1/courses/:courseId`** — permission `course_instructor:read`
 
+Optional query: `include_outline=false` — skip outline tree (faster for info/collaborators tabs; `outline` is `[]`).
+
 ```bash
 curl -sS "{{BASE_URL}}/api/v1/courses/1" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Info tab (no outline)
+curl -sS "{{BASE_URL}}/api/v1/courses/1?include_outline=false" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-Success `data`: `CourseDetail` with `live_version`, `draft_version`, optional `last_rejection_reason` (when new draft was forked from a rejected version), collaborators, and outline for the active draft (or published when no draft).
+Success `data`: `CourseDetail` with `live_version`, `draft_version`, optional `last_rejection_reason` (when new draft was forked from a rejected version), collaborators, and outline for the active draft (or published when no draft) unless `include_outline=false`.
 
 ### 14.4 Update draft basic info
 

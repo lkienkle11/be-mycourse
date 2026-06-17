@@ -305,22 +305,19 @@ func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID string,
 		if err := reorderStableIDRows(ctx, tx, &subLessonRow{}, "lesson_id = ?", lessonID, orderedStableIDs); err != nil {
 			return err
 		}
-		rows, err = r.loadSubLessonsByLesson(ctx, tx, lessonID)
+		applyStableIDReorderRowMeta(rows, orderedStableIDs)
+		videoMediaMs := make(map[string]int64)
+		subMap, err := r.batchHydrateSubLessons(ctx, tx, rows, videoMediaMs)
 		if err != nil {
 			return err
 		}
 		out = make([]domain.SubLesson, len(rows))
-		for i := range rows {
-			sub, err := r.loadSubLessonDomain(ctx, tx, rows[i].ID)
-			if err != nil {
-				return err
+		for i, row := range rows {
+			sub, ok := subMap[row.ID]
+			if !ok {
+				return domain.ErrCourseNotFound
 			}
-			out[i] = *sub
-		}
-		videoIDs := collectVideoMediaFileIDsFromSubLessons(out)
-		videoMediaMs, err := r.batchMediaDurationMs(ctx, tx, videoIDs)
-		if err != nil {
-			return err
+			out[i] = sub
 		}
 		applySubLessonListEstimatedDurations(out, videoMediaMs)
 		return nil
@@ -432,17 +429,19 @@ func (r *GormRepository) AcquireLease(ctx context.Context, courseID string, acto
 				return err
 			}
 		} else {
+			newToken := uuid.NewString()
 			if err := tx.Model(&leaseRow{}).Where("id = ?", row.ID).Updates(map[string]any{
 				"holder_user_id": actorUserID,
-				"lease_token":    uuid.NewString(),
+				"lease_token":    newToken,
 				"expires_at":     expiresAt,
-				"updated_at":     timex.NowUnix(),
+				"updated_at":     now,
 			}).Error; err != nil {
 				return err
 			}
-			if err := tx.Where("id = ?", row.ID).First(&row).Error; err != nil {
-				return err
-			}
+			row.HolderUserID = actorUserID
+			row.LeaseToken = newToken
+			row.ExpiresAt = expiresAt
+			row.UpdatedAt = now
 		}
 		lease := toLease(&row)
 		out = &lease
@@ -461,15 +460,16 @@ func (r *GormRepository) HeartbeatLease(ctx context.Context, courseID string, ac
 			}
 			return err
 		}
+		now := timex.NowUnix()
+		expiresAt := now + 300
 		if err := tx.Model(&leaseRow{}).Where("id = ?", row.ID).Updates(map[string]any{
-			"expires_at": timex.NowUnix() + 300,
-			"updated_at": timex.NowUnix(),
+			"expires_at": expiresAt,
+			"updated_at": now,
 		}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("id = ?", row.ID).First(&row).Error; err != nil {
-			return err
-		}
+		row.ExpiresAt = expiresAt
+		row.UpdatedAt = now
 		lease := toLease(&row)
 		out = &lease
 		return nil

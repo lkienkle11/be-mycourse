@@ -126,23 +126,3 @@ func durationSecondsToMs(seconds int64) int64 {
 	}
 	return seconds * 1000
 }
-
-func collectVideoMediaFileIDsFromSubLessons(subs []domain.SubLesson) []string {
-	seen := make(map[string]struct{})
-	var ids []string
-	for _, sub := range subs {
-		if sub.Kind != domain.SubLessonKindVideo || sub.Video == nil {
-			continue
-		}
-		fileID := strings.TrimSpace(sub.Video.MediaFileID)
-		if fileID == "" {
-			continue
-		}
-		if _, ok := seen[fileID]; ok {
-			continue
-		}
-		seen[fileID] = struct{}{}
-		ids = append(ids, fileID)
-	}
-	return ids
-}

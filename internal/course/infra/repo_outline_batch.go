@@ -10,25 +10,55 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 )
 
-func (r *GormRepository) batchHydrateSubLessons(ctx context.Context, db *gorm.DB, rows []subLessonRow) (map[string]domain.SubLesson, error) {
+func (r *GormRepository) batchHydrateSubLessons(ctx context.Context, db *gorm.DB, rows []subLessonRow, durationByFileID map[string]int64) (map[string]domain.SubLesson, error) {
 	out, videoIDs, textIDs, quizIDs := seedSubLessonContentMap(rows)
 	if len(rows) == 0 {
 		return out, nil
 	}
-	group, gctx := errgroup.WithContext(ctx)
-	if len(videoIDs) > 0 {
-		group.Go(func() error { return r.hydrateSubLessonVideos(gctx, parallelReadDB(db), out, videoIDs) })
-	}
-	if len(textIDs) > 0 {
-		group.Go(func() error { return r.hydrateSubLessonTexts(gctx, parallelReadDB(db), out, textIDs) })
-	}
-	if len(quizIDs) > 0 {
-		group.Go(func() error { return r.hydrateSubLessonQuizzes(gctx, parallelReadDB(db), out, quizIDs) })
-	}
-	if err := group.Wait(); err != nil {
+	parallel := durationByFileID == nil
+	if err := r.hydrateSubLessonKinds(ctx, db, out, videoIDs, textIDs, quizIDs, parallel, durationByFileID); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *GormRepository) hydrateSubLessonKinds(
+	ctx context.Context,
+	db *gorm.DB,
+	out map[string]domain.SubLesson,
+	videoIDs, textIDs, quizIDs []string,
+	parallel bool,
+	durationByFileID map[string]int64,
+) error {
+	if parallel {
+		group, gctx := errgroup.WithContext(ctx)
+		if len(videoIDs) > 0 {
+			group.Go(func() error { return r.hydrateSubLessonVideos(gctx, parallelReadDB(db), out, videoIDs, nil) })
+		}
+		if len(textIDs) > 0 {
+			group.Go(func() error { return r.hydrateSubLessonTexts(gctx, parallelReadDB(db), out, textIDs) })
+		}
+		if len(quizIDs) > 0 {
+			group.Go(func() error { return r.hydrateSubLessonQuizzes(gctx, parallelReadDB(db), out, quizIDs) })
+		}
+		return group.Wait()
+	}
+	if len(videoIDs) > 0 {
+		if err := r.hydrateSubLessonVideos(ctx, db, out, videoIDs, durationByFileID); err != nil {
+			return err
+		}
+	}
+	if len(textIDs) > 0 {
+		if err := r.hydrateSubLessonTexts(ctx, db, out, textIDs); err != nil {
+			return err
+		}
+	}
+	if len(quizIDs) > 0 {
+		if err := r.hydrateSubLessonQuizzes(ctx, db, out, quizIDs); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func seedSubLessonContentMap(rows []subLessonRow) (
@@ -55,6 +85,7 @@ func (r *GormRepository) hydrateSubLessonVideos(
 	db *gorm.DB,
 	out map[string]domain.SubLesson,
 	videoIDs []string,
+	durationByFileID map[string]int64,
 ) error {
 	var videos []subLessonVideoRow
 	if err := db.WithContext(ctx).Where("sub_lesson_id IN ?", videoIDs).Find(&videos).Error; err != nil {
@@ -66,7 +97,7 @@ func (r *GormRepository) hydrateSubLessonVideos(
 		videoBySub[video.SubLessonID] = video
 		fileIDs = append(fileIDs, video.MediaFileID)
 	}
-	urlMap, err := r.batchMediaURLMap(ctx, db, fileIDs)
+	urlMap, durationMap, err := r.batchMediaURLAndDurationMsMaps(ctx, db, fileIDs)
 	if err != nil {
 		return err
 	}
@@ -77,6 +108,9 @@ func (r *GormRepository) hydrateSubLessonVideos(
 			MediaURL:    urlMap[video.MediaFileID],
 		}
 		out[subID] = sub
+		if durationByFileID != nil {
+			durationByFileID[video.MediaFileID] = durationMap[video.MediaFileID]
+		}
 	}
 	return nil
 }
@@ -133,9 +167,15 @@ func (r *GormRepository) hydrateSubLessonQuizzes(
 }
 
 func (r *GormRepository) batchMediaURLMap(ctx context.Context, db *gorm.DB, fileIDs []string) (map[string]string, error) {
-	out := make(map[string]string)
+	urls, _, err := r.batchMediaURLAndDurationMsMaps(ctx, db, fileIDs)
+	return urls, err
+}
+
+func (r *GormRepository) batchMediaURLAndDurationMsMaps(ctx context.Context, db *gorm.DB, fileIDs []string) (map[string]string, map[string]int64, error) {
+	urls := make(map[string]string)
+	durations := make(map[string]int64)
 	if len(fileIDs) == 0 {
-		return out, nil
+		return urls, durations, nil
 	}
 	unique := make([]string, 0, len(fileIDs))
 	seen := make(map[string]struct{}, len(fileIDs))
@@ -150,18 +190,28 @@ func (r *GormRepository) batchMediaURLMap(ctx context.Context, db *gorm.DB, file
 		unique = append(unique, id)
 	}
 	if len(unique) == 0 {
-		return out, nil
+		return urls, durations, nil
 	}
-	var rows []mediaInfoRow
+	type mediaMetaRow struct {
+		ID           string `gorm:"column:id"`
+		URL          string `gorm:"column:url"`
+		Duration     int64  `gorm:"column:duration"`
+		MetadataJSON []byte `gorm:"column:metadata_json"`
+	}
+	var rows []mediaMetaRow
 	if err := db.WithContext(ctx).
 		Table(constants.TableMediaFiles).
-		Select("id, url").
+		Select("id, url, duration, metadata_json").
 		Where("id IN ? AND deleted_at IS NULL", unique).
 		Find(&rows).Error; err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, row := range rows {
-		out[row.ID] = row.URL
+		urls[row.ID] = row.URL
+		sec := mediaDurationSecondsFromStored(row.Duration, row.MetadataJSON)
+		if sec > 0 {
+			durations[row.ID] = durationSecondsToMs(sec)
+		}
 	}
-	return out, nil
+	return urls, durations, nil
 }

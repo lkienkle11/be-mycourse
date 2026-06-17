@@ -228,13 +228,6 @@ type progressRow struct {
 
 func (progressRow) TableName() string { return constants.TableCourseProgressItems }
 
-type userInfoRow struct {
-	ID           string  `gorm:"column:id"`
-	DisplayName  string  `gorm:"column:display_name"`
-	Email        string  `gorm:"column:email"`
-	AvatarFileID *string `gorm:"column:avatar_file_id"`
-}
-
 type mediaInfoRow struct {
 	ID       string `gorm:"column:id"`
 	Kind     string `gorm:"column:kind"`
@@ -293,7 +286,7 @@ func (r *GormRepository) loadSubLessonDomain(ctx context.Context, db *gorm.DB, s
 		}
 		return nil, err
 	}
-	subs, err := r.batchHydrateSubLessons(ctx, db, []subLessonRow{row})
+	subs, err := r.batchHydrateSubLessons(ctx, db, []subLessonRow{row}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -395,9 +388,6 @@ func mapCourseVersionRow(row *courseVersionRow, assets *courseVersionAssets) *do
 }
 
 func (r *GormRepository) loadVersionRefIDs(ctx context.Context, db *gorm.DB, table, col string, versionID string) ([]string, error) {
-	type row struct {
-		ID string `gorm:"column:id"`
-	}
 	var ids []string
 	query := fmt.Sprintf("SELECT %s AS id FROM %s WHERE course_version_id = ?", col, table)
 	if err := db.WithContext(ctx).Raw(query, versionID).Scan(&ids).Error; err != nil {
@@ -408,29 +398,8 @@ func (r *GormRepository) loadVersionRefIDs(ctx context.Context, db *gorm.DB, tab
 }
 
 func (r *GormRepository) batchMediaDurationMs(ctx context.Context, db *gorm.DB, fileIDs []string) (map[string]int64, error) {
-	out := make(map[string]int64, len(fileIDs))
-	if len(fileIDs) == 0 {
-		return out, nil
-	}
-	type durationRow struct {
-		ID           string `gorm:"column:id"`
-		Duration     int64  `gorm:"column:duration"`
-		MetadataJSON []byte `gorm:"column:metadata_json"`
-	}
-	var rows []durationRow
-	if err := db.WithContext(ctx).Table(constants.TableMediaFiles).
-		Select("id, duration, metadata_json").
-		Where("id IN ? AND deleted_at IS NULL", fileIDs).
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		sec := mediaDurationSecondsFromStored(row.Duration, row.MetadataJSON)
-		if sec > 0 {
-			out[row.ID] = durationSecondsToMs(sec)
-		}
-	}
-	return out, nil
+	_, durations, err := r.batchMediaURLAndDurationMsMaps(ctx, db, fileIDs)
+	return durations, err
 }
 
 func (r *GormRepository) resolveSubLessonDomainDuration(ctx context.Context, db *gorm.DB, sub *domain.SubLesson) error {

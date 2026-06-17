@@ -11,6 +11,7 @@ linters:
     - govet # Basic Go correctness
     - revive
     - nolintlint
+    - unused
 
   settings:
     revive:

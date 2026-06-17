@@ -212,17 +212,14 @@ Tests are **co-located** with their packages — not in a separate `tests/` dire
 ### Local verification
 
 ```bash
-gofmt -w .
-go vet ./...
-go test ./...
-golangci-lint run   # includes unused, depguard, revive, funlen, dupl, … — see docs/patterns.md
-go build ./...
-make check-layout
-make check-architecture
-make check-dupl
+# Same checks as CI test job (no compile)
+make test-all
+
+# Full pre-push gate (fmt + test-all + build-nocgo + CGO build; requires libvips-dev)
+make check-all
 ```
 
-Use `make build` when `CGO_ENABLED=1` and `libvips-dev` are available.
+Individual targets (`make check-layout`, `make check-architecture`, `make check-dupl`, `make build`, `make build-nocgo`) remain available — see **`docs/patterns.md`**.
 
 ---
 
@@ -365,4 +362,4 @@ Every GET list endpoint embeds `BaseFilter` in its DTO for consistent pagination
 
 ## CI/CD
 
-Pushing to **`master`** triggers `.github/workflows/deploy-dev.yml`: **test** / **build** each configure a **fast APT mirror**, then **`apt-get install`** **libvips-dev**, **libhdf5-dev**, and **pkg-config** (one path, no separate APT file cache — avoids incomplete **pkg-config** restores). **test** runs **`go test`** (including **`CGO_ENABLED=1`**), **`go vet`**, **`golangci-lint run`**; **build** runs **`go build`** **`mycourse-io-be-dev`**, then **`deploy`** `rsync`s and runs `scripts/pm2-reload-with-binary-rollback.sh`. For a local binary matching CI, use **`go build`** with **`CGO_ENABLED=1`** or **`make build`**. See [`docs/deploy.md`](docs/deploy.md) for the full runbook.
+Pushing to **`master`** triggers `.github/workflows/deploy-dev.yml`: **test** / **build** each configure a **fast APT mirror**, then **`apt-get install`** **libvips-dev**, **libhdf5-dev**, and **pkg-config** (one path, no separate APT file cache — avoids incomplete **pkg-config** restores). **test** runs **`make test-all`**; **build** runs **`go build`** **`mycourse-io-be-dev`**, then **`deploy`** `rsync`s and runs `scripts/pm2-reload-with-binary-rollback.sh`. For a local binary matching CI, use **`go build`** with **`CGO_ENABLED=1`** or **`make build`**. See [`docs/deploy.md`](docs/deploy.md) for the full runbook.

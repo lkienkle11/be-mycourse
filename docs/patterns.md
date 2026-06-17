@@ -270,13 +270,16 @@ Configuration: `.golangci.yml`, `.go-arch-lint.yml`, `Makefile`, `tools/layoutgu
 
 | Check | Command | What it enforces |
 |-------|---------|------------------|
-| Format | `go fmt ./...` | Standard Go formatting |
+| **CI test gate** | `make test-all` | `go test` (plain + CGO), `go vet`, `golangci-lint run`, `check-layout`, `check-architecture`, `check-dupl` |
+| **Full local gate** | `make check-all` | `go fmt` + `test-all` + `build-nocgo` + `build` (CGO build needs libvips) |
+| Format | `go fmt ./...` | Standard Go formatting (included in `check-all`) |
 | Static lint | `golangci-lint run` | Enabled in `.golangci.yml`: `dupl` (per-package, threshold **60**), `gocyclo` (min complexity **15**), `funlen` (**60** lines / **40** statements), `depguard`, `errcheck`, `staticcheck`, `govet`, `revive`, `nolintlint`, **`unused`** (dead code — unused funcs/types/vars/consts) |
 | Layer imports | `make check-architecture` | DDD boundaries (`go-arch-lint` v1.15+) |
 | File placement | `make check-layout` | Go files only under allowed top-level dirs |
 | Cross-package clones | `make check-dupl` | `dupl -t 60 internal` via Makefile `DUPL_THRESHOLD` (paths outside a single package) |
 | Compile (no CGO) | `make build-nocgo` | CI-friendly build; WebP encode uses stub |
-| Tests | `go test ./...` | All package tests |
+| Compile (CGO) | `make build` | Production build with libvips |
+| Tests | `go test ./...` | All package tests (included in `test-all`) |
 
 **`revive` highlights:** `file-length-limit` max **600** lines (comments/blank lines skipped); `argument-limit` max **8** parameters — use small param structs when needed.
 
@@ -292,16 +295,15 @@ Configuration: `.golangci.yml`, `.go-arch-lint.yml`, `Makefile`, `tools/layoutgu
 
 ```bash
 cd be-mycourse
-go fmt ./...
-golangci-lint cache clean && golangci-lint run
-make check-layout
-make check-architecture
-make check-dupl
-make build-nocgo
-go test ./...
+
+# Full gate (requires libvips-dev for make build)
+make check-all
+
+# Same approach CI test job only (no compile)
+make test-all
 ```
 
-CI (`.github/workflows/deploy-dev.yml` **`test`** job) runs the same layout/arch/dupl targets after `golangci-lint run`.
+CI (`.github/workflows/deploy-dev.yml` **`test`** job) runs **`make test-all`** after installing CGO packages and **golangci-lint**.
 
 ### Makefile compile targets
 

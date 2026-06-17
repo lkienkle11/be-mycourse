@@ -104,8 +104,14 @@ Current bounded contexts under `internal/`: `auth`, `course`, `instructor`, `med
 # CGO build (production)
 make build
 
-# No-CGO build (CI / review)
+# No-CGO build (review / part of check-all)
 make build-nocgo
+
+# CI test gate (tests + lint + architecture; no compile)
+make test-all
+
+# Full local gate (fmt + test-all + both builds)
+make check-all
 
 # Or directly
 CGO_ENABLED=1 go build -o mycourse-io-be .
@@ -117,7 +123,7 @@ CGO_ENABLED=1 go build -o mycourse-io-be .
 
 | Tool | Purpose |
 |------|---------|
-| `golangci-lint` | Static analysis (`.golangci.yml`: `dupl`, `gocyclo`, `funlen`, `depguard`, `errcheck`, `staticcheck`, `govet`, `revive`, `nolintlint`, `unused`) |
+| `golangci-lint` | Static analysis (`.golangci.yml`; run via **`make test-all`** / **`make check-all`**) |
 | `golang-migrate` | SQL migration runner |
 | `PM2` | Process manager for deployment |
 | GitHub Actions | CI/CD pipeline (`.github/workflows/deploy-dev.yml`) |

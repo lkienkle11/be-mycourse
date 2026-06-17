@@ -175,7 +175,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | GET | `/api/v1/course-reviews/pending` | `course_review:read` (P59) | List pending drafts |
 | POST | `/api/v1/course-reviews/:courseId/approve` | `course_review:approve` (P60) | Approve draft/publish |
 | POST | `/api/v1/course-reviews/:courseId/reject` | `course_review:reject` (P61) | Reject draft with reason |
-| GET | `/api/v1/course-admin/courses` | `course_catalog:read` (P62) | List all courses (`?approval=approved` optional) |
+| GET | `/api/v1/course-admin/courses` | `course_catalog:read` (P62) | List approved published courses (not in trash) |
 | GET | `/api/v1/course-admin/courses/trash` | `course_trash:read` (P64) | List trashed approved courses |
 | POST | `/api/v1/course-admin/courses/:courseId/trash` | `course_catalog:trash` (P63) | Move eligible course to trash |
 | POST | `/api/v1/course-admin/courses/:courseId/restore` | `course_trash:restore` (P65) | Restore course from trash |

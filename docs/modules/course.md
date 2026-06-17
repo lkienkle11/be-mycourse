@@ -187,7 +187,7 @@ Admin / sysadmin review routes (P59–P61):
 
 Admin / sysadmin course catalog routes (P62–P66):
 
-- `GET /api/v1/course-admin/courses` — `course_catalog:read` (P62); all non-trashed courses; `?approval=approved` optional
+- `GET /api/v1/course-admin/courses` — `course_catalog:read` (P62); approved published courses not in trash
 - `GET /api/v1/course-admin/courses/trash` — `course_trash:read` (P64); trashed approved courses
 - `POST /api/v1/course-admin/courses/:courseId/trash` — `course_catalog:trash` (P63); move eligible course to trash
 - `POST /api/v1/course-admin/courses/:courseId/restore` — `course_trash:restore` (P65); restore from trash

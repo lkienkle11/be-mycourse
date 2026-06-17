@@ -1726,10 +1726,10 @@ Full semantics: **`docs/modules/course.md`** → Estimated duration.
 
 Requires migrations **`000023_course_trash`** and **`000024_course_admin_permissions`** (or `MIGRATE=1`). Granular permissions **P59–P66** (not shell `admin:modify`). Dev token: login as **`user01@yopmail.com`** / **`Test@1234`** (see **`AGENTS.md`**).
 
-**List all courses** (optional `?approval=approved`):
+**List approved published courses** (excludes trash and draft-only courses):
 
 ```bash
-curl -sS '{{BASE_URL}}/api/v1/course-admin/courses?approval=approved' \
+curl -sS '{{BASE_URL}}/api/v1/course-admin/courses' \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H 'Accept: application/json'
 ```

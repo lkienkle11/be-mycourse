@@ -2245,13 +2245,9 @@ paths:
   /api/v1/course-admin/courses:
     get:
       tags: [Course]
-      summary: List all courses for sysadmin (excludes trash)
+      summary: List approved published courses (excludes trash)
       security:
         - bearerJwt: []
-      parameters:
-        - name: approval
-          in: query
-          schema: { type: string, enum: [all, approved] }
       responses:
         "200":
           description: OK

@@ -1,4 +1,5 @@
-# Multi-stage CGO build — mirrors .github/workflows/deploy-dev.yml (libvips + HDF5).
+# Multi-stage CGO build — mirrors CI build job (libvips + HDF5).
+# Quality gates (tests, lint, architecture) run in CI via `make test-all`; use `make check-all` locally before push.
 ARG STAGE=dev
 
 FROM golang:1.25.0-bookworm AS builder

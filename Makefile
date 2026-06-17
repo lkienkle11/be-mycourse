@@ -1,4 +1,4 @@
-.PHONY: build build-nocgo check-architecture check-layout check-dupl
+.PHONY: build build-nocgo check-all test-all check-architecture check-layout check-dupl
 
 # Cross-package clone detection (golangci dupl is per-package only). Threshold 60 matches .golangci.yml settings.dupl.
 DUPL_THRESHOLD ?= 60
@@ -38,6 +38,21 @@ check-dupl:
 	  exit 0; \
 	fi; \
 	exit 1
+
+check-all:
+	go fmt ./...
+	$(MAKE) test-all
+	$(MAKE) build-nocgo
+	$(MAKE) build
+
+test-all:
+	go test ./...
+	CGO_ENABLED=1 go test ./...
+	go vet ./...
+	golangci-lint cache clean && golangci-lint run
+	$(MAKE) check-layout
+	$(MAKE) check-architecture
+	$(MAKE) check-dupl
 
 # Production build: requires CGO_ENABLED=1 and libvips-dev.
 # On Ubuntu VPS: sudo apt-get install -y libvips-dev pkg-config

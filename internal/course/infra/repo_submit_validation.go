@@ -91,7 +91,7 @@ func hasDraftBasicInfoRequiredFields(version *courseVersionRow) bool {
 }
 
 func (r *GormRepository) validateDraftOutline(ctx context.Context, tx *gorm.DB, versionID string) error {
-	outline, err := r.loadOutline(ctx, tx, versionID)
+	outline, err := r.loadOutlineSequential(ctx, tx, versionID)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ type collaboratorAccessSnapshot struct {
 }
 
 func (r *GormRepository) validateDraftCollaborators(ctx context.Context, tx *gorm.DB, courseID string) error {
-	collaborators, err := loadActiveRows[collaboratorRow](ctx, tx, "course_id = ? AND deleted_at IS NULL", courseID)
+	collaborators, err := r.loadCollaborators(ctx, tx, courseID)
 	if err != nil {
 		return err
 	}

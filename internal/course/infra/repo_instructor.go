@@ -68,7 +68,7 @@ func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCours
 }
 
 func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
-	var detail *domain.CourseDetail
+	var courseID string
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		slug, err := ensureUniqueCourseSlug(ctx, tx, in.Slug, nil)
 		if err != nil {
@@ -78,6 +78,7 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 		if err := touchCreateCourseEntity(ctx, tx, &course.CreatedAt, &course.UpdatedAt, course); err != nil {
 			return err
 		}
+		courseID = course.ID
 
 		version := &courseVersionRow{
 			CourseID: course.ID, VersionNo: 1, Status: domain.VersionStatusDraft,
@@ -92,13 +93,12 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 		}
 
 		collab := &collaboratorRow{CourseID: course.ID, UserID: in.ActorUserID, Role: domain.CollaboratorRoleOwner}
-		if err := touchCreateCourseEntity(ctx, tx, &collab.CreatedAt, &collab.UpdatedAt, collab); err != nil {
-			return err
-		}
-		detail, err = r.loadCourseDetail(ctx, tx, course.ID, in.ActorUserID, true)
-		return err
+		return touchCreateCourseEntity(ctx, tx, &collab.CreatedAt, &collab.UpdatedAt, collab)
 	})
-	return detail, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCourseDetail(ctx, r.db, courseID, in.ActorUserID, true)
 }
 
 func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
@@ -106,30 +106,28 @@ func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, u
 }
 
 func (r *GormRepository) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
-	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID)
 		if err != nil {
 			return err
 		}
-		if access.CurrentDraftVersionID == nil {
-			draftID, err := r.createDraftVersion(ctx, tx, &access.courseRow)
-			if err != nil {
-				return err
-			}
-			if err := tx.Model(&courseRow{}).Where("id = ?", courseID).
-				Updates(map[string]any{"current_draft_version_id": draftID, "updated_at": timex.NowUnix()}).Error; err != nil {
-				return err
-			}
+		if access.CurrentDraftVersionID != nil {
+			return nil
 		}
-		detail, err = r.loadCourseDetail(ctx, tx, courseID, actorUserID, true)
-		return err
+		draftID, err := r.createDraftVersion(ctx, tx, &access.courseRow)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&courseRow{}).Where("id = ?", courseID).
+			Updates(map[string]any{"current_draft_version_id": draftID, "updated_at": timex.NowUnix()}).Error
 	})
-	return detail, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
 }
 
 func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in domain.UpdateBasicInfoInput) (*domain.CourseDetail, error) {
-	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
 		if err != nil {
@@ -172,13 +170,15 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 				return err
 			}
 		}
-		detail, err = r.loadCourseDetail(ctx, tx, courseID, actorUserID, true)
-		return err
+		return nil
 	})
 	if stderrors.Is(err, apperrors.ErrMediaOptimisticLock) {
 		return nil, domain.ErrCourseOptimisticLock
 	}
-	return detail, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true)
 }
 
 func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, actorUserID string) error {

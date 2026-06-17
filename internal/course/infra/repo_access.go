@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
@@ -23,13 +24,18 @@ func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, cour
 	if err != nil {
 		return nil, err
 	}
+	lastRejectionReason, err := r.resolveLastRejectionReason(ctx, db, draftRow)
+	if err != nil {
+		return nil, err
+	}
 	return &domain.CourseDetail{
-		Course:           toCourse(&access.courseRow),
-		CollaboratorRole: access.Role,
-		LiveVersion:      live,
-		DraftVersion:     draft,
-		Collaborators:    collabs,
-		Outline:          outline,
+		Course:              toCourse(&access.courseRow),
+		CollaboratorRole:    access.Role,
+		LiveVersion:         live,
+		DraftVersion:        draft,
+		LastRejectionReason: lastRejectionReason,
+		Collaborators:       collabs,
+		Outline:             outline,
 	}, nil
 }
 
@@ -236,6 +242,9 @@ func (r *GormRepository) ensureEditableDraft(ctx context.Context, tx *gorm.DB, c
 	if version.Status == domain.VersionStatusInReview {
 		return nil, domain.ErrCourseDraftInReview
 	}
+	if version.Status == domain.VersionStatusRejected {
+		return nil, domain.ErrCourseDraftRejectedOnly
+	}
 	return access, nil
 }
 
@@ -342,6 +351,44 @@ func (r *GormRepository) loadOutline(ctx context.Context, db *gorm.DB, versionID
 	return out, nil
 }
 
+// loadOutlineSequential loads the full outline without parallel DB reads.
+// Use inside an open transaction — errgroup + parallelReadDB causes conn busy on pgx.
+func (r *GormRepository) loadOutlineSequential(ctx context.Context, db *gorm.DB, versionID string) ([]domain.Section, error) {
+	sections, err := r.loadSectionsByVersion(ctx, db, versionID)
+	if err != nil {
+		return nil, err
+	}
+	lessonRows, err := loadActiveRows[lessonRow](ctx, db, "course_version_id = ? AND deleted_at IS NULL", versionID)
+	if err != nil {
+		return nil, err
+	}
+	subRows, err := loadActiveRows[subLessonRow](ctx, db, "course_version_id = ? AND deleted_at IS NULL", versionID)
+	if err != nil {
+		return nil, err
+	}
+	videoMediaMs := make(map[string]int64)
+	subMap, err := r.batchHydrateSubLessons(ctx, db, subRows, videoMediaMs)
+	if err != nil {
+		return nil, err
+	}
+	out, err := assembleOutlineSections(sections, lessonRows, subRows, subMap)
+	if err != nil {
+		return nil, err
+	}
+	videoIDs := collectVideoMediaFileIDs(out)
+	if len(videoIDs) > 0 {
+		loaded, err := r.batchMediaDurationMs(ctx, db, videoIDs)
+		if err != nil {
+			return nil, err
+		}
+		for id, ms := range loaded {
+			videoMediaMs[id] = ms
+		}
+	}
+	applyOutlineEstimatedDurations(out, videoMediaMs)
+	return out, nil
+}
+
 func (r *GormRepository) loadOutlineTreeRows(
 	ctx context.Context,
 	db *gorm.DB,
@@ -422,4 +469,18 @@ func (r *GormRepository) loadLesson(ctx context.Context, db *gorm.DB, lessonID, 
 
 func (r *GormRepository) loadSubLesson(ctx context.Context, db *gorm.DB, subLessonID, versionID string) (*subLessonRow, error) {
 	return loadActiveRow[subLessonRow](ctx, db, domain.ErrCourseNotFound, "id = ? AND course_version_id = ? AND deleted_at IS NULL", subLessonID, versionID)
+}
+
+func (r *GormRepository) resolveLastRejectionReason(ctx context.Context, db *gorm.DB, draftRow *courseVersionRow) (string, error) {
+	if draftRow == nil || draftRow.BasedOnVersionID == nil {
+		return "", nil
+	}
+	basedOn, err := r.loadVersionRow(ctx, db, *draftRow.BasedOnVersionID)
+	if err != nil {
+		return "", err
+	}
+	if basedOn.Status != domain.VersionStatusRejected {
+		return "", nil
+	}
+	return strings.TrimSpace(basedOn.RejectionReason), nil
 }

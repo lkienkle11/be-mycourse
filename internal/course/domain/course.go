@@ -150,12 +150,13 @@ type QuizOption struct {
 }
 
 type CourseDetail struct {
-	Course           Course         `json:"course"`
-	CollaboratorRole string         `json:"collaborator_role"`
-	LiveVersion      *CourseVersion `json:"live_version,omitempty"`
-	DraftVersion     *CourseVersion `json:"draft_version,omitempty"`
-	Collaborators    []Collaborator `json:"collaborators"`
-	Outline          []Section      `json:"outline"`
+	Course              Course         `json:"course"`
+	CollaboratorRole    string         `json:"collaborator_role"`
+	LiveVersion         *CourseVersion `json:"live_version,omitempty"`
+	DraftVersion        *CourseVersion `json:"draft_version,omitempty"`
+	LastRejectionReason string         `json:"last_rejection_reason,omitempty"`
+	Collaborators       []Collaborator `json:"collaborators"`
+	Outline             []Section      `json:"outline"`
 }
 
 type Lease struct {

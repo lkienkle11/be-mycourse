@@ -215,7 +215,7 @@ func (r *GormRepository) deleteDraftOutline(
 		if err := cfg.Remove(ctx, tx, resolvedID); err != nil {
 			return err
 		}
-		outline, err = r.loadOutline(ctx, tx, *access.CurrentDraftVersionID)
+		outline, err = r.loadOutlineSequential(ctx, tx, *access.CurrentDraftVersionID)
 		return err
 	})
 	return outline, err

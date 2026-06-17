@@ -258,8 +258,8 @@ type courseListScanRow struct {
 	HasDraft                  bool    `gorm:"column:has_draft"`
 	ThumbnailFileID           string  `gorm:"column:thumbnail_file_id"`
 	ThumbnailURL              string  `gorm:"column:thumbnail_url"`
-	PreviewVideoFileID string  `gorm:"column:preview_video_file_id"`
-	DraftReviewStatus  string  `gorm:"column:draft_review_status"`
+	PreviewVideoFileID        string  `gorm:"column:preview_video_file_id"`
+	DraftReviewStatus         string  `gorm:"column:draft_review_status"`
 }
 
 func (row *courseListScanRow) asCourseRow() courseRow {
@@ -432,7 +432,7 @@ func (r *GormRepository) userIsInstructor(ctx context.Context, db *gorm.DB, user
 SELECT COUNT(*)
 FROM user_roles ur
 INNER JOIN roles ro ON ro.id = ur.role_id
-WHERE ur.user_id = ? AND ro.name = 'instructor'`, userID).Scan(&count).Error
+WHERE ur.user_id = ? AND ro.name IN ('instructor', 'sysadmin', 'admin')`, userID).Scan(&count).Error
 	return count > 0
 }
 

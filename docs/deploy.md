@@ -13,16 +13,14 @@ The sections under **Deployment runbook** are ordered: follow **Step 1 → Step 
 
 ## Local backend quality gate (before push)
 
-Run from the **`be-mycourse`** repo root (same checks as CI **`test`** job, except CGO tests are optional locally):
+Run from the **`be-mycourse`** repo root:
 
 ```bash
-go fmt ./...
-golangci-lint cache clean && golangci-lint run
-make check-layout
-make check-architecture
-make check-dupl
-make build-nocgo   # or make build when libvips is installed
-go test ./...
+# Full gate: fmt + test-all + build-nocgo + CGO build (requires libvips-dev)
+make check-all
+
+# Same checks as CI test job (no compile)
+make test-all
 ```
 
 See **`docs/patterns.md`** (Linting and quality gate) for what each target enforces. DDD rules: **no `internal/*/entity` package**; auth JSONB and GORM rows stay in **`infra`**; media/system use **`domain` ports** wired in **`internal/server/wire.go`**.
@@ -647,7 +645,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ## Appendix C — CI/CD with GitHub Actions
 
-The active workflow is **`.github/workflows/deploy-dev.yml`**. On each push to **`master`**, CI runs **`test`** (Go tests including **`CGO_ENABLED=1`**, **`go vet`**, **`golangci-lint run`** — no separate **`make build`** in CI), then **`build`** (stripped **`go build`** binary artifact), then **`deploy`** to the VPS. No Go toolchain is required on the server if you always deploy via CI. The **`deploy`** job **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. On each push to **`master`**, CI runs **`test`** (**`make test-all`**: Go tests including **`CGO_ENABLED=1`**, **`go vet`**, **`golangci-lint run`**, layout/arch/dupl checks — no compile in this job), then **`build`** (stripped **`go build`** binary artifact), then **`deploy`** to the VPS. No Go toolchain is required on the server if you always deploy via CI. The **`deploy`** job **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
 
 ### C.1 — Required GitHub Secrets
 
@@ -670,7 +668,7 @@ File: `.github/workflows/deploy-dev.yml`
 **Concurrency:** `cancel-in-progress: true` — a second push while the first is deploying cancels the in-flight run.  
 **Job structure:** **`test`** → **`build`** → **`deploy`** (`build` needs `test`; `deploy` needs `build`).
 
-- **`test`:** **`vegardit/fast-apt-mirror.sh@v1`** rewrites the runner’s **APT sources** to a fast mirror; then **`apt-get update`** + **`apt-get install`** pulls **libvips-dev**, **libhdf5-dev** (**`hdf5.pc`** for **matio**), and **pkg-config** over that same mirror (**`sudo` does not change the mirror**). Steps **`go mod download`**, **`go test ./...`**, **`CGO_ENABLED=1 go test ./...`**, **`go vet ./...`**, **`golangci-lint cache clean`** + **`golangci-lint run`**, then **`make check-layout`**, **`make check-architecture`**, **`make check-dupl`**. Local full compile gate remains **`make build`** (see root **`Makefile`**).
+- **`test`:** **`vegardit/fast-apt-mirror.sh@v1`** rewrites the runner’s **APT sources** to a fast mirror; then **`apt-get update`** + **`apt-get install`** pulls **libvips-dev**, **libhdf5-dev** (**`hdf5.pc`** for **matio**), and **pkg-config** over that same mirror (**`sudo` does not change the mirror**). Steps **`go mod download`**, install **golangci-lint**, then **`make test-all`**. Local full compile gate: **`make check-all`** (see root **`Makefile`**).
 - **`build`:** **`CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o mycourse-io-be-dev .`**, uploads the **`backend-binary`** artifact (1-day retention).
 - **`deploy`:** downloads the artifact, **`scp`** the rollback helper, backs up the live binary to **`mycourse-io-be-dev.prev`**, **`rsync`** the new binary, runs **`scripts/pm2-reload-with-binary-rollback.sh`**.
 
@@ -682,7 +680,7 @@ The authoritative definition is **`.github/workflows/deploy-dev.yml`** in the re
 |------|---------|
 | **Checkout** | All jobs clone the repo (`deploy` needs `scripts/pm2-reload-with-binary-rollback.sh`). |
 | **Setup Go** | Go **1.25.0** with module cache enabled (`test` / `build`). |
-| **Test job** | Fast APT mirror, then **`apt-get install`** **libvips-dev** / **libhdf5-dev** / **pkg-config** (same mirror for all **`apt`** traffic); **`go test`** (plain + CGO), **`go vet`**, **`golangci-lint run`**, **`make check-layout`**, **`make check-architecture`**, **`make check-dupl`**. |
+| **Test job** | Fast APT mirror, then **`apt-get install`** **libvips-dev** / **libhdf5-dev** / **pkg-config** (same mirror for all **`apt`** traffic); **`make test-all`**. |
 | **Build** | `go build -trimpath -ldflags="-s -w"` — stripped, reproducible binary named `mycourse-io-be-dev` |
 | **Upload artifact** | Binary stored in GitHub's temporary artifact storage (1-day retention) |
 | **Download artifact** | `deploy` job fetches the binary |

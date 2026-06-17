@@ -81,6 +81,7 @@ Health endpoint (same as PM2 deploy script): `GET http://127.0.0.1:8080/api/v1/h
 
 ## Dockerfile (aligned with CI)
 
+- **Quality gates:** CI runs **`make test-all`** before build; locally run **`make check-all`** before shipping. The Docker image only runs the **production CGO build** (same as CI **`build`** job).
 - **Builder:** `golang:1.25.0-bookworm` + `libvips-dev`, `libhdf5-dev`, `pkg-config`
 - **Build:** `CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o mycourse-io-be-<STAGE> .`
 - **Runtime:** `debian:bookworm-slim` + `libvips42`, `libhdf5-103-1`, `curl`

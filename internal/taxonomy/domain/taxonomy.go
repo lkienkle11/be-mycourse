@@ -87,6 +87,7 @@ type TaxonomyFilter struct {
 	SortBy         string
 	SortDesc       bool
 	IncludeDeleted bool // true for GET .../full list routes
+	IncludeImages  bool // false skips media_files join for list pickers
 }
 
 // CreateCourseTopicInput carries data for creating a new course topic.

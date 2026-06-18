@@ -1407,8 +1407,11 @@ Allowed `search_by` values:
 **Update body:** partial `{ "name"?, "status"? }` — when `name` changes, slug is recomputed server-side.
 
 ```bash
-# List
+# List (optional include_images=false for picker UIs — skips image URL hydration on topics/outcomes)
 curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&status=ACTIVE" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/topics?per_page=100&include_images=false" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # Create
@@ -1547,7 +1550,7 @@ curl -sS -X POST "{{BASE_URL}}/api/v1/instructor-applications/1/reject" \
 
 ## 14. Course management
 
-> **Auth:** Bearer JWT. Permissions: `course:create`, `course:update`, `course:delete`, `course_instructor:read`, `admin:modify` (review). Full route matrix: **`docs/router.md`**, module notes: **`docs/modules/course.md`**.
+> **Auth:** Bearer JWT. Permissions: `course:create`, `course:update`, `course:delete`, `course_instructor:read`, `course_review:*` (P59–P61), `course_catalog:*` / `course_trash:*` (P62–P66) for admin catalog. Full route matrix: **`docs/router.md`**, module notes: **`docs/modules/course.md`**.
 
 Requires migration **`000016_course_management`** (or `MIGRATE=1`) and permission sync.
 
@@ -1625,24 +1628,30 @@ Success `data`: `[]CourseListItem` (courses where caller is owner or collaborato
 
 **`GET /api/v1/courses/:courseId`** — permission `course_instructor:read`
 
+Optional query: `include_outline=false` — skip outline tree (faster for info/collaborators tabs; `outline` is `[]`).
+
 ```bash
 curl -sS "{{BASE_URL}}/api/v1/courses/1" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Info tab (no outline)
+curl -sS "{{BASE_URL}}/api/v1/courses/1?include_outline=false" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-Success `data`: `CourseDetail` with draft + published version context when available.
+Success `data`: `CourseDetail` with `live_version`, `draft_version`, optional `last_rejection_reason` (when new draft was forked from a rejected version), collaborators, and outline for the active draft (or published when no draft) unless `include_outline=false`.
 
 ### 14.4 Update draft basic info
 
 **`PATCH /api/v1/courses/:courseId/basic-info`** — permission `course:update`
 
-Request body: `expected_row_version` (required, `>= 1`) plus optional metadata fields. **`title` is not accepted** (set only on `POST /courses`).
+Request body: `expected_row_version` (required, `>= 1`) plus required metadata fields (`title` ≥5 non-whitespace, server slugify; `short_description`, `about_course`, `thumbnail_file_id`, `course_level_id`, `course_topic_id`, `tag_ids`, `skill_ids`, `outcome_ids`). `preview_video_file_id` is optional.
 
 ```bash
 curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"expected_row_version":1,"short_description":"Short blurb"}'
+  -d '{"expected_row_version":1,"title":"Introduction to Go","short_description":"Short blurb"}'
 ```
 
 Other instructor routes (outline CRUD/reorder, leases, collaborators, review submit/reopen) follow the same Bearer + permission pattern — see **`docs/router.md`**.
@@ -1721,6 +1730,52 @@ Example outline fragment in `GET /api/v1/courses/:courseId` (truncated):
 ```
 
 Full semantics: **`docs/modules/course.md`** → Estimated duration.
+
+### 14.6 Sysadmin course catalog + trash (`/api/v1/course-admin`)
+
+Requires migrations **`000023_course_trash`** and **`000024_course_admin_permissions`** (or `MIGRATE=1`). Granular permissions **P59–P66** (not shell `admin:modify`). Dev token: login as **`user01@yopmail.com`** / **`Test@1234`** (see **`AGENTS.md`**).
+
+**List approved published courses** (excludes trash and draft-only courses):
+
+```bash
+curl -sS '{{BASE_URL}}/api/v1/course-admin/courses' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**List trashed courses:**
+
+```bash
+curl -sS '{{BASE_URL}}/api/v1/course-admin/courses/trash' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**Move to trash** (eligible: published `APPROVED`, draft not `REJECTED`):
+
+```bash
+curl -sS -X POST '{{BASE_URL}}/api/v1/course-admin/courses/{{courseId}}/trash' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**Restore from trash:**
+
+```bash
+curl -sS -X POST '{{BASE_URL}}/api/v1/course-admin/courses/{{courseId}}/restore' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+**Permanent delete** (course must already be in trash):
+
+```bash
+curl -sS -X DELETE '{{BASE_URL}}/api/v1/course-admin/courses/{{courseId}}/permanent' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+Pass: HTTP **200**, `code: 0` on success; **404** when course not found; **409** / business code when trash eligibility fails. Trashed courses return **404** on `GET /api/v1/courses/:courseId` (edit blocked).
 
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
 

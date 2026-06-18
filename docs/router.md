@@ -148,7 +148,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 |--------|------|-----------|-------------|
 | GET | `/api/v1/courses/my` | `course_instructor:read` | List editable courses |
 | POST | `/api/v1/courses` | `course:create` | Create course root |
-| GET | `/api/v1/courses/:courseId` | `course_instructor:read` | Get course detail |
+| GET | `/api/v1/courses/:courseId` | `course_instructor:read` | Get course detail; query `include_outline` (default `true`, `false` skips outline) |
 | POST | `/api/v1/courses/:courseId/draft/prepare` | `course:update` | Ensure one active draft |
 | PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info (`title` → server slugify updates `courses.slug`) |
 | DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |
@@ -171,10 +171,15 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | POST | `/api/v1/courses/:courseId/leases/heartbeat` | `course:update` | Refresh edit lease |
 | POST | `/api/v1/courses/:courseId/leases/release` | `course:update` | Release edit lease |
 | POST | `/api/v1/courses/:courseId/submit-review` | `course:update` | Submit draft for review |
-| POST | `/api/v1/courses/:courseId/reopen-draft` | `course:update` | Reopen rejected draft |
-| GET | `/api/v1/course-reviews/pending` | `admin:modify` | List pending drafts |
-| POST | `/api/v1/course-reviews/:courseId/approve` | `admin:modify` | Approve draft/publish |
-| POST | `/api/v1/course-reviews/:courseId/reject` | `admin:modify` | Reject draft with reason |
+| POST | `/api/v1/courses/:courseId/reopen-draft` | `course:update` | Fork new draft from legacy rejected version (`max(version_no)+1`) |
+| GET | `/api/v1/course-reviews/pending` | `course_review:read` (P59) | List pending drafts |
+| POST | `/api/v1/course-reviews/:courseId/approve` | `course_review:approve` (P60) | Approve draft; published version = submitted row |
+| POST | `/api/v1/course-reviews/:courseId/reject` | `course_review:reject` (P61) | Reject submitted row; auto-fork new draft at `max+1` |
+| GET | `/api/v1/course-admin/courses` | `course_catalog:read` (P62) | List approved published courses (not in trash) |
+| GET | `/api/v1/course-admin/courses/trash` | `course_trash:read` (P64) | List trashed approved courses |
+| POST | `/api/v1/course-admin/courses/:courseId/trash` | `course_catalog:trash` (P63) | Move eligible course to trash |
+| POST | `/api/v1/course-admin/courses/:courseId/restore` | `course_trash:restore` (P65) | Restore course from trash |
+| DELETE | `/api/v1/course-admin/courses/:courseId/permanent` | `course_trash:delete` (P66) | Permanently delete trashed course |
 | GET | `/api/v1/learner-courses` | `course:read` | List published learner catalog |
 | GET | `/api/v1/learner-courses/:courseId` | `course:read` | Get learning course detail |
 | POST | `/api/v1/learner-courses/:courseId/enroll` | `course:read` | Enroll learner |

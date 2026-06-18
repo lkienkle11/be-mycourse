@@ -7,11 +7,11 @@ import (
 
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/response"
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
 	"mycourse-io-be/internal/taxonomy/application"
 	"mycourse-io-be/internal/taxonomy/domain"
-	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 )
 
 // Handler holds all taxonomy HTTP handlers.
@@ -188,11 +188,16 @@ func (h *Handler) hardDeleteCourseLevel(c *gin.Context) {
 // --- mapping helpers ---------------------------------------------------------
 
 func toFilter(q TaxonomyBaseFilter, includeDeleted bool) domain.TaxonomyFilter {
+	includeImages := true
+	if q.IncludeImages != nil {
+		includeImages = *q.IncludeImages
+	}
 	return domain.TaxonomyFilter{
 		Page: q.getPage(), PageSize: q.getPerPage(),
 		Status: q.Status, SearchBy: q.SearchBy, SearchValue: q.SearchValue,
 		SortBy: q.SortBy, SortDesc: q.SortDesc,
 		IncludeDeleted: includeDeleted,
+		IncludeImages:  includeImages,
 	}
 }
 

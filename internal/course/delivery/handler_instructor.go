@@ -32,8 +32,9 @@ func (h *Handler) createCourse(c *gin.Context) {
 }
 
 func (h *Handler) getCourseDetail(c *gin.Context) {
+	includeOutline := c.DefaultQuery("include_outline", "true") != "false"
 	h.courseOK(c, "ok", func(courseID string) (any, error) {
-		return h.svc.GetCourseDetail(c.Request.Context(), courseID, utils.CurrentUserID(c), true)
+		return h.svc.GetCourseDetail(c.Request.Context(), courseID, utils.CurrentUserID(c), true, includeOutline)
 	})
 }
 

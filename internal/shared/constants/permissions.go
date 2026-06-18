@@ -77,6 +77,17 @@ var AllPermissions = struct {
 	InstructorExpertiseDelete string `perm_id:"P57"`
 	// Instructor ticket
 	InstructorTicketClose string `perm_id:"P58"`
+	// Course review (admin/sysadmin queue)
+	CourseReviewRead    string `perm_id:"P59"`
+	CourseReviewApprove string `perm_id:"P60"`
+	CourseReviewReject  string `perm_id:"P61"`
+	// Course catalog (admin list + trash action)
+	CourseCatalogRead  string `perm_id:"P62"`
+	CourseCatalogTrash string `perm_id:"P63"`
+	// Course trash bin
+	CourseTrashRead    string `perm_id:"P64"`
+	CourseTrashRestore string `perm_id:"P65"`
+	CourseTrashDelete  string `perm_id:"P66"`
 }{
 	ProfileRead:                  "profile:read",
 	ProfileUpdate:                "profile:update",
@@ -136,4 +147,12 @@ var AllPermissions = struct {
 	InstructorExpertiseUpdate:    "instructor_expertise:update",
 	InstructorExpertiseDelete:    "instructor_expertise:delete",
 	InstructorTicketClose:        "instructor_ticket:close",
+	CourseReviewRead:             "course_review:read",
+	CourseReviewApprove:          "course_review:approve",
+	CourseReviewReject:           "course_review:reject",
+	CourseCatalogRead:            "course_catalog:read",
+	CourseCatalogTrash:           "course_catalog:trash",
+	CourseTrashRead:              "course_trash:read",
+	CourseTrashRestore:           "course_trash:restore",
+	CourseTrashDelete:            "course_trash:delete",
 }

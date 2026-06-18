@@ -427,16 +427,32 @@ server {
 }
 ```
 
-4. Create **`/etc/nginx/sites-available/mycourse-api`** — API, **port 80 only** for now:
+4. Create **`/etc/nginx/sites-available/mycourse-api`** — API, **port 80 only** for now. Reference the sample configuration at **`deploys/nginx/nginx.conf`** for the complete setup with large file upload handling, WebSocket support, and SSE configuration:
 
 ```nginx
 server {
     listen 80;
     server_name api.yourdomain.net;
 
-    # Large media uploads: must be >= app single-file cap (2 GiB). Otherwise nginx returns 413 before the Go API runs.
-    client_max_body_size 2G;
+    # Specialized endpoint for large file uploads (2 GiB limit)
+    location /api/v1/media/files {
+        # Chỉ cho phép file tối đa 2GB đi qua endpoint này
+        client_max_body_size 2050M;
 
+        # Tăng timeout đọc body từ client tránh đứt kết nối giữa chừng do mạng chậm
+        client_body_timeout 120s;
+
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    # All other traffic with WebSocket and SSE support
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
@@ -444,10 +460,23 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 90s;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # SSE support (Server-Sent Events)
+        proxy_buffering off;
+        proxy_cache off;
+
+        # Timeouts for long-lived connections
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 }
 ```
+
+For the complete nginx configuration with SSL setup, see **`deploys/nginx/nginx.conf`** in the repository.
 
 5. Enable both sites and reload:
 

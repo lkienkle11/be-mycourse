@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-17 (outline reorder write-path performance, batch media meta query, lease read-after-write removal). Read-path batching/parallelism: 2026-06-16._
+_Last audited: 2026-06-17 (course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads). Prior: outline reorder write-path performance, batch media meta query, lease read-after-write removal. Read-path batching/parallelism: 2026-06-16._
 
 ## Overview
 
@@ -49,6 +49,30 @@ Migration: `migrations/000016_course_management.{up,down}.sql`
 - Only one active draft exists per course at a time.
 - Learners always read from `current_published_version_id`.
 - Instructor edits always write to the draft version, never directly to the published version.
+
+## Version numbering (`version_no`)
+
+`version_no` is monotonic per course (`MAX(version_no) + 1` on each new draft row). Rules:
+
+| Event | `version_no` | Notes |
+|-------|--------------|-------|
+| Create course | `1` | Initial `DRAFT` row |
+| Submit for review (`DRAFT` → `IN_REVIEW`) | unchanged | Same edit generation |
+| Approve | submitted row keeps its number; becomes `live_version` | `current_draft_version_id` cleared; next `POST …/draft/prepare` creates `max + 1` |
+| Reject | rejected row frozen in history; **new** `DRAFT` at `max + 1` | Cloned from rejected version via `createNextDraftVersion`; `current_draft_version_id` points to new draft |
+| Reopen draft (legacy `REJECTED` pointer) | **new** `DRAFT` at `max + 1` | Same fork as reject — does not flip status on the rejected row |
+| Prepare draft (after approve) | `max + 1` | Clones from `current_published_version_id` when present |
+
+`GET /api/v1/courses/:courseId` may return:
+
+- `live_version` — approved snapshot learners use (`APPROVED` status on that row)
+- `draft_version` — current editable pointer (`DRAFT`, `IN_REVIEW`, or legacy `REJECTED`)
+- `last_rejection_reason` — when `draft_version.based_on_version_id` references a `REJECTED` row, surfaces that row's `rejection_reason` on the new draft for instructor UI
+- `outline` — full version tree (sections → lessons → sub-lessons). Omit heavy outline reads with query `include_outline=false` (default `true` for backward compatibility). Instructor **info** and **collaborators** tabs use `include_outline=false`; **outline** tab uses the default.
+
+**Query:** `include_outline` — optional boolean (`false` skips `loadOutline`; response `outline` is `[]`).
+
+Editable mutations (`ensureEditableDraft`) allow only `DRAFT` status (`IN_REVIEW` and `REJECTED` are blocked).
 
 ## Collaboration and conflict control
 
@@ -176,14 +200,24 @@ Instructor / collaborator routes:
   - outline responses include computed `estimated_duration_ms` on sections, lessons, and sub-lessons
 - lease routes under `/api/v1/courses/:courseId/leases/*`
 - review submission routes:
-  - `POST /api/v1/courses/:courseId/submit-review`
-  - `POST /api/v1/courses/:courseId/reopen-draft`
+  - `POST /api/v1/courses/:courseId/submit-review` — same `version_no`; runs `validateDraftForReview`
+  - `POST /api/v1/courses/:courseId/reopen-draft` — legacy: fork new `DRAFT` at `max + 1` from rejected version (prefer auto-fork on reject for new data)
 
-Admin / sysadmin review routes:
+Admin / sysadmin review routes (P59–P61):
 
-- `GET /api/v1/course-reviews/pending`
-- `POST /api/v1/course-reviews/:courseId/approve`
-- `POST /api/v1/course-reviews/:courseId/reject`
+- `GET /api/v1/course-reviews/pending` — `course_review:read` (P59)
+- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60); sets `current_published_version_id` to submitted version, clears draft pointer
+- `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61); marks submitted version `REJECTED`, forks new `DRAFT` at `max + 1`
+
+Admin / sysadmin course catalog routes (P62–P66):
+
+- `GET /api/v1/course-admin/courses` — `course_catalog:read` (P62); approved published courses not in trash
+- `GET /api/v1/course-admin/courses/trash` — `course_trash:read` (P64); trashed approved courses
+- `POST /api/v1/course-admin/courses/:courseId/trash` — `course_catalog:trash` (P63); move eligible course to trash
+- `POST /api/v1/course-admin/courses/:courseId/restore` — `course_trash:restore` (P65); restore from trash
+- `DELETE /api/v1/course-admin/courses/:courseId/permanent` — `course_trash:delete` (P66); permanently delete trashed course
+
+**Trash semantics:** `courses.trashed_at` (migration `000023`). Trashed courses cannot be edited or learned. Instructor delete of an approved published course moves it to trash instead of soft-deleting immediately.
 
 Learner routes:
 
@@ -204,7 +238,16 @@ The module reuses the existing permission catalog:
 | `course:delete` | route-level delete gate; business logic still requires `OWNER` |
 | `course:read` | learner course list/detail/progress |
 | `course_instructor:read` | instructor editable course list and detail |
-| `admin:modify` | approve / reject review queue |
+| `course_review:read` | list pending review queue (P59) |
+| `course_review:approve` | approve draft / publish (P60) |
+| `course_review:reject` | reject draft with reason (P61) |
+| `course_catalog:read` | sysadmin list all courses (P62) |
+| `course_catalog:trash` | move eligible course to trash (P63) |
+| `course_trash:read` | list trashed courses (P64) |
+| `course_trash:restore` | restore from trash (P65) |
+| `course_trash:delete` | permanently delete trashed course (P66) |
+
+Shell permissions (`sysadmin:modify`, `admin:modify`) gate dashboard layout only — not these API routes.
 
 ## Wiring
 
@@ -237,9 +280,9 @@ Previous closeout (2026-06-15): migration **`000022_course_sub_lesson_estimated_
 2. Insert initial `course_versions` row (`version_no = 1`, `status = DRAFT`, trimmed `title`)
 3. Set `courses.current_draft_version_id`
 4. Insert `course_collaborators` row (`role = OWNER`)
-5. Reload detail via `loadCourseDetail` → `requireCourseAccess`
+5. Reload detail via `loadCourseDetail` → `requireCourseAccess` (single JOIN: `courses` + optional `course_collaborators`)
 
-Access resolution in step 5 reuses existing helpers (`loadCourse`, `loadActiveRow[collaboratorRow]`) instead of a Raw SQL scan into an embedded `courseRow`. The previous Raw scan could leave `ID = 0` even when SQL returned a row, which surfaced as `404` / `3004` (`course not found`) and rolled back the whole transaction.
+Access resolution in step 5 uses one parameterized query instead of separate `loadCourse` + collaborator lookups.
 
 List endpoints (`GET /courses/my`, learner catalog, pending reviews) use a flat `courseListScanRow` for GORM `Raw().Scan` — embedded `courseRow` is not populated by GORM for joined list queries; rows are mapped back through `asCourseRow()` → `toCourse()`.
 
@@ -251,19 +294,23 @@ The following repository-internal performance refactors remain intentionally def
 
 - `internal/course/infra/repo_versioning.go` version-clone batching / per-row insert reduction
 
-## Read-path performance (2026-06-16)
+## Read-path performance (2026-06-16, updated 2026-06-17)
 
 Course detail and taxonomy list reads were optimized **without changing response shape or business rules**:
 
 | Area | Change | Path |
 |------|--------|------|
 | DB pool | `tunePool` after `gorm.Open` — `MaxOpenConns=50`, `MaxIdleConns=25` | `internal/shared/db/db.go` |
-| Course detail | Parallel fetch of version assets, collaborators, outline (`errgroup` + `parallelReadDB` per goroutine) | `repo_access.go`, `repo_helpers.go` |
+| Course access | `requireCourseAccess` — one JOIN query (`courses` + `course_collaborators`) | `repo_access.go` |
+| Course detail | Optional `include_outline=false` skips outline tree load on GET | `handler_instructor.go`, `repo_access.go` |
+| Course detail | Parallel live/draft version row fetch; batch version assets for both versions (`loadCourseVersionAssetsBatch`, `loadVersionRefIDsBatch`) | `repo_access.go`, `repos.go` |
+| Course detail | Parallel fetch of version assets, collaborators, outline, and `last_rejection_reason` (`errgroup` + `parallelReadDB` per goroutine) | `repo_access.go`, `repo_helpers.go` |
 | Course outline | Batch load sections/lessons/sub-lessons per version; `batchHydrateSubLessons` replaces per-row N+1; `assembleOutlineSections` fails fast on missing hydration | `repo_access.go`, `repo_outline_batch.go` |
 | Course version | Parallel tag/skill/outcome refs + batched media URLs (`batchMediaURLMap`, `parallelReadDB`) | `repos.go`, `repo_outline_batch.go` |
 | Taxonomy list | Skip `COUNT(*)` when last page is inferable (`taxonomyListTotal`) | `internal/taxonomy/infra/repos_crud_helper.go` |
+| Taxonomy list | Optional `include_images=false` skips `media_files` hydration on topics/outcomes list | `taxonomy/domain.TaxonomyFilter`, `repos.go` `listTaxonomyWithImageURLs` |
 
-Measured warm parallel load (course info page): course **~3s**, each taxonomy list **&lt;1.5s** (remote PostgreSQL latency dependent).
+Measured warm load (instructor course **info** tab, remote PostgreSQL, 2026-06-17): `GET /courses/:id?include_outline=false` **~1.6–2.1s** (curl + Chrome DevTools); each taxonomy list with `include_images=false` **~0.65–1.16s** (parallel in browser). Full outline detail **~0.5–1.2s** when outline is small. Browser QA: reject-fork UI (`last_rejection_reason`, draft v2 badge, submit button) verified on `/vi/instructor/courses/019ed517-…/info`.
 
 ## Write-path performance (2026-06-17)
 
@@ -272,8 +319,14 @@ Outline reorder and lease endpoints were optimized **without changing response s
 | Area | Change | Path |
 |------|--------|------|
 | Sub-lesson reorder | `ReorderSubLessons` uses one `batchHydrateSubLessons` call (sequential when `durationByFileID` map is passed — no `errgroup`); skips post-reorder reload via `applyStableIDReorderRowMeta`; video durations come from the same `media_files` query as URLs | `repo_outline.go`, `repo_outline_batch.go`, `repo_helpers.go` |
+| Lesson reorder | `ReorderLessons` hydrates `sub_lessons` via `hydrateLessonRowsWithSubLessons` (sequential batch inside transactions) so API responses retain nested items | `repo_outline.go` |
+| Section reorder | `ReorderSections` reloads full outline **after** transaction commit (`loadOutline` outside tx) to avoid `conn busy` / `driver: bad connection` from parallel reads inside transactions | `repo_outline.go` |
+| Transaction outline reads | `loadOutlineSequential` — no `errgroup` parallel reads; used in submit validation, draft outline delete, and other in-tx paths | `repo_access.go`, `repo_submit_validation.go`, `repo_helpers.go` |
 | All outline reorders | `reorderStableIDRows` bulk `CASE stable_id` UPDATEs (2 queries per reorder instead of 2×N) | `repo_helpers.go` |
 | Media duration reads | `batchMediaDurationMs` delegates to `batchMediaURLAndDurationMsMaps` (single source for URL + duration resolution) | `repos.go`, `repo_outline_batch.go` |
 | Edit leases | `AcquireLease` / `HeartbeatLease` avoid redundant row reload after update | `repo_outline.go` |
+| Course detail / review mutations | `loadCourseDetail` runs **after** transaction commit for approve, reject, reopen, prepare, basic-info, create | `repo_review.go`, `repo_versioning.go`, `repo_instructor.go` |
 
 Measured warm reorder (2 sub-lessons, remote PostgreSQL): **~935ms–990ms** (down from ~2.35s+).
+
+**Frontend pairing:** `mergeReorderedLessons` / `mergeReorderedSections` in `fe-mycourse/src/lib/utils/course.ts` preserve nested `sub_lessons` / `lessons` when reorder API returns partial trees.

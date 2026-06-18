@@ -102,10 +102,10 @@ const MsgNotFound = "not found"
 
 // System privileged login / system_app_config (pkg/errors/system.go).
 const (
-	MsgSystemAppConfigMissing = "system_app_config row missing"
-	MsgSystemSecretsNotReady  = "system secrets are not configured in database"
-	MsgSystemLoginFailed              = "invalid system credentials"
-	MsgSystemMachineBindingFailed     = "system account is bound to another machine"
+	MsgSystemAppConfigMissing     = "system_app_config row missing"
+	MsgSystemSecretsNotReady      = "system secrets are not configured in database"
+	MsgSystemLoginFailed          = "invalid system credentials"
+	MsgSystemMachineBindingFailed = "system account is bound to another machine"
 )
 
 // Auth user/session sentinels (pkg/errors/auth.go); wording kept aligned with prior services/auth strings.

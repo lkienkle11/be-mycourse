@@ -40,8 +40,9 @@ The feature is built around these core rules:
 - `course` is the root entity
 - a course has at most one active draft version at a time
 - learners only use the currently approved published version
-- instructors edit the draft only
-- approval promotes the draft to the new live version
+- instructors edit the draft only (`DRAFT` status for mutations; submit keeps `version_no`)
+- approval promotes the submitted version to the new live version; next prepare uses `max(version_no)+1`
+- reject freezes the submitted row as `REJECTED` and forks a new `DRAFT` at `max(version_no)+1`
 - progress is tied to stable content identities instead of version-specific row ids
 
 ## Tasks completed

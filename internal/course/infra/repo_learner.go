@@ -31,6 +31,7 @@ INNER JOIN course_versions pv
 LEFT JOIN media_files pm
     ON pm.id = pv.thumbnail_file_id AND pm.deleted_at IS NULL
 WHERE c.deleted_at IS NULL
+  AND c.trashed_at IS NULL
 ORDER BY c.id DESC`
 	var rows []courseListScanRow
 	if err := r.db.WithContext(ctx).Raw(q).Scan(&rows).Error; err != nil {

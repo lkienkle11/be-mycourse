@@ -44,8 +44,8 @@ func (s *CourseService) CreateCourse(ctx context.Context, in domain.CreateCourse
 	})
 }
 
-func (s *CourseService) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
-	return s.repo.GetCourseDetail(ctx, courseID, userID, includeDraft)
+func (s *CourseService) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
+	return s.repo.GetCourseDetail(ctx, courseID, userID, includeDraft, includeOutline)
 }
 
 func (s *CourseService) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
@@ -150,6 +150,26 @@ func (s *CourseService) ReopenDraft(ctx context.Context, courseID string, actorU
 
 func (s *CourseService) ListPendingReviews(ctx context.Context) ([]domain.CourseListItem, error) {
 	return s.repo.ListPendingReviews(ctx)
+}
+
+func (s *CourseService) ListAdminCourses(ctx context.Context) ([]domain.CourseListItem, error) {
+	return s.repo.ListAdminCourses(ctx)
+}
+
+func (s *CourseService) ListTrashedCourses(ctx context.Context) ([]domain.CourseListItem, error) {
+	return s.repo.ListTrashedCourses(ctx)
+}
+
+func (s *CourseService) TrashCourse(ctx context.Context, courseID string) error {
+	return s.repo.TrashCourse(ctx, courseID)
+}
+
+func (s *CourseService) RestoreCourse(ctx context.Context, courseID string) error {
+	return s.repo.RestoreCourse(ctx, courseID)
+}
+
+func (s *CourseService) PermanentDeleteCourse(ctx context.Context, courseID string) error {
+	return s.repo.PermanentDeleteCourse(ctx, courseID)
 }
 
 func (s *CourseService) ApproveDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {

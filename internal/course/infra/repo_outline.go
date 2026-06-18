@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	stderrors "errors"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -57,26 +58,26 @@ func (r *GormRepository) DeleteSection(ctx context.Context, courseID string, act
 }
 
 func (r *GormRepository) ReorderSections(ctx context.Context, courseID string, actorUserID string, orderedStableIDs []string) ([]domain.Section, error) {
-	var outline []domain.Section
+	var versionID string
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
 		if err != nil {
 			return err
 		}
-		rows, err := r.loadSectionsByVersion(ctx, tx, *access.CurrentDraftVersionID)
+		versionID = *access.CurrentDraftVersionID
+		rows, err := r.loadSectionsByVersion(ctx, tx, versionID)
 		if err != nil {
 			return err
 		}
 		if !sameStableIDs(rows, orderedStableIDs, func(row sectionRow) string { return row.StableID }) {
 			return domain.ErrCourseInvalidOrdering
 		}
-		if err := reorderStableIDRows(ctx, tx, &sectionRow{}, "course_version_id = ?", *access.CurrentDraftVersionID, orderedStableIDs); err != nil {
-			return err
-		}
-		outline, err = r.loadOutline(ctx, tx, *access.CurrentDraftVersionID)
-		return err
+		return reorderStableIDRows(ctx, tx, &sectionRow{}, "course_version_id = ?", versionID, orderedStableIDs)
 	})
-	return outline, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadOutline(ctx, r.db, versionID)
 }
 
 func (r *GormRepository) CreateLesson(ctx context.Context, courseID string, actorUserID string, in domain.UpsertLessonInput) (*domain.Lesson, error) {
@@ -149,11 +150,8 @@ func (r *GormRepository) ReorderLessons(ctx context.Context, courseID string, ac
 		if err != nil {
 			return err
 		}
-		out = make([]domain.Lesson, len(rows))
-		for i := range rows {
-			out[i] = toLesson(&rows[i])
-		}
-		return nil
+		out, err = r.hydrateLessonRowsWithSubLessons(ctx, tx, rows, orderedStableIDs)
+		return err
 	})
 	return out, err
 }
@@ -279,7 +277,7 @@ func (r *GormRepository) DeleteSubLesson(ctx context.Context, courseID string, a
 		if err := tx.Delete(&subLessonRow{}, row.ID).Error; err != nil {
 			return err
 		}
-		outline, err = r.loadOutline(ctx, tx, *access.CurrentDraftVersionID)
+		outline, err = r.loadOutlineSequential(ctx, tx, *access.CurrentDraftVersionID)
 		return err
 	})
 	return outline, err
@@ -323,6 +321,65 @@ func (r *GormRepository) ReorderSubLessons(ctx context.Context, courseID string,
 		return nil
 	})
 	return out, err
+}
+
+func (r *GormRepository) hydrateLessonRowsWithSubLessons(
+	ctx context.Context,
+	db *gorm.DB,
+	lessonRows []lessonRow,
+	orderedStableIDs []string,
+) ([]domain.Lesson, error) {
+	if len(lessonRows) == 0 {
+		return []domain.Lesson{}, nil
+	}
+	orderByStable := make(map[string]int, len(orderedStableIDs))
+	for i, stableID := range orderedStableIDs {
+		orderByStable[stableID] = i
+	}
+	sort.Slice(lessonRows, func(i, j int) bool {
+		return orderByStable[lessonRows[i].StableID] < orderByStable[lessonRows[j].StableID]
+	})
+	lessonIDs := make([]string, len(lessonRows))
+	for i, row := range lessonRows {
+		lessonIDs[i] = row.ID
+	}
+	subRows, err := loadActiveRows[subLessonRow](ctx, db, "lesson_id IN ? AND deleted_at IS NULL", lessonIDs)
+	if err != nil {
+		return nil, err
+	}
+	videoMediaMs := make(map[string]int64)
+	subMap, err := r.batchHydrateSubLessons(ctx, db, subRows, videoMediaMs)
+	if err != nil {
+		return nil, err
+	}
+	subLessonsByLesson := make(map[string][]domain.SubLesson, len(lessonRows))
+	for _, sub := range subRows {
+		hydrated, ok := subMap[sub.ID]
+		if !ok {
+			return nil, domain.ErrCourseNotFound
+		}
+		subLessonsByLesson[sub.LessonID] = append(subLessonsByLesson[sub.LessonID], hydrated)
+	}
+	out := make([]domain.Lesson, len(lessonRows))
+	for i, row := range lessonRows {
+		out[i] = toLesson(&row)
+		out[i].SubLessons = subLessonsByLesson[row.ID]
+		if out[i].SubLessons == nil {
+			out[i].SubLessons = []domain.SubLesson{}
+		}
+	}
+	videoIDs := collectVideoMediaFileIDs([]domain.Section{{Lessons: out}})
+	if len(videoIDs) > 0 {
+		loaded, err := r.batchMediaDurationMs(ctx, db, videoIDs)
+		if err != nil {
+			return nil, err
+		}
+		for id, ms := range loaded {
+			videoMediaMs[id] = ms
+		}
+	}
+	applyOutlineEstimatedDurations([]domain.Section{{Lessons: out}}, videoMediaMs)
+	return out, nil
 }
 
 type outlineUpdateSpec[T any, D any] struct {

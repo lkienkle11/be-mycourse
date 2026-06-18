@@ -62,6 +62,14 @@ var RolePermissions = struct {
 	Sysadmin_InstructorExpertiseUpdate    string `role:"sysadmin" perm_id:"P56"`
 	Sysadmin_InstructorExpertiseDelete    string `role:"sysadmin" perm_id:"P57"`
 	Sysadmin_InstructorTicketClose        string `role:"sysadmin" perm_id:"P58"`
+	Sysadmin_CourseReviewRead             string `role:"sysadmin" perm_id:"P59"`
+	Sysadmin_CourseReviewApprove          string `role:"sysadmin" perm_id:"P60"`
+	Sysadmin_CourseReviewReject           string `role:"sysadmin" perm_id:"P61"`
+	Sysadmin_CourseCatalogRead            string `role:"sysadmin" perm_id:"P62"`
+	Sysadmin_CourseCatalogTrash           string `role:"sysadmin" perm_id:"P63"`
+	Sysadmin_CourseTrashRead              string `role:"sysadmin" perm_id:"P64"`
+	Sysadmin_CourseTrashRestore           string `role:"sysadmin" perm_id:"P65"`
+	Sysadmin_CourseTrashDelete            string `role:"sysadmin" perm_id:"P66"`
 	// admin — profile + course + user (no course_instructor)
 	Admin_ProfileRead                  string `role:"admin" perm_id:"P1"`
 	Admin_ProfileUpdate                string `role:"admin" perm_id:"P2"`
@@ -119,6 +127,14 @@ var RolePermissions = struct {
 	Admin_InstructorExpertiseUpdate    string `role:"admin" perm_id:"P56"`
 	Admin_InstructorExpertiseDelete    string `role:"admin" perm_id:"P57"`
 	Admin_InstructorTicketClose        string `role:"admin" perm_id:"P58"`
+	Admin_CourseReviewRead             string `role:"admin" perm_id:"P59"`
+	Admin_CourseReviewApprove          string `role:"admin" perm_id:"P60"`
+	Admin_CourseReviewReject           string `role:"admin" perm_id:"P61"`
+	Admin_CourseCatalogRead            string `role:"admin" perm_id:"P62"`
+	Admin_CourseCatalogTrash           string `role:"admin" perm_id:"P63"`
+	Admin_CourseTrashRead              string `role:"admin" perm_id:"P64"`
+	Admin_CourseTrashRestore           string `role:"admin" perm_id:"P65"`
+	Admin_CourseTrashDelete            string `role:"admin" perm_id:"P66"`
 	// instructor
 	Instructor_ProfileRead                 string `role:"instructor" perm_id:"P1"`
 	Instructor_CourseRead                  string `role:"instructor" perm_id:"P5"`

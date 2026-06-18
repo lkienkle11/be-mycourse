@@ -63,9 +63,9 @@ func TestNextFreeCourseSlug(t *testing.T) {
 		t.Fatalf("base taken: got %q", got)
 	}
 	taken := map[string]struct{}{
-		base:              {},
-		"react-basics-2":  {},
-		"react-basics-4":  {},
+		base:                    {},
+		"react-basics-2":        {},
+		"react-basics-4":        {},
 		"react-basics-advanced": {},
 	}
 	if got := nextFreeCourseSlug(base, taken); got != "react-basics-3" {

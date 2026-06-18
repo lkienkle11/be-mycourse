@@ -38,6 +38,7 @@ LEFT JOIN media_files dm
 LEFT JOIN media_files pm
     ON pm.id = pv.thumbnail_file_id AND pm.deleted_at IS NULL
 WHERE c.deleted_at IS NULL
+  AND c.trashed_at IS NULL
   AND (c.owner_user_id = @user_id OR cc.id IS NOT NULL)
 ORDER BY c.id DESC`
 
@@ -67,7 +68,7 @@ func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCours
 }
 
 func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
-	var detail *domain.CourseDetail
+	var courseID string
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		slug, err := ensureUniqueCourseSlug(ctx, tx, in.Slug, nil)
 		if err != nil {
@@ -77,6 +78,7 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 		if err := touchCreateCourseEntity(ctx, tx, &course.CreatedAt, &course.UpdatedAt, course); err != nil {
 			return err
 		}
+		courseID = course.ID
 
 		version := &courseVersionRow{
 			CourseID: course.ID, VersionNo: 1, Status: domain.VersionStatusDraft,
@@ -91,44 +93,41 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 		}
 
 		collab := &collaboratorRow{CourseID: course.ID, UserID: in.ActorUserID, Role: domain.CollaboratorRoleOwner}
-		if err := touchCreateCourseEntity(ctx, tx, &collab.CreatedAt, &collab.UpdatedAt, collab); err != nil {
-			return err
-		}
-		detail, err = r.loadCourseDetail(ctx, tx, course.ID, in.ActorUserID, true)
-		return err
+		return touchCreateCourseEntity(ctx, tx, &collab.CreatedAt, &collab.UpdatedAt, collab)
 	})
-	return detail, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCourseDetail(ctx, r.db, courseID, in.ActorUserID, true, true)
 }
 
-func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool) (*domain.CourseDetail, error) {
-	return r.loadCourseDetail(ctx, r.db.WithContext(ctx), courseID, userID, includeDraft)
+func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
+	return r.loadCourseDetail(ctx, r.db.WithContext(ctx), courseID, userID, includeDraft, includeOutline)
 }
 
 func (r *GormRepository) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
-	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID)
 		if err != nil {
 			return err
 		}
-		if access.CurrentDraftVersionID == nil {
-			draftID, err := r.createDraftVersion(ctx, tx, &access.courseRow)
-			if err != nil {
-				return err
-			}
-			if err := tx.Model(&courseRow{}).Where("id = ?", courseID).
-				Updates(map[string]any{"current_draft_version_id": draftID, "updated_at": timex.NowUnix()}).Error; err != nil {
-				return err
-			}
+		if access.CurrentDraftVersionID != nil {
+			return nil
 		}
-		detail, err = r.loadCourseDetail(ctx, tx, courseID, actorUserID, true)
-		return err
+		draftID, err := r.createDraftVersion(ctx, tx, &access.courseRow)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&courseRow{}).Where("id = ?", courseID).
+			Updates(map[string]any{"current_draft_version_id": draftID, "updated_at": timex.NowUnix()}).Error
 	})
-	return detail, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in domain.UpdateBasicInfoInput) (*domain.CourseDetail, error) {
-	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		access, err := r.ensureEditableDraft(ctx, tx, courseID, actorUserID)
 		if err != nil {
@@ -171,13 +170,15 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 				return err
 			}
 		}
-		detail, err = r.loadCourseDetail(ctx, tx, courseID, actorUserID, true)
-		return err
+		return nil
 	})
 	if stderrors.Is(err, apperrors.ErrMediaOptimisticLock) {
 		return nil, domain.ErrCourseOptimisticLock
 	}
-	return detail, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, actorUserID string) error {
@@ -186,39 +187,16 @@ func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, acto
 		if err != nil {
 			return err
 		}
-		now := timex.NowUnix()
-		for _, model := range []any{&courseRow{}, &courseVersionRow{}, &collaboratorRow{}, &enrollmentRow{}, &progressRow{}} {
-			switch model.(type) {
-			case *courseRow:
-				if err := tx.Model(model).Where("id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *courseVersionRow:
-				if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *collaboratorRow:
-				if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *enrollmentRow:
-				if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", access.ID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-					return err
-				}
-			case *progressRow:
-				if err := tx.Exec(`
-UPDATE course_progress_items
-SET deleted_at = ?, updated_at = ?
-WHERE deleted_at IS NULL
-  AND enrollment_id IN (
-      SELECT id FROM course_enrollments
-      WHERE course_id = ? AND deleted_at IS NULL
-  )`, now, now, access.ID).Error; err != nil {
-					return err
-				}
-			}
+		published, draft, err := r.loadPublishedAndDraftVersions(ctx, tx, &access.courseRow)
+		if err != nil {
+			return err
 		}
-		return nil
+		if courseEligibleForTrash(published, draft) {
+			now := timex.NowUnix()
+			return tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
+				Updates(map[string]any{"trashed_at": now, "updated_at": now}).Error
+		}
+		return r.softDeleteCourseTree(ctx, tx, access.ID)
 	})
 }
 

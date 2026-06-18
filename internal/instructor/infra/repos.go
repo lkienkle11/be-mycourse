@@ -257,9 +257,9 @@ WHERE ur.user_id = ?`, constants.TableRBACUserRoles, constants.TableRBACRoles)
 func (r *GormRepository) ListExpertise(ctx context.Context, userID string, isTopic bool) (any, error) {
 	if isTopic {
 		type expertiseTopicWithTaxonomyRow struct {
-			ID        string   `gorm:"column:id"`
+			ID        string `gorm:"column:id"`
 			UserID    string `gorm:"column:user_id"`
-			TopicID   string   `gorm:"column:topic_id"`
+			TopicID   string `gorm:"column:topic_id"`
 			CreatedAt int64  `gorm:"column:created_at"`
 			UpdatedAt int64  `gorm:"column:updated_at"`
 			Name      string `gorm:"column:name"`
@@ -285,9 +285,9 @@ func (r *GormRepository) ListExpertise(ctx context.Context, userID string, isTop
 		return out, nil
 	}
 	type expertiseSkillWithTaxonomyRow struct {
-		ID        string   `gorm:"column:id"`
+		ID        string `gorm:"column:id"`
 		UserID    string `gorm:"column:user_id"`
-		SkillID   string   `gorm:"column:skill_id"`
+		SkillID   string `gorm:"column:skill_id"`
 		CreatedAt int64  `gorm:"column:created_at"`
 		UpdatedAt int64  `gorm:"column:updated_at"`
 		Name      string `gorm:"column:name"`
@@ -359,9 +359,9 @@ func (r *GormRepository) addExpertise(ctx context.Context, userID string, refID 
 func (r *GormRepository) getExpertiseByID(ctx context.Context, id string, isTopic bool) (any, error) {
 	if isTopic {
 		type expertiseTopicWithTaxonomyRow struct {
-			ID        string   `gorm:"column:id"`
+			ID        string `gorm:"column:id"`
 			UserID    string `gorm:"column:user_id"`
-			TopicID   string   `gorm:"column:topic_id"`
+			TopicID   string `gorm:"column:topic_id"`
 			CreatedAt int64  `gorm:"column:created_at"`
 			UpdatedAt int64  `gorm:"column:updated_at"`
 			Name      string `gorm:"column:name"`
@@ -383,9 +383,9 @@ func (r *GormRepository) getExpertiseByID(ctx context.Context, id string, isTopi
 		return &out, nil
 	}
 	type expertiseSkillWithTaxonomyRow struct {
-		ID        string   `gorm:"column:id"`
+		ID        string `gorm:"column:id"`
 		UserID    string `gorm:"column:user_id"`
-		SkillID   string   `gorm:"column:skill_id"`
+		SkillID   string `gorm:"column:skill_id"`
 		CreatedAt int64  `gorm:"column:created_at"`
 		UpdatedAt int64  `gorm:"column:updated_at"`
 		Name      string `gorm:"column:name"`

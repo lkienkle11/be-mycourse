@@ -42,13 +42,13 @@ type CircuitBreaker struct {
 
 // Config holds circuit breaker thresholds (YAML resilience: block).
 type Config struct {
-	DBProbeIntervalSec   int
-	DBFailuresToOpen     int
-	MaxInFlight          int
-	HalfOpenProbeQuota   int
-	OpenCooldownSec      int
-	ErrorWindowSec       int
-	ErrorCountToOpen     int
+	DBProbeIntervalSec     int
+	DBFailuresToOpen       int
+	MaxInFlight            int
+	HalfOpenProbeQuota     int
+	OpenCooldownSec        int
+	ErrorWindowSec         int
+	ErrorCountToOpen       int
 	DegradedAttemptsFactor float64
 }
 

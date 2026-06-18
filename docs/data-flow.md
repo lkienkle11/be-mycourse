@@ -191,11 +191,14 @@ POST/PATCH /api/v1/courses/*  (JWT + course:update)
             └─ persist version-scoped sections/lessons/sub-lessons
 
 POST /api/v1/courses/:courseId/submit-review
-  └─ transition DRAFT -> IN_REVIEW
+  └─ transition DRAFT -> IN_REVIEW (same version_no; validateDraftForReview inside tx)
 
-POST /api/v1/course-reviews/:courseId/approve|reject  (admin:modify)
-  └─ transition IN_REVIEW -> APPROVED/REJECTED
-  └─ on approve: update courses.current_published_version_id
+POST /api/v1/course-reviews/:courseId/approve|reject  (course_review:approve|reject)
+  └─ approve: IN_REVIEW -> APPROVED; courses.current_published_version_id = version; clear draft pointer
+  └─ reject: IN_REVIEW -> REJECTED on submitted row; createNextDraftVersion (max+1) -> new DRAFT pointer
+
+POST /api/v1/courses/:courseId/reopen-draft
+  └─ legacy REJECTED draft pointer -> fork new DRAFT at max+1 (clone from rejected row)
 ```
 
 ### Learner Enrollment + Progress

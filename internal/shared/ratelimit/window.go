@@ -10,7 +10,7 @@ type bucket struct {
 
 // WindowStart aligns now to the start of a fixed calendar window of windowSec seconds.
 func WindowStart(now, windowSec int64) int64 {
-	return now - (now%windowSec)
+	return now - (now % windowSec)
 }
 
 // AllowFixedWindow records one attempt for key and returns whether it is within attempts.

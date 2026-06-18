@@ -25,7 +25,6 @@ type subLessonValidationInput struct {
 }
 
 func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID string, actorUserID string, fromStatus, toStatus, reason string, setSubmitted bool) (*domain.CourseDetail, error) {
-	var detail *domain.CourseDetail
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID); err != nil {
 			return err
@@ -59,48 +58,51 @@ func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID string,
 			updates["rejected_by_user_id"] = nil
 			updates["rejected_at"] = nil
 		}
-		if err := tx.Model(&courseVersionRow{}).Where("id = ?", version.ID).Updates(updates).Error; err != nil {
-			return err
-		}
-		detail, err = r.loadCourseDetail(ctx, tx, course.ID, actorUserID, true)
-		return err
+		return tx.Model(&courseVersionRow{}).Where("id = ?", version.ID).Updates(updates).Error
 	})
-	return detail, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
 func (r *GormRepository) createDraftVersion(ctx context.Context, tx *gorm.DB, course *courseRow) (string, error) {
+	return r.createNextDraftVersion(ctx, tx, course.ID, course.CurrentPublishedVersionID)
+}
+
+func (r *GormRepository) createNextDraftVersion(ctx context.Context, tx *gorm.DB, courseID string, cloneFromVersionID *string) (string, error) {
 	var maxVersion int
-	if err := tx.Model(&courseVersionRow{}).Where("course_id = ?", course.ID).Select("COALESCE(MAX(version_no), 0)").Scan(&maxVersion).Error; err != nil {
+	if err := tx.Model(&courseVersionRow{}).Where("course_id = ?", courseID).Select("COALESCE(MAX(version_no), 0)").Scan(&maxVersion).Error; err != nil {
 		return "", err
 	}
 	draft := &courseVersionRow{
-		CourseID:   course.ID,
+		CourseID:   courseID,
 		VersionNo:  maxVersion + 1,
 		Status:     domain.VersionStatusDraft,
 		RowVersion: 1,
 	}
-	if course.CurrentPublishedVersionID != nil {
-		live, err := r.loadVersionRow(ctx, tx, *course.CurrentPublishedVersionID)
+	if cloneFromVersionID != nil {
+		source, err := r.loadVersionRow(ctx, tx, *cloneFromVersionID)
 		if err != nil {
 			return "", err
 		}
-		draft.BasedOnVersionID = &live.ID
-		draft.Title = live.Title
-		draft.ShortDescription = live.ShortDescription
-		draft.AboutCourse = live.AboutCourse
-		draft.ThumbnailFileID = live.ThumbnailFileID
-		draft.PreviewVideoFileID = live.PreviewVideoFileID
-		draft.CourseLevelID = live.CourseLevelID
-		draft.CourseTopicID = live.CourseTopicID
+		draft.BasedOnVersionID = cloneFromVersionID
+		draft.Title = source.Title
+		draft.ShortDescription = source.ShortDescription
+		draft.AboutCourse = source.AboutCourse
+		draft.ThumbnailFileID = source.ThumbnailFileID
+		draft.PreviewVideoFileID = source.PreviewVideoFileID
+		draft.CourseLevelID = source.CourseLevelID
+		draft.CourseTopicID = source.CourseTopicID
 	}
 	if err := touchCreateCourseEntity(ctx, tx, &draft.CreatedAt, &draft.UpdatedAt, draft); err != nil {
 		return "", err
 	}
-	if course.CurrentPublishedVersionID != nil {
-		if err := r.cloneVersionRefs(ctx, tx, *course.CurrentPublishedVersionID, draft.ID); err != nil {
+	if cloneFromVersionID != nil {
+		if err := r.cloneVersionRefs(ctx, tx, *cloneFromVersionID, draft.ID); err != nil {
 			return "", err
 		}
-		if err := r.cloneOutline(ctx, tx, *course.CurrentPublishedVersionID, draft.ID); err != nil {
+		if err := r.cloneOutline(ctx, tx, *cloneFromVersionID, draft.ID); err != nil {
 			return "", err
 		}
 	}

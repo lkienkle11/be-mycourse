@@ -61,14 +61,22 @@ sequenceDiagram
     Inst->>CourseAPI: POST /courses/:courseId/submit-review
     CourseAPI->>CourseSvc: SubmitForReview(courseId, actor)
     CourseSvc->>DB: validate collaborator + draft state
-    CourseSvc->>DB: update course_versions.status DRAFT -> IN_REVIEW
+    CourseSvc->>DB: update course_versions.status DRAFT -> IN_REVIEW (same version_no)
     CourseSvc-->>Inst: updated course detail
 
-    Admin->>ReviewAPI: POST /course-reviews/:courseId/approve
-    ReviewAPI->>CourseSvc: ApproveDraft(courseId, admin)
-    CourseSvc->>DB: update status -> APPROVED
-    CourseSvc->>DB: update courses.current_published_version_id
-    CourseSvc-->>Admin: updated course detail
+    alt Approve
+        Admin->>ReviewAPI: POST /course-reviews/:courseId/approve
+        ReviewAPI->>CourseSvc: ApproveDraft(courseId, admin)
+        CourseSvc->>DB: update status -> APPROVED
+        CourseSvc->>DB: courses.current_published_version_id = version; clear draft pointer
+        CourseSvc-->>Admin: updated course detail
+    else Reject
+        Admin->>ReviewAPI: POST /course-reviews/:courseId/reject
+        ReviewAPI->>CourseSvc: RejectDraft(courseId, admin, reason)
+        CourseSvc->>DB: submitted row -> REJECTED
+        CourseSvc->>DB: createNextDraftVersion (max+1) from rejected row
+        CourseSvc-->>Admin: updated course detail (new DRAFT + last_rejection_reason)
+    end
 ```
 
 ---
@@ -94,7 +102,7 @@ sequenceDiagram
     R->>DB: INSERT course_versions (v1 DRAFT)
     R->>DB: UPDATE courses.current_draft_version_id
     R->>DB: INSERT course_collaborators (OWNER)
-    R->>R: loadCourseDetail → requireCourseAccess (loadCourse + collaborator lookup)
+    R->>R: loadCourseDetail → requireCourseAccess (courses + collaborators JOIN)
     R->>DB: COMMIT
     R-->>S: *CourseDetail
     S-->>H: *CourseDetail

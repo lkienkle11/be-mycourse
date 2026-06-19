@@ -26,7 +26,7 @@ PREV="${BIN}.prev"
 ECOSYSTEM_PREV="${ECOSYSTEM_FILE}.prev"
 
 pm2_reload() {
-  pm2 reload "$ECOSYSTEM_FILE" --only "$PM2_APP_NAME" 2>/dev/null || pm2 start "$ECOSYSTEM_FILE" --only "$PM2_APP_NAME"
+  pm2 reload "$ECOSYSTEM_FILE" --only "$PM2_APP_NAME" --update-env 2>/dev/null || pm2 start "$ECOSYSTEM_FILE" --only "$PM2_APP_NAME" --update-env
 }
 
 # Returns 0 if PM2 shows the app stopped retrying (aligned with ecosystem max_restarts / errored).

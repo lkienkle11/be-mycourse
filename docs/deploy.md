@@ -519,15 +519,24 @@ Both `server { ... 443 ... }` blocks should reference the **same** `ssl_certific
 
 ### Step 16 — Run the API under PM2
 
-The actual `ecosystem.config.cjs` (at `/var/www/be-mycourse/ecosystem.config.cjs`) manages **three environments** from one file using PM2's `env_file` feature:
+The actual `ecosystem.config.cjs` (at `/var/www/be-mycourse/ecosystem.config.cjs`) manages **three environments** from one file using PM2's `env_file` feature, and now supports path/env-file overrides from deployment environment variables:
 
 ```javascript
 // /var/www/be-mycourse/ecosystem.config.cjs
+const SHARED_DEPLOY_PATH = process.env.DEPLOY_PATH;
+const DEPLOY_PATH_DEV = process.env.DEPLOY_PATH_DEV || SHARED_DEPLOY_PATH || '/var/www/be-mycourse';
+const DEPLOY_PATH_STG = process.env.DEPLOY_PATH_STG || SHARED_DEPLOY_PATH || '/var/www/be-mycourse';
+const DEPLOY_PATH_MAIN = process.env.DEPLOY_PATH_MAIN || SHARED_DEPLOY_PATH || '/var/www/be-mycourse';
+
+const DEPLOY_ENV_FILE_DEV = process.env.DEPLOY_ENV_FILE_DEV || `${DEPLOY_PATH_DEV}/.env`;
+const DEPLOY_ENV_FILE_STG = process.env.DEPLOY_ENV_FILE_STG || `${DEPLOY_PATH_STG}/.env.staging`;
+const DEPLOY_ENV_FILE_MAIN = process.env.DEPLOY_ENV_FILE_MAIN || `${DEPLOY_PATH_MAIN}/.env.prod`;
+
 module.exports = {
   apps: [
     {
       name: 'mycourse-api-dev',
-      cwd: '/var/www/be-mycourse',
+      cwd: DEPLOY_PATH_DEV,
       script: './bin/mycourse-io-be-dev',
       instances: 1,
       autorestart: true,
@@ -535,11 +544,11 @@ module.exports = {
       max_restarts: 3,
       max_memory_restart: '1024M',
       env: {},
-      env_file: '/var/www/be-mycourse/.env',
+      env_file: DEPLOY_ENV_FILE_DEV,
     },
     {
       name: 'mycourse-api-staging',
-      cwd: '/var/www/be-mycourse',
+      cwd: DEPLOY_PATH_STG,
       script: './bin/mycourse-io-be-staging',
       instances: 1,
       autorestart: true,
@@ -547,11 +556,11 @@ module.exports = {
       max_restarts: 3,
       max_memory_restart: '1024M',
       env: { STAGE: 'staging' },
-      env_file: '/var/www/be-mycourse/.env.staging',
+      env_file: DEPLOY_ENV_FILE_STG,
     },
     {
       name: 'mycourse-api-prod',
-      cwd: '/var/www/be-mycourse',
+      cwd: DEPLOY_PATH_MAIN,
       script: './bin/mycourse-io-be-prod',
       instances: 1,
       autorestart: true,
@@ -559,7 +568,7 @@ module.exports = {
       max_restarts: 3,
       max_memory_restart: '1024M',
       env: { STAGE: 'prod' },
-      env_file: '/var/www/be-mycourse/.env.prod',
+      env_file: DEPLOY_ENV_FILE_MAIN,
     },
   ],
 };
@@ -569,9 +578,9 @@ module.exports = {
 
 | Field | Value | Notes |
 |-------|-------|-------|
-| `cwd` | `/var/www/be-mycourse` | All three apps share the same working directory |
+| `cwd` | `DEPLOY_PATH_DEV` / `DEPLOY_PATH_STG` / `DEPLOY_PATH_MAIN` | Default fallback is `/var/www/be-mycourse` (or `DEPLOY_PATH` if passed by deploy script/workflow). |
 | `script` | `./bin/mycourse-io-be-{env}` | Binary in the `bin/` subdirectory |
-| `env_file` | Absolute path to `.env`, `.env.staging`, `.env.prod` | Loaded by PM2 v5+ at startup |
+| `env_file` | `DEPLOY_ENV_FILE_DEV/STG/MAIN` | Defaults: `${DEPLOY_PATH_DEV}/.env`, `${DEPLOY_PATH_STG}/.env.staging`, `${DEPLOY_PATH_MAIN}/.env.prod` (override per host if needed). |
 | `max_memory_restart` | `1024M` | Process is restarted if it exceeds 1 GB RAM |
 | `min_uptime` | `5s` | Restarts that happen before this uptime count as “unstable” toward `max_restarts` |
 | `max_restarts` | `3` | After three unstable exits, PM2 stops autorestarting (crash loop cap; same for all three apps) |
@@ -597,9 +606,9 @@ pm2 save
 **Reload (zero-downtime) after a binary update:**
 
 ```bash
-pm2 reload ecosystem.config.cjs --only mycourse-api-dev
+DEPLOY_PATH=/var/www/be-mycourse pm2 reload ecosystem.config.cjs --only mycourse-api-dev --update-env
 # If the process does not exist yet, start it:
-pm2 reload ecosystem.config.cjs --only mycourse-api-dev || pm2 start ecosystem.config.cjs --only mycourse-api-dev
+DEPLOY_PATH=/var/www/be-mycourse pm2 reload ecosystem.config.cjs --only mycourse-api-dev --update-env || DEPLOY_PATH=/var/www/be-mycourse pm2 start ecosystem.config.cjs --only mycourse-api-dev --update-env
 ```
 
 > **`env_file` requires PM2 v5+.** Run `pm2 --version` to verify. If you use an older PM2, inline the variables directly into the `env` block or use a systemd `EnvironmentFile=`.
@@ -674,7 +683,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ## Appendix C — CI/CD with GitHub Actions
 
-The active workflow is **`.github/workflows/deploy-dev.yml`**. On each push to **`master`**, CI runs **`test`** (**`make test-all`**: Go tests including **`CGO_ENABLED=1`**, **`go vet`**, **`golangci-lint run`**, layout/arch/dupl checks — no compile in this job), then **`build`** (stripped **`go build`** binary artifact), then **`deploy`** to the VPS. No Go toolchain is required on the server if you always deploy via CI. The **`deploy`** job **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. On each push to **`master`**, CI runs **`test`** (**`make test-all`**: Go tests including **`CGO_ENABLED=1`**, **`go vet`**, **`golangci-lint run`**, layout/arch/dupl checks — no compile in this job), then **`build`** (stripped **`go build`** binary artifact), then **`deploy`** to the VPS. No Go toolchain is required on the server if you always deploy via CI. The **`deploy`** job **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev --update-env`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
 
 ### C.1 — Required GitHub Secrets
 
@@ -686,6 +695,8 @@ Set these in **Settings → Secrets and variables → Actions** on your GitHub r
 | `SSH_HOST` | Server IP address or hostname | `203.0.113.42` |
 | `SSH_USER` | SSH login user | `ubuntu` / `deploy` |
 | `DEPLOY_PATH_DEV` | Absolute path to the **backend** root on the server (same variable name as the frontend workflow; use a **different** path value per service) | `/var/www/be-mycourse` |
+| `DEPLOY_PATH_STG` *(optional)* | Backend staging root if staging app uses a different directory than dev | `/var/www/be-mycourse-staging` |
+| `DEPLOY_PATH_MAIN` *(optional)* | Backend production root if production app uses a different directory than dev | `/var/www/be-mycourse-prod` |
 
 > **Setup:** Generate a deploy key pair (`ssh-keygen -t ed25519 -C "ci-deploy"`). Add the **public key** to `~/.ssh/authorized_keys` on the VPS. Add the **private key** as the `SSH_PRIVATE_KEY` secret.
 
@@ -719,12 +730,18 @@ The authoritative definition is **`.github/workflows/deploy-dev.yml`** in the re
 | **scp rollback script** | Latest `scripts/pm2-reload-with-binary-rollback.sh` on the runner is pushed to the server (no need to `git pull` the script first). |
 | **Backup binary** | If `bin/mycourse-io-be-dev` exists, copy → `bin/mycourse-io-be-dev.prev` (required before `rsync` overwrites the live path). |
 | **rsync** | Overwrites `DEPLOY_PATH_DEV/bin/mycourse-io-be-dev` with the CI-built artifact (`chmod 755`). |
-| **PM2 + health + git** | Script snapshots `ecosystem.config.cjs` → `.prev`, ecosystem-only `git checkout` from `origin/master`, `pm2 reload ecosystem.config.cjs --only <app>`, health + `pm2 jlist` exhaustion. Success → full `git pull`. Failure → restore **both** `.prev` files, reload, health-check, logs, exit non-zero. |
+| **PM2 + health + git** | Script snapshots `ecosystem.config.cjs` → `.prev`, ecosystem-only `git checkout` from `origin/master`, `pm2 reload ecosystem.config.cjs --only <app> --update-env`, health + `pm2 jlist` exhaustion. Success → full `git pull`. Failure → restore **both** `.prev` files, reload, health-check, logs, exit non-zero. |
 
 **Script environment (optional overrides on the server SSH line):**
 
+In normal CI deploy, you only need to pass `DEPLOY_PATH`. Other `DEPLOY_*` values below are optional overrides read by `ecosystem.config.cjs`.
+
 | Variable | Default | Purpose |
 |----------|---------|---------|
+| `DEPLOY_PATH` | *(required)* | Backend root used by deploy script (`cd "$DEPLOY_PATH"`). |
+| `DEPLOY_ENV_FILE_DEV` | `${DEPLOY_PATH_DEV}/.env` | Dev `env_file` override for PM2. |
+| `DEPLOY_ENV_FILE_STG` | `${DEPLOY_PATH_STG}/.env.staging` | Staging `env_file` override for PM2. |
+| `DEPLOY_ENV_FILE_MAIN` | `${DEPLOY_PATH_MAIN}/.env.prod` | Production `env_file` override for PM2. |
 | `HEALTHCHECK_URL` | `http://127.0.0.1:8080/api/v1/health` | Must match bind address/port and API base path (`/api/v1` from Gin). |
 | `ROLLBACK_HEALTH_TIMEOUT_SEC` | `90` | How long to wait for the process to survive startup and answer HTTP 200. |
 | `BINARY_REL` | `bin/mycourse-io-be-dev` | Relative path to the binary under `DEPLOY_PATH`. |

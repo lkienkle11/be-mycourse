@@ -1,5 +1,8 @@
 package constants
 
+// PostgresSchemaDefault is the PostgreSQL schema for application tables when SCHEMA_NAME_APP is unset.
+const PostgresSchemaDefault = "public"
+
 // PostgreSQL relation (table) names used by GORM TableName(), dbschema accessors, and raw SQL.
 // Do not import dbschema from this file — avoids import cycles (dbschema imports constants).
 

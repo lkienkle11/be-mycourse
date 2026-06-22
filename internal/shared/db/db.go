@@ -17,6 +17,8 @@ import (
 
 	postgresmigrate "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -43,7 +45,22 @@ func Setup() error {
 	if dsn == "" {
 		return errors.New("missing [database] DSN: set URL or Host+Name (and User as needed)")
 	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	pgxCfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return fmt.Errorf("parse postgres DSN: %w", err)
+	}
+	schema, err := setting.DatabaseSetting.EnsureAppSchemaName()
+	if err != nil {
+		return err
+	}
+	searchPathSQL := "SET search_path TO " + pgx.Identifier{schema}.Sanitize()
+	// Managed Postgres (CapRover) may leave role search_path empty; GORM queries
+	// unqualified table names and fails with "relation does not exist".
+	sqlDB := stdlib.OpenDB(*pgxCfg, stdlib.OptionAfterConnect(func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, searchPathSQL)
+		return err
+	}))
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{})
 	if err != nil {
 		return err
 	}
@@ -180,8 +197,15 @@ func newMigratorFromIOFS(rawDB *sql.DB, fsys fs.FS, dir string) (*gomigrate.Migr
 	if err != nil {
 		return nil, fmt.Errorf(constants.MsgMigrationSource, err)
 	}
+	schema, err := setting.DatabaseSetting.EnsureAppSchemaName()
+	if err != nil {
+		return nil, err
+	}
 	driver, err := postgresmigrate.WithInstance(rawDB, &postgresmigrate.Config{
 		MultiStatementEnabled: true,
+		// CapRover/managed Postgres may leave search_path empty for app roles;
+		// golang-migrate otherwise fails with "no schema".
+		SchemaName: schema,
 	})
 	if err != nil {
 		return nil, fmt.Errorf(constants.MsgMigrationPostgresDriver, err)

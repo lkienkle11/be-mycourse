@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -14,6 +15,8 @@ import (
 
 	"mycourse-io-be/internal/shared/parsebool"
 )
+
+var postgresSchemaNameRE = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 type App struct {
 	JWTSecret          string
@@ -39,13 +42,14 @@ type Server struct {
 // Database holds pure PostgreSQL settings (GORM / raw SQL via the same DSN).
 // Prefer URL for a full connection string, or set Host + Name (and usually User) to build one.
 type Database struct {
-	URL      string
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Name     string
-	SSLMode  string
+	URL        string
+	Host       string
+	Port       string
+	User       string
+	Password   string
+	Name       string
+	SSLMode    string
+	SchemaName string // from SCHEMA_NAME_APP via config database.schema_name
 }
 
 type Redis struct {
@@ -195,13 +199,14 @@ type yamlServer struct {
 }
 
 type yamlDatabase struct {
-	URL      string `yaml:"url"`
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Name     string `yaml:"name"`
-	SSLMode  string `yaml:"ssl_mode"`
+	URL        string `yaml:"url"`
+	Host       string `yaml:"host"`
+	Port       string `yaml:"port"`
+	User       string `yaml:"user"`
+	Password   string `yaml:"password"`
+	Name       string `yaml:"name"`
+	SSLMode    string `yaml:"ssl_mode"`
+	SchemaName string `yaml:"schema_name"`
 }
 
 type yamlCors struct {
@@ -373,4 +378,22 @@ func (d *Database) PostgresDSN() string {
 	q.Set("sslmode", ssl)
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+// AppSchemaName returns the PostgreSQL schema for app tables (GORM search_path, golang-migrate).
+// Defaults to constants.PostgresSchemaDefault when SCHEMA_NAME_APP / database.schema_name is empty.
+func (d *Database) AppSchemaName() string {
+	if s := strings.TrimSpace(d.SchemaName); s != "" {
+		return s
+	}
+	return constants.PostgresSchemaDefault
+}
+
+// EnsureAppSchemaName returns AppSchemaName or an error when the configured name is not a safe identifier.
+func (d *Database) EnsureAppSchemaName() (string, error) {
+	schema := d.AppSchemaName()
+	if !postgresSchemaNameRE.MatchString(schema) {
+		return "", fmt.Errorf("invalid database schema name %q (SCHEMA_NAME_APP)", schema)
+	}
+	return schema, nil
 }

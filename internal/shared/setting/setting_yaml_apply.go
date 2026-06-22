@@ -35,6 +35,7 @@ func expandYAMLServerDBApp(c *yamlConfig, expand func(string) string) {
 	c.Database.Password = expand(c.Database.Password)
 	c.Database.Name = expand(c.Database.Name)
 	c.Database.SSLMode = expand(c.Database.SSLMode)
+	c.Database.SchemaName = expand(c.Database.SchemaName)
 	c.App.JWTSecret = expand(c.App.JWTSecret)
 	c.App.ApiKey = expand(c.App.ApiKey)
 	c.App.AppBaseURL = expand(c.App.AppBaseURL)
@@ -248,6 +249,7 @@ func applyYAMLDatabaseGlobals(c *yamlConfig) {
 	DatabaseSetting.User = c.Database.User
 	DatabaseSetting.Password = c.Database.Password
 	DatabaseSetting.Name = c.Database.Name
+	DatabaseSetting.SchemaName = strings.TrimSpace(c.Database.SchemaName)
 	if strings.TrimSpace(c.Database.SSLMode) != "" {
 		DatabaseSetting.SSLMode = c.Database.SSLMode
 	} else {

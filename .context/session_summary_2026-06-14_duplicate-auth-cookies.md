@@ -59,7 +59,7 @@ Users with existing duplicates: clear cookies once for parent domain and `api.<p
 
 ## Security / docs hygiene
 
-- Replaced hardcoded deploy domains (`mycoursesdev.xyz`) with placeholders (`yourdomain.net`) in all tracked docs, `.env.*.example`, context notes, `AGENTS.md`, `CLAUDE.md`.
+- Replaced hardcoded deploy domains with placeholders (`cdn.yourdomain.com`, `api.yourdomain.com`, `yourdomain.com`) in all tracked docs, `.env.*.example`, context notes, `AGENTS.md`, `CLAUDE.md`.
 - Real domain values belong only in non-committed `.env` / server config.
 
 ## Manual verify

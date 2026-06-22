@@ -64,12 +64,12 @@ func streamMetadataFromMerged(merged domain.RawMetadata, typed domain.UploadFile
 		directPlayURL, hlsPlaylistURL, previewAnimationURL, duration
 }
 
-func b2BucketFromUploadInput(in domain.MediaUploadEntityInput, merged domain.RawMetadata) string {
-	b2Bucket := strings.TrimSpace(in.B2Bucket)
-	if b2Bucket == "" {
-		b2Bucket = strings.TrimSpace(fmt.Sprintf("%v", merged["b2_bucket_name"]))
+func r2BucketFromUploadInput(in domain.MediaUploadEntityInput, merged domain.RawMetadata) string {
+	bucket := strings.TrimSpace(in.R2Bucket)
+	if bucket == "" {
+		bucket = strings.TrimSpace(fmt.Sprintf("%v", merged["r2_bucket_name"]))
 	}
-	return b2Bucket
+	return bucket
 }
 
 func preservedOrNewEntityID(in domain.MediaUploadEntityInput) string {
@@ -92,7 +92,7 @@ func newFileEntityUploadCore(in domain.MediaUploadEntityInput, merged domain.Raw
 		OriginURL:    in.Uploaded.OriginURL,
 		ObjectKey:    in.Uploaded.ObjectKey,
 		Status:       constants.FileStatusReady,
-		B2BucketName: b2BucketFromUploadInput(in, merged),
+		R2BucketName: r2BucketFromUploadInput(in, merged),
 		Metadata:     typed,
 		// Persist the merged provider metadata into the JSONB column.
 		// Without this assignment the database row would always store "{}"

@@ -16,14 +16,6 @@ import (
 	"mycourse-io-be/internal/shared/utils"
 )
 
-// effectiveB2Bucket prefers setting.MediaSetting.B2Bucket after setting.Setup(); falls back to B2BucketName from NewCloudClientsFromSetting.
-func effectiveB2Bucket(c *CloudClients) string {
-	if b := strings.TrimSpace(setting.MediaSetting.B2Bucket); b != "" {
-		return b
-	}
-	return strings.TrimSpace(c.B2BucketName)
-}
-
 func UploadLocal(_ *CloudClients, objectKey string, _ domain.RawMetadata) (domain.ProviderUploadResult, error) {
 	secret := strings.TrimSpace(setting.MediaSetting.LocalFileURLSecret)
 	if secret == "" {
@@ -37,46 +29,6 @@ func UploadLocal(_ *CloudClients, objectKey string, _ domain.RawMetadata) (domai
 		ObjectKey: objectKey,
 		Metadata:  domain.RawMetadata{},
 	}, nil
-}
-
-func UploadB2(c *CloudClients, ctx context.Context, objectKey string, file io.Reader, meta domain.RawMetadata) (domain.ProviderUploadResult, error) {
-	if c.B2Client == nil {
-		return domain.ProviderUploadResult{}, fmt.Errorf(constants.MsgB2ClientNotConfigured)
-	}
-	bucketName := effectiveB2Bucket(c)
-	if bucketName == "" {
-		return domain.ProviderUploadResult{}, &domain.ProviderError{Code: apperrors.B2BucketNotConfigured}
-	}
-	bucket, err := c.B2Client.Bucket(ctx, bucketName)
-	if err != nil {
-		return domain.ProviderUploadResult{}, err
-	}
-	key := strings.TrimLeft(objectKey, "/")
-	obj := bucket.Object(key)
-	writer := obj.NewWriter(ctx)
-	if _, err := io.Copy(writer, file); err != nil {
-		return domain.ProviderUploadResult{}, err
-	}
-	if err := writer.Close(); err != nil {
-		return domain.ProviderUploadResult{}, err
-	}
-	return b2UploadResultURLs(bucketName, key, bucket.BaseURL(), meta), nil
-}
-
-func b2UploadResultURLs(bucketName, key, bucketBaseURL string, meta domain.RawMetadata) domain.ProviderUploadResult {
-	origin := utils.NormalizeBaseURL(setting.MediaSetting.B2BaseURL, bucketBaseURL)
-	cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, origin)
-	publicURL := utils.JoinURLPathSegments(cdn, bucketName, key)
-	if meta == nil {
-		meta = domain.RawMetadata{}
-	}
-	meta["b2_bucket_name"] = bucketName
-	return domain.ProviderUploadResult{
-		URL:       publicURL,
-		OriginURL: utils.JoinURLPathSegments(origin, key),
-		ObjectKey: key,
-		Metadata:  meta,
-	}
 }
 
 func bunnyCreateStreamVideo(c *CloudClients, ctx context.Context, apiBase, libraryID, apiKey, filename string) (string, error) {
@@ -189,21 +141,6 @@ func UploadBunnyVideo(c *CloudClients, ctx context.Context, filename string, pay
 	}, nil
 }
 
-func DeleteB2Object(c *CloudClients, ctx context.Context, objectKey string) error {
-	if c.B2Client == nil {
-		return fmt.Errorf(constants.MsgB2ClientNotConfigured)
-	}
-	bucketName := effectiveB2Bucket(c)
-	if bucketName == "" {
-		return &domain.ProviderError{Code: apperrors.B2BucketNotConfigured}
-	}
-	bucket, err := c.B2Client.Bucket(ctx, bucketName)
-	if err != nil {
-		return err
-	}
-	return bucket.Object(strings.TrimLeft(objectKey, "/")).Delete(ctx)
-}
-
 func DeleteBunnyVideo(c *CloudClients, ctx context.Context, videoGUID string) error {
 	libraryID := strings.TrimSpace(setting.MediaSetting.BunnyStreamLibraryID)
 	apiKey := strings.TrimSpace(setting.MediaSetting.BunnyStreamAPIKey)
@@ -245,11 +182,6 @@ func BuildPublicURL(provider string, objectKey string) string {
 		}
 		return fmt.Sprintf("%s/%s/%s", base, libraryID, objectKey)
 	default:
-		cdn := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, "https://cdn.mycourse.local")
-		key := strings.TrimLeft(objectKey, "/")
-		if b := strings.TrimSpace(setting.MediaSetting.B2Bucket); b != "" {
-			return utils.JoinURLPathSegments(cdn, b, key)
-		}
-		return utils.JoinURLPathSegments(cdn, key)
+		return buildR2PublicURL(objectKey)
 	}
 }

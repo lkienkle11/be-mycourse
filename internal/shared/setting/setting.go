@@ -105,15 +105,20 @@ type Resilience struct {
 	DegradedAttemptsFactor float64
 }
 
+// MediaR2Storage holds Cloudflare R2 S3-compatible credentials and public CDN base URL.
+type MediaR2Storage struct {
+	AccountID       string
+	AccessKeyID     string
+	SecretAccessKey string
+	Bucket          string
+	Endpoint        string
+	Region          string
+	PublicURL       string
+}
+
 type Media struct {
 	AppMediaProvider          string
-	B2KeyID                   string
-	B2AppKey                  string
-	B2Bucket                  string
-	B2BaseURL                 string
-	GcoreAPIBaseURL           string
-	GcoreAPIToken             string
-	GcoreCDNURL               string
+	R2                        MediaR2Storage
 	BunnyStreamAPIBase        string
 	BunnyStreamAPIKey         string
 	BunnyStreamReadOnlyAPIKey string
@@ -240,13 +245,13 @@ type yamlSupabase struct {
 
 type yamlMedia struct {
 	AppMediaProvider          string `yaml:"app_media_provider"`
-	B2KeyID                   string `yaml:"b2_key_id"`
-	B2AppKey                  string `yaml:"b2_app_key"`
-	B2Bucket                  string `yaml:"b2_bucket"`
-	B2BaseURL                 string `yaml:"b2_base_url"`
-	GcoreAPIBaseURL           string `yaml:"gcore_api_base_url"`
-	GcoreAPIToken             string `yaml:"gcore_api_token"`
-	GcoreCDNURL               string `yaml:"gcore_cdn_url"`
+	R2AccountID               string `yaml:"r2_account_id"`
+	R2AccessKeyID             string `yaml:"r2_access_key_id"`
+	R2SecretAccessKey         string `yaml:"r2_secret_access_key"`
+	R2Bucket                  string `yaml:"r2_bucket"`
+	R2Endpoint                string `yaml:"r2_endpoint"`
+	R2Region                  string `yaml:"r2_region"`
+	R2PublicURL               string `yaml:"r2_public_url"`
 	BunnyStreamAPIBase        string `yaml:"bunny_stream_api_base_url"`
 	BunnyStreamAPIKey         string `yaml:"bunny_stream_api_key"`
 	BunnyStreamReadOnlyAPIKey string `yaml:"bunny_stream_read_only_api_key"`

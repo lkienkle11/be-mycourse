@@ -18,6 +18,7 @@ func DeleteStoredObject(ctx context.Context, clients *CloudClients, objectKey st
 		}
 		return DeleteBunnyVideo(clients, ctx, guid)
 	default:
-		return DeleteB2Object(clients, ctx, objectKey)
+		// R2 and legacy provider=B2 rows (same object keys on R2 after migration).
+		return DeleteR2Object(clients, ctx, objectKey)
 	}
 }

@@ -1,59 +1,51 @@
 package infra
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/Backblaze/blazer/b2"
-	gcdn "github.com/G-Core/gcorelabscdn-go"
-	"github.com/G-Core/gcorelabscdn-go/gcore/provider"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	bunnystorage "github.com/l0wl3vel/bunny-storage-go-sdk"
 
 	"mycourse-io-be/internal/shared/setting"
-	"mycourse-io-be/internal/shared/utils"
 )
 
-// NewCloudClientsFromSetting builds B2, Gcore API, and Bunny Storage SDK handles from
+// NewCloudClientsFromSetting builds R2 (S3 API) and Bunny Storage SDK handles from
 // setting.MediaSetting (YAML + .env resolved in setting.Setup). Call only after setting.Setup();
 // main.go orders setting.Setup before pkg/media.Setup.
-func attachB2FromSetting(out *CloudClients, ms *setting.Media) error {
-	if ms == nil {
-		return nil
-	}
-	keyID := strings.TrimSpace(ms.B2KeyID)
-	appKey := strings.TrimSpace(ms.B2AppKey)
-	bucket := strings.TrimSpace(ms.B2Bucket)
-	if keyID == "" || appKey == "" || bucket == "" {
-		return nil
-	}
-	client, err := b2.NewClient(context.Background(), keyID, appKey)
-	if err != nil {
-		return err
-	}
-	out.B2Client = client
-	out.B2BucketName = bucket
-	return nil
-}
-
-func attachGcoreFromSetting(out *CloudClients, ms *setting.Media) {
+func attachR2FromSetting(out *CloudClients, ms *setting.Media) {
 	if ms == nil {
 		return
 	}
-	gcoreAPIToken := strings.TrimSpace(ms.GcoreAPIToken)
-	if gcoreAPIToken == "" {
+	accessKey := strings.TrimSpace(ms.R2.AccessKeyID)
+	secretKey := strings.TrimSpace(ms.R2.SecretAccessKey)
+	bucket := strings.TrimSpace(ms.R2.Bucket)
+	endpoint := strings.TrimSpace(ms.R2.Endpoint)
+	if accessKey == "" || secretKey == "" || bucket == "" || endpoint == "" {
 		return
 	}
-	apiClient := provider.NewClient(
-		utils.NormalizeBaseURL(ms.GcoreAPIBaseURL, "https://api.gcore.com"),
-		provider.WithSignerFunc(func(req *http.Request) error {
-			req.Header.Set("Authorization", "APIKey "+gcoreAPIToken)
-			return nil
-		}),
-	)
-	out.GcoreService = gcdn.NewService(apiClient)
+	region := strings.TrimSpace(ms.R2.Region)
+	if region == "" {
+		region = "auto"
+	}
+	cfg := aws.Config{
+		Region: region,
+		Credentials: credentials.NewStaticCredentialsProvider(
+			accessKey,
+			secretKey,
+			"",
+		),
+	}
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(endpoint)
+		o.UsePathStyle = true
+	})
+	out.R2Client = client
+	out.R2BucketName = bucket
 }
 
 func attachBunnyStorageFromSetting(out *CloudClients, ms *setting.Media) error {
@@ -79,10 +71,7 @@ func NewCloudClientsFromSetting() (*CloudClients, error) {
 		HTTPClient: &http.Client{Timeout: 60 * time.Second},
 	}
 	ms := setting.MediaSetting
-	if err := attachB2FromSetting(out, ms); err != nil {
-		return nil, err
-	}
-	attachGcoreFromSetting(out, ms)
+	attachR2FromSetting(out, ms)
 	if err := attachBunnyStorageFromSetting(out, ms); err != nil {
 		return nil, err
 	}

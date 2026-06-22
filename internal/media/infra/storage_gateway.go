@@ -64,7 +64,7 @@ func (StorageGateway) UploadToProvider(ctx context.Context, provider, objectKey,
 	case constants.FileProviderBunny:
 		return UploadBunnyVideo(Cloud, ctx, filename, payload, objectKey, meta)
 	default:
-		return UploadB2(Cloud, ctx, objectKey, bytes.NewReader(payload), meta)
+		return UploadR2(Cloud, ctx, objectKey, bytes.NewReader(payload), meta)
 	}
 }
 

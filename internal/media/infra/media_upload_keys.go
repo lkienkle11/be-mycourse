@@ -10,7 +10,7 @@ import (
 	"mycourse-io-be/internal/shared/utils"
 )
 
-// ResolveMediaUploadObjectKey selects the object key before upload (explicit key, Bunny empty until GUID, local nano key, B2 eight-digit prefix key).
+// ResolveMediaUploadObjectKey selects the object key before upload (explicit key, Bunny empty until GUID, local nano key, R2 eight-digit prefix key).
 func ResolveMediaUploadObjectKey(reqObjectKey, filename string, provider string) string {
 	if dk := strings.TrimSpace(reqObjectKey); dk != "" {
 		return strings.TrimLeft(dk, "/")
@@ -21,7 +21,7 @@ func ResolveMediaUploadObjectKey(reqObjectKey, filename string, provider string)
 	case constants.FileProviderLocal:
 		return buildLocalUploadObjectKey("", filename)
 	default:
-		return BuildB2ObjectKey(filename)
+		return BuildObjectStorageKey(filename)
 	}
 }
 
@@ -39,7 +39,7 @@ func buildLocalUploadObjectKey(defaultKey, filename string) string {
 	return fmt.Sprintf("%d-%s%s", time.Now().UnixNano(), base, ext)
 }
 
-func sanitizeB2UploadBase(filename string) string {
+func sanitizeObjectStorageUploadBase(filename string) string {
 	ext := filepath.Ext(filename)
 	base := strings.TrimSuffix(filename, ext)
 	base = strings.TrimSpace(base)
@@ -65,7 +65,7 @@ func sanitizeB2UploadBase(filename string) string {
 	return s + strings.ToLower(ext)
 }
 
-// BuildB2ObjectKey builds default B2 keys: eight random digits, hyphen, sanitized filename.
-func BuildB2ObjectKey(filename string) string {
-	return utils.GenerateRandomDigits(8) + "-" + sanitizeB2UploadBase(filename)
+// BuildObjectStorageKey builds default R2 object keys: eight random digits, hyphen, sanitized filename.
+func BuildObjectStorageKey(filename string) string {
+	return utils.GenerateRandomDigits(8) + "-" + sanitizeObjectStorageUploadBase(filename)
 }

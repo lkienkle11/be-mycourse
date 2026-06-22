@@ -63,33 +63,25 @@ func TestParseImageURLForOrphanCleanup_BunnyStream(t *testing.T) {
 	}
 }
 
-func TestParseImageURLForOrphanCleanup_B2CDN(t *testing.T) {
-	setting.MediaSetting.GcoreCDNURL = "https://cdn.mycourse.io"
-	setting.MediaSetting.B2Bucket = "mybucket"
+func TestParseImageURLForOrphanCleanup_R2CDN(t *testing.T) {
+	prev := *setting.MediaSetting
+	t.Cleanup(func() { *setting.MediaSetting = prev })
 
-	rawURL := "https://cdn.mycourse.io/mybucket/12345678-photo.jpg"
+	setting.MediaSetting.R2.PublicURL = "https://cdn.mycourse.io"
+
+	rawURL := "https://cdn.mycourse.io/12345678-photo.jpg"
 	prov, key, bID, ok := mediainfra.ParseImageURLForOrphanCleanup(rawURL)
 	if !ok {
-		t.Fatalf("B2 CDN URL should be recognised, got ok=false")
+		t.Fatalf("R2 CDN URL should be recognised, got ok=false")
 	}
-	if string(prov) != "B2" {
-		t.Fatalf("expected provider B2, got %s", prov)
+	if string(prov) != "R2" {
+		t.Fatalf("expected provider R2, got %s", prov)
 	}
 	if key != "12345678-photo.jpg" {
 		t.Fatalf("expected objectKey=12345678-photo.jpg, got %s", key)
 	}
 	if bID != "" {
 		t.Fatalf("expected empty bunnyVideoID, got %s", bID)
-	}
-}
-
-func TestParseImageURLForOrphanCleanup_B2CDN_NoBucketConfigured(t *testing.T) {
-	setting.MediaSetting.GcoreCDNURL = "https://cdn.mycourse.io"
-	setting.MediaSetting.B2Bucket = "" // not configured → cannot parse
-
-	_, _, _, ok := mediainfra.ParseImageURLForOrphanCleanup("https://cdn.mycourse.io/mybucket/12345678-photo.jpg")
-	if ok {
-		t.Fatal("B2 URL without configured bucket should return ok=false")
 	}
 }
 

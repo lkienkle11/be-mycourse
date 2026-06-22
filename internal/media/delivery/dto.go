@@ -82,7 +82,7 @@ type UploadFileResponse struct {
 	MimeType            string             `json:"mime_type,omitempty"`
 	SizeBytes           int64              `json:"size_bytes,omitempty"`
 	Status              string             `json:"status,omitempty"`
-	B2BucketName        string             `json:"b2_bucket_name,omitempty"`
+	R2BucketName        string             `json:"r2_bucket_name,omitempty"`
 	URL                 string             `json:"url"`
 	ObjectKey           string             `json:"object_key"`
 	BunnyVideoID        string             `json:"bunny_video_id,omitempty"`

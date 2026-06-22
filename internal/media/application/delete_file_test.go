@@ -77,7 +77,7 @@ func (f *fakeMediaGateway) DefaultMediaProvider(kind string) string {
 	if p, ok := f.defaultProviders[kind]; ok {
 		return p
 	}
-	return constants.FileProviderB2
+	return constants.FileProviderR2
 }
 
 func (f *fakeMediaGateway) BuildPublicURL(_, _ string) string { return "" }
@@ -97,7 +97,7 @@ func (f *fakeMediaGateway) ResolveMediaKindFromServer(_, _ string) (string, bool
 }
 
 func (f *fakeMediaGateway) ResolveUploadProvider(_ string, _ bool) string {
-	return constants.FileProviderB2
+	return constants.FileProviderR2
 }
 
 func (f *fakeMediaGateway) ResolveMediaUploadObjectKey(_, _, _ string) string { return "" }
@@ -252,7 +252,7 @@ func TestDeleteFile_FallbackWhenRowMissing_PreservesLegacyInference(t *testing.T
 		repo := &fakeFileRepo{getErr: apperrors.ErrNotFound}
 		gw := &fakeMediaGateway{
 			defaultProviders: map[string]string{
-				constants.FileKindFile:  constants.FileProviderB2,
+				constants.FileKindFile:  constants.FileProviderR2,
 				constants.FileKindVideo: constants.FileProviderBunny,
 			},
 		}
@@ -264,8 +264,8 @@ func TestDeleteFile_FallbackWhenRowMissing_PreservesLegacyInference(t *testing.T
 		if len(gw.deleteCalls) != 1 {
 			t.Fatalf("DeleteStoredObject calls = %d, want 1", len(gw.deleteCalls))
 		}
-		if got := gw.deleteCalls[0].provider; got != constants.FileProviderB2 {
-			t.Fatalf("provider = %q, want %q", got, constants.FileProviderB2)
+		if got := gw.deleteCalls[0].provider; got != constants.FileProviderR2 {
+			t.Fatalf("provider = %q, want %q", got, constants.FileProviderR2)
 		}
 		if got := gw.deleteCalls[0].bunnyID; got != "" {
 			t.Fatalf("bunnyID = %q, want empty", got)
@@ -276,7 +276,7 @@ func TestDeleteFile_FallbackWhenRowMissing_PreservesLegacyInference(t *testing.T
 		repo := &fakeFileRepo{getErr: apperrors.ErrNotFound}
 		gw := &fakeMediaGateway{
 			defaultProviders: map[string]string{
-				constants.FileKindFile:  constants.FileProviderB2,
+				constants.FileKindFile:  constants.FileProviderR2,
 				constants.FileKindVideo: constants.FileProviderBunny,
 			},
 		}
@@ -303,7 +303,7 @@ func TestDeleteFile_ReturnsRepoErrorWhenLookupFailsUnexpectedly(t *testing.T) {
 	repo := &fakeFileRepo{getErr: wantErr}
 	gw := &fakeMediaGateway{
 		defaultProviders: map[string]string{
-			constants.FileKindFile: constants.FileProviderB2,
+			constants.FileKindFile: constants.FileProviderR2,
 		},
 	}
 	svc := mediaapp.NewMediaService(repo, nil, nil, nil, gw)

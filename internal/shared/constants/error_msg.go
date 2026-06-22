@@ -73,9 +73,10 @@ const MsgMediaDuplicateObjectKeysInBatchDelete = "duplicate object keys in batch
 // MsgBatchDeleteEmptyObjectKeys is used when batch delete is invoked with no keys (service-level guard).
 const MsgBatchDeleteEmptyObjectKeys = "batch delete: empty object_keys"
 
-// Default JSON messages for media upstream errcodes 9010–9014 (pkg/errcode/messages.go references only).
+// Default JSON messages for media upstream errcodes (pkg/errcode/messages.go references only).
 const (
-	MsgMediaB2BucketNotConfigured    = "Media B2 bucket is not configured (set MEDIA_B2_BUCKET / media.b2_bucket so URLs can use path <cdn>/<bucket>/<object>)"
+	MsgMediaR2BucketNotConfigured    = "Media R2 bucket is not configured (set MEDIA_R2_BUCKET / media.r2_bucket)"
+	MsgR2ClientNotConfigured         = "R2 client is not configured"
 	MsgMediaBunnyStreamNotConfigured = "Bunny Stream is not configured (library id and API key required)"
 	MsgMediaBunnyCreateFailed        = "Bunny Stream failed to create video"
 	MsgMediaBunnyUploadFailed        = "Bunny Stream failed to upload video content"
@@ -173,7 +174,6 @@ const (
 	MsgRefreshSessionUnsupportedType       = "RefreshTokenSessionMap: unsupported source type %T"
 	MsgSetupMediaClientsFailed             = "setup media clients failed: %w"
 	MsgExpectedRowVersionInteger           = "expected_row_version must be an integer"
-	MsgB2ClientNotConfigured               = "B2 client is not configured"
 	MsgBunnyCreateVideoHTTP                = "bunny create video: HTTP %d"
 	MsgBunnyUploadVideoHTTP                = "bunny upload video: HTTP %d"
 	MsgBunnyStreamNotConfiguredRaw         = "bunny stream is not configured"

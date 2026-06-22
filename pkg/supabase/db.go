@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/setting"
 )
 
@@ -22,7 +23,7 @@ func SetupDatabase() error {
 	if dsn == "" {
 		return nil
 	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), gormx.DefaultConfig())
 	if err != nil {
 		return err
 	}

@@ -181,7 +181,7 @@ Privileged operations for system administrators.
 
 Not a business module — provides cross-cutting concerns consumed by all domains:
 
-- `db/` — PostgreSQL connection, GORM setup (`search_path` from `SCHEMA_NAME_APP` or `public`), migration runner
+- `db/` — PostgreSQL connection, GORM setup (`gormx.DefaultConfig` + latency-colored SQL console logger, `search_path` from `SCHEMA_NAME_APP` or `public`), migration runner
 - `cache/` — Redis client
 - `setting/` — YAML + env config
 - `logger/` — Uber Zap

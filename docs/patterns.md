@@ -170,6 +170,7 @@ zap.L().Info("tick", zap.String("job", "media-cleanup"))
 - GORM as primary ORM. Raw SQL only when required (e.g. complex RBAC joins).
 - Embedded SQL migrations via `golang-migrate`.
 - PostgreSQL table names: defined once in `internal/shared/constants/dbschema_name.go`. All GORM `TableName()` methods and raw SQL reference these constants — no hardcoded string literals.
+- **SQL console logging:** every GORM pool opens with `gormx.DefaultConfig()` (`internal/shared/db/db.go`, `pkg/supabase/db.go`). Each statement prints caller file/line, `[NNN.NNNms]`, `[rows:N]`, and the SQL text. SQL color on TTY: green `<200ms`, yellow `200ms–<2s`, red `>=2s`. This uses GORM's stdlib writer (stdout), separate from Uber Zap `app.log` / `access.log` — see **`docs/observability/loki-alloy.md`**.
 
 ### Audit timestamps (Unix seconds)
 

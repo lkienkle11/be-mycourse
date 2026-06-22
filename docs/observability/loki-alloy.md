@@ -134,3 +134,9 @@ Filter by request ID without label explosion:
 ```logql
 {service="be-mycourse"} | json | request_id="YOUR-REQUEST-ID"
 ```
+
+## GORM SQL console logs (stdout only)
+
+GORM SQL tracing is **not** emitted through Uber Zap. `gormx.NewSQLLogger` writes plain text to the process stdout with latency-colored SQL (`<200ms` green, `200ms–2s` yellow, `>=2s` red). Those lines land in the container/terminal stdout stream alongside Zap console output when `LOG_CONSOLE` is enabled.
+
+To ship SQL traces into Loki you would need an additional pipeline (for example Alloy scraping container stdout and filtering lines that match GORM's `[rows:` prefix). By default only structured `app.log` / `access.log` JSON is documented above.

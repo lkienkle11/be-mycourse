@@ -300,7 +300,7 @@ Course detail and taxonomy list reads were optimized **without changing response
 
 | Area | Change | Path |
 |------|--------|------|
-| DB pool | `tunePool` after `gorm.Open` — `MaxOpenConns=50`, `MaxIdleConns=25` | `internal/shared/db/db.go` |
+| DB pool | `tunePool` after `gorm.Open` (`gormx.DefaultConfig` — logs every SQL with latency colors) — `MaxOpenConns=50`, `MaxIdleConns=25` | `internal/shared/db/db.go` |
 | Course access | `requireCourseAccess` — one JOIN query (`courses` + `course_collaborators`) | `repo_access.go` |
 | Course detail | Optional `include_outline=false` skips outline tree load on GET | `handler_instructor.go`, `repo_access.go` |
 | Course detail | Parallel live/draft version row fetch; batch version assets for both versions (`loadCourseVersionAssetsBatch`, `loadVersionRefIDsBatch`) | `repo_access.go`, `repos.go` |

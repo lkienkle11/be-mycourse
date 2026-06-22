@@ -1,7 +1,7 @@
 # MyCourse Backend — API Reference & cURL Examples
 
 
-> **Base URL:** `http://localhost:8080` (local) / `https://api.mycourse.io` (production)  
+> **Base URL:** `http://localhost:8080` (local) / `https://api.yourdomain.com` (production)  
 > Replace `{{BASE_URL}}` with the actual base URL in all examples.  
 > **Handlers:** `internal/<domain>/delivery` (routes in `routes.go`, wired from `internal/server/wire.go`).  
 > **Last updated:** 2026-06-07
@@ -71,7 +71,7 @@
 
 ```
 http://localhost:8080       # local dev
-https://api.mycourse.io    # production
+https://api.yourdomain.com    # production
 ```
 
 ### Response Envelope

@@ -19,7 +19,7 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local
-  - url: https://api.mycourse.io
+  - url: https://api.yourdomain.com
     description: Production (example)
 
 # Shared Apidog/Postman scripts and collection defaults (also read by scripts/generate-apidog-postman.rb).
@@ -635,7 +635,7 @@ components:
         mime_type: { type: string }
         size_bytes: { type: integer, format: int64 }
         status: { type: string }
-        b2_bucket_name: { type: string }
+        r2_bucket_name: { type: string }
         url: { type: string }
         object_key: { type: string }
         bunny_video_id: { type: string }

@@ -82,7 +82,7 @@ type File struct {
 	OriginURL           string
 	ObjectKey           string
 	Status              string
-	B2BucketName        string
+	R2BucketName        string
 	BunnyVideoID        string
 	BunnyLibraryID      string
 	VideoID             string
@@ -160,7 +160,7 @@ type MediaUploadEntityInput struct {
 	Payload       []byte
 	Uploaded      ProviderUploadResult
 	UploadedMeta  RawMetadata
-	B2Bucket      string
+	R2Bucket      string
 	GenerateNewID bool
 	CreatedAt     int64
 	UpdatedAt     int64

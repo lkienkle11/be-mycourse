@@ -20,9 +20,8 @@
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| `github.com/Backblaze/blazer` | v0.7.2 | Backblaze B2 SDK (file upload/delete) |
+| `github.com/aws/aws-sdk-go-v2/service/s3` | latest | Cloudflare R2 (S3-compatible upload/delete) |
 | `github.com/l0wl3vel/bunny-storage-go-sdk` | v1.0.0 | BunnyCDN Storage SDK |
-| `github.com/G-Core/gcorelabscdn-go` | v1.0.37 | Gcore CDN API client |
 | `github.com/h2non/bimg` | v1.1.9 | WebP encoding via libvips (CGO) |
 | `golang.org/x/image` | v0.39.0 | WebP decoder for `image.DecodeConfig` |
 

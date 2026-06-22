@@ -53,7 +53,7 @@ const (
 	Panic         = 9998
 
 	// Media upstream (90xx)
-	B2BucketNotConfigured    = 9010
+	R2BucketNotConfigured    = 9019
 	BunnyStreamNotConfigured = 9011
 	BunnyCreateFailed        = 9012
 	BunnyUploadFailed        = 9013

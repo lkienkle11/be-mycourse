@@ -40,7 +40,7 @@ func ToUploadFileResponsePtr(file *domain.File) *UploadFileResponse {
 func toUploadFileResponse(file domain.File) UploadFileResponse {
 	return UploadFileResponse{
 		ID: file.ID, Kind: file.Kind, Filename: file.Filename, MimeType: file.MimeType,
-		SizeBytes: file.SizeBytes, Status: file.Status, B2BucketName: file.B2BucketName,
+		SizeBytes: file.SizeBytes, Status: file.Status, R2BucketName: file.R2BucketName,
 		URL: file.URL, ObjectKey: file.ObjectKey, BunnyVideoID: file.BunnyVideoID,
 		BunnyLibraryID: file.BunnyLibraryID, VideoID: file.VideoID, ThumbnailURL: file.ThumbnailURL,
 		EmbededHTML: file.EmbededHTML, DirectPlayURL: file.DirectPlayURL,

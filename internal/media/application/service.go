@@ -365,7 +365,7 @@ func (s *MediaService) PendingCloudCleanupCounters() (deleted, failed, retried u
 
 func (s *MediaService) persistCreateRow(ctx context.Context, input domain.MediaUploadEntityInput, payload []byte) (*domain.File, error) {
 	entity := s.gw.BuildMediaFileEntityFromUpload(input)
-	entity.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
+	entity.R2BucketName = strings.TrimSpace(setting.MediaSetting.R2.Bucket)
 	entity.ContentFingerprint = utils.ContentFingerprint(payload)
 
 	if err := s.fileRepo.UpsertByObjectKey(ctx, entity); err != nil {
@@ -381,7 +381,7 @@ func (s *MediaService) persistCreateRow(ctx context.Context, input domain.MediaU
 
 func (s *MediaService) persistUpdatedRow(ctx context.Context, prevFile *domain.File, input domain.MediaUploadEntityInput, payload []byte, fp string) (*domain.File, error) {
 	entity := s.gw.BuildMediaFileEntityFromUpload(input)
-	entity.B2BucketName = strings.TrimSpace(setting.MediaSetting.B2Bucket)
+	entity.R2BucketName = strings.TrimSpace(setting.MediaSetting.R2.Bucket)
 	entity.ContentFingerprint = fp
 
 	if err := s.fileRepo.SaveWithRowVersionCheck(ctx, entity, prevFile.RowVersion); err != nil {

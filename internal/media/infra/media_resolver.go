@@ -50,7 +50,7 @@ func ResolveMediaProvider(kind string, providerRaw string) string {
 	if kind == constants.FileKindVideo {
 		return constants.FileProviderBunny
 	}
-	return constants.FileProviderB2
+	return constants.FileProviderR2
 }
 
 func ResolveMediaKindFromServer(mime, filename string) (string, bool) {

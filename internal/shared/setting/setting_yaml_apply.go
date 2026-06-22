@@ -82,13 +82,13 @@ func expandYAMLLoggingSection(c *yamlConfig, expand func(string) string) {
 
 func expandYAMLMediaSection(c *yamlConfig, expand func(string) string) {
 	c.Media.AppMediaProvider = expand(c.Media.AppMediaProvider)
-	c.Media.B2KeyID = expand(c.Media.B2KeyID)
-	c.Media.B2AppKey = expand(c.Media.B2AppKey)
-	c.Media.B2Bucket = expand(c.Media.B2Bucket)
-	c.Media.B2BaseURL = expand(c.Media.B2BaseURL)
-	c.Media.GcoreAPIBaseURL = expand(c.Media.GcoreAPIBaseURL)
-	c.Media.GcoreAPIToken = expand(c.Media.GcoreAPIToken)
-	c.Media.GcoreCDNURL = expand(c.Media.GcoreCDNURL)
+	c.Media.R2AccountID = expand(c.Media.R2AccountID)
+	c.Media.R2AccessKeyID = expand(c.Media.R2AccessKeyID)
+	c.Media.R2SecretAccessKey = expand(c.Media.R2SecretAccessKey)
+	c.Media.R2Bucket = expand(c.Media.R2Bucket)
+	c.Media.R2Endpoint = expand(c.Media.R2Endpoint)
+	c.Media.R2Region = expand(c.Media.R2Region)
+	c.Media.R2PublicURL = expand(c.Media.R2PublicURL)
 	c.Media.BunnyStreamAPIBase = expand(c.Media.BunnyStreamAPIBase)
 	c.Media.BunnyStreamAPIKey = expand(c.Media.BunnyStreamAPIKey)
 	c.Media.BunnyStreamReadOnlyAPIKey = expand(c.Media.BunnyStreamReadOnlyAPIKey)
@@ -312,14 +312,14 @@ func applyYAMLRedisLavinMQSupabaseGlobals(c *yamlConfig) {
 }
 
 func applyYAMLMediaGlobals(c *yamlConfig) {
-	MediaSetting.B2KeyID = c.Media.B2KeyID
 	MediaSetting.AppMediaProvider = c.Media.AppMediaProvider
-	MediaSetting.B2AppKey = c.Media.B2AppKey
-	MediaSetting.B2Bucket = c.Media.B2Bucket
-	MediaSetting.B2BaseURL = c.Media.B2BaseURL
-	MediaSetting.GcoreAPIBaseURL = c.Media.GcoreAPIBaseURL
-	MediaSetting.GcoreAPIToken = c.Media.GcoreAPIToken
-	MediaSetting.GcoreCDNURL = c.Media.GcoreCDNURL
+	MediaSetting.R2.AccountID = c.Media.R2AccountID
+	MediaSetting.R2.AccessKeyID = c.Media.R2AccessKeyID
+	MediaSetting.R2.SecretAccessKey = c.Media.R2SecretAccessKey
+	MediaSetting.R2.Bucket = c.Media.R2Bucket
+	MediaSetting.R2.Endpoint = c.Media.R2Endpoint
+	MediaSetting.R2.Region = c.Media.R2Region
+	MediaSetting.R2.PublicURL = c.Media.R2PublicURL
 	MediaSetting.BunnyStreamAPIBase = c.Media.BunnyStreamAPIBase
 	MediaSetting.BunnyStreamAPIKey = c.Media.BunnyStreamAPIKey
 	MediaSetting.BunnyStreamReadOnlyAPIKey = c.Media.BunnyStreamReadOnlyAPIKey

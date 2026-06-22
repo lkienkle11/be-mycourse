@@ -19,7 +19,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 | [`docs/dependencies.md`](docs/dependencies.md) | Key libraries, frameworks, and their relationships |
 | [`docs/modules.md`](docs/modules.md) | Module responsibilities, ownership boundaries, testing layout |
 | [`docs/modules/auth.md`](docs/modules/auth.md) | Auth module deep-dive (JWT sessions, Redis cache, endpoints) |
-| [`docs/modules/media.md`](docs/modules/media.md) | Media module deep-dive (B2/Bunny, upload pipeline, webhooks) |
+| [`docs/modules/media.md`](docs/modules/media.md) | Media module deep-dive (R2/Bunny, upload pipeline, webhooks) |
 | [`docs/modules/rbac.md`](docs/modules/rbac.md) | RBAC module deep-dive (roles, permissions, sync) |
 | [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy module (topics, outcomes, skills, tags, levels) |
 | [`docs/docker.md`](docs/docker.md) | Docker Compose alternative (local/VPS manual; PM2/CI unchanged) |
@@ -70,8 +70,8 @@ SUPABASE_URL=...              # Supabase project URL
 SUPABASE_SERVICE_ROLE_KEY=... # Supabase service role key
 
 # Server
-APP_BASE_URL=https://api.mycourse.io   # Public base URL (no trailing slash)
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://mycourse.io
+APP_BASE_URL=https://api.yourdomain.com   # Public base URL (no trailing slash)
+CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 
 # Optional: DB migrations
 # MIGRATE=1  # apply pending up migrations, then continue normal server startup
@@ -232,7 +232,7 @@ Configured via the `CORS_ALLOWED_ORIGINS` environment variable — a comma-separ
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 
 # .env.staging / .env.prod
-CORS_ALLOWED_ORIGINS=https://mycourse.io,https://www.mycourse.io
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 ```
 
 Allowed methods: `GET POST PUT PATCH DELETE OPTIONS`
@@ -321,7 +321,7 @@ All responses are JSON objects with a standard envelope:
 | `4010` | `RegistrationEmailRateLimited` | Too many confirmation emails in sliding window |
 | `4011` | `ConfirmationEmailSendFailed` | Confirmation email could not be sent |
 | `9001` | `InternalError` | Internal server error |
-| `9010` | `B2BucketNotConfigured` | B2 storage not configured |
+| `9019` | `R2BucketNotConfigured` | R2 storage not configured |
 | `9011` | `BunnyStreamNotConfigured` | Bunny Stream not configured |
 | `9017` | `ImageEncodeBusy` | WebP encode gate at capacity |
 | `9018` | `ServiceUnavailable` | Circuit breaker open / service degraded |

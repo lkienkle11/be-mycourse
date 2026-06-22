@@ -49,7 +49,7 @@ See [`docs/modules/auth.md`](modules/auth.md) for full deep-dive.
 Unified API for file and video uploads with cloud storage providers.
 
 **Capabilities:**
-- Multipart file upload (1–5 parts per request) to Backblaze B2 or Bunny Stream
+- Multipart file upload (1–5 parts per request) to Cloudflare R2 or Bunny Stream
 - Synchronous WebP encoding for all image uploads (bimg/libvips, CGO required)
 - Executable/script file denylist
 - Video status polling via Bunny Stream API

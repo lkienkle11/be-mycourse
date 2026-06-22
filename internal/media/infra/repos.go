@@ -27,7 +27,7 @@ type mediaFileRow struct {
 	URL                 string `gorm:"column:url;type:text;not null"`
 	OriginURL           string `gorm:"column:origin_url;type:text;not null"`
 	Status              string `gorm:"column:status;type:varchar(16);not null"`
-	B2BucketName        string `gorm:"column:b2_bucket_name;type:varchar(255);not null;default:''"`
+	R2BucketName        string `gorm:"column:r2_bucket_name;type:varchar(255);not null;default:''"`
 	BunnyVideoID        string `gorm:"column:bunny_video_id;type:varchar(255)"`
 	BunnyLibraryID      string `gorm:"column:bunny_library_id;type:varchar(255)"`
 	VideoID             string `gorm:"column:video_id;type:varchar(255);not null;default:''"`
@@ -71,7 +71,7 @@ func rowToFile(r *mediaFileRow) *domain.File {
 		ID: r.ID, ObjectKey: r.ObjectKey, Kind: r.Kind, Provider: r.Provider,
 		Filename: r.Filename, MimeType: r.MimeType, SizeBytes: r.SizeBytes,
 		URL: r.URL, OriginURL: r.OriginURL, Status: r.Status,
-		B2BucketName: r.B2BucketName, BunnyVideoID: r.BunnyVideoID, BunnyLibraryID: r.BunnyLibraryID,
+		R2BucketName: r.R2BucketName, BunnyVideoID: r.BunnyVideoID, BunnyLibraryID: r.BunnyLibraryID,
 		VideoID: r.VideoID, ThumbnailURL: SanitizeMetadataURL(r.ThumbnailURL), EmbededHTML: r.EmbededHTML,
 		DirectPlayURL: SanitizeMetadataURL(r.DirectPlayURL), HLSPlaylistURL: SanitizeMetadataURL(r.HLSPlaylistURL),
 		PreviewAnimationURL: SanitizeMetadataURL(r.PreviewAnimationURL),
@@ -103,7 +103,7 @@ func fileToRow(f *domain.File) *mediaFileRow {
 		ID: f.ID, ObjectKey: f.ObjectKey, Kind: f.Kind, Provider: f.Provider,
 		Filename: f.Filename, MimeType: f.MimeType, SizeBytes: f.SizeBytes,
 		URL: f.URL, OriginURL: f.OriginURL, Status: f.Status,
-		B2BucketName: f.B2BucketName, BunnyVideoID: f.BunnyVideoID, BunnyLibraryID: f.BunnyLibraryID,
+		R2BucketName: f.R2BucketName, BunnyVideoID: f.BunnyVideoID, BunnyLibraryID: f.BunnyLibraryID,
 		VideoID: f.VideoID, ThumbnailURL: SanitizeMetadataURL(f.ThumbnailURL), EmbededHTML: f.EmbededHTML,
 		DirectPlayURL: SanitizeMetadataURL(f.DirectPlayURL), HLSPlaylistURL: SanitizeMetadataURL(f.HLSPlaylistURL),
 		PreviewAnimationURL: SanitizeMetadataURL(f.PreviewAnimationURL),
@@ -222,7 +222,7 @@ func buildUpsertUpdateColumns(row *mediaFileRow) map[string]any {
 		"url":                   row.URL,
 		"origin_url":            row.OriginURL,
 		"status":                row.Status,
-		"b2_bucket_name":        row.B2BucketName,
+		"r2_bucket_name":        row.R2BucketName,
 		"bunny_video_id":        row.BunnyVideoID,
 		"bunny_library_id":      row.BunnyLibraryID,
 		"video_id":              row.VideoID,
@@ -247,7 +247,7 @@ func (r *GormFileRepository) SaveWithRowVersionCheck(ctx context.Context, f *dom
 			"object_key": row.ObjectKey, "kind": row.Kind, "provider": row.Provider,
 			"filename": row.Filename, "mime_type": row.MimeType, "size_bytes": row.SizeBytes,
 			"url": row.URL, "origin_url": row.OriginURL, "status": row.Status,
-			"b2_bucket_name": row.B2BucketName, "bunny_video_id": row.BunnyVideoID,
+			"r2_bucket_name": row.R2BucketName, "bunny_video_id": row.BunnyVideoID,
 			"bunny_library_id": row.BunnyLibraryID, "video_id": row.VideoID,
 			"thumbnail_url": row.ThumbnailURL, "embeded_html": row.EmbededHTML,
 			"direct_play_url": row.DirectPlayURL, "hls_playlist_url": row.HLSPlaylistURL,

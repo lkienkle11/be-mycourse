@@ -38,7 +38,7 @@ func TestBuildUpsertUpdateColumns_persistsWebhookFields(t *testing.T) {
 
 	mustHave := []string{
 		"kind", "provider", "filename", "mime_type", "size_bytes",
-		"url", "origin_url", "status", "b2_bucket_name",
+		"url", "origin_url", "status", "r2_bucket_name",
 		"bunny_video_id", "bunny_library_id", "video_id",
 		"thumbnail_url", "embeded_html", "direct_play_url", "hls_playlist_url",
 		"preview_animation_url", "duration", "video_provider",

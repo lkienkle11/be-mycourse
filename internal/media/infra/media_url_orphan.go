@@ -16,8 +16,7 @@ import (
 //  2. /api/v1/media/files/local/… → provider=Local, ok=true (no remote delete needed).
 //  3. Bunny Stream URL matching BunnyStreamBaseURL + library-id prefix →
 //     provider=Bunny, objectKey=GUID, bunnyVideoID=GUID.
-//  4. B2/CDN URL matching GcoreCDNURL + B2Bucket prefix →
-//     provider=B2, objectKey=object key after bucket segment.
+//  4. R2 URL matching R2PublicURL prefix → provider=R2, objectKey=remainder.
 //  5. Other (external URL) → not ok.
 //
 // Pure function: no I/O, reads only from pkg/setting (already loaded at startup).
@@ -41,7 +40,7 @@ func ParseImageURLForOrphanCleanup(rawURL string) (
 	if p, key, bid, hit := orphanCleanupBunnyMatch(u); hit {
 		return p, key, bid, true
 	}
-	if p, key, hit := orphanCleanupB2Match(u); hit {
+	if p, key, hit := orphanCleanupR2Match(u); hit {
 		return p, key, "", true
 	}
 
@@ -68,22 +67,21 @@ func orphanCleanupBunnyMatch(u string) (string, string, string, bool) {
 	return constants.FileProviderBunny, guid, guid, true
 }
 
-func orphanCleanupB2Match(u string) (string, string, bool) {
-	cdnBase := utils.NormalizeBaseURL(setting.MediaSetting.GcoreCDNURL, "")
-	bucket := strings.TrimSpace(setting.MediaSetting.B2Bucket)
-	if cdnBase == "" || bucket == "" {
-		return string(""), "", false
+func orphanCleanupR2Match(u string) (string, string, bool) {
+	publicBase := utils.NormalizeBaseURL(setting.MediaSetting.R2.PublicURL, "")
+	if publicBase == "" {
+		return "", "", false
 	}
-	prefix := utils.JoinURLPathSegments(cdnBase, bucket) + "/"
+	prefix := publicBase + "/"
 	if !strings.HasPrefix(u, prefix) {
-		return string(""), "", false
+		return "", "", false
 	}
 	remainder := strings.TrimPrefix(u, prefix)
 	remainder = strings.SplitN(remainder, "?", 2)[0]
 	remainder = strings.SplitN(remainder, "#", 2)[0]
 	key := strings.TrimSpace(remainder)
 	if key == "" {
-		return string(""), "", false
+		return "", "", false
 	}
-	return constants.FileProviderB2, key, true
+	return constants.FileProviderR2, key, true
 }

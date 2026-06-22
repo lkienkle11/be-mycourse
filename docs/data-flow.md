@@ -144,7 +144,7 @@ POST /api/v1/media/files  (JWT + media_file:create required)
             ├─ For each part (up to 5 concurrent workers):
             │   ├─ Executable denylist check (non-image/non-video)
             │   ├─ WebP encoding (images — bimg/libvips CGO)
-            │   └─ Provider upload (B2 or Bunny Stream)
+            │   └─ Provider upload (R2 or Bunny Stream)
             ├─ Infer typed metadata (image/video/document)
             ├─ Persist rows to media_files
             └─ Return array of UploadFileResponse
@@ -175,7 +175,7 @@ Background: OrphanEnqueuer.EnqueueOrphanCleanupForFileID(fileID)
 
 Background job (cleanup_scheduler.go — started in main.go):
   └─ Poll media_pending_cloud_cleanup rows in batches
-  └─ Delete cloud objects (B2 or Bunny)
+  └─ Delete cloud objects (R2 or Bunny)
   └─ Mark rows done / remove from table
 ```
 
@@ -225,7 +225,7 @@ GET/POST /api/v1/learner-courses/:courseId/progress
 - **Redis** optional cache: auth `/me` responses, login negative cache, email confirmation sliding window.
 - **LavinMQ** optional topic messaging: publish/consume via `internal/shared/mq` when `LAVINMQ_ENABLED=true` and `CLOUDAMQP_URL` is set (CloudAMQP console AMQP URL). Default exchange `amq.topic`; routing keys in `internal/shared/constants/mq_topics.go`.
 - **SQL migrations** via embedded files + `golang-migrate` (`shareddb.MigrateDatabase()`).
-- **B2 / BunnyCDN** object storage for media files.
+- **Cloudflare R2 / BunnyCDN** object storage for media files.
 
 ---
 

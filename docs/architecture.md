@@ -4,7 +4,7 @@
 
 The **MyCourse** backend is a **Go 1.25** monolith (`module mycourse-io-be`) organized with **Domain-Driven Design (DDD)**. Each business capability is a bounded context under `internal/<domain>/`, divided into four layers with a strict dependency rule.
 
-**Tech stack:** Gin (HTTP), GORM + PostgreSQL (persistence), Redis (cache), CloudAMQP LavinMQ (optional topic messaging), golang-jwt (auth), Brevo SMTP (email), Backblaze B2 + BunnyCDN (storage/streaming), Uber Zap (logging), YAML + env (config).
+**Tech stack:** Gin (HTTP), GORM + PostgreSQL (persistence), Redis (cache), CloudAMQP LavinMQ (optional topic messaging), golang-jwt (auth), Brevo SMTP (email), Cloudflare R2 + BunnyCDN (storage/streaming), Uber Zap (logging), YAML + env (config).
 
 ---
 
@@ -57,7 +57,7 @@ server/wire    → all layers
 | **auth** | `internal/auth/` | User registration, login, email confirmation, JWT sessions, token refresh |
 | **course** | `internal/course/` | Versioned course authoring, collaboration, review workflow, learner enrollment/progress |
 | **instructor** | `internal/instructor/` | Instructor roster, applications, profiles, expertise, support tickets |
-| **media** | `internal/media/` | File/video upload, B2/Bunny storage, orphan cleanup, webhooks |
+| **media** | `internal/media/` | File/video upload, R2/Bunny storage, orphan cleanup, webhooks |
 | **rbac** | `internal/rbac/` | Roles, permissions, user-role/user-permission bindings |
 | **taxonomy** | `internal/taxonomy/` | Course topics, outcomes, skills, tags, levels |
 | **system** | `internal/system/` | Privileged operations, RBAC sync, scheduler control |
@@ -128,7 +128,7 @@ main.go
   └── resilience.ConfigureFromSettings() + StartDBProbe()
   └── appcli MaybeRun*        — optional CLI short-circuit (register / login)
   └── supabasepkg.Setup()     — Supabase HTTP client (optional)
-  └── mediainfra.Setup()      — init B2/Bunny SDK
+  └── mediainfra.Setup()      — init R2/Bunny SDK
   └── maybeMigrateFromEnv()   — SQL migration mode (`MIGRATE=1` up then continue startup; `MIGRATE=2` down by file then exit)
   └── server.Wire(db, redis)  — dependency injection
   └── mediajobs.StartMediaPendingCleanupJob() — background worker

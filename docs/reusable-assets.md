@@ -389,9 +389,9 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Name: `NewCloudClientsFromSetting`
 - Type: Function (`pkg/media`)
 - Path: `pkg/media/clients_setting_attach.go`
-- Purpose: One-shot construction of `entities.CloudClients` (B2 client + bucket name, Gcore CDN API service, Bunny Storage client) from **`setting.MediaSetting`** fields: `B2KeyID`, `B2AppKey`, `B2Bucket`, `GcoreAPIBaseURL`, `GcoreAPIToken`, `BunnyStorageEndpoint`, `BunnyStoragePassword` (all `strings.TrimSpace`). No `os.Getenv` in this path — values arrive via `setting.Setup()` / YAML `${MEDIA_*}` expansion.
+- Purpose: One-shot construction of `entities.CloudClients` (R2 S3 client + bucket name, Bunny Storage client) from **`setting.MediaSetting`** fields: `R2.*`, `BunnyStorageEndpoint`, `BunnyStoragePassword` (all `strings.TrimSpace`). No `os.Getenv` in this path — values arrive via `setting.Setup()` / YAML `${MEDIA_*}` expansion.
 - Scope: App startup only; caller `pkg/media.Setup()` (after `setting.Setup()` in `main.go`).
-- Dependencies: `pkg/setting`, `github.com/Backblaze/blazer/b2`, Gcore and Bunny Storage SDKs, `pkg/logic/utils.NormalizeBaseURL`.
+- Dependencies: `pkg/setting`, `github.com/aws/aws-sdk-go-v2/service/s3`, Bunny Storage SDK, `pkg/logic/utils.NormalizeBaseURL`.
 - Current Usage: `pkg/media/setup.go`.
 - Reuse Opportunity: Any new process that needs the same cloud handles should call `media.Setup` or reuse the global `media.Cloud` rather than duplicating env reads.
 
@@ -406,11 +406,11 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Reuse Opportunity:
   - Reuse for all future endpoints that accept metadata in raw string form and require backend metadata inference.
 
-### Asset: Media upload object keys (B2 / Bunny / local)
-- Name: `ResolveMediaUploadObjectKey`, `BuildB2ObjectKey`
+### Asset: Media upload object keys (R2 / Bunny / local)
+- Name: `ResolveMediaUploadObjectKey`, `BuildObjectStorageKey`
 - Type: Helper
 - Path: `pkg/media/media_upload_keys.go`
-- Purpose: Provider-specific default object keys before upload (8-digit B2 prefix; Bunny empty until GUID; local nano key).
+- Purpose: Provider-specific default object keys before upload (8-digit R2 prefix; Bunny empty until GUID; local nano key).
 - Scope: Media upload service and any future upload entry point.
 - Dependencies: `constants`, `pkg/logic/utils` (`GenerateRandomDigits`), `path/filepath`, `strings`, `time`.
 - Current Usage: `internal/media/application/file_service.go`.
@@ -455,7 +455,7 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Name: `DeleteStoredObject`
 - Type: Function (`pkg/media`)
 - Path: `pkg/media/stored_object_delete.go`
-- Purpose: Route delete by provider (B2 key vs Bunny GUID vs local noop).
+- Purpose: Route delete by provider (R2 key vs Bunny GUID vs local noop).
 - Scope: Delete compensation, pending cleanup worker, avoids duplicating switch in callers.
 - Current Usage: `internal/media/application/file_service.go`, `internal/jobs/media/media_pending_cleanup_batch.go`.
 
@@ -503,7 +503,7 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Name: `ProviderError` (type in **`pkg/errors`**); `AsProviderError`, `HTTPStatusForProviderCode` (functions in **`pkg/errors_func/media`**)
 - Type: Error + helpers
 - Path: `pkg/errors/provider_error.go`; `pkg/errors_func/media/provider_error_funcs.go`
-- Purpose: Carry `errcode` 9010–9018 for B2/Bunny/encode client failures; map to HTTP 500/502/503/504.
+- Purpose: Carry `errcode` 9019–9018 for R2/Bunny/encode client failures; map to HTTP 500/502/503/504.
 - Scope: Media handlers and provider clients.
 - Dependencies: `errors`, `net/http`, `pkg/errcode`, `pkg/errors`.
 - Current Usage: `pkg/media/clients.go`, `internal/*/delivery/media/file_handler.go` / `file_handler_errors.go` / `webhook_handler.go`, `internal/media/application/file_service.go`.
@@ -520,7 +520,7 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Reuse Opportunity: Prefer this over returning raw GORM errors from `services` when handlers need a not-found branch.
 
 ### Asset: Media upstream errcodes (9010–9018)
-- Name: `B2BucketNotConfigured`, `BunnyStreamNotConfigured`, `BunnyCreateFailed`, `BunnyUploadFailed`, `BunnyInvalidResponse`, `BunnyVideoNotFound`, `BunnyGetVideoFailed`, **`ImageEncodeBusy`** (9017), **`VideoTranscodeTimeout`** (9018)
+- Name: `R2BucketNotConfigured`, `BunnyStreamNotConfigured`, `BunnyCreateFailed`, `BunnyUploadFailed`, `BunnyInvalidResponse`, `BunnyVideoNotFound`, `BunnyGetVideoFailed`, **`ImageEncodeBusy`** (9017), **`VideoTranscodeTimeout`** (9018)
 - Type: Constant / API contract
 - Path: `pkg/errcode/codes.go`, `pkg/errcode/messages.go`, `internal/shared/constants/error_msg.go` (`MsgMedia*`, `MsgImageEncodeBusy`, `MsgVideoTranscodeTimeout`)
 - Purpose: Stable API codes + default JSON messages for media upstream failures.
@@ -955,7 +955,7 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Name: `ParseImageURLForOrphanCleanup`
 - Type: Util/Helper
 - Path: `pkg/media/media_url_orphan.go`
-- Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, Gcore CDN + B2 bucket). Pure function — no I/O.
+- Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, R2 public URL). Pure function — no I/O.
 - Scope: Orphan cleanup flows in any domain service that holds image URL strings.
 - Dependencies: `internal/shared/constants/media.go`, `pkg/logic/utils` (NormalizeBaseURL, JoinURLPathSegments), `pkg/setting`.
 - Current Usage: `internal/jobs/media/media_orphan_enqueue.go`.

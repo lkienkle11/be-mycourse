@@ -4,7 +4,7 @@
 
 The media module (`internal/media/`) provides a unified API surface for file and video uploads with cloud storage providers. It handles:
 
-- **Non-video files** — upload to Backblaze B2; public URL via Gcore CDN
+- **Non-video files** — upload to Cloudflare R2; public URL via R2 custom domain
 - **Videos** — upload and stream via BunnyCDN Stream
 - **Local** — reversible signed URL token (dev/fallback)
 
@@ -31,7 +31,7 @@ internal/media/
 │   ├── storage_gateway.go         # StorageGateway — implements domain.MediaGateway
 │   ├── repos.go                   # GormFileRepository + GormPendingCleanupRepository
 │   ├── repos_query_helper.go      # Shared first-row lookups
-│   ├── cloud_clients.go           # B2 + BunnyCDN SDK (global Cloud clients)
+│   ├── cloud_clients.go           # R2 + BunnyCDN SDK (global Cloud clients)
 │   ├── media_metadata.go          # Typed metadata inference (image/video/document)
 │   ├── media_upload_entity.go     # BuildMediaFileEntityFromUpload
 │   ├── multipart_files.go           # Collect/validate multipart headers
@@ -55,7 +55,7 @@ internal/media/
 ### Layering
 
 - **`application.MediaService`** and **`delivery.Handler`** must not import `internal/media/infra`.
-- All B2/Bunny/multipart/webhook operations go through **`domain.MediaGateway`**, implemented by **`infra.StorageGateway`**, constructed in **`internal/server/wire.go`** and passed to both service and handler.
+- All R2/Bunny/multipart/webhook operations go through **`domain.MediaGateway`**, implemented by **`infra.StorageGateway`**, constructed in **`internal/server/wire.go`** and passed to both service and handler.
 - WebP encoding remains in **`internal/shared/utils/`** (CGO / stub), invoked from application upload paths.
 
 ---
@@ -127,7 +127,7 @@ Provider routing for single delete is resolved from the persisted `media_files` 
 5. For each part concurrently (up to `MaxConcurrentMediaUploadWorkers = 5`):
    a. **Executable check** (non-image, non-video only): reject if extension or magic bytes match denylist → HTTP 400 / code 2004.
    b. **WebP encoding** (images only): acquire encode gate, run `EncodeWebP` via bimg/libvips (CGO), update payload/filename/MIME/size.
-   c. **Provider upload**: B2 (non-video) or Bunny Stream (video).
+   c. **Provider upload**: R2 (non-video) or Bunny Stream (video).
    d. **Metadata inference**: typed `ImageMetadata`, `VideoMetadata`, or `DocumentMetadata` inferred server-side from MIME/extension.
 6. Persist to `media_files` (DB create).
 7. Return array of `UploadFileResponse` (one entry per part).
@@ -196,7 +196,7 @@ The flat scalar columns are also populated for fast lookups:
 | `preview_animation_url`        | `preview_animation_url` | CDN animated preview WebP           |
 | `length`                       | `duration`           | Seconds (int)                          |
 | `video_provider`               | `video_provider`     | `bunny_stream`                         |
-| `b2_bucket_name`               | `b2_bucket_name`     | Set on B2 uploads                      |
+| `r2_bucket_name`               | `r2_bucket_name`     | R2 bucket name                         |
 
 All other Bunny fields are persisted **only** inside `metadata_json` so the
 schema does not need to grow per-field columns:
@@ -454,7 +454,7 @@ Gin `MaxMultipartMemory` = 64 MiB (set in `internal/server/router.go`). Large pa
 
 | Code | Name | HTTP | Condition |
 |------|------|------|-----------|
-| 9010 | `B2BucketNotConfigured` | 500 | B2 bucket not configured |
+| 9019 | `R2BucketNotConfigured` | 500 | R2 bucket not configured |
 | 9011 | `BunnyStreamNotConfigured` | 500 | Bunny Stream not configured |
 | 9012 | `BunnyCreateFailed` | 502 | Bunny video create request failed |
 | 9013 | `BunnyUploadFailed` | 502 | Bunny video upload request failed |

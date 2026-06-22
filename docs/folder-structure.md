@@ -122,7 +122,7 @@ be-mycourse/
 |------|---------|
 | `domain/` | `File`, `MediaGateway` port, repository interfaces, Bunny status/webhook/meta types |
 | `application/` | `MediaService` (injected `MediaGateway`), `service_upload_helpers.go` |
-| `infra/` | `storage_gateway.go` (implements `MediaGateway`), `repos.go`, B2/Bunny clients, metadata, webhooks, multipart open/validate |
+| `infra/` | `storage_gateway.go` (implements `MediaGateway`), `repos.go`, R2/Bunny clients, metadata, webhooks, multipart open/validate |
 | `delivery/` | `Handler` + `MediaGateway` for multipart/metadata; `routes.go`, DTOs, multipart bind helpers in `mapping.go` |
 | `jobs/` | `OrphanEnqueuer`, cleanup scheduler, `GlobalCounters`, `cleanup_constants.go` |
 

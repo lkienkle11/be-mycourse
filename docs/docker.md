@@ -20,7 +20,7 @@ cp .env.example .env
 cp .env.local.example .env.local    # or .env.dev.example → .env.dev, etc.
 ```
 
-Fill **`DATABASE_URL`** / **`REDIS_ADDR`** with your **cloud** Postgres and Redis URLs (default path). Real `.env*` files stay gitignored.
+Fill **`DATABASE_URL`** / **`REDIS_ADDR`** with your **cloud** Postgres and Redis URLs (default path). Optional **`SCHEMA_NAME_APP`** (empty → `public`) — see **`docs/database.md`**. Real `.env*` files stay gitignored.
 
 ---
 

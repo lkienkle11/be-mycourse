@@ -79,7 +79,7 @@ Cross-domain dependencies (e.g. Auth calling RBAC) use **interface adapters** de
 | `internal/shared/token` | JWT generation and validation |
 | `internal/shared/setting` | YAML + env config loading |
 | `internal/shared/logger` | Uber Zap bootstrap and per-request context |
-| `internal/shared/db` | PostgreSQL GORM setup, connection pool tuning (`tunePool`), migration runner |
+| `internal/shared/db` | PostgreSQL GORM setup, per-connection `search_path` (`SCHEMA_NAME_APP` / `public`), pool tuning (`tunePool`), migration runner |
 | `internal/shared/cache` | Redis client |
 | `internal/shared/mq` | CloudAMQP LavinMQ connection, topic publisher, consumer registry |
 | `internal/shared/httperr` | Gin error middleware and panic recovery |

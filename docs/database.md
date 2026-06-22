@@ -16,12 +16,28 @@ MIGRATE=2 MIGRATE_VERSION_FILE=000016_course_management.down.sql go run .
 
 See `migrations/README.md` for migration conventions (semicolon splitting, `COMMENT` rules, rollback).
 
+## PostgreSQL schema (`SCHEMA_NAME_APP`)
+
+Application tables live in a single PostgreSQL schema (default **`public`**). The backend sets `search_path` on **every** GORM connection and passes the same name to **golang-migrate** (`SchemaName`).
+
+| Source | Key / field | Behavior |
+|--------|-------------|----------|
+| `.env` / `.env.<STAGE>` | `SCHEMA_NAME_APP` | Optional. Mapped via `config/app*.yaml` → `database.schema_name`. |
+| Code default | `constants.PostgresSchemaDefault` (`public`) | Used when `SCHEMA_NAME_APP` is empty or unset. |
+| Runtime | `setting.DatabaseSetting.AppSchemaName()` | Resolved schema for GORM + migrations. |
+| Validation | `setting.DatabaseSetting.EnsureAppSchemaName()` | Rejects unsafe identifiers at startup. |
+
+**Why:** Some managed Postgres hosts (e.g. CapRover) leave the role `search_path` empty. GORM queries unqualified table names (`media_files`) and fails with `relation "…" does not exist` even though `public.media_files` exists. The app runs `SET search_path TO <schema>` in `internal/shared/db/db.go` (`pgx` `OptionAfterConnect`) so behavior does not depend on server role defaults.
+
+**Manual `psql`:** Interactive clients may still have an empty `search_path`. Use `public.table_name` or run `SET search_path TO public;` in the session.
+
 ## Code ↔ table names
 
 All PostgreSQL relation names are defined once in **`internal/shared/constants/dbschema_name.go`**. GORM `TableName()` methods and raw SQL must use those constants — do not hardcode table strings in handlers or repositories.
 
 | Constant | Table |
 |----------|-------|
+| `PostgresSchemaDefault` | PostgreSQL schema name when `SCHEMA_NAME_APP` is unset (`public`) |
 | `TableAppUsers` | `users` |
 | `TableRBACPermissions` | `permissions` |
 | `TableRBACRoles` | `roles` |

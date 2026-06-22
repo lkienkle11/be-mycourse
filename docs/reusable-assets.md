@@ -638,6 +638,13 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Process startup — called from `db.Setup()`.
 - Current Usage: `main` bootstrap via `shareddb.Setup()`.
 
+### Asset: PostgreSQL schema / search_path
+- Name: `Setup`, `Database.AppSchemaName`, `Database.EnsureAppSchemaName`, `constants.PostgresSchemaDefault`
+- Type: Function + methods (`internal/shared/db/db.go`, `internal/shared/setting/setting.go`, `internal/shared/constants/dbschema_name.go`)
+- Purpose: Resolve app PostgreSQL schema from `SCHEMA_NAME_APP` (via YAML `database.schema_name`) or default `public`; run `SET search_path` on every new GORM connection (`pgx` `stdlib.OptionAfterConnect`); pass the same name to golang-migrate `SchemaName`.
+- Scope: Process startup and `MIGRATE=1` / `MIGRATE=2`.
+- Current Usage: `main` bootstrap via `shareddb.Setup()`, `shareddb.MigrateDatabase()`.
+
 ### Asset: Generic normalization / set primitives (utils)
 - Name: `SameStringSet`, `UniqueUint`, `NilIfBlank`, `NilIfZeroUint`, `NormalizeJSON`
 - Type: Util

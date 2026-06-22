@@ -70,7 +70,7 @@ Cross-cutting concerns that are not domain-specific:
 
 | Package | Purpose |
 |---------|---------|
-| `internal/shared/db/` | GORM setup, PostgreSQL connection (`tunePool` on `database/sql` after open), SQL migrations |
+| `internal/shared/db/` | GORM setup, PostgreSQL connection (`search_path` per connection via `SCHEMA_NAME_APP` / default `public`, `tunePool` on `database/sql` after open), SQL migrations |
 | `internal/shared/cache/` | Redis client (`go-redis v9`) |
 | `internal/shared/mq/` | LavinMQ / RabbitMQ AMQP client (`amqp091-go`): topic publish, durable queue bind, consumer registry |
 | `internal/shared/setting/` | YAML config loading with env-var substitution |
@@ -82,7 +82,7 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/brevo/` | Brevo SMTP email client |
 | `internal/shared/mailtmpl/` | HTML email templates |
 | `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
-| `internal/shared/constants/` | Cross-domain constants (dbschema names, error messages, media limits, permission IDs, register HTTP headers, LavinMQ topic routing keys, rate-limit keys) |
+| `internal/shared/constants/` | Cross-domain constants (PostgreSQL default schema `PostgresSchemaDefault`, dbschema table names, error messages, media limits, permission IDs, register HTTP headers, LavinMQ topic routing keys, rate-limit keys) |
 | `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint, normalization/set helpers) |
 | `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `TouchCreatedUpdated`, `ScopeActiveOnly`, `SoftDeleteWithAudit`) — see **`docs/patterns.md`** |
 | `internal/shared/timex/` | Unix epoch second helpers for audit columns (`NowUnix`, `PtrUnix`) |
@@ -122,7 +122,7 @@ Dependency injection lives in **`internal/server/wire.go`**. The `Wire()` functi
 main.go
   └── setting.Setup()         — load YAML + env vars
   └── logger.InitFromSettings() — init Uber Zap global logger
-  └── shareddb.Setup()        — connect PostgreSQL (GORM) + tune connection pool
+  └── shareddb.Setup()        — connect PostgreSQL (GORM), SET search_path (SCHEMA_NAME_APP or public), tune pool
   └── cache.SetupRedis()      — connect Redis (before APPCLI branch)
   └── mq.SetupLavinMQ()       — optional CloudAMQP LavinMQ (skipped when LAVINMQ_ENABLED=false or URL empty)
   └── resilience.ConfigureFromSettings() + StartDBProbe()

@@ -170,9 +170,9 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | Path | Purpose |
 |------|---------|
 | `constants/` | **Only 5 files** — cross-domain constants. All domain-specific constants live inside their own domain package |
-| `db/` | `shareddb.Setup()` (opens GORM + `tunePool`: `MaxOpenConns=50`, `MaxIdleConns=25`), `shareddb.Conn()`, `MigrateDatabase()` |
+| `db/` | `shareddb.Setup()` (opens GORM, `SET search_path` from `SCHEMA_NAME_APP` or `public`, `tunePool`: `MaxOpenConns=50`, `MaxIdleConns=25`), `shareddb.Conn()`, `MigrateDatabase()` |
 | `cache/` | `cache.SetupRedis()`, `cache.Redis` global Redis client |
-| `setting/` | `setting.Setup()`, config structs (`ServerSetting`, `DatabaseSetting`, `MediaSetting`, `LogSetting`, …) |
+| `setting/` | `setting.Setup()`, config structs (`ServerSetting`, `DatabaseSetting` incl. `SchemaName` / `AppSchemaName()`, `MediaSetting`, `LogSetting`, …) |
 | `logger/` | `logger.InitFromSettings()`, `logger.Sync()`, `logger.FromContext()`, `logger.WithRequestID()` |
 | `middleware/` | `AuthJWT`, `RequirePermission`, `RequireInternalAPIKey`, `RequireSystemAccessToken`, `RateLimitLocal`, `RateLimitSystemIP`, `CircuitBreakerMiddleware`, `BeforeInterceptor`, `RequestLogger` |
 | `response/` | `response.OK`, `response.Created`, `response.WriteByStatus`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |

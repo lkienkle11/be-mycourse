@@ -25,6 +25,7 @@ import (
 	gomigrate "github.com/golang-migrate/migrate/v4"
 
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/setting"
 	appmigrations "mycourse-io-be/migrations"
 )
@@ -60,7 +61,7 @@ func Setup() error {
 		_, err := conn.Exec(ctx, searchPathSQL)
 		return err
 	}))
-	db, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{})
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), gormx.DefaultConfig())
 	if err != nil {
 		return err
 	}

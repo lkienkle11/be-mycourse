@@ -31,6 +31,20 @@ Application tables live in a single PostgreSQL schema (default **`public`**). Th
 
 **Manual `psql`:** Interactive clients may still have an empty `search_path`. Use `public.table_name` or run `SET search_path TO public;` in the session.
 
+## GORM SQL console logging
+
+Primary and Supabase Postgres pools both use `gormx.DefaultConfig()` at open time. The custom GORM logger (`gormx.NewSQLLogger`) prints **every** SQL statement to the process stdout (not Zap JSON files):
+
+| Elapsed | SQL text color (TTY) |
+|---------|----------------------|
+| `< 200ms` | Green |
+| `200ms` – `< 2s` | Yellow |
+| `>= 2s` | Red |
+
+Each line includes the GORM caller (`file:line`), duration in milliseconds, affected row count, and the SQL body. Real driver errors (timeouts, connection failures) are printed above the SQL line; `gorm.ErrRecordNotFound` is treated as a normal query when `IgnoreRecordNotFoundError` is enabled.
+
+**Local dev:** run `go run .` and watch the terminal — fast queries appear in green, slow ones escalate to yellow/red. **Production / Loki:** SQL lines stay on stdout unless you add a separate collector; they are not written to rotated `app.log` by default.
+
 ## Code ↔ table names
 
 All PostgreSQL relation names are defined once in **`internal/shared/constants/dbschema_name.go`**. GORM `TableName()` methods and raw SQL must use those constants — do not hardcode table strings in handlers or repositories.

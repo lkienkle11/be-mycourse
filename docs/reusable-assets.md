@@ -71,14 +71,24 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - **Reuse:** Never use `time.Now()` directly for persisted audit fields — use `NowUnix()` (see **`docs/patterns.md`** — Audit timestamps).
 
 ### Asset: gormx audit + soft-delete helpers
-- **Name:** `TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`, `ScopeActiveOnly`, `FirstWhere`, `CreateAndThen`, `EnsureStringID`
+- **Name:** `TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`, `ScopeActiveOnly`, `FirstWhere`, `CreateAndThen`, `EnsureStringID`, `DefaultConfig`, `NewSQLLogger`
 - **Type:** Package (`internal/shared/gormx`)
 - **Path:** `internal/shared/gormx/`
-- **Purpose:** Shared GORM patterns — audit timestamp writes, active-row scope, generic `First`/`Create` helpers, and UUID v7 assignment for empty string primary keys before `Create`.
+- **Purpose:** Shared GORM patterns — audit timestamp writes, active-row scope, generic `First`/`Create` helpers, UUID v7 assignment for empty string primary keys before `Create`, shared `gorm.Config` (`DefaultConfig`), and latency-colored SQL console logging (`NewSQLLogger`).
 - **Scope:** Taxonomy/instructor/course inserts with string `id` columns; auth `/me` delete; media soft delete; system config sync rows.
 - **Dependencies:** `gorm.io/gorm`, `internal/shared/timex`, `internal/shared/uuidx`.
 - **Current usage:** `internal/taxonomy/infra`, `internal/instructor/infra`, `internal/course/infra` (`touchCreateCourseEntity`), `internal/auth/infra`, `internal/media/infra`, `internal/system/infra`.
-- **Reuse:** Prefer these over ad-hoc `Updates(map…)` for `deleted_at` / `updated_at`. Call `EnsureStringID` (or module `touchCreateCourseEntity`) before any GORM `Create` on UUID string PK rows — zero-value `""` is rejected by PostgreSQL.
+- **Reuse:** Prefer these over ad-hoc `Updates(map…)` for `deleted_at` / `updated_at`. Call `EnsureStringID` (or module `touchCreateCourseEntity`) before any GORM `Create` on UUID string PK rows — zero-value `""` is rejected by PostgreSQL. Open every GORM pool via `gormx.DefaultConfig()` — do not duplicate `&gorm.Config{}` in `db` or `pkg/supabase`.
+
+### Asset: GORM SQL console logger
+- **Name:** `NewSQLLogger`, `DefaultConfig`, `SQLLogThresholds`, `SQLLogThresholdSummary`
+- **Type:** Package (`internal/shared/gormx`)
+- **Path:** `internal/shared/gormx/sql_logger.go`, `gorm_config.go`
+- **Purpose:** Log **every** GORM SQL statement to stdout with elapsed time in milliseconds and ANSI-colored SQL text: green `<200ms`, yellow `200ms–2s`, red `>=2s`. Reuses `gorm.io/gorm/logger` color constants and `gorm.io/gorm/utils.FileWithLineNum`. `gorm.ErrRecordNotFound` is logged as a normal query (not an error line).
+- **Scope:** Process startup for primary PostgreSQL (`internal/shared/db`) and optional Supabase Postgres (`pkg/supabase/db.go`).
+- **Dependencies:** `gorm.io/gorm`, `gorm.io/gorm/logger`, `gorm.io/gorm/utils`.
+- **Current usage:** `shareddb.Setup()`, `supabase.SetupDatabase()`.
+- **Reuse:** Do not configure a separate GORM logger in domain repos — attach `gormx.DefaultConfig()` only at pool open time.
 
 ### Asset: PendingCloudCleanupCounters (media job metrics boundary)
 - **Name:** `PendingCloudCleanupCounters`

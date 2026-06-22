@@ -65,7 +65,7 @@ be-mycourse/
 │   │   ├── middleware/             # Gin middleware: CORS, AuthJWT, RBAC, rate limit, request logger
 │   │   ├── response/               # Unified response envelope helpers
 │   │   ├── setting/                # YAML config loading + env substitution
-│   │   ├── gormx/                  # FirstWhere, CreateAndThen, audit timestamps, soft-delete scope
+│   │   ├── gormx/                  # FirstWhere, CreateAndThen, audit timestamps, soft-delete scope, DefaultConfig, SQL console logger
 │   │   ├── timex/                  # NowUnix and nullable epoch helpers (audit columns)
 │   │   ├── cryptox/                # Credential HMAC, system JWT helpers
 │   │   ├── httpx/                  # Paginated list handler helper
@@ -170,7 +170,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | Path | Purpose |
 |------|---------|
 | `constants/` | **Only 5 files** — cross-domain constants. All domain-specific constants live inside their own domain package |
-| `db/` | `shareddb.Setup()` (opens GORM, `SET search_path` from `SCHEMA_NAME_APP` or `public`, `tunePool`: `MaxOpenConns=50`, `MaxIdleConns=25`), `shareddb.Conn()`, `MigrateDatabase()` |
+| `db/` | `shareddb.Setup()` (opens GORM via `gormx.DefaultConfig()` + SQL console logger, `SET search_path` from `SCHEMA_NAME_APP` or `public`, `tunePool`: `MaxOpenConns=50`, `MaxIdleConns=25`), `shareddb.Conn()`, `MigrateDatabase()` |
 | `cache/` | `cache.SetupRedis()`, `cache.Redis` global Redis client |
 | `setting/` | `setting.Setup()`, config structs (`ServerSetting`, `DatabaseSetting` incl. `SchemaName` / `AppSchemaName()`, `MediaSetting`, `LogSetting`, …) |
 | `logger/` | `logger.InitFromSettings()`, `logger.Sync()`, `logger.FromContext()`, `logger.WithRequestID()` |

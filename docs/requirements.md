@@ -500,6 +500,7 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 - Database migrations support env modes:
   - `MIGRATE=1` applies pending up migrations, then continues normal server startup.
   - `MIGRATE=2` + `MIGRATE_VERSION_FILE=<file>.down.sql` rolls back to `version(file)-1` then exits.
+- PostgreSQL app schema **MUST** be configurable via optional env `SCHEMA_NAME_APP` (YAML `database.schema_name`); when unset, the backend **MUST** default to `public` and set `search_path` on every GORM connection (see **`docs/database.md`**).
 - The binary supports a one-shot CLI flow for privileged user registration (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
 
 #### NFR-1.6 Test code layout

@@ -258,6 +258,7 @@ Set at least:
 - `STAGE=prod` (must match `config/app-prod.yaml` if you use it).
 - `SERVER_PORT=8080`, `SERVER_RUN_MODE=release`.
 - `DATABASE_URL` or full `DB_*` set—aligned with **cloud** or **local** Postgres (see Step 8).
+- `SCHEMA_NAME_APP` — optional PostgreSQL schema for app tables (`search_path` + golang-migrate). Omit or leave empty → **`public`** (PostgreSQL default). Required only when tables are not in `public` or when the DB role has an empty `search_path` (see **`docs/database.md`**).
 - `SUPABASE_*`, `JWT_SECRET`, `APP_BASE_URL=https://api.yourdomain.net` (must match the public API URL), `APP_CLIENT_BASE_URL=https://yourdomain.net` (used in registration email confirmation URL for FE).
 - `CORS_ALLOWED_ORIGINS` — comma-separated **browser origins** for the frontend, e.g. `https://yourdomain.net,https://www.yourdomain.net` (no trailing slashes).
 - `AUTH_COOKIE_DOMAIN` — parent domain for auth cookies when FE and API are on separate subdomains (e.g. `yourdomain.net`). **Must match** the same value on the frontend. Leave unset on localhost.
@@ -286,6 +287,7 @@ Set at least:
 | Symptom | Likely cause | Fix |
 |---------|----------------|-----|
 | **500** on login; log `converting driver.Value type time.Time ... to a int64` | Go models use `int64` audit fields; DB columns still `timestamptz` | Run migrations on the **same** `DATABASE_URL` as PM2 (see below) |
+| Log `relation "media_files" does not exist` (or other tables) right after startup | DB role `search_path` empty; tables exist under `public` | Ensure binary includes `search_path` fix in `shareddb.Setup()`; optional `SCHEMA_NAME_APP=public` in `.env`. Verify with `psql`: `SELECT to_regclass('public.users');` |
 | `schema_migrations.version >= 11` but `users.created_at` is still `timestamp with time zone` | Version bumped without `000011` SQL applied (dirty/partial migrate) | Re-apply `migrations/000011_audit_timestamps_bigint.up.sql` with `psql`, then verify column types |
 
 **Verify (use the app’s `[database]` DSN):**

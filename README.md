@@ -137,7 +137,7 @@ See [`docs/docker.md`](docs/docker.md). CI/CD still uses PM2 + binary rsync.
 
 ### Database migrations
 
-After pulling commits that add files under `migrations/`, apply them on **every** environment that runs the new binary (local `.env`, dev/staging/prod PM2). Use the **same** Postgres DSN as the running app (`DATABASE_URL` or `[database]` in config).
+After pulling commits that add files under `migrations/`, apply them on **every** environment that runs the new binary (local `.env`, dev/staging/prod PM2). Use the **same** Postgres DSN as the running app (`DATABASE_URL` or `[database]` in config). Optional `SCHEMA_NAME_APP` (default `public`) — see **`docs/database.md`**.
 
 ```bash
 MIGRATE=1 go run .

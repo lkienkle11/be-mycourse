@@ -190,15 +190,18 @@ POST/PATCH /api/v1/courses/*  (JWT + course:update)
             ├─ maintain stable_id for outline resources
             └─ persist version-scoped sections/lessons/sub-lessons
 
+POST /api/v1/courses/:courseId/draft/prepare
+  └─ owner-only (requireOwnerAccess); fork next DRAFT from published when none exists
+
 POST /api/v1/courses/:courseId/submit-review
-  └─ transition DRAFT -> IN_REVIEW (same version_no; validateDraftForReview inside tx)
+  └─ owner-only; transition DRAFT -> IN_REVIEW (same version_no; validateDraftForReview inside tx)
 
 POST /api/v1/course-reviews/:courseId/approve|reject  (course_review:approve|reject)
   └─ approve: IN_REVIEW -> APPROVED; courses.current_published_version_id = version; clear draft pointer
   └─ reject: IN_REVIEW -> REJECTED on submitted row; createNextDraftVersion (max+1) -> new DRAFT pointer
 
 POST /api/v1/courses/:courseId/reopen-draft
-  └─ legacy REJECTED draft pointer -> fork new DRAFT at max+1 (clone from rejected row)
+  └─ owner-only; legacy REJECTED draft pointer -> fork new DRAFT at max+1 (clone from rejected row)
 ```
 
 ### Learner Enrollment + Progress

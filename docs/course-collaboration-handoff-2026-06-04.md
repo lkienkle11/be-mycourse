@@ -53,6 +53,8 @@ Implemented:
 
 - course root and versioned publishing model
 - collaborator roles: `OWNER`, `EDITOR`
+  - `OWNER` — delete course, manage collaborators, prepare draft, submit for review, reopen rejected draft
+  - `EDITOR` — edit basic info and outline only (no prepare/submit/reopen)
 - draft states: `DRAFT`, `IN_REVIEW`, `REJECTED`, `APPROVED`
 - course basic info editing
 - course outline editing:

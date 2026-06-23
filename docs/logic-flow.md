@@ -40,6 +40,6 @@
 - Upload and webhook paths persist **`media_files`** and map public JSON to **`dto.UploadFileResponse`** (no **`origin_url`** key — Sub 12; optional Bunny delivery fields when populated). There is no dedicated sequence diagram in this repo for media; see **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/router.md`** for the authoritative flow and layering (`internal/media/infra/media_resolver.go`).
 
 ## Course / Instructor Logic
-- Course authoring: `internal/course` owns draft lifecycle, collaborator roles (`OWNER`, `EDITOR`), review transitions, outline stable IDs, and learner progress.
+- Course authoring: `internal/course` owns draft lifecycle, collaborator roles (`OWNER`, `EDITOR`), review transitions, outline stable IDs, and learner progress. `EDITOR` may edit basic info and outline; **prepare draft**, **submit for review**, and **reopen draft** are **owner-only** (`requireOwnerAccess` → `ErrCourseOwnerOnly`).
 - Instructor management: `internal/instructor` owns roster, application review, profile upsert, expertise links, and ticket messaging.
 - Both modules are mounted on authenticated `/api/v1` and guarded by RBAC permissions at route level.

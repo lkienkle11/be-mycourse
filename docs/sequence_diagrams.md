@@ -60,7 +60,8 @@ sequenceDiagram
 
     Inst->>CourseAPI: POST /courses/:courseId/submit-review
     CourseAPI->>CourseSvc: SubmitForReview(courseId, actor)
-    CourseSvc->>DB: validate collaborator + draft state
+    CourseSvc->>DB: requireOwnerAccess (EDITOR → 403)
+    CourseSvc->>DB: validate draft state + validateDraftForReview
     CourseSvc->>DB: update course_versions.status DRAFT -> IN_REVIEW (same version_no)
     CourseSvc-->>Inst: updated course detail
 

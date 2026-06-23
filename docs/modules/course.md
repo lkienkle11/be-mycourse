@@ -78,7 +78,7 @@ Editable mutations (`ensureEditableDraft`) allow only `DRAFT` status (`IN_REVIEW
 
 - Collaborator roles:
   - `OWNER` — delete course, manage collaborator membership
-  - `EDITOR` — update basic info, outline, submit draft for review
+  - `EDITOR` — update basic info and outline (cannot submit, prepare draft, or reopen rejected draft)
 - Optimistic locking:
   - mutable versioned rows carry `row_version` (starts at `1` on create — GORM must set `RowVersion: 1` explicitly because zero-value inserts override the column `DEFAULT 1`)
   - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success; accepts `title` (server recomputes `courses.slug` with the same uniqueness rules as create)
@@ -199,7 +199,8 @@ Instructor / collaborator routes:
   - sub-lesson upsert body: `lesson_id`, `title`, `kind`, `is_preview`, optional `estimated_duration_ms` (TEXT/QUIZ only), plus kind-specific `video` / `text` / `quiz` payload — see **`docs/curl_api.md` §14.5**
   - outline responses include computed `estimated_duration_ms` on sections, lessons, and sub-lessons
 - lease routes under `/api/v1/courses/:courseId/leases/*`
-- review submission routes:
+- review submission routes (**owner-only** in repo — `requireOwnerAccess`; `EDITOR` gets `403` / `ErrCourseOwnerOnly`):
+  - `POST /api/v1/courses/:courseId/draft/prepare` — fork next `DRAFT` from published when no active draft
   - `POST /api/v1/courses/:courseId/submit-review` — same `version_no`; runs `validateDraftForReview`
   - `POST /api/v1/courses/:courseId/reopen-draft` — legacy: fork new `DRAFT` at `max + 1` from rejected version (prefer auto-fork on reject for new data)
 

@@ -760,7 +760,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 |--------|--------|--------|
 | 200 | 0 | `domain.CourseDetail` |
 | 401 | 3002 | `null` |
-| 403 | 3003 | `null` — not owner/collaborator |
+| 403 | 3003 | `null` — not owner/collaborator, or collaborator is not course owner on owner-only actions (prepare/submit/reopen/delete/collaborator CRUD) |
 | 404 | 3004 | `null` — course not found |
 | 500 | 9001 | `null` |
 

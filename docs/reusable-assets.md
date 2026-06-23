@@ -590,7 +590,7 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Type: Functions (`internal/course/infra/repo_versioning.go`, `repo_access.go`)
 - Purpose: Allocate `version_no = MAX(version_no)+1`, optionally clone metadata/refs/outline from a source version (`based_on_version_id`). Used when preparing a draft from published content, when rejecting a submission (fork editable draft), and when reopening a legacy rejected pointer. `loadCourseDetailParts` loads `last_rejection_reason` in parallel when `draft_version.based_on_version_id` points to a `REJECTED` row.
 - Scope: Course versioning only — do not duplicate version-clone logic in handlers.
-- Current Usage: `PrepareDraft`, `RejectDraft`, `ReopenDraft`, `ensureEditableDraft`, `loadCourseDetail`.
+- Current Usage: `PrepareDraft` (owner-only), `RejectDraft`, `ReopenDraft` (owner-only), `ensureEditableDraft`, `loadCourseDetail`.
 
 ### Asset: Lesson reorder hydration (`hydrateLessonRowsWithSubLessons`)
 - Name: `hydrateLessonRowsWithSubLessons`

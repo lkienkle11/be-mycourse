@@ -1618,7 +1618,7 @@ paths:
   /api/v1/courses/{courseId}/draft/prepare:
     post:
       tags: [Course]
-      summary: Ensure active draft exists for course
+      summary: Ensure active draft exists for course (owner only)
       security:
         - bearerJwt: []
       parameters:
@@ -2166,7 +2166,7 @@ paths:
   /api/v1/courses/{courseId}/submit-review:
     post:
       tags: [Course]
-      summary: Submit draft for admin review
+      summary: Submit draft for admin review (owner only)
       security:
         - bearerJwt: []
       parameters:
@@ -2181,7 +2181,7 @@ paths:
   /api/v1/courses/{courseId}/reopen-draft:
     post:
       tags: [Course]
-      summary: Reopen rejected draft
+      summary: Reopen rejected draft (owner only)
       security:
         - bearerJwt: []
       parameters:

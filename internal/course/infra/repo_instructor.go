@@ -107,7 +107,7 @@ func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, u
 
 func (r *GormRepository) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		access, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID)
+		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
 		if err != nil {
 			return err
 		}

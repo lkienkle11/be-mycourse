@@ -1654,7 +1654,7 @@ curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
   -d '{"expected_row_version":1,"title":"Introduction to Go","short_description":"Short blurb"}'
 ```
 
-Other instructor routes (outline CRUD/reorder, leases, collaborators, review submit/reopen) follow the same Bearer + permission pattern — see **`docs/router.md`**.
+Other instructor routes (outline CRUD/reorder, leases, collaborators, review submit/reopen/prepare) follow the same Bearer + permission pattern — see **`docs/router.md`**. **Owner-only** in repo (not route permission): `POST …/draft/prepare`, `POST …/submit-review`, `POST …/reopen-draft` (`EDITOR` → HTTP 403 / code `3003`).
 
 Requires migration **`000022_course_sub_lesson_estimated_duration`** (or `MIGRATE=1`) for `estimated_duration_ms` on sub-lessons.
 

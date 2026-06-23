@@ -16,7 +16,7 @@ func (r *GormRepository) SubmitForReview(ctx context.Context, courseID string, a
 
 func (r *GormRepository) ReopenDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID); err != nil {
+		if _, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID); err != nil {
 			return err
 		}
 		course, version, err := r.requireDraftVersion(ctx, tx, courseID)

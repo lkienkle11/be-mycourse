@@ -130,7 +130,7 @@ Versioned course authoring, collaborator access, outline editing, admin review, 
 **Capabilities:**
 - Course root CRUD with owner-only delete
 - Single active draft per course plus current approved/published version
-- Multi-instructor collaboration through `OWNER` / `EDITOR` memberships
+- Multi-instructor collaboration through `OWNER` / `EDITOR` memberships (`EDITOR` edits content; owner-only prepare/submit/reopen)
 - Optimistic locking with `row_version`
 - Edit leases for outline resources (`OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON`)
 - Version-scoped sections, lessons, and sub-lessons

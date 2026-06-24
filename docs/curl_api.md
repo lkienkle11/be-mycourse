@@ -226,7 +226,7 @@ Returns tokens in the JSON body **and** as cookies (`access_token`, `refresh_tok
 |-------|------|----------|---------|-------------|
 | `email` | string | ✅ | — | |
 | `password` | string | ✅ | — | |
-| `remember_me` | bool | ❌ | `false` | `false` = 30d fixed TTL; `true` = 14d sliding window |
+| `remember_me` | bool | ❌ | `false` | `false` = 3d fixed TTL; `true` = 30d sliding window |
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/auth/login \
@@ -254,12 +254,14 @@ curl -X POST {{BASE_URL}}/api/v1/auth/login \
 }
 ```
 
-**Response cookies (Set-Cookie):**
+**Response cookies (Set-Cookie)** — example when `remember_me=false` (3 days):
 ```
 access_token=<jwt>; Path=/; Max-Age=900; SameSite=Lax
-refresh_token=<jwt>; Path=/; Max-Age=2592000; SameSite=Lax
-session_id=<128hex>; Path=/; Max-Age=2592000; SameSite=Lax
+refresh_token=<jwt>; Path=/; Max-Age=259200; SameSite=Lax
+session_id=<128hex>; Path=/; Max-Age=259200; SameSite=Lax
 ```
+
+When `remember_me=true`, refresh/session cookies use `Max-Age=2592000` (30 days).
 
 **Error examples:**
 ```json
@@ -364,7 +366,7 @@ curl -X POST {{BASE_URL}}/api/v1/auth/refresh \
   "data": {
     "access_token":  "eyJ...new...",
     "refresh_token": "eyJ...new...",
-    "session_id":    "a1b2c3...same..."
+    "session_id":    "a1b2c3...same...",
   }
 }
 ```

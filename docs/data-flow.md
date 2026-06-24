@@ -45,7 +45,7 @@ POST /api/v1/auth/login
             ├─ Persist refresh session to users.refresh_token_session JSONB
             │   └─ Evict oldest session if count > MaxActiveSessions (5)
             ├─ Set auth cookies (HttpOnly, SameSite=Lax)
-            └─ Return JSON body with tokens
+            └─ Return JSON body with tokens (access_token, refresh_token, session_id)
 ```
 
 ### Auth Token Refresh
@@ -61,7 +61,7 @@ POST /api/v1/auth/refresh
             ├─ Validate UUID and expiry
             ├─ Issue new access token + refresh token
             ├─ Update session entry in-place (count unchanged)
-            └─ Return new tokens
+            └─ Return new tokens (same JSON shape as login)
 ```
 
 ### Auth Logout

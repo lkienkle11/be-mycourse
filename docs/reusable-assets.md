@@ -170,15 +170,15 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Reuse Opportunity:
   - Same pattern as `ProviderError` for other bounded-retry upstream flows (always **`pkg/errors`**, never entities).
 
-### Asset: ToLoginSessionTokensResponse
-- Name: `ToLoginSessionTokensResponse`
+### Asset: toTokensResponse
+- Name: `toTokensResponse`
 - Type: Function (mapping)
-- Path: `pkg/logic/mapping/auth_tokens_mapping.go`
-- Purpose: Build `dto.LoginSessionTokensResponse` for login / confirm / refresh JSON bodies (Rule 13).
-- Scope: Auth handlers only.
-- Current Usage: `internal/*/delivery/auth.go`.
+- Path: `internal/auth/delivery/handler.go`
+- Purpose: Build `LoginSessionTokensResponse` for login / confirm / refresh JSON bodies (three token fields only).
+- Scope: Auth handlers only (`Login`, `ConfirmEmail`, `RefreshToken`).
+- Current Usage: `internal/auth/delivery/handler.go`.
 - Reuse Opportunity:
-  - Any future endpoint that returns the same three-token envelope.
+  - Any future endpoint that returns the same token envelope.
 
 ### Asset: ToMyPermissionsResponse / ToUserRBACPermissionCodesResponse
 - Name: `ToMyPermissionsResponse`, `ToUserRBACPermissionCodesResponse`

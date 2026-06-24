@@ -180,6 +180,10 @@ func courseParamBodyOK[T any](h *Handler, c *gin.Context, name, invalidMessage, 
 	})
 }
 
+func courseBodyUpdated[T any](h *Handler, c *gin.Context, fn func(courseID string, req *T) (any, error)) {
+	courseBodyOK(h, c, "updated", fn)
+}
+
 func reorderByParent(h *Handler, c *gin.Context, name, invalidMessage string, fn func(courseID, parentID string, orderedStableIDs []string) (any, error)) {
 	courseParamBodyOK(h, c, name, invalidMessage, "updated", func(courseID, parentID string, req *reorderRequest) (any, error) {
 		return fn(courseID, parentID, req.OrderedStableIDs)

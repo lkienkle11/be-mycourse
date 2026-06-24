@@ -172,12 +172,16 @@ func (s *CourseService) PermanentDeleteCourse(ctx context.Context, courseID stri
 	return s.repo.PermanentDeleteCourse(ctx, courseID)
 }
 
-func (s *CourseService) ApproveDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
-	return s.repo.ApproveDraft(ctx, courseID, actorUserID)
+func (s *CourseService) ApproveDraft(ctx context.Context, courseID string, actorUserID string, approvalNote string) (*domain.CourseDetail, error) {
+	return s.repo.ApproveDraft(ctx, courseID, actorUserID, approvalNote)
 }
 
 func (s *CourseService) RejectDraft(ctx context.Context, courseID string, actorUserID string, reason string) (*domain.CourseDetail, error) {
 	return s.repo.RejectDraft(ctx, courseID, actorUserID, reason)
+}
+
+func (s *CourseService) ListReviewHistory(ctx context.Context, courseID string, actorUserID string, filter domain.ReviewHistoryFilter) ([]domain.CourseReviewHistoryItem, int64, error) {
+	return s.repo.ListReviewHistory(ctx, courseID, actorUserID, filter)
 }
 
 func (s *CourseService) ListPublishedCourses(ctx context.Context) ([]domain.CourseListItem, error) {

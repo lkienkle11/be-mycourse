@@ -38,7 +38,7 @@ func (h *Handler) deleteSection(c *gin.Context) {
 }
 
 func (h *Handler) reorderSections(c *gin.Context) {
-	courseBodyOK(h, c, "updated", func(courseID string, req *reorderRequest) (any, error) {
+	courseBodyUpdated(h, c, func(courseID string, req *reorderRequest) (any, error) {
 		return h.svc.ReorderSections(c.Request.Context(), courseID, utils.CurrentUserID(c), req.OrderedStableIDs)
 	})
 }

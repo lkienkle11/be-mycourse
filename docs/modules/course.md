@@ -207,8 +207,9 @@ Instructor / collaborator routes:
 Admin / sysadmin review routes (P59–P61):
 
 - `GET /api/v1/course-reviews/pending` — `course_review:read` (P59)
-- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60); sets `current_published_version_id` to submitted version, clears draft pointer
-- `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61); marks submitted version `REJECTED`, forks new `DRAFT` at `max + 1`
+- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60); body `{ "approval_note": "..." }` (`nonwhitespace_min=5`, `max=500`); sets `current_published_version_id` to submitted version, persists `approval_note`, clears draft pointer
+- `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61); body `{ "reason": "..." }` (`nonwhitespace_min=5`, `max=500`); marks submitted version `REJECTED`, forks new `DRAFT` at `max + 1`
+- `GET /api/v1/courses/:courseId/review-history` — `course:instructor_read`; editor access; paginated `APPROVED`/`REJECTED` rows from `course_versions` (`page`, `per_page`, optional `status`)
 
 Admin / sysadmin course catalog routes (P62–P66):
 

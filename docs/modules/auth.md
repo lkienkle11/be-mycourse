@@ -7,7 +7,7 @@ The auth module (`internal/auth/`) manages user authentication using **stateful 
 | Token | Contents | TTL |
 |-------|----------|-----|
 | `access_token` | Signed HS256 JWT with user identity + `permissions` claim | 15 minutes |
-| `refresh_token` | Signed HS256 JWT with `user_id` + `uuid` (session correlator) | 30 days (standard) / 14 days (remember-me) |
+| `refresh_token` | Signed HS256 JWT with `user_id` + `uuid` (session correlator) | 3 days (standard) / 30 days (remember-me) |
 | `session_id` | 128-char hex string — identifies the device session in the DB | Same as `refresh_token` |
 
 All three are issued as **HttpOnly** cookies (`SameSite=Lax`, `Secure` in production, `Domain` from `AUTH_COOKIE_DOMAIN` when FE and API are on separate subdomains) and also returned in the JSON response body, so server-side callers can relay them without parsing `Set-Cookie`. The backend reads tokens from cookies when custom headers are absent (`AuthJWT`, refresh, logout).
@@ -154,15 +154,21 @@ Validates credentials and issues a full token set.
 
 `remember_me` controls TTL rotation behavior:
 - `false` → remaining lifetime of session carries forward on each rotation (fixed horizon)
-- `true` → refresh TTL always renewed to 14 days from each rotation (sliding window)
+- `true` → refresh TTL always renewed to 30 days from each rotation (sliding window)
 
 **Success:** `200 OK` + three auth cookies + JSON body:
 ```json
 {
   "code": 0, "message": "login_success",
-  "data": { "access_token": "<jwt>", "refresh_token": "<jwt>", "session_id": "<128-char-hex>" }
+  "data": {
+    "access_token": "<jwt>",
+    "refresh_token": "<jwt>",
+    "session_id": "<128-char-hex>"
+  }
 }
 ```
+
+Cookie `Max-Age` on `refresh_token` / `session_id` is `259200` (3 days) when `remember_me=false`, or `2592000` (30 days) when `remember_me=true`.
 
 **Errors:** `4002` InvalidCredentials · `4004` EmailNotConfirmed · `4005` UserDisabled · `4012` UserBanned (`banned_until > now()`)
 
@@ -203,9 +209,15 @@ X-Session-Id:    <128-char-hex>
 ```json
 {
   "code": 0, "message": "token_refreshed",
-  "data": { "access_token": "<new_jwt>", "refresh_token": "<new_jwt>", "session_id": "<same-hex>" }
+  "data": {
+    "access_token": "<new_jwt>",
+    "refresh_token": "<new_jwt>",
+    "session_id": "<same-hex>"
+  }
 }
 ```
+
+`session_id` is unchanged on rotation. Cookie `Max-Age` follows the session's remember-me policy (3d standard / 30d remember-me).
 
 **Errors:** `4007` InvalidSession · `4008` RefreshTokenExpired · `4005` UserDisabled · `4012` UserBanned · `3001` BadRequest (missing headers)
 

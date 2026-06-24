@@ -269,12 +269,12 @@ sequenceDiagram
     SVC->>DB: FirstOrCreate user_roles(user_id, role_id)
     SVC->>DB: COMMIT
 
-    SVC->>SVC: issueTokenPair(user, rememberMe=false, TTL=30d)
+    SVC->>SVC: issueTokenPair(user, rememberMe=false, TTL=3d)
     Note over SVC: generates session string + UUIDs
     SVC->>DB: repository.AddRefreshSession(db, userID, sessionStr, entry)
     DB-->>SVC: ok
 
-    SVC-->>H: TokenPairResult{AccessToken, RefreshToken, SessionStr, RefreshTTL}
+    SVC-->>H: TokenPairResult{AccessToken, RefreshToken, SessionStr, RefreshTTL, RememberMe}
     H->>H: setAuthCookies(c, accessToken, refreshToken, sessionID, refreshTTLSeconds)
     H-->>C: 200 {code:0, message:"email_confirmed",<br/>data:{access_token, refresh_token, session_id}}<br/>+ Set-Cookie: access_token, refresh_token, session_id
 ```
@@ -346,7 +346,7 @@ sequenceDiagram
     SVC->>Cache: DelLoginInvalidCache(normEmail)
     SVC->>Cache: SetCachedUserMe(ctx, meResponse)
 
-    SVC-->>H: TokenPairResult
+    SVC-->>H: TokenPairResult{..., RefreshTTL, RememberMe}
     H->>H: setAuthCookies(c, accessToken, refreshToken, sessionID, refreshTTLSeconds)
     H-->>C: 200 {code:0, message:"login_success",<br/>data:{access_token, refresh_token, session_id}}<br/>+ Set-Cookie: access_token, refresh_token, session_id
 ```
@@ -401,12 +401,12 @@ sequenceDiagram
         H-->>C: 401 {code:4008}
     end
 
-    SVC->>SVC: determine newRefreshTTL (rememberMe → 14d, else remaining lifetime)
+    SVC->>SVC: determine newRefreshTTL (rememberMe → 30d, else remaining lifetime)
     SVC->>SVC: GenerateAccess + GenerateRefresh (new UUID)
     SVC->>DB: repository.SaveRefreshSession(db, userID, sessionStr, updatedEntry)<br/>via jsonb_set (in-place, no TX)
     DB-->>SVC: ok
 
-    SVC-->>H: TokenPairResult{AccessToken, RefreshToken, SessionStr (same), RefreshTTL}
+    SVC-->>H: TokenPairResult{AccessToken, RefreshToken, SessionStr (same), RefreshTTL, RememberMe}
     H-->>C: 200 {code:0, message:"token_refreshed",<br/>data:{access_token, refresh_token, session_id}}
 ```
 

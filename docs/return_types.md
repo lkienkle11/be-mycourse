@@ -168,11 +168,23 @@ type TokenPairResult struct {
     AccessToken  string        // HS256 JWT, TTL = constants.AccessTokenTTL
     RefreshToken string        // HS256 JWT, TTL = constants.RefreshTokenTTL / RememberMeRefreshTTL
     SessionStr   string        // 128-char hex string (session_id)
-    RefreshTTL   time.Duration // used to compute cookie MaxAge
+    RefreshTTL   time.Duration // used to compute cookie MaxAge (not serialized in JSON)
+    RememberMe   bool          // session remember-me flag (not serialized in JSON)
 }
 ```
 
-> `RefreshTTL` is **not** serialized in the API response — it is only used for cookie `MaxAge`.
+JSON body (`LoginSessionTokensResponse`) exposes only `access_token`, `refresh_token`, and `session_id`. The FE BFF persists remember-me via its own HttpOnly `auth_remember_me` cookie.
+
+```go
+// internal/auth/delivery/dto.go
+type LoginSessionTokensResponse struct {
+    AccessToken  string `json:"access_token"`
+    RefreshToken string `json:"refresh_token"`
+    SessionID    string `json:"session_id"`
+}
+```
+
+> `RefreshTTL` on the service result drives cookie `MaxAge` on the BE `Set-Cookie` headers.
 
 ### `models.Permission`
 

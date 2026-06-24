@@ -82,7 +82,7 @@
   2. Clear `confirmation_token` to `NULL`.
   3. Set `registration_email_send_total` to **0**.
   4. Assign the **`learner`** role to the user if not already present (`user_roles` `FirstOrCreate`).
-- After confirmation the system **MUST** issue a full token pair (access + refresh + session) and return it in the JSON body and as cookies (`remember_me` is always `false`).
+- After confirmation the system **MUST** issue a full token pair (access + refresh + session) and return it in the JSON body and as cookies (`remember_me` is always `false`, refresh TTL 3 days).
 - After confirmation the system **MUST** delete the Redis registration confirmation window key for that user and clear the login email→user cache for that normalized email.
 - An invalid or already-consumed token **MUST** return `400` with app code `4006 InvalidConfirmToken`.
 
@@ -116,9 +116,9 @@
   - A **refresh token** (HS256 JWT, TTL configurable via `remember_me`).
   - A **session string** (128 hex chars = HMAC-SHA512 over 32 random bytes).
 - The system **MUST** persist the session entry in `users.refresh_token_session` (JSONB, max 5 entries; evict the oldest-expiring entry on overflow, inside a DB transaction).
-- `remember_me = false` → initial refresh TTL = **30 days**; subsequent rotations carry forward the remaining lifetime.
-- `remember_me = true` → initial and all subsequent refresh TTLs = **14 days** from the moment of rotation (sliding window).
-- The system **MUST** set three **HttpOnly**, SameSite=Lax cookies (`access_token`, `refresh_token`, `session_id`), and return the same values in the JSON body (JSON body retained for Server Action relay during migration; see BE-03 follow-up).
+- `remember_me = false` → initial refresh TTL = **3 days**; subsequent rotations carry forward the remaining lifetime.
+- `remember_me = true` → initial and all subsequent refresh TTLs = **30 days** from the moment of rotation (sliding window).
+- The system **MUST** set three **HttpOnly**, SameSite=Lax cookies (`access_token`, `refresh_token`, `session_id`), and return the three token values in the JSON body (`access_token`, `refresh_token`, `session_id` only).
 
 **Error cases:**
 
@@ -141,7 +141,7 @@
 - On valid rotation, the system **MUST**:
   1. Generate a new `uuid` (session UUID) and new access + refresh tokens.
   2. Update the **existing session entry in-place** via `jsonb_set` (session count unchanged).
-  3. Return new `access_token`, `refresh_token` (with the same `session_id`) in JSON body.
+  3. Return new `access_token`, `refresh_token` (with the same `session_id`) in the JSON body.
 - The `session_id` value **MUST NOT** change on rotation; only the token pair changes.
 
 **Error cases:**

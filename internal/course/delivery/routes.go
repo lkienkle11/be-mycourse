@@ -42,6 +42,7 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 
 	courses.POST("/:courseId/submit-review", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.submitForReview)
 	courses.POST("/:courseId/reopen-draft", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.reopenDraft)
+	courses.GET("/:courseId/review-history", utils.RoutePermission(pc, constants.AllPermissions.CourseInstructorRead), h.listReviewHistory)
 
 	reviews := rg.Group("/course-reviews")
 	reviews.GET("/pending", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewRead), h.listPendingReviews)

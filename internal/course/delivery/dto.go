@@ -1,5 +1,7 @@
 package delivery
 
+import "mycourse-io-be/internal/shared/utils"
+
 type createCourseRequest struct {
 	Title string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
 }
@@ -84,8 +86,17 @@ type leaseHeartbeatRequest struct {
 
 type leaseReleaseRequest = leaseHeartbeatRequest
 
+type approveDraftRequest struct {
+	ApprovalNote string `json:"approval_note" validate:"required,nonwhitespace_min=5,max=500"`
+}
+
 type rejectDraftRequest struct {
-	Reason string `json:"reason" validate:"required,min=1,max=2000"`
+	Reason string `json:"reason" validate:"required,nonwhitespace_min=5,max=500"`
+}
+
+type listReviewHistoryQuery struct {
+	utils.BaseFilter
+	Status string `form:"status" validate:"omitempty,oneof=APPROVED REJECTED"`
 }
 
 type saveProgressRequest struct {

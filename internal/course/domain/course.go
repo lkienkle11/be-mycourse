@@ -77,6 +77,7 @@ type CourseVersion struct {
 	RejectedByUserID   *string  `json:"rejected_by_user_id,omitempty"`
 	RejectedAt         *int64   `json:"rejected_at,omitempty"`
 	RejectionReason    string   `json:"rejection_reason"`
+	ApprovalNote       string   `json:"approval_note"`
 	CreatedAt          int64    `json:"created_at"`
 	UpdatedAt          int64    `json:"updated_at"`
 }
@@ -159,6 +160,19 @@ type CourseDetail struct {
 	Outline             []Section      `json:"outline"`
 }
 
+type CourseReviewHistoryItem struct {
+	VersionNo  int    `json:"version_no"`
+	Status     string `json:"status"`
+	Note       string `json:"note"`
+	ReviewedAt int64  `json:"reviewed_at"`
+}
+
+type ReviewHistoryFilter struct {
+	Page    int
+	PerPage int
+	Status  string
+}
+
 type Lease struct {
 	ID               string `json:"id"`
 	CourseID         string `json:"course_id"`
@@ -229,8 +243,9 @@ type Repository interface {
 	TrashCourse(ctx context.Context, courseID string) error
 	RestoreCourse(ctx context.Context, courseID string) error
 	PermanentDeleteCourse(ctx context.Context, courseID string) error
-	ApproveDraft(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
+	ApproveDraft(ctx context.Context, courseID string, actorUserID string, approvalNote string) (*CourseDetail, error)
 	RejectDraft(ctx context.Context, courseID string, actorUserID string, reason string) (*CourseDetail, error)
+	ListReviewHistory(ctx context.Context, courseID string, actorUserID string, filter ReviewHistoryFilter) ([]CourseReviewHistoryItem, int64, error)
 	ListPublishedCourses(ctx context.Context) ([]CourseListItem, error)
 	GetLearningCourse(ctx context.Context, courseID string, userID string) (*CourseDetail, error)
 	Enroll(ctx context.Context, courseID string, userID string) (*Enrollment, error)

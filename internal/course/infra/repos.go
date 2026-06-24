@@ -58,6 +58,7 @@ type courseVersionRow struct {
 	RejectedByUserID   *string `gorm:"column:rejected_by_user_id;type:uuid"`
 	RejectedAt         *int64  `gorm:"column:rejected_at"`
 	RejectionReason    string  `gorm:"column:rejection_reason;type:text;not null"`
+	ApprovalNote       string  `gorm:"column:approval_note;type:text;not null"`
 	CreatedAt          int64   `gorm:"column:created_at;not null"`
 	UpdatedAt          int64   `gorm:"column:updated_at;not null"`
 	DeletedAt          *int64  `gorm:"column:deleted_at"`
@@ -443,8 +444,8 @@ func mapCourseVersionRow(row *courseVersionRow, assets *courseVersionAssets) *do
 		SubmittedByUserID: row.SubmittedByUserID, SubmittedAt: row.SubmittedAt,
 		ApprovedByUserID: row.ApprovedByUserID, ApprovedAt: row.ApprovedAt,
 		RejectedByUserID: row.RejectedByUserID, RejectedAt: row.RejectedAt,
-		RejectionReason: row.RejectionReason,
-		CreatedAt:       row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		RejectionReason: row.RejectionReason, ApprovalNote: row.ApprovalNote,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 

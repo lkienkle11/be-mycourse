@@ -173,8 +173,9 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | POST | `/api/v1/courses/:courseId/submit-review` | `course:update` | Submit draft for review (**owner-only** in repo) |
 | POST | `/api/v1/courses/:courseId/reopen-draft` | `course:update` | Fork new draft from legacy rejected version (`max(version_no)+1`; **owner-only** in repo) |
 | GET | `/api/v1/course-reviews/pending` | `course_review:read` (P59) | List pending drafts |
-| POST | `/api/v1/course-reviews/:courseId/approve` | `course_review:approve` (P60) | Approve draft; published version = submitted row |
-| POST | `/api/v1/course-reviews/:courseId/reject` | `course_review:reject` (P61) | Reject submitted row; auto-fork new draft at `max+1` |
+| POST | `/api/v1/course-reviews/:courseId/approve` | `course_review:approve` (P60) | Approve draft; body `approval_note` (5–500 chars) |
+| POST | `/api/v1/course-reviews/:courseId/reject` | `course_review:reject` (P61) | Reject submitted row; body `reason` (5–500 chars); auto-fork new draft at `max+1` |
+| GET | `/api/v1/courses/:courseId/review-history` | `course:instructor_read` | Paginated approve/reject history for editors (`page`, `per_page`, optional `status`) |
 | GET | `/api/v1/course-admin/courses` | `course_catalog:read` (P62) | List approved published courses (not in trash) |
 | GET | `/api/v1/course-admin/courses/trash` | `course_trash:read` (P64) | List trashed approved courses |
 | POST | `/api/v1/course-admin/courses/:courseId/trash` | `course_catalog:trash` (P63) | Move eligible course to trash |

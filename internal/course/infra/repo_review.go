@@ -74,7 +74,7 @@ ORDER BY dv.updated_at DESC`
 	return out, nil
 }
 
-func (r *GormRepository) ApproveDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
+func (r *GormRepository) ApproveDraft(ctx context.Context, courseID string, actorUserID string, approvalNote string) (*domain.CourseDetail, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		course, version, err := r.requireDraftVersion(ctx, tx, courseID)
 		if err != nil {
@@ -88,6 +88,7 @@ func (r *GormRepository) ApproveDraft(ctx context.Context, courseID string, acto
 			"status":              domain.VersionStatusApproved,
 			"approved_by_user_id": actorUserID,
 			"approved_at":         now,
+			"approval_note":       strings.TrimSpace(approvalNote),
 			"updated_at":          now,
 		}).Error; err != nil {
 			return err
@@ -141,4 +142,99 @@ func (r *GormRepository) RejectDraft(ctx context.Context, courseID string, actor
 		return nil, err
 	}
 	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
+}
+
+type reviewHistoryScanRow struct {
+	VersionNo  int    `gorm:"column:version_no"`
+	Status     string `gorm:"column:status"`
+	Note       string `gorm:"column:note"`
+	ReviewedAt int64  `gorm:"column:reviewed_at"`
+}
+
+func reviewHistoryStatusFilter(status string) string {
+	return strings.TrimSpace(status)
+}
+
+func reviewHistoryPagination(filter domain.ReviewHistoryFilter) (page, perPage, offset int) {
+	page = filter.Page
+	if page < 1 {
+		page = 1
+	}
+	perPage = filter.PerPage
+	if perPage < 1 {
+		perPage = 20
+	}
+	return page, perPage, (page - 1) * perPage
+}
+
+func (r *GormRepository) countReviewHistoryRows(ctx context.Context, courseID, statusFilter string) (int64, error) {
+	countQ := `
+SELECT COUNT(*)::bigint
+FROM course_versions
+WHERE course_id = @courseId
+  AND deleted_at IS NULL
+  AND status IN (@approved, @rejected)
+  AND (@status = '' OR status = @status)`
+	var total int64
+	err := r.db.WithContext(ctx).Raw(countQ, map[string]any{
+		"courseId": courseID,
+		"approved": domain.VersionStatusApproved,
+		"rejected": domain.VersionStatusRejected,
+		"status":   statusFilter,
+	}).Scan(&total).Error
+	return total, err
+}
+
+func (r *GormRepository) loadReviewHistoryRows(ctx context.Context, courseID, statusFilter string, limit, offset int) ([]reviewHistoryScanRow, error) {
+	listQ := `
+SELECT
+    version_no,
+    status,
+    CASE
+        WHEN status = @approved THEN approval_note
+        ELSE rejection_reason
+    END AS note,
+    COALESCE(approved_at, rejected_at, 0) AS reviewed_at
+FROM course_versions
+WHERE course_id = @courseId
+  AND deleted_at IS NULL
+  AND status IN (@approved, @rejected)
+  AND (@status = '' OR status = @status)
+ORDER BY COALESCE(approved_at, rejected_at) DESC
+LIMIT @limit OFFSET @offset`
+	var rows []reviewHistoryScanRow
+	err := r.db.WithContext(ctx).Raw(listQ, map[string]any{
+		"courseId": courseID,
+		"approved": domain.VersionStatusApproved,
+		"rejected": domain.VersionStatusRejected,
+		"status":   statusFilter,
+		"limit":    limit,
+		"offset":   offset,
+	}).Scan(&rows).Error
+	return rows, err
+}
+
+func (r *GormRepository) ListReviewHistory(ctx context.Context, courseID string, actorUserID string, filter domain.ReviewHistoryFilter) ([]domain.CourseReviewHistoryItem, int64, error) {
+	if _, err := r.requireEditorAccess(ctx, r.db, courseID, actorUserID); err != nil {
+		return nil, 0, err
+	}
+
+	statusFilter := reviewHistoryStatusFilter(filter.Status)
+	total, err := r.countReviewHistoryRows(ctx, courseID, statusFilter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	_, perPage, offset := reviewHistoryPagination(filter)
+	rows, err := r.loadReviewHistoryRows(ctx, courseID, statusFilter, perPage, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	items := make([]domain.CourseReviewHistoryItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, domain.CourseReviewHistoryItem{
+			VersionNo: row.VersionNo, Status: row.Status, Note: row.Note, ReviewedAt: row.ReviewedAt,
+		})
+	}
+	return items, total, nil
 }

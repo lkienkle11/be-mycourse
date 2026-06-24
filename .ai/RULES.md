@@ -12,6 +12,19 @@ Use GitNexus to work faster and to inspect the project context.
 
 The agent must also review all changed code in Git to understand exactly what has been modified, then update the documentation accordingly.
 
+Use subagents when they help speed up research, codebase exploration, documentation review, or Git change inspection.
+
+The agent may spawn up to 4 subagents during the research and understanding phase, but must not spawn the maximum number by default. Spawn only the number of subagents that are actually needed for the task.
+
+Subagents must be used purposefully. For example:
+
+* One subagent may inspect the backend codebase structure.
+* One subagent may inspect the frontend codebase structure.
+* One subagent may review `.context`, documentation, and GitNexus files.
+* One subagent may inspect Git changes, modified files, quality-gate failures, or CI/CD-related issues.
+
+The main agent remains responsible for coordinating all subagent findings, avoiding duplicated effort, deciding the final implementation approach, and ensuring the final solution is correct.
+
 For `be-mycourse` tasks:
 
 * Read the `be-mycourse` repository carefully.

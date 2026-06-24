@@ -6,7 +6,9 @@ alwaysApply: true
 
 ## Initial Phase: Project Understanding
 
-Before implementing any solution, the agent must thoroughly read the entire `.context` folder and all project documentation to understand the full project scope.
+Before implementing any solution, the agent must thoroughly read the entire `.context` folder, all project documentation, and all project skills inside `.ai/skills` to understand the full project scope, conventions, reusable workflows, and task-specific instructions.
+
+If `.ai/skills` exists, the agent must inspect every relevant skill before planning or implementing any change.
 
 Use GitNexus to work faster and to inspect the project context.
 

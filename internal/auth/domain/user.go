@@ -56,4 +56,5 @@ type TokenPairResult struct {
 	RefreshToken string
 	SessionStr   string
 	RefreshTTL   time.Duration
+	RememberMe   bool
 }

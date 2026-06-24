@@ -105,6 +105,7 @@ func (s *AuthService) rotateSession(ctx context.Context, user *domain.User, sess
 		RefreshToken: rt,
 		SessionStr:   sessionStr,
 		RefreshTTL:   newTTL,
+		RememberMe:   entry.RememberMe,
 	}, nil
 }
 
@@ -135,5 +136,11 @@ func (s *AuthService) issueTokenPair(ctx context.Context, user *domain.User, rem
 	if err := s.sessionRepo.AddSession(ctx, user.ID, sessionStr, entry); err != nil {
 		return domain.TokenPairResult{}, err
 	}
-	return domain.TokenPairResult{AccessToken: at, RefreshToken: rt, SessionStr: sessionStr, RefreshTTL: refreshTTL}, nil
+	return domain.TokenPairResult{
+		AccessToken:  at,
+		RefreshToken: rt,
+		SessionStr:   sessionStr,
+		RefreshTTL:   refreshTTL,
+		RememberMe:   rememberMe,
+	}, nil
 }

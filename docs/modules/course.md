@@ -195,6 +195,8 @@ Instructor / collaborator routes:
 - `PATCH /api/v1/courses/:courseId/basic-info`
 - `DELETE /api/v1/courses/:courseId`
 - collaborator CRUD under `/api/v1/courses/:courseId/collaborators`
+- paginated collaborator list (`GET …/collaborators?page&per_page&search`) — course detail still embeds full collaborators via `loadCollaborators`; search uses shared `utils.UserDisplayNameEmailSearchSQL` (ILIKE `display_name` / `email`, alias `u`)
+- instructor candidate picker list (`GET …/instructor-candidates`) — route permission `course_collaborator_candidate:read` (P67); **owner-only** in repo; excludes existing collaborators; instructor role filter
 - outline CRUD / reorder under `/api/v1/courses/:courseId/{sections,lessons,sub-lessons,...}`
   - sub-lesson upsert body: `lesson_id`, `title`, `kind`, `is_preview`, optional `estimated_duration_ms` (TEXT/QUIZ only), plus kind-specific `video` / `text` / `quiz` payload — see **`docs/curl_api.md` §14.5**
   - outline responses include computed `estimated_duration_ms` on sections, lessons, and sub-lessons
@@ -240,6 +242,7 @@ The module reuses the existing permission catalog:
 | `course:delete` | route-level delete gate; business logic still requires `OWNER` |
 | `course:read` | learner course list/detail/progress |
 | `course_instructor:read` | instructor editable course list and detail |
+| `course_collaborator_candidate:read` | instructor candidate picker (`GET …/instructor-candidates`; P67; owner-only in repo) |
 | `course_review:read` | list pending review queue (P59) |
 | `course_review:approve` | approve draft / publish (P60) |
 | `course_review:reject` | reject draft with reason (P61) |

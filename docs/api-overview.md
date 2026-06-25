@@ -73,7 +73,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `GET/POST /instructor-tickets`, `POST …/close`, `GET/POST …/messages`
   - `GET /instructor-stubs/assignments|activity-log` — stubs
 - Course management (see **`docs/modules/course.md`**):
-  - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId` (query `include_outline=false` skips outline tree — info/collaborators tabs), `PATCH /courses/:courseId/basic-info`, collaborator CRUD, outline CRUD/reorder, lease acquire/heartbeat/release
+  - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId` (query `include_outline=false` skips outline tree — info/collaborators tabs), `PATCH /courses/:courseId/basic-info`, paginated `GET …/collaborators`, picker `GET …/instructor-candidates` (P67), collaborator add/remove, outline CRUD/reorder, lease acquire/heartbeat/release
   - Review: `POST /courses/:courseId/draft/prepare`, `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft` (**owner-only** in repo — `EDITOR` may edit draft/outline but not these three), `GET /course-reviews/pending`, `POST /course-reviews/:courseId/approve|reject`
   - Admin catalog: `GET /course-admin/courses`, `GET /course-admin/courses/trash`, `POST /course-admin/courses/:courseId/trash|restore`, `DELETE /course-admin/courses/:courseId/permanent`
   - Learner: `GET /learner-courses`, `GET /learner-courses/:courseId`, `POST /learner-courses/:courseId/enroll`, `GET|POST /learner-courses/:courseId/progress`

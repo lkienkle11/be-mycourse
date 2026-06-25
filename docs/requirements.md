@@ -403,6 +403,8 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 > **Status: Implemented in `internal/course/`.** See `docs/modules/course.md`.
 
 - The system **MUST** provide course authoring endpoints under `/api/v1/courses` for create/read/update/delete and collaborator management.
+- Paginated collaborator list (`GET …/collaborators`) **MUST** support `page`, `per_page`, and optional `search` on collaborator `display_name` / `email`.
+- Instructor-candidate picker (`GET …/instructor-candidates`) **MUST** require dedicated permission **`course_collaborator_candidate:read` (P67)** at the route layer; repository **MUST** restrict picker access to course owners (`requireOwnerAccess`).
 - The system **MUST** enforce role-gated review endpoints under `/api/v1/course-reviews` for pending queue, approve, and reject actions.
 - The system **MUST** expose sysadmin catalog endpoints under `/api/v1/course-admin` for listing all non-trashed courses, listing trashed approved courses, moving eligible courses to trash, restoring from trash, and permanently deleting trashed courses (granular permissions **P62–P66**, not shell `admin:modify`).
 - Trashed courses (`courses.trashed_at` set) **MUST** be excluded from edit, learn, and normal catalog lists; instructor delete of an approved published course **MUST** move the course to trash when eligible instead of immediate soft-delete.

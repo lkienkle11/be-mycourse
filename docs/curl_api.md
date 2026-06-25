@@ -1552,7 +1552,7 @@ curl -sS -X POST "{{BASE_URL}}/api/v1/instructor-applications/1/reject" \
 
 ## 14. Course management
 
-> **Auth:** Bearer JWT. Permissions: `course:create`, `course:update`, `course:delete`, `course_instructor:read`, `course_review:*` (P59–P61), `course_catalog:*` / `course_trash:*` (P62–P66) for admin catalog. Full route matrix: **`docs/router.md`**, module notes: **`docs/modules/course.md`**.
+> **Auth:** Bearer JWT. Permissions: `course:create`, `course:update`, `course:delete`, `course_instructor:read`, `course_collaborator_candidate:read` (P67 — instructor-candidates picker), `course_review:*` (P59–P61), `course_catalog:*` / `course_trash:*` (P62–P66) for admin catalog. Full route matrix: **`docs/router.md`**, module notes: **`docs/modules/course.md`**, permission catalog: **`docs/database.md`**.
 
 Requires migration **`000016_course_management`** (or `MIGRATE=1`) and permission sync.
 
@@ -1656,7 +1656,29 @@ curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
   -d '{"expected_row_version":1,"title":"Introduction to Go","short_description":"Short blurb"}'
 ```
 
-Other instructor routes (outline CRUD/reorder, leases, collaborators, review submit/reopen/prepare) follow the same Bearer + permission pattern — see **`docs/router.md`**. **Owner-only** in repo (not route permission): `POST …/draft/prepare`, `POST …/submit-review`, `POST …/reopen-draft` (`EDITOR` → HTTP 403 / code `3003`).
+Other instructor routes (outline CRUD/reorder, leases, review submit/reopen/prepare) follow the same Bearer + permission pattern — see **`docs/router.md`**. **Owner-only** in repo (not route permission): `POST …/draft/prepare`, `POST …/submit-review`, `POST …/reopen-draft` (`EDITOR` → HTTP 403 / code `3003`).
+
+### 14.4a List collaborators (paginated)
+
+**`GET /api/v1/courses/:courseId/collaborators`** — permission `course_instructor:read`
+
+Query: `page`, `per_page`, optional `search` (ILIKE `display_name` / `email`). Course detail (`GET …/:courseId`) still embeds the full collaborator array via `loadCollaborators`.
+
+```bash
+curl -sS "{{BASE_URL}}/api/v1/courses/{{courseId}}/collaborators?page=1&per_page=20&search=alice" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 14.4b List instructor candidates (picker)
+
+**`GET /api/v1/courses/:courseId/instructor-candidates`** — permission `course_collaborator_candidate:read` (P67). **Owner-only** in repository (`requireOwnerAccess`). Requires migrations **`000027`** / **`000028`** (or `MIGRATE=1`).
+
+```bash
+curl -sS "{{BASE_URL}}/api/v1/courses/{{courseId}}/instructor-candidates?page=1&per_page=20&search=go" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Add/remove collaborators: `POST` / `DELETE` under `…/collaborators` — permission `course:update` (see **`docs/router.md`**).
 
 Requires migration **`000022_course_sub_lesson_estimated_duration`** (or `MIGRATE=1`) for `estimated_duration_ms` on sub-lessons.
 
@@ -1735,7 +1757,7 @@ Full semantics: **`docs/modules/course.md`** → Estimated duration.
 
 ### 14.6 Sysadmin course catalog + trash (`/api/v1/course-admin`)
 
-Requires migrations **`000023_course_trash`** and **`000024_course_admin_permissions`** (or `MIGRATE=1`). Granular permissions **P59–P66** (not shell `admin:modify`). Dev token: login as **`user01@yopmail.com`** / **`Test@1234`** (see **`AGENTS.md`**).
+Requires migrations **`000023_course_trash`** and **`000024_course_admin_permissions`** (or `MIGRATE=1`). Granular permissions **P59–P66** (not shell `admin:modify`). Use `Authorization: Bearer $ACCESS_TOKEN` from `POST /api/v1/auth/login` with an account granted the required permissions.
 
 **List approved published courses** (excludes trash and draft-only courses):
 
@@ -1896,20 +1918,23 @@ Add to any authenticated request to auto-refresh when needed:
 
 Run on **`http://localhost:8080`** only after `MIGRATE=1` (or manual SQL) and `go run .`. Expect `users.created_at` = `bigint` in Postgres (**`000011`**) — see **`docs/deploy.md`** (Troubleshooting). For instructor APIs, **`000013`** must be applied and permissions synced.
 
-**1. Login**
+**1. Login** — use a local account that exists in your dev database:
 
 ```bash
 curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
   -H 'Content-Type: application/json' \
-  -d '{"email":"user01@yopmail.com","password":"Test@1234","remember_me":false}'
+  -d '{"email":"user@example.com","password":"Str0ng!pw","remember_me":false}'
 ```
 
 Pass: HTTP **200**, `code: 0`, `data.access_token` present (no **500** scan error).
 
-**2. Taxonomy outcomes** (replace token from step 1)
+```bash
+export ACCESS_TOKEN="<paste access_token from response>"
+```
+
+**2. Taxonomy outcomes**
 
 ```bash
-export ACCESS_TOKEN="<paste access_token>"
 curl -sS 'http://localhost:8080/api/v1/taxonomy/outcomes?page=1&per_page=20&sort_desc=false&status=ACTIVE' \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H 'Accept: application/json'
@@ -1944,7 +1969,7 @@ curl -sS -X POST 'http://localhost:8080/api/v1/instructors/14/expertise/topics' 
   -d '{"topic_id":7}'
 ```
 
-Pass: HTTP **200**, `code: 0`, `data.topic_id` present. If **500** with `course_topic_id` NOT NULL, apply migration **`000017`** (`MIGRATE=1`). Dev test account: **`user01@yopmail.com`** / **`Test@1234`** (see **`AGENTS.md`**).
+Pass: HTTP **200**, `code: 0`, `data.topic_id` present. If **500** with `course_topic_id` NOT NULL, apply migration **`000017`** (`MIGRATE=1`).
 
 **5. Instructor profile by user_id** (replace `14` with target instructor)
 

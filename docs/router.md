@@ -152,7 +152,8 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | POST | `/api/v1/courses/:courseId/draft/prepare` | `course:update` | Ensure one active draft (**owner-only** in repo) |
 | PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info (`title` → server slugify updates `courses.slug`) |
 | DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |
-| GET | `/api/v1/courses/:courseId/collaborators` | `course_instructor:read` | List collaborators |
+| GET | `/api/v1/courses/:courseId/collaborators` | `course_instructor:read` | List collaborators (paginated; query `page`, `per_page`, optional `search` on display_name/email) |
+| GET | `/api/v1/courses/:courseId/instructor-candidates` | `course_collaborator_candidate:read` (P67) | List instructor candidates for picker (paginated; **owner-only** in repo; excludes existing collaborators) |
 | POST | `/api/v1/courses/:courseId/collaborators` | `course:update` | Add collaborator |
 | DELETE | `/api/v1/courses/:courseId/collaborators/:userId` | `course:update` | Remove collaborator |
 | POST | `/api/v1/courses/:courseId/sections` | `course:update` | Create section |

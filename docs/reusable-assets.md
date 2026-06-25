@@ -634,6 +634,13 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Course detail read path — same `domain.CourseVersion` / `domain.CourseDetail` output as before.
 - Current Usage: `GetCourseDetail`, `loadCourseDetail`, `toCourseVersion`.
 
+### Asset: User display name / email search SQL
+- Name: `UserDisplayNameEmailSearchSQL`
+- Type: Function (`internal/shared/utils/user_search_sql.go`)
+- Purpose: Shared ILIKE clause for `users.display_name` / `users.email` (alias `u`); trims search term and returns named `@search` args.
+- Scope: Paginated collaborator list and instructor-candidate picker in `internal/course/infra/repo_collaborators.go`.
+- Current Usage: `ListCollaborators`, `ListInstructorCandidates`.
+
 ### Asset: Taxonomy list total inference
 - Name: `taxonomyListTotal`, `listTaxonomyWithImageURLs`
 - Type: Function (`internal/taxonomy/infra/repos_crud_helper.go`, `repos.go`)

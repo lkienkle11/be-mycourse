@@ -27,7 +27,7 @@ See `.context/gitnexus_research_2026-06-10_course_validation.md`.
 - `docs/modules/course.md`, `docs/return_types.md`, `docs/reusable-assets.md`, `docs/api-dog-import.json`
 
 ## Manual smoke (operator)
-- Login `user01@yopmail.com` / `Test@1234`
+- `POST /api/v1/auth/login` with a local dev account
 - POST create with short title → 400
 - PATCH basic-info missing fields → 400
 - QUIZ sub-lesson `is_preview: true` → 400

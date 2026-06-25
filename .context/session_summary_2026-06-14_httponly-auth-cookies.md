@@ -50,7 +50,7 @@ curl -b jar.txt localhost:8080/api/v1/me
 curl -b jar.txt -X POST localhost:8080/api/v1/auth/refresh
 ```
 
-All verified 2026-06-14 on local dev (`user01@yopmail.com`).
+All verified 2026-06-14 on local dev with a seeded admin account.
 
 ## Out of scope
 

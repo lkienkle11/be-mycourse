@@ -42,7 +42,7 @@ Migrate non-video media upload B2+Gcore → Cloudflare R2. Manual test: login + 
 | Step | Result |
 |------|--------|
 | `go run .` | PASS — server :8080 |
-| Login `user01@yopmail.com` | PASS |
+| Login (local dev account) | PASS |
 | Upload 5 webp (`ai-dashboard`, `ban-chai-1-edit-1`, `budget-planning`, `but-bi-1-edit-1`, `calm-person-meditating`) | **BLOCKED** — `R2 client is not configured` |
 
 **Operator action required:** Fill in `.env`:

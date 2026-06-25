@@ -3,7 +3,7 @@
 
 ## Architecture (current)
 
-Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,machineidentity,constants,setting,cache,mq,logger,httperr,parsebool,taxonomy,validate,utils,httpx}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
+Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,machineidentity,constants,setting,cache,mq,logger,httperr,parsebool,taxonomy,validate,utils,httpx,userpicker}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
 
 **Domain types** live in `internal/<domain>/domain/` (no GORM tags). **HTTP DTOs** in `internal/<domain>/delivery/`. **GORM rows** in `internal/<domain>/infra/`. Auth refresh-session JSONB: `internal/auth/infra/gormjsonb.go`.
 
@@ -672,6 +672,15 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Current Usage: `internal/course/infra/*` (reorder checks, version ref validation, sub-lesson text handling, learner progress payload normalization).
 - Reuse Opportunity:
   - Reuse in other bounded contexts instead of redefining local `nullable*`, `normalize*`, or set-compare helpers.
+
+### Asset: userpicker (paginated candidate list SQL)
+- Name: `ListRows`, `UserPickerSelectSQL`, `Row`, `ListFilter`
+- Type: Package (`internal/shared/userpicker`)
+- Path: `internal/shared/userpicker/list.go`
+- Purpose: Shared count + paginated list for user-picker endpoints (`user_id`, `display_name`, `email`, avatar columns); callers supply business-specific `baseSQL` + bind args. `ListRows` uses `gormRaw` to omit an empty named-arg map when SQL has no `@placeholders` (avoids pg `expected 0 arguments, got 1`).
+- Scope: `internal/instructor/infra` (`ListRosterCandidates`), `internal/course/infra` (`ListInstructorCandidates`).
+- Dependencies: `gorm.io/gorm`, `internal/shared/utils` (`ParseListFilter`, `UserDisplayNameEmailSearchSQL`).
+- Reuse: Add new picker endpoints by composing `UserPickerSelectSQL` + role/join predicates, not duplicating count/list/search logic.
 
 ### Asset: Taxonomy tree + description validators
 - Name: `TreeNode`, `NormalizeTreeSlugs`, `ValidateTree`, `ValidateDescriptionParagraphs`

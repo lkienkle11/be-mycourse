@@ -88,7 +88,9 @@ After deploy: `go run ./cmd/syncpermissions` and `go run ./cmd/syncrolepermissio
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Add roster by email | User must exist; `AssignRole(instructor)` only — **learner kept** |
+| Add roster (bulk) | User must exist, must not have `sysadmin` or `admin` role; `AssignRole(instructor)` only — **learner kept**. Per-user business failures return in `failed[]`; infrastructure errors abort with HTTP 500 (no raw DB messages in `failed[]`). |
+| List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` (platform staff) |
+| Roster picker | Users without `instructor`, `sysadmin`, or `admin` roles |
 | Remove roster | `RemoveRole(instructor)` only; wipe instructor-scoped rows; user account kept |
 | Submit application | `review_status = pending`; **no role change** |
 | Approve | Idempotent `AssignRole(instructor)`; `approved` |
@@ -107,7 +109,8 @@ All routes require `Authorization: Bearer <token>` unless noted.
 | Method | Path | Permission |
 |--------|------|------------|
 | GET | `/instructors` | `instructor_roster:read` |
-| POST | `/instructors` | `instructor_roster:create` — body `{ "email": "..." }` |
+| GET | `/instructors/roster-candidates` | `instructor_roster:create` — paginated picker; users without instructor/sysadmin/admin roles |
+| POST | `/instructors/bulk` | `instructor_roster:create` — body `{ "user_ids": ["..."] }` returns `added` + `failed` |
 | DELETE | `/instructors/:id` | `instructor_roster:delete` — `:id` = user id |
 
 List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL).

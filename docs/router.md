@@ -193,7 +193,8 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | Method | Path | Permission | Description |
 |--------|------|-----------|-------------|
 | GET | `/api/v1/instructors` | `instructor_roster:read` | List roster |
-| POST | `/api/v1/instructors` | `instructor_roster:create` | Add roster by email |
+| GET | `/api/v1/instructors/roster-candidates` | `instructor_roster:create` | Roster picker — users without instructor/sysadmin/admin roles |
+| POST | `/api/v1/instructors/bulk` | `instructor_roster:create` | Bulk add roster by `user_ids` |
 | DELETE | `/api/v1/instructors/:id` | `instructor_roster:delete` | Remove instructor role |
 | GET | `/api/v1/instructors/:id/expertise/topics` | `instructor_expertise:read` | List expertise topics |
 | POST | `/api/v1/instructors/:id/expertise/topics` | `instructor_expertise:create` | Add expertise topic |

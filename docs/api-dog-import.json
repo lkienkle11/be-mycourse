@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "ffc3da7cb4db40dfe678fa",
+    "_postman_id": "0e3597ea039923c31be9c8",
     "name": "MyCourse Backend API",
     "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n**Audit timestamps:** `created_at`, `updated_at`, and soft-delete `deleted_at` (where present) are **Unix epoch seconds** (`integer` / `int64` in JSON), not ISO-8601 strings. DB columns are PostgreSQL `BIGINT` (migration `000011`).\n\n**Apidog / Postman — auto-save tokens:** After **Login**, **Confirm email**, or **Refresh**, post-processors in `x-postman-event` set `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (from JSON `data` or cookies). Select an **Environment** with those variables before other requests. **Bearer** auth uses `{{ACCESS_TOKEN}}`. **System token:** obtain via `CLI_SYSTEM_LOGIN=1 go run .` (stdout only) and set `SYSTEM_TOKEN` manually in your environment.\n\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb` (token scripts + examples from `docs/api_swagger.yaml` only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -3316,7 +3316,49 @@
           }
         },
         {
-          "name": "Add instructor by email",
+          "name": "List roster picker candidates (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/instructors/roster-candidates?page=1&per_page=20",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "instructors",
+                "roster-candidates"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add multiple instructors by user id",
           "request": {
             "method": "POST",
             "header": [
@@ -3332,19 +3374,20 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructors",
+              "raw": "{{BASE_URL}}/api/v1/instructors/bulk",
               "host": [
                 "{{BASE_URL}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "instructors"
+                "instructors",
+                "bulk"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"\"\n}",
+              "raw": "{\n  \"user_ids\": [\n\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

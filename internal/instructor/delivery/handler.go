@@ -22,36 +22,6 @@ type Handler struct {
 
 func NewHandler(svc *application.InstructorService) *Handler { return &Handler{svc: svc} }
 
-func (h *Handler) listRoster(c *gin.Context) {
-	httpx.ListPaginated(c,
-		func(q *listQuery) error { return c.ShouldBindQuery(q) },
-		func(ctx context.Context, q listQuery) ([]domain.RosterMember, int64, error) {
-			return h.svc.ListRoster(ctx, domain.RosterFilter{Page: q.getPage(), PageSize: q.getPerPage(), Search: q.Search})
-		},
-		func(q listQuery) (int, int) { return q.getPage(), q.getPerPage() },
-		func(rows []domain.RosterMember) []rosterResponse {
-			out := make([]rosterResponse, len(rows))
-			for i, r := range rows {
-				out[i] = toRosterResponse(r)
-			}
-			return out
-		},
-	)
-}
-
-func (h *Handler) addRoster(c *gin.Context) {
-	var req addRosterRequest
-	if err := validate.BindJSON(c, &req); err != nil {
-		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
-		return
-	}
-	row, err := h.svc.AddRosterByEmail(c.Request.Context(), req.Email)
-	if mapInstructorError(c, err) {
-		return
-	}
-	response.OK(c, "ok", toRosterResponse(*row))
-}
-
 func (h *Handler) deleteRoster(c *gin.Context) {
 	id, ok := parseUserIDParam(c)
 	if !ok {

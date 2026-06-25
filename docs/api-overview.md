@@ -66,7 +66,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - Public webhook (registered before auth middleware):
   - `POST /webhook/bunny`
 - Instructor management (see **`docs/modules/instructor.md`**):
-  - `GET/POST/DELETE /instructors` — roster
+  - `GET/DELETE /instructors` — roster list/remove; `POST /instructors/bulk` — add
   - `GET/POST /instructor-applications`, `POST …/approve`, `POST …/reject`, `DELETE …/:id`
   - `GET/POST/PATCH/DELETE /instructor-profiles`, `GET …/me`
   - `GET/POST/DELETE /instructors/:id/expertise/topics|skills`

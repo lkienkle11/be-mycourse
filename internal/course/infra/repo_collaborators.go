@@ -9,6 +9,7 @@ import (
 	"mycourse-io-be/internal/course/domain"
 	instructordomain "mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/userpicker"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -79,24 +80,15 @@ func (r *GormRepository) ListCollaborators(ctx context.Context, courseID string,
 }
 
 func instructorCandidatesBaseSQL() string {
-	return fmt.Sprintf(`
-SELECT
-    u.id AS user_id,
-    COALESCE(u.display_name, '') AS display_name,
-    COALESCE(u.email, '') AS email,
-    COALESCE(u.avatar_file_id::text, '') AS avatar_file_id,
-    COALESCE(m.url, '') AS avatar_url
-FROM %s u
+	return userpicker.UserPickerSelectSQL(constants.TableAppUsers) + fmt.Sprintf(`
 INNER JOIN %s ur ON ur.user_id = u.id
 INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name = @role_name
-LEFT JOIN media_files m
-    ON m.id = u.avatar_file_id AND m.deleted_at IS NULL
 WHERE u.deleted_at IS NULL
   AND u.id NOT IN (
       SELECT cc.user_id
       FROM course_collaborators cc
       WHERE cc.course_id = @course_id AND cc.deleted_at IS NULL
-  )`, constants.TableAppUsers, constants.TableRBACUserRoles, constants.TableRBACRoles)
+  )`, constants.TableRBACUserRoles, constants.TableRBACRoles)
 }
 
 func (r *GormRepository) ListInstructorCandidates(ctx context.Context, courseID string, actorUserID string, filter domain.InstructorCandidateFilter) ([]domain.InstructorCandidate, int64, error) {
@@ -107,35 +99,11 @@ func (r *GormRepository) ListInstructorCandidates(ctx context.Context, courseID 
 	if err != nil {
 		return nil, 0, err
 	}
-	parsed := utils.ParseListFilter(utils.BaseFilter{
-		Page:    filter.Page,
-		PerPage: filter.PerPage,
-	})
-	base := instructorCandidatesBaseSQL()
-	args := map[string]any{
+	rows, total, err := userpicker.ListRows(ctx, r.db, instructorCandidatesBaseSQL(), map[string]any{
 		"course_id": courseID,
 		"role_name": instructordomain.RoleNameInstructor,
-	}
-	searchClause, searchArgs := utils.UserDisplayNameEmailSearchSQL(filter.Search)
-	for k, v := range searchArgs {
-		args[k] = v
-	}
-	countQ := "SELECT COUNT(*) FROM (" + base + searchClause + ") AS candidates"
-	db := r.db.WithContext(ctx)
-	var total int64
-	if err := db.Raw(countQ, args).Scan(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	listQ := base + searchClause + fmt.Sprintf(" ORDER BY user_id DESC LIMIT %d OFFSET %d", parsed.PerPage, parsed.Offset)
-	type scanRow struct {
-		UserID       string `gorm:"column:user_id"`
-		DisplayName  string `gorm:"column:display_name"`
-		Email        string `gorm:"column:email"`
-		AvatarFileID string `gorm:"column:avatar_file_id"`
-		AvatarURL    string `gorm:"column:avatar_url"`
-	}
-	var rows []scanRow
-	if err := db.Raw(listQ, args).Scan(&rows).Error; err != nil {
+	}, userpicker.ListFilter{Page: filter.Page, PerPage: filter.PerPage, Search: filter.Search})
+	if err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.InstructorCandidate, len(rows))

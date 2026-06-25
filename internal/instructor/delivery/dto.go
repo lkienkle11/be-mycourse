@@ -26,8 +26,18 @@ func (q listQuery) getPerPage() int {
 	return q.PerPage
 }
 
-type addRosterRequest struct {
-	Email string `json:"email" binding:"required,email"`
+type addRosterBulkRequest struct {
+	UserIDs []string `json:"user_ids" binding:"required,min=1,dive,uuid"`
+}
+
+type rosterBulkFailureResponse struct {
+	UserID  string `json:"user_id"`
+	Message string `json:"message"`
+}
+
+type rosterBulkResponse struct {
+	Added  []rosterResponse            `json:"added"`
+	Failed []rosterBulkFailureResponse `json:"failed"`
 }
 
 type rejectApplicationRequest struct {
@@ -82,6 +92,14 @@ type rosterResponse struct {
 	AvatarURL string `json:"avatar"`
 }
 
+type rosterCandidateResponse struct {
+	UserID       string `json:"user_id"`
+	DisplayName  string `json:"display_name"`
+	Email        string `json:"email"`
+	AvatarFileID string `json:"avatar_file_id,omitempty"`
+	AvatarURL    string `json:"avatar_url,omitempty"`
+}
+
 type applicationResponse struct {
 	ID              string      `json:"id"`
 	UserID          string      `json:"user_id"`
@@ -96,6 +114,25 @@ func toRosterResponse(m domain.RosterMember) rosterResponse {
 	return rosterResponse{
 		ID: m.UserID, FullName: m.FullName, Email: m.Email, Phone: m.Phone, AvatarURL: m.AvatarURL,
 	}
+}
+
+func toRosterCandidateResponse(c domain.RosterCandidate) rosterCandidateResponse {
+	return rosterCandidateResponse{
+		UserID: c.UserID, DisplayName: c.DisplayName, Email: c.Email,
+		AvatarFileID: c.AvatarFileID, AvatarURL: c.AvatarURL,
+	}
+}
+
+func toRosterBulkResponse(result domain.RosterBulkResult) rosterBulkResponse {
+	added := make([]rosterResponse, len(result.Added))
+	for i, row := range result.Added {
+		added[i] = toRosterResponse(row)
+	}
+	failed := make([]rosterBulkFailureResponse, len(result.Failed))
+	for i, row := range result.Failed {
+		failed[i] = rosterBulkFailureResponse{UserID: row.UserID, Message: row.Message}
+	}
+	return rosterBulkResponse{Added: added, Failed: failed}
 }
 
 func profileToResponse(row domain.Profile) applicationResponse {

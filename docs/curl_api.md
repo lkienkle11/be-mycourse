@@ -1526,7 +1526,7 @@ Requires `MIGRATE=1` (or applied `000013_instructor_management.up.sql`) and sync
 
 | Area | Examples |
 |------|----------|
-| Roster | `GET/POST /api/v1/instructors`, `DELETE /api/v1/instructors/:userId` |
+| Roster | `GET /api/v1/instructors`, `POST /api/v1/instructors/bulk`, `DELETE /api/v1/instructors/:userId` |
 | Applications | `GET/POST /api/v1/instructor-applications`, `POST …/:id/approve`, `POST …/:id/reject` |
 | Profiles | `GET/POST /api/v1/instructor-profiles`, `GET …/me` |
 | Expertise | `GET/POST /api/v1/instructors/:id/expertise/topics`, `…/skills` |

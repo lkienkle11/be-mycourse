@@ -2435,9 +2435,28 @@ paths:
       responses:
         "200":
           description: Paginated roster
+
+  /api/v1/instructors/roster-candidates:
+    get:
+      tags: [Instructor]
+      summary: List roster picker candidates (paginated)
+      description: Active users without instructor, sysadmin, or admin roles.
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated list — `data.result[]` items are user picker rows (`user_id`, `display_name`, `email`, optional avatar fields).
+
+  /api/v1/instructors/bulk:
     post:
       tags: [Instructor]
-      summary: Add instructor by email
+      summary: Add multiple instructors by user id
       security:
         - bearerJwt: []
       requestBody:
@@ -2446,12 +2465,15 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email]
+              required: [user_ids]
               properties:
-                email: { type: string, format: email }
+                user_ids:
+                  type: array
+                  minItems: 1
+                  items: { type: string, format: uuid }
       responses:
         "200":
-          description: OK
+          description: Aggregated add result with `added[]` and `failed[]`
 
   /api/v1/instructors/{id}:
     delete:

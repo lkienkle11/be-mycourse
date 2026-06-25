@@ -9,6 +9,7 @@ import (
 
 	"mycourse-io-be/internal/instructor/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/utils"
 )
@@ -33,6 +34,10 @@ func mapInstructorError(c *gin.Context, err error) bool {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return true
 	}
+	if stderrors.Is(err, domain.ErrRosterPlatformStaffUser) {
+		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
+		return true
+	}
 	if stderrors.Is(err, apperrors.ErrInvalidProfileMediaFile) {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return true
@@ -47,6 +52,19 @@ func parseIDParam(c *gin.Context) (string, bool) {
 
 func failInvalidID(c *gin.Context) {
 	response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
+}
+
+func listPaginatedWithQuery[T any, R any](
+	c *gin.Context,
+	list func(context.Context, listQuery) ([]T, int64, error),
+	mapRows func([]T) []R,
+) {
+	httpx.ListPaginated(c,
+		func(q *listQuery) error { return c.ShouldBindQuery(q) },
+		list,
+		func(q listQuery) (int, int) { return q.getPage(), q.getPerPage() },
+		mapRows,
+	)
 }
 
 func (h *Handler) respondApplicationByID(c *gin.Context, load func(context.Context, string) (*domain.Application, error)) {

@@ -12,7 +12,8 @@ import (
 func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
 	instructors := rg.Group("/instructors")
 	instructors.GET("", utils.RoutePermission(pc, constants.AllPermissions.InstructorRosterRead), h.listRoster)
-	instructors.POST("", utils.RoutePermission(pc, constants.AllPermissions.InstructorRosterCreate), h.addRoster)
+	instructors.GET("/roster-candidates", utils.RoutePermission(pc, constants.AllPermissions.InstructorRosterCreate), h.listRosterCandidates)
+	instructors.POST("/bulk", utils.RoutePermission(pc, constants.AllPermissions.InstructorRosterCreate), h.addRosterBulk)
 	instructors.DELETE("/:id", utils.RoutePermission(pc, constants.AllPermissions.InstructorRosterDelete), h.deleteRoster)
 
 	instructors.GET("/:id/expertise/topics", utils.RoutePermission(pc, constants.AllPermissions.InstructorExpertiseRead), h.listExpertiseTopics)

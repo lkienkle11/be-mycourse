@@ -7,9 +7,10 @@ import (
 	"mycourse-io-be/internal/instructor/domain"
 )
 
-// UserLookup resolves application users by email.
+// UserLookup resolves application users by email or id.
 type UserLookup interface {
 	FindByEmail(ctx context.Context, email string) (*authdomain.User, error)
+	FindByID(ctx context.Context, userID string) (*authdomain.User, error)
 }
 
 // InstructorRoleManager assigns or removes the instructor role only.

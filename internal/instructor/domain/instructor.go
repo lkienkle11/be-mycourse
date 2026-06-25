@@ -13,6 +13,8 @@ const (
 )
 
 const RoleNameInstructor = "instructor"
+const RoleNameSysadmin = "sysadmin"
+const RoleNameAdmin = "admin"
 
 // Certificate is one credential entry stored in profile JSONB.
 type Certificate struct {
@@ -128,6 +130,34 @@ type RosterFilter struct {
 	Page     int
 	PageSize int
 	Search   string
+}
+
+// RosterCandidate is a user eligible to receive the instructor role (no instructor/sysadmin/admin).
+type RosterCandidate struct {
+	UserID       string
+	DisplayName  string
+	Email        string
+	AvatarFileID string
+	AvatarURL    string
+}
+
+// RosterCandidateFilter lists roster picker candidates.
+type RosterCandidateFilter struct {
+	Page     int
+	PageSize int
+	Search   string
+}
+
+// RosterBulkFailure is one failed bulk roster add attempt.
+type RosterBulkFailure struct {
+	UserID  string
+	Message string
+}
+
+// RosterBulkResult aggregates bulk roster add outcomes.
+type RosterBulkResult struct {
+	Added  []RosterMember
+	Failed []RosterBulkFailure
 }
 
 // ProfileFilter lists profiles.

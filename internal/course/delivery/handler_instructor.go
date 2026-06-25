@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"context"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -89,10 +90,29 @@ func (h *Handler) deleteCourse(c *gin.Context) {
 	})
 }
 
-func (h *Handler) listCollaborators(c *gin.Context) {
-	h.courseOK(c, "ok", func(courseID string) (any, error) {
-		return h.svc.ListCollaborators(c.Request.Context(), courseID, utils.CurrentUserID(c))
+func (h *Handler) coursePaginatedUserList(c *gin.Context, mode string) {
+	h.listCoursePaginatedSearch(c, func(ctx context.Context, courseID, actorUserID string, page, perPage int, search string) (any, int64, error) {
+		switch mode {
+		case "collaborators":
+			return h.svc.ListCollaborators(ctx, courseID, actorUserID, domain.CollaboratorListFilter{
+				Page: page, PerPage: perPage, Search: search,
+			})
+		case "instructor-candidates":
+			return h.svc.ListInstructorCandidates(ctx, courseID, actorUserID, domain.InstructorCandidateFilter{
+				Page: page, PerPage: perPage, Search: search,
+			})
+		default:
+			return nil, 0, domain.ErrCourseNotFound
+		}
 	})
+}
+
+func (h *Handler) listCollaborators(c *gin.Context) {
+	h.coursePaginatedUserList(c, "collaborators")
+}
+
+func (h *Handler) listInstructorCandidates(c *gin.Context) {
+	h.coursePaginatedUserList(c, "instructor-candidates")
 }
 
 func (h *Handler) addCollaborator(c *gin.Context) {

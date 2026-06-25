@@ -68,8 +68,12 @@ func (s *CourseService) DeleteCourse(ctx context.Context, courseID string, actor
 	return s.repo.DeleteCourse(ctx, courseID, actorUserID)
 }
 
-func (s *CourseService) ListCollaborators(ctx context.Context, courseID string, actorUserID string) ([]domain.Collaborator, error) {
-	return s.repo.ListCollaborators(ctx, courseID, actorUserID)
+func (s *CourseService) ListCollaborators(ctx context.Context, courseID string, actorUserID string, filter domain.CollaboratorListFilter) ([]domain.Collaborator, int64, error) {
+	return s.repo.ListCollaborators(ctx, courseID, actorUserID, filter)
+}
+
+func (s *CourseService) ListInstructorCandidates(ctx context.Context, courseID string, actorUserID string, filter domain.InstructorCandidateFilter) ([]domain.InstructorCandidate, int64, error) {
+	return s.repo.ListInstructorCandidates(ctx, courseID, actorUserID, filter)
 }
 
 func (s *CourseService) AddCollaborator(ctx context.Context, courseID string, actorUserID, userID string, role string) ([]domain.Collaborator, error) {

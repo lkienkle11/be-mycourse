@@ -1,7 +1,9 @@
 package delivery
 
 import (
+	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -187,5 +189,26 @@ func courseBodyUpdated[T any](h *Handler, c *gin.Context, fn func(courseID strin
 func reorderByParent(h *Handler, c *gin.Context, name, invalidMessage string, fn func(courseID, parentID string, orderedStableIDs []string) (any, error)) {
 	courseParamBodyOK(h, c, name, invalidMessage, "updated", func(courseID, parentID string, req *reorderRequest) (any, error) {
 		return fn(courseID, parentID, req.OrderedStableIDs)
+	})
+}
+
+type coursePaginatedSearchLister func(ctx context.Context, courseID, actorUserID string, page, perPage int, search string) (any, int64, error)
+
+func (h *Handler) listCoursePaginatedSearch(c *gin.Context, list coursePaginatedSearchLister) {
+	withCourseID(c, func(courseID string) {
+		var q coursePaginatedSearchQuery
+		_ = c.ShouldBindQuery(&q)
+		rows, total, err := list(
+			c.Request.Context(),
+			courseID,
+			utils.CurrentUserID(c),
+			q.GetPage(),
+			q.GetPerPage(),
+			strings.TrimSpace(q.Search),
+		)
+		if mapCourseError(c, err) {
+			return
+		}
+		response.OKPaginated(c, "ok", rows, utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
 	})
 }

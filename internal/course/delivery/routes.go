@@ -18,6 +18,7 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 	courses.DELETE("/:courseId", utils.RoutePermission(pc, constants.AllPermissions.CourseDelete), h.deleteCourse)
 
 	courses.GET("/:courseId/collaborators", utils.RoutePermission(pc, constants.AllPermissions.CourseInstructorRead), h.listCollaborators)
+	courses.GET("/:courseId/instructor-candidates", utils.RoutePermission(pc, constants.AllPermissions.CourseCollaboratorCandidateRead), h.listInstructorCandidates)
 	courses.POST("/:courseId/collaborators", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.addCollaborator)
 	courses.DELETE("/:courseId/collaborators/:userId", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.removeCollaborator)
 

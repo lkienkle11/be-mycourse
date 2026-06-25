@@ -30,7 +30,9 @@ type ProfileRepository interface {
 
 type RosterRepository interface {
 	ListRoster(ctx context.Context, f RosterFilter) ([]RosterMember, int64, error)
+	ListRosterCandidates(ctx context.Context, f RosterCandidateFilter) ([]RosterCandidate, int64, error)
 	UserHasInstructorRole(ctx context.Context, userID string) (bool, error)
+	UserHasPlatformStaffRole(ctx context.Context, userID string) (bool, error)
 }
 
 type ExpertiseRepository interface {

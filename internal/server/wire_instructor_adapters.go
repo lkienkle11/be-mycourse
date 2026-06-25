@@ -23,6 +23,10 @@ func (l *instructorUserLookup) FindByEmail(ctx context.Context, email string) (*
 	return l.repo.FindByEmail(ctx, email)
 }
 
+func (l *instructorUserLookup) FindByID(ctx context.Context, userID string) (*authdomain.User, error) {
+	return l.repo.FindByID(ctx, userID)
+}
+
 type instructorRoleManager struct {
 	rbac   *rbacapp.RBACService
 	roleID uint

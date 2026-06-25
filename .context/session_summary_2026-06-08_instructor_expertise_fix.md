@@ -25,7 +25,6 @@ Fix instructor expertise APIs:
 | `internal/instructor/infra/rows.go` | Explicit `gorm:"column:..."` on expertise rows |
 | `internal/instructor/infra/repos_map.go` | `expertiseTopicRowToDomain` / `expertiseSkillRowToDomain` |
 | `internal/instructor/infra/repos.go` | JOIN taxonomy; alias-qualified soft-delete; explicit SELECT + inline scan; `getExpertiseByID` reload after create |
-| `AGENTS.md`, `CLAUDE.md` | Dev test account `user01@yopmail.com` / `Test@1234` |
 
 ## Docs sync
 
@@ -56,7 +55,7 @@ Fix instructor expertise APIs:
 
 ## Manual verification
 
-Login: `user01@yopmail.com` / `Test@1234` on `localhost:8080`.
+Obtain `ACCESS_TOKEN` via `POST /api/v1/auth/login` with a local dev account.
 
 ```bash
 # GET expertise topics (user_id=14)

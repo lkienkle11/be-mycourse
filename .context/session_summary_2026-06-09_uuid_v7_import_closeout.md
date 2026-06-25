@@ -16,7 +16,7 @@
 - All entity ids are UUID v7; `user_code` is ULID.
 
 ### API smoke test
-- `POST /api/v1/auth/login` (user01@yopmail.com) → JWT with UUID `user_id`.
+- `POST /api/v1/auth/login` with a local dev account → JWT with UUID `user_id`.
 - `GET /api/v1/taxonomy/topics` → UUID topic ids.
 - `GET /api/v1/courses/{uuid}` → course + draft version UUIDs.
 

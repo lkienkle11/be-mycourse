@@ -28,10 +28,16 @@
 | `000020_course_version_row_version_backfill` | Backfills `course_versions.row_version` from `0` to `1` for rows created before GORM explicitly set `RowVersion: 1` on insert (column default alone is overridden by zero-value inserts). |
 | `000021_media_bunny_delivery_urls` | Adds Bunny Stream delivery URL columns on `media_files` (see `docs/modules/media.md`). |
 | `000022_course_sub_lesson_estimated_duration` | Adds `course_sub_lessons.estimated_duration_ms` (`BIGINT NOT NULL DEFAULT 0`) for TEXT/QUIZ user estimates; VIDEO resolves from `media_files.duration` at read time. |
+| `000023_course_trash` | Adds `courses.trashed_at` — soft trash before permanent delete. See **`docs/database.md`**. |
+| `000024_course_admin_permissions` | Seeds **P59–P66** (course review queue, catalog, trash) + sysadmin/admin grants. |
+| `000025_media_r2_bucket_name` | Adds `media_files.r2_bucket_name` for R2 storage routing. |
+| `000026_course_approval_note` | Adds `course_versions.approval_note` for admin review feedback. |
+| `000027_course_collaborator_candidate_permission` | Seeds **P67** `course_collaborator_candidate:read` + sysadmin/admin/instructor grants (picker `GET …/instructor-candidates`). |
+| `000028_admin_collaborator_candidate_permission` | Backfills P67 grant for **admin** when `000027` ran without admin. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 
-**Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P58** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/database.md`**.
+**Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P67** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/database.md`**.
 
 **COMMENT / SQL strings with `golang-migrate`:** the runner splits files by **every** `;` (no SQL parser). Therefore, do **not** place `;` inside strings (`'...'`), inside **`$$...$$`**, etc. Use `;` only to terminate statements. In this repo, avoid `DO $$ ... $$` blocks entirely (see `000015` rewrite) and prefer plain DDL/DML statements. In `COMMENT ON ... IS '...'`, avoid `;` in comment text (use punctuation like commas or periods), e.g. `000007_registration_email_limits.up.sql`.
 

@@ -28,7 +28,7 @@
 ### Manual verification
 - `go run .` — server listens on `:8080`
 - `GET /api/v1/health` — OK
-- Login smoke with `user01@yopmail.com` — **failed** (`Invalid email or password`); local DB likely not synced with dev credentials. Re-run after `CLI_IMPORT_LEGACY_DATA` or seed.
+- Login smoke with a local dev account — **failed** (`Invalid email or password`); local DB likely not synced with seed data. Re-run after `CLI_IMPORT_LEGACY_DATA` or seed.
 
 ### RBAC exceptions (unchanged)
 - `roles.id`, `role_id` junction FKs remain `uint` / `BIGINT` per plan.

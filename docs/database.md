@@ -302,6 +302,7 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 | P64 | `course_trash:read` | Course trash bin |
 | P65 | `course_trash:restore` | Course trash bin |
 | P66 | `course_trash:delete` | Course trash bin |
+| P67 | `course_collaborator_candidate:read` | Course collaborator picker |
 
 - **P1–P13** are seeded in `000001_schema.up.sql`.
 - **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
@@ -311,6 +312,7 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 - **P38–P40** are inserted in `000010_role_modify_permissions` and granted by role tier: sysadmin → P38–P40, admin → P39–P40, instructor → P40 only.
 - **P41–P58** are inserted in **`000013_instructor_management`** (instructor roster, applications, profiles, expertise, ticket close). Migration also seeds role grants; keep **`roles_permission.go`** in sync and run **`go run ./cmd/syncpermissions`** + **`go run ./cmd/syncrolepermissions`** after code changes.
 - **P59–P66** are inserted in **`000024_course_admin_permissions`** (course review queue, catalog, trash). Granted to **sysadmin** and **admin** only.
+- **P67** is inserted in **`000027_course_collaborator_candidate_permission`**. Granted to **sysadmin**, **admin**, and **instructor** (picker for course owners). Migration **`000028_admin_collaborator_candidate_permission`** backfills **admin** if `000027` ran before admin was included.
 
 ---
 
@@ -321,9 +323,9 @@ Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
 
 | Role | Permission IDs (summary) |
 |------|--------------------------|
-| **sysadmin** | P1–P66 (full catalog) |
-| **admin** | P1–P8, P10–P66 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
-| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, P40, **P45, P47, P49, P55–P58** (applications submit/delete/reject, expertise mutate, ticket close) |
+| **sysadmin** | P1–P67 (full catalog) |
+| **admin** | P1–P8, P10–P67 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, P40, **P45, P47, P49, P55–P58, P67** (applications submit/delete/reject, expertise mutate, ticket close, collaborator picker) |
 | **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34, **P45** (submit application / create ticket) |
 
 `000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
@@ -660,6 +662,8 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000022 | `course_sub_lesson_estimated_duration` | `course_sub_lessons.estimated_duration_ms` |
 | 000023 | `course_trash` | `courses.trashed_at` — soft trash before permanent delete; trashed courses excluded from edit/learn/catalog |
 | 000024 | `course_admin_permissions` | Seed P59–P66 (course review, catalog, trash) + sysadmin/admin grants |
+| 000027 | `course_collaborator_candidate_permission` | Seed P67 `course_collaborator_candidate:read` + sysadmin/admin/instructor grants |
+| 000028 | `admin_collaborator_candidate_permission` | Backfill P67 grant for **admin** when `000027` ran without admin |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

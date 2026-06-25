@@ -1678,12 +1678,23 @@ paths:
         schema: { type: integer }
     get:
       tags: [Course]
-      summary: List collaborators
+      summary: List collaborators (paginated)
+      description: |
+        Paginated collaborator list for a course. Query `search` matches `display_name` or `email` (ILIKE).
+        Order: `OWNER` first, then `EDITOR` by collaborator id.
+        `loadCollaborators` on course detail is unchanged (full list embedded in `CourseDetail`).
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Optional ILIKE filter on display_name or email.
       responses:
         "200":
-          description: OK
+          description: Paginated list — `data.result[]` items are `Collaborator`.
     post:
       tags: [Course]
       summary: Add collaborator
@@ -1702,6 +1713,31 @@ paths:
       responses:
         "200":
           description: Updated
+
+  /api/v1/courses/{courseId}/instructor-candidates:
+    get:
+      tags: [Course]
+      summary: List instructor candidates for collaborator picker (paginated)
+      description: |
+        Requires `course_collaborator_candidate:read` (P67). Owner-only in repository (`requireOwnerAccess`). Returns instructor-role users not already on the course.
+        Query `search` matches `display_name` or `email` (ILIKE). Avatar URL hydrated via media join.
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema: { type: integer }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated list — `data.result[]` items are instructor candidate rows (`user_id`, `display_name`, `email`, optional avatar fields).
+        "403":
+          description: Non-owner access
 
   /api/v1/courses/{courseId}/collaborators/{userId}:
     delete:

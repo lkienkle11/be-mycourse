@@ -1,6 +1,13 @@
 # Course Collaboration Handoff
 
-_Last updated: 2026-06-05_
+_Last updated: 2026-06-25_
+
+## 2026-06-25 addendum (collaborators)
+
+- Paginated `GET /api/v1/courses/:courseId/collaborators` (`course_instructor:read`; query `page`, `per_page`, optional `search`)
+- Picker `GET /api/v1/courses/:courseId/instructor-candidates` — **P67** `course_collaborator_candidate:read` (migrations `000027`, `000028`); **owner-only** in repo
+- Shared search SQL: `utils.UserDisplayNameEmailSearchSQL` in `repo_collaborators.go`
+- Course detail still embeds full collaborators via `loadCollaborators`
 
 ## Purpose
 

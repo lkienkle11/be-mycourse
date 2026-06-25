@@ -99,6 +99,11 @@ type listReviewHistoryQuery struct {
 	Status string `form:"status" validate:"omitempty,oneof=APPROVED REJECTED"`
 }
 
+type coursePaginatedSearchQuery struct {
+	utils.BaseFilter
+	Search string `form:"search"`
+}
+
 type saveProgressRequest struct {
 	StableContentID string  `json:"stable_content_id" validate:"required,uuid"`
 	ContentType     string  `json:"content_type" validate:"required"`

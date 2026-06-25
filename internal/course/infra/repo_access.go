@@ -329,41 +329,12 @@ func (r *GormRepository) loadVersionRow(ctx context.Context, db *gorm.DB, versio
 }
 
 func (r *GormRepository) loadCollaborators(ctx context.Context, db *gorm.DB, courseID string) ([]domain.Collaborator, error) {
-	q := `
-SELECT
-    cc.user_id,
-    cc.role,
-    COALESCE(u.display_name, '') AS display_name,
-    COALESCE(u.email, '') AS email,
-    COALESCE(u.avatar_file_id::text, '') AS avatar_file_id,
-    COALESCE(m.url, '') AS avatar_url
-FROM course_collaborators cc
-INNER JOIN users u
-    ON u.id = cc.user_id AND u.deleted_at IS NULL
-LEFT JOIN media_files m
-    ON m.id = u.avatar_file_id AND m.deleted_at IS NULL
-WHERE cc.course_id = @course_id AND cc.deleted_at IS NULL
-ORDER BY CASE WHEN cc.role = 'OWNER' THEN 0 ELSE 1 END, cc.id ASC`
-	type row struct {
-		UserID       string `gorm:"column:user_id"`
-		Role         string `gorm:"column:role"`
-		DisplayName  string `gorm:"column:display_name"`
-		Email        string `gorm:"column:email"`
-		AvatarFileID string `gorm:"column:avatar_file_id"`
-		AvatarURL    string `gorm:"column:avatar_url"`
-	}
-	var rows []row
+	q := collaboratorsSelectSQL + collaboratorOrderSQL()
+	var rows []collaboratorScanRow
 	if err := db.WithContext(ctx).Raw(q, map[string]any{"course_id": courseID}).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]domain.Collaborator, len(rows))
-	for i, row := range rows {
-		out[i] = domain.Collaborator{
-			UserID: row.UserID, Role: row.Role, DisplayName: row.DisplayName, Email: row.Email,
-			AvatarFileID: row.AvatarFileID, AvatarURL: row.AvatarURL,
-		}
-	}
-	return out, nil
+	return scanRowsToCollaborators(rows), nil
 }
 
 func (r *GormRepository) loadSectionsByVersion(ctx context.Context, db *gorm.DB, versionID string) ([]sectionRow, error) {

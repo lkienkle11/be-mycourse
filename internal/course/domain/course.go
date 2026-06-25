@@ -173,6 +173,26 @@ type ReviewHistoryFilter struct {
 	Status  string
 }
 
+type CollaboratorListFilter struct {
+	Page    int
+	PerPage int
+	Search  string
+}
+
+type InstructorCandidate struct {
+	UserID       string `json:"user_id"`
+	DisplayName  string `json:"display_name"`
+	Email        string `json:"email"`
+	AvatarFileID string `json:"avatar_file_id,omitempty"`
+	AvatarURL    string `json:"avatar_url,omitempty"`
+}
+
+type InstructorCandidateFilter struct {
+	Page    int
+	PerPage int
+	Search  string
+}
+
 type Lease struct {
 	ID               string `json:"id"`
 	CourseID         string `json:"course_id"`
@@ -217,7 +237,8 @@ type Repository interface {
 	PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*CourseDetail, error)
 	UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in UpdateBasicInfoInput) (*CourseDetail, error)
 	DeleteCourse(ctx context.Context, courseID string, actorUserID string) error
-	ListCollaborators(ctx context.Context, courseID string, actorUserID string) ([]Collaborator, error)
+	ListCollaborators(ctx context.Context, courseID string, actorUserID string, filter CollaboratorListFilter) ([]Collaborator, int64, error)
+	ListInstructorCandidates(ctx context.Context, courseID string, actorUserID string, filter InstructorCandidateFilter) ([]InstructorCandidate, int64, error)
 	AddCollaborator(ctx context.Context, courseID string, actorUserID, userID string, role string) ([]Collaborator, error)
 	RemoveCollaborator(ctx context.Context, courseID string, actorUserID, userID string) ([]Collaborator, error)
 	CreateSection(ctx context.Context, courseID string, actorUserID string, in UpsertSectionInput) (*Section, error)

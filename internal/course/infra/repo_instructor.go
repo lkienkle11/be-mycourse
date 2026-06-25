@@ -200,13 +200,6 @@ func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, acto
 	})
 }
 
-func (r *GormRepository) ListCollaborators(ctx context.Context, courseID string, actorUserID string) ([]domain.Collaborator, error) {
-	if _, err := r.requireCourseAccess(ctx, r.db.WithContext(ctx), courseID, actorUserID); err != nil {
-		return nil, err
-	}
-	return r.loadCollaborators(ctx, r.db.WithContext(ctx), courseID)
-}
-
 func (r *GormRepository) AddCollaborator(ctx context.Context, courseID string, actorUserID, userID string, role string) ([]domain.Collaborator, error) {
 	var out []domain.Collaborator
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

@@ -507,16 +507,6 @@ func (r *GormRepository) resolveSubLessonDomainDuration(ctx context.Context, db 
 	return nil
 }
 
-func (r *GormRepository) userIsInstructor(ctx context.Context, db *gorm.DB, userID string) bool {
-	var count int64
-	_ = db.WithContext(ctx).Raw(`
-SELECT COUNT(*)
-FROM user_roles ur
-INNER JOIN roles ro ON ro.id = ur.role_id
-WHERE ur.user_id = ? AND ro.name IN ('instructor', 'sysadmin', 'admin')`, userID).Scan(&count).Error
-	return count > 0
-}
-
 func (r *GormRepository) nextOrderIndex(ctx context.Context, db *gorm.DB, table, predicate string, args ...any) (int, error) {
 	var next int
 	query := fmt.Sprintf("SELECT COALESCE(MAX(order_index), -1) + 1 FROM %s WHERE %s", table, predicate)

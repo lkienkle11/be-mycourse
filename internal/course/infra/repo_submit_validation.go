@@ -130,32 +130,71 @@ func (r *GormRepository) validateDraftCollaborators(ctx context.Context, tx *gor
 		return domain.ErrCourseSubmitCollaboratorRequired
 	}
 
+	userIDs := make([]string, len(collaborators))
+	for i, collaborator := range collaborators {
+		userIDs[i] = collaborator.UserID
+	}
+	snapshots, err := r.loadCollaboratorAccessSnapshots(ctx, tx, userIDs)
+	if err != nil {
+		return err
+	}
+	instructorSet, err := r.instructorUserIDSet(ctx, tx, userIDs)
+	if err != nil {
+		return err
+	}
+	now := timex.NowUnix()
 	for _, collaborator := range collaborators {
-		var user collaboratorAccessSnapshot
-		if err := tx.WithContext(ctx).
-			Table(constants.TableAppUsers).
-			Select("is_disable, deleted_at, banned_until").
-			Where("id = ?", collaborator.UserID).
-			First(&user).Error; err != nil {
-			if stderrors.Is(err, gorm.ErrRecordNotFound) {
-				return domain.ErrCourseCollaboratorInactive
-			}
-			return err
+		user, ok := snapshots[collaborator.UserID]
+		if !ok {
+			return domain.ErrCourseCollaboratorInactive
 		}
-
 		if err := useraccess.CheckAccessible(&useraccess.Snapshot{
 			DeletedAt:   user.DeletedAt,
 			IsDisabled:  user.IsDisable,
 			BannedUntil: user.BannedUntil,
-		}, timex.NowUnix()); err != nil {
+		}, now); err != nil {
 			return domain.ErrCourseCollaboratorInactive
 		}
-		if !r.userIsInstructor(ctx, tx, collaborator.UserID) {
+		if _, ok := instructorSet[collaborator.UserID]; !ok {
 			return domain.ErrCourseCollaboratorInactive
 		}
 	}
 
 	return nil
+}
+
+type collaboratorAccessSnapshotRow struct {
+	ID          string `gorm:"column:id"`
+	IsDisable   bool   `gorm:"column:is_disable"`
+	DeletedAt   *int64 `gorm:"column:deleted_at"`
+	BannedUntil *int64 `gorm:"column:banned_until"`
+}
+
+func (r *GormRepository) loadCollaboratorAccessSnapshots(
+	ctx context.Context,
+	tx *gorm.DB,
+	userIDs []string,
+) (map[string]collaboratorAccessSnapshot, error) {
+	if len(userIDs) == 0 {
+		return map[string]collaboratorAccessSnapshot{}, nil
+	}
+	var rows []collaboratorAccessSnapshotRow
+	if err := tx.WithContext(ctx).
+		Table(constants.TableAppUsers).
+		Select("id, is_disable, deleted_at, banned_until").
+		Where("id IN ?", userIDs).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[string]collaboratorAccessSnapshot, len(rows))
+	for _, row := range rows {
+		out[row.ID] = collaboratorAccessSnapshot{
+			IsDisable:   row.IsDisable,
+			DeletedAt:   row.DeletedAt,
+			BannedUntil: row.BannedUntil,
+		}
+	}
+	return out, nil
 }
 
 func validateOutlineForSubmit(

@@ -74,8 +74,8 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `GET /instructor-stubs/assignments|activity-log` — stubs
 - Course management (see **`docs/modules/course.md`**):
   - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId` (query `include_outline=false` skips outline tree — info/collaborators tabs), `PATCH /courses/:courseId/basic-info`, paginated `GET …/collaborators`, picker `GET …/instructor-candidates` (P67), `POST …/collaborators/bulk` + `DELETE …/collaborators/:userId`, outline CRUD/reorder, lease acquire/heartbeat/release
-  - Review: `POST /courses/:courseId/draft/prepare`, `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft` (**owner-only** in repo — `EDITOR` may edit draft/outline but not these three), `GET /course-reviews/pending`, `POST /course-reviews/:courseId/approve|reject`
-  - Admin catalog: `GET /course-admin/courses`, `GET /course-admin/courses/trash`, `POST /course-admin/courses/:courseId/trash|restore`, `DELETE /course-admin/courses/:courseId/permanent`
+  - Review: `POST /courses/:courseId/draft/prepare`, `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft` (**owner-only** in repo — `EDITOR` may edit draft/outline but not these three), `GET /course-reviews/pending` (`[]CourseListItem` + `owner_display_name`), `POST /course-reviews/:courseId/approve|reject`
+  - Admin catalog: `GET /course-admin/courses`, `GET /course-admin/courses/trash` (`[]CourseListItem` + `owner_display_name`), `POST /course-admin/courses/:courseId/trash|restore`, `DELETE /course-admin/courses/:courseId/permanent`
   - Learner: `GET /learner-courses`, `GET /learner-courses/:courseId`, `POST /learner-courses/:courseId/enroll`, `GET|POST /learner-courses/:courseId/progress`
 
 ### `/api/internal-v1/rbac`

@@ -219,15 +219,15 @@ Instructor / collaborator routes:
 
 Admin / sysadmin review routes (P59–P61):
 
-- `GET /api/v1/course-reviews/pending` — `course_review:read` (P59)
+- `GET /api/v1/course-reviews/pending` — `course_review:read` (P59); `[]CourseListItem` includes `owner_display_name`
 - `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60); body `{ "approval_note": "..." }` (`nonwhitespace_min=5`, `max=500`); sets `current_published_version_id` to submitted version, persists `approval_note`, clears draft pointer
 - `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61); body `{ "reason": "..." }` (`nonwhitespace_min=5`, `max=500`); marks submitted version `REJECTED`, forks new `DRAFT` at `max + 1`
 - `GET /api/v1/courses/:courseId/review-history` — `course:instructor_read`; editor access; paginated `APPROVED`/`REJECTED` rows from `course_versions` (`page`, `per_page`, optional `status`)
 
 Admin / sysadmin course catalog routes (P62–P66):
 
-- `GET /api/v1/course-admin/courses` — `course_catalog:read` (P62); approved published courses not in trash
-- `GET /api/v1/course-admin/courses/trash` — `course_trash:read` (P64); trashed approved courses
+- `GET /api/v1/course-admin/courses` — `course_catalog:read` (P62); approved published courses not in trash; `[]CourseListItem` includes `owner_display_name`
+- `GET /api/v1/course-admin/courses/trash` — `course_trash:read` (P64); trashed approved courses; same list shape including `owner_display_name`
 - `POST /api/v1/course-admin/courses/:courseId/trash` — `course_catalog:trash` (P63); move eligible course to trash
 - `POST /api/v1/course-admin/courses/:courseId/restore` — `course_trash:restore` (P65); restore from trash
 - `DELETE /api/v1/course-admin/courses/:courseId/permanent` — `course_trash:delete` (P66); permanently delete trashed course
@@ -301,6 +301,8 @@ Previous closeout (2026-06-15): migration **`000022_course_sub_lesson_estimated_
 Access resolution in step 5 uses one parameterized query instead of separate `loadCourse` + collaborator lookups.
 
 List endpoints (`GET /courses/my`, learner catalog, pending reviews) use a flat `courseListScanRow` for GORM `Raw().Scan` — embedded `courseRow` is not populated by GORM for joined list queries; rows are mapped back through `asCourseRow()` → `toCourse()`.
+
+Admin catalog and review queue list endpoints (`GET /course-admin/courses`, `GET /course-admin/courses/trash`, `GET /course-reviews/pending`) join `users` on `courses.owner_user_id` and include `owner_display_name` (from `users.display_name`, same convention as `Collaborator.display_name`) on each `CourseListItem` alongside `owner_user_id`.
 
 Successful response: HTTP **201**, envelope `data` = `domain.CourseDetail` (course root, `collaborator_role`, empty outline, draft version v1, collaborators list including owner).
 

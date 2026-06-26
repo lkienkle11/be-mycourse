@@ -1774,6 +1774,8 @@ Full semantics: **`docs/modules/course.md`** → Estimated duration.
 
 Requires migrations **`000023_course_trash`** and **`000024_course_admin_permissions`** (or `MIGRATE=1`). Granular permissions **P59–P66** (not shell `admin:modify`). Use `Authorization: Bearer $ACCESS_TOKEN` from `POST /api/v1/auth/login` with an account granted the required permissions.
 
+**List response shape:** `GET /course-admin/courses` and `GET /course-admin/courses/trash` both return `[]CourseListItem`. Each item includes embedded course fields (`owner_user_id`, …) plus list metadata. Admin/review list queries also join `users.display_name` as **`owner_display_name`** (same source as `Collaborator.display_name`; omitted when empty). Instructor/learner list endpoints (`GET /courses/my`, `GET /learner-courses`) do not populate `owner_display_name`.
+
 **List approved published courses** (excludes trash and draft-only courses):
 
 ```bash
@@ -1782,7 +1784,7 @@ curl -sS '{{BASE_URL}}/api/v1/course-admin/courses' \
   -H 'Accept: application/json'
 ```
 
-**List trashed courses:**
+**List trashed courses** (same `CourseListItem` shape, including `owner_display_name`):
 
 ```bash
 curl -sS '{{BASE_URL}}/api/v1/course-admin/courses/trash' \
@@ -1815,6 +1817,18 @@ curl -sS -X DELETE '{{BASE_URL}}/api/v1/course-admin/courses/{{courseId}}/perman
 ```
 
 Pass: HTTP **200**, `code: 0` on success; **404** when course not found; **409** / business code when trash eligibility fails. Trashed courses return **404** on `GET /api/v1/courses/:courseId` (edit blocked).
+
+### 14.7 Course review queue (`/api/v1/course-reviews`)
+
+**List pending review drafts** — permission `course_review:read` (P59). Success `data`: `[]CourseListItem` with the same **`owner_display_name`** field as admin catalog/trash lists (joined from `users.display_name` via `courses.owner_user_id`).
+
+```bash
+curl -sS '{{BASE_URL}}/api/v1/course-reviews/pending' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+Approve/reject routes: see **`docs/router.md`** and **`docs/modules/course.md`**.
 
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
 

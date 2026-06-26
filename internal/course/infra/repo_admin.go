@@ -11,6 +11,7 @@ import (
 
 const adminCoursePublishedListSelect = `
     ` + courseListBaseColumns + `,
+    ` + courseListOwnerDisplayNameColumn + `,
     'ADMIN' AS role,
     pv.title AS title,
     pv.status AS review_status,
@@ -24,7 +25,7 @@ const adminCoursePublishedListSelect = `
     COALESCE(dv.status, '') AS draft_review_status`
 
 const adminCoursePublishedListJoins = `
-FROM courses c
+FROM courses c` + courseListOwnerUserJoin + `
 INNER JOIN course_versions pv
     ON pv.id = c.current_published_version_id AND pv.deleted_at IS NULL
 LEFT JOIN course_versions dv

@@ -45,6 +45,7 @@ func (r *GormRepository) ListPendingReviews(ctx context.Context) ([]domain.Cours
 	q := `
 SELECT
     ` + courseListBaseColumns + `,
+    ` + courseListOwnerDisplayNameColumn + `,
     'OWNER' AS role,
     dv.title,
     dv.status AS review_status,
@@ -55,7 +56,7 @@ SELECT
     COALESCE(dm.url, '') AS thumbnail_url,
     COALESCE(dv.preview_video_file_id::text, '') AS preview_video_file_id,
     dv.id::text AS version_id
-FROM courses c
+FROM courses c` + courseListOwnerUserJoin + `
 INNER JOIN course_versions dv
     ON dv.id = c.current_draft_version_id AND dv.status = @status AND dv.deleted_at IS NULL
 LEFT JOIN media_files dm

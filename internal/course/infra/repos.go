@@ -240,6 +240,12 @@ type mediaInfoRow struct {
 
 const courseListBaseColumns = `c.id, c.owner_user_id, c.slug, c.current_published_version_id, c.current_draft_version_id, c.created_at, c.updated_at, c.deleted_at, c.trashed_at`
 
+const courseListOwnerDisplayNameColumn = `COALESCE(ou.display_name, '') AS owner_display_name`
+
+const courseListOwnerUserJoin = `
+LEFT JOIN users ou
+    ON ou.id = c.owner_user_id AND ou.deleted_at IS NULL`
+
 type courseListScanRow struct {
 	ID                        string  `gorm:"column:id"`
 	OwnerUserID               string  `gorm:"column:owner_user_id"`
@@ -250,6 +256,7 @@ type courseListScanRow struct {
 	UpdatedAt                 int64   `gorm:"column:updated_at"`
 	DeletedAt                 *int64  `gorm:"column:deleted_at"`
 	TrashedAt                 *int64  `gorm:"column:trashed_at"`
+	OwnerDisplayName          string  `gorm:"column:owner_display_name"`
 	Role                      string  `gorm:"column:role"`
 	Title                     string  `gorm:"column:title"`
 	ReviewStatus              string  `gorm:"column:review_status"`
@@ -530,6 +537,7 @@ func toCourseListItem(row *courseListScanRow) domain.CourseListItem {
 	cr := row.asCourseRow()
 	return domain.CourseListItem{
 		Course:             toCourse(&cr),
+		OwnerDisplayName:   row.OwnerDisplayName,
 		Title:              row.Title,
 		ReviewStatus:       row.ReviewStatus,
 		VersionID:          row.VersionID,

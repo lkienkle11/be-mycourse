@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -39,6 +40,19 @@ WHERE cc.course_id = @course_id AND cc.deleted_at IS NULL`
 
 func collaboratorOrderSQL() string {
 	return " ORDER BY CASE WHEN cc.role = 'OWNER' THEN 0 ELSE 1 END, cc.id ASC"
+}
+
+func (r *GormRepository) loadCollaboratorsByUserIDs(ctx context.Context, db *gorm.DB, courseID string, userIDs []string) ([]domain.Collaborator, error) {
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+	baseSQL := strings.Replace(collaboratorsSelectSQL, "@course_id", "?", 1)
+	q := baseSQL + " AND cc.user_id IN ?" + collaboratorOrderSQL()
+	var rows []collaboratorScanRow
+	if err := db.WithContext(ctx).Raw(q, courseID, userIDs).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	return scanRowsToCollaborators(rows), nil
 }
 
 func scanRowsToCollaborators(rows []collaboratorScanRow) []domain.Collaborator {

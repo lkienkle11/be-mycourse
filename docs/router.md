@@ -173,12 +173,12 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | POST | `/api/v1/courses/:courseId/leases/release` | `course:update` | Release edit lease |
 | POST | `/api/v1/courses/:courseId/submit-review` | `course:update` | Submit draft for review (**owner-only** in repo) |
 | POST | `/api/v1/courses/:courseId/reopen-draft` | `course:update` | Fork new draft from legacy rejected version (`max(version_no)+1`; **owner-only** in repo) |
-| GET | `/api/v1/course-reviews/pending` | `course_review:read` (P59) | List pending drafts |
+| GET | `/api/v1/course-reviews/pending` | `course_review:read` (P59) | List pending drafts (`[]CourseListItem` + `owner_display_name`) |
 | POST | `/api/v1/course-reviews/:courseId/approve` | `course_review:approve` (P60) | Approve draft; body `approval_note` (5–500 chars) |
 | POST | `/api/v1/course-reviews/:courseId/reject` | `course_review:reject` (P61) | Reject submitted row; body `reason` (5–500 chars); auto-fork new draft at `max+1` |
 | GET | `/api/v1/courses/:courseId/review-history` | `course:instructor_read` | Paginated approve/reject history for editors (`page`, `per_page`, optional `status`) |
-| GET | `/api/v1/course-admin/courses` | `course_catalog:read` (P62) | List approved published courses (not in trash) |
-| GET | `/api/v1/course-admin/courses/trash` | `course_trash:read` (P64) | List trashed approved courses |
+| GET | `/api/v1/course-admin/courses` | `course_catalog:read` (P62) | List approved published courses (not in trash; `[]CourseListItem` + `owner_display_name`) |
+| GET | `/api/v1/course-admin/courses/trash` | `course_trash:read` (P64) | List trashed approved courses (same list shape + `owner_display_name`) |
 | POST | `/api/v1/course-admin/courses/:courseId/trash` | `course_catalog:trash` (P63) | Move eligible course to trash |
 | POST | `/api/v1/course-admin/courses/:courseId/restore` | `course_trash:restore` (P65) | Restore course from trash |
 | DELETE | `/api/v1/course-admin/courses/:courseId/permanent` | `course_trash:delete` (P66) | Permanently delete trashed course |

@@ -465,7 +465,25 @@ type CourseDetail struct {
     Collaborators       []Collaborator `json:"collaborators"`
     Outline             []Section      `json:"outline"`
 }
+
+type CourseListItem struct {
+    Course
+    OwnerDisplayName   string `json:"owner_display_name,omitempty"` // admin catalog, trash, review queue only; from users.display_name
+    Title              string `json:"title"`
+    ReviewStatus       string `json:"review_status"`
+    VersionID          string `json:"version_id,omitempty"`
+    VersionNo          int    `json:"version_no"`
+    CollaboratorRole   string `json:"collaborator_role"`
+    HasPublished       bool   `json:"has_published"`
+    HasDraft           bool   `json:"has_draft"`
+    ThumbnailFileID    string `json:"thumbnail_file_id,omitempty"`
+    ThumbnailURL       string `json:"thumbnail_url,omitempty"`
+    PreviewVideoFileID string `json:"preview_video_file_id,omitempty"`
+    DraftReviewStatus  string `json:"draft_review_status,omitempty"`
+}
 ```
+
+**`CourseListItem.owner_display_name`:** populated on `GET /course-admin/courses`, `GET /course-admin/courses/trash`, and `GET /course-reviews/pending` only. Instructor (`GET /courses/my`) and learner catalog lists omit this field.
 
 **Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses`, `course_versions`, and `course_collaborators`.
 
@@ -756,7 +774,46 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `[]domain.CourseListItem` |
+| 200 | 0 | `[]domain.CourseListItem` (no `owner_display_name`) |
+| 401 | 3002 | `null` |
+| 403 | 3003 | `null` |
+| 500 | 9001 | `null` |
+
+---
+
+#### `GET /api/v1/course-admin/courses`
+
+**Auth:** Bearer JWT + `course_catalog:read` (P62)
+
+| Status | `code` | `data` |
+|--------|--------|--------|
+| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name`) |
+| 401 | 3002 | `null` |
+| 403 | 3003 | `null` |
+| 500 | 9001 | `null` |
+
+---
+
+#### `GET /api/v1/course-admin/courses/trash`
+
+**Auth:** Bearer JWT + `course_trash:read` (P64)
+
+| Status | `code` | `data` |
+|--------|--------|--------|
+| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name`) |
+| 401 | 3002 | `null` |
+| 403 | 3003 | `null` |
+| 500 | 9001 | `null` |
+
+---
+
+#### `GET /api/v1/course-reviews/pending`
+
+**Auth:** Bearer JWT + `course_review:read` (P59)
+
+| Status | `code` | `data` |
+|--------|--------|--------|
+| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name`) |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` |
 | 500 | 9001 | `null` |
@@ -777,7 +834,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 | 404 | 3004 | `null` — course not found |
 | 500 | 9001 | `null` |
 
-Other course instructor, review, and learner routes return the same envelope with shapes documented in **`docs/modules/course.md`** and **`docs/curl_api.md` §14**.
+Other course instructor, review action, and learner routes return the same envelope with shapes documented in **`docs/modules/course.md`** and **`docs/curl_api.md` §14**.
 
 ---
 

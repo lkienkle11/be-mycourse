@@ -38,6 +38,7 @@ type Course struct {
 
 type CourseListItem struct {
 	Course
+	OwnerDisplayName   string `json:"owner_display_name,omitempty"`
 	Title              string `json:"title"`
 	ReviewStatus       string `json:"review_status"`
 	VersionID          string `json:"version_id,omitempty"`

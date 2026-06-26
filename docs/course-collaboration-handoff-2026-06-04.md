@@ -5,6 +5,11 @@ _Last updated: 2026-06-25_
 ## 2026-06-25 addendum (collaborators)
 
 - Paginated `GET /api/v1/courses/:courseId/collaborators` (`course_instructor:read`; query `page`, `per_page`, optional `search`)
+- Bulk add `POST /api/v1/courses/:courseId/collaborators/bulk` — body `{ "user_ids": ["..."], "role": "EDITOR" }` returns `added` + `failed[]`; per-user business failures in `failed[]`; infrastructure errors abort with HTTP 500
+- Removed legacy single add `POST /api/v1/courses/:courseId/collaborators`; `DELETE …/collaborators/:userId` unchanged
+- Batch repo: `repo_collaborators_bulk.go` — single transaction, shared `instructorUserIDSet` eligibility, `planBulkCollaboratorWrites` classification, batch `UPDATE id IN (…)` + `CreateInBatches` insert, `loadCollaboratorsByUserIDs` hydrate
+- Submit validation: `validateDraftCollaborators` batch-loads snapshots + `instructorUserIDSet` (no N+1)
+- Tests: `service_collaborators_bulk_test.go` (input normalization); `repo_collaborators_bulk_test.go` (`planBulkCollaboratorWrites` success/partial/all-failed)
 - Picker `GET /api/v1/courses/:courseId/instructor-candidates` — **P67** `course_collaborator_candidate:read` (migrations `000027`, `000028`); **owner-only** in repo
 - Shared search SQL: `utils.UserDisplayNameEmailSearchSQL` in `repo_collaborators.go`
 - Course detail still embeds full collaborators via `loadCollaborators`

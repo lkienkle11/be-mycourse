@@ -1678,7 +1678,22 @@ curl -sS "{{BASE_URL}}/api/v1/courses/{{courseId}}/instructor-candidates?page=1&
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-Add/remove collaborators: `POST` / `DELETE` under `…/collaborators` — permission `course:update` (see **`docs/router.md`**).
+### 14.4c Bulk add collaborators
+
+**`POST /api/v1/courses/:courseId/collaborators/bulk`** — permission `course:update` (owner-only in repo)
+
+```bash
+curl -sS -X POST "{{BASE_URL}}/api/v1/courses/{{courseId}}/collaborators/bulk" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"user_ids":["USER_UUID_1","USER_UUID_2"],"role":"EDITOR"}'
+```
+
+Success `data`: `{ "added": [Collaborator, ...], "failed": [{ "user_id", "message" }, ...] }`. Per-user business failures (e.g. not an instructor) appear in `failed[]`; infrastructure errors abort with HTTP 500.
+
+### 14.4d Remove collaborator
+
+**`DELETE /api/v1/courses/:courseId/collaborators/:userId`** — permission `course:update`
 
 Requires migration **`000022_course_sub_lesson_estimated_duration`** (or `MIGRATE=1`) for `estimated_duration_ms` on sub-lessons.
 

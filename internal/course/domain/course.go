@@ -91,6 +91,18 @@ type Collaborator struct {
 	AvatarURL    string `json:"avatar_url,omitempty"`
 }
 
+// CollaboratorBulkFailure is one failed bulk collaborator add attempt.
+type CollaboratorBulkFailure struct {
+	UserID  string
+	Message string
+}
+
+// CollaboratorBulkResult aggregates bulk collaborator add outcomes.
+type CollaboratorBulkResult struct {
+	Added  []Collaborator
+	Failed []CollaboratorBulkFailure
+}
+
 type Section struct {
 	ID                  string   `json:"id"`
 	StableID            string   `json:"stable_id"`
@@ -239,7 +251,7 @@ type Repository interface {
 	DeleteCourse(ctx context.Context, courseID string, actorUserID string) error
 	ListCollaborators(ctx context.Context, courseID string, actorUserID string, filter CollaboratorListFilter) ([]Collaborator, int64, error)
 	ListInstructorCandidates(ctx context.Context, courseID string, actorUserID string, filter InstructorCandidateFilter) ([]InstructorCandidate, int64, error)
-	AddCollaborator(ctx context.Context, courseID string, actorUserID, userID string, role string) ([]Collaborator, error)
+	AddCollaboratorsBulk(ctx context.Context, courseID string, actorUserID string, userIDs []string, role string) (CollaboratorBulkResult, error)
 	RemoveCollaborator(ctx context.Context, courseID string, actorUserID, userID string) ([]Collaborator, error)
 	CreateSection(ctx context.Context, courseID string, actorUserID string, in UpsertSectionInput) (*Section, error)
 	UpdateSection(ctx context.Context, courseID string, actorUserID string, in UpsertSectionInput) (*Section, error)

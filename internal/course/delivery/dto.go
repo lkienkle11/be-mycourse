@@ -1,6 +1,9 @@
 package delivery
 
-import "mycourse-io-be/internal/shared/utils"
+import (
+	"mycourse-io-be/internal/course/domain"
+	"mycourse-io-be/internal/shared/utils"
+)
 
 type createCourseRequest struct {
 	Title string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
@@ -20,9 +23,27 @@ type updateBasicInfoRequest struct {
 	OutcomeIDs         []string `json:"outcome_ids" validate:"required,len=1,dive,uuid"`
 }
 
-type addCollaboratorRequest struct {
-	UserID string `json:"user_id" validate:"required,uuid"`
-	Role   string `json:"role" validate:"omitempty,oneof=OWNER EDITOR"`
+type addCollaboratorsBulkRequest struct {
+	UserIDs []string `json:"user_ids" binding:"required,min=1,dive,uuid"`
+	Role    string   `json:"role" binding:"omitempty,oneof=OWNER EDITOR"`
+}
+
+type collaboratorBulkFailureResponse struct {
+	UserID  string `json:"user_id"`
+	Message string `json:"message"`
+}
+
+type collaboratorBulkResponse struct {
+	Added  []domain.Collaborator             `json:"added"`
+	Failed []collaboratorBulkFailureResponse `json:"failed"`
+}
+
+func toCollaboratorBulkResponse(result domain.CollaboratorBulkResult) collaboratorBulkResponse {
+	failed := make([]collaboratorBulkFailureResponse, len(result.Failed))
+	for i, row := range result.Failed {
+		failed[i] = collaboratorBulkFailureResponse{UserID: row.UserID, Message: row.Message}
+	}
+	return collaboratorBulkResponse{Added: result.Added, Failed: failed}
 }
 
 type sectionRequest struct {

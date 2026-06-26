@@ -200,42 +200,6 @@ func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, acto
 	})
 }
 
-func (r *GormRepository) AddCollaborator(ctx context.Context, courseID string, actorUserID, userID string, role string) ([]domain.Collaborator, error) {
-	var out []domain.Collaborator
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
-		if err != nil {
-			return err
-		}
-		if !r.userIsInstructor(ctx, tx, userID) {
-			return domain.ErrCourseInstructorRequired
-		}
-		var existing collaboratorRow
-		err = tx.Where("course_id = ? AND user_id = ? AND deleted_at IS NULL", access.ID, userID).First(&existing).Error
-		if err == nil {
-			if err := tx.Model(&collaboratorRow{}).Where("id = ?", existing.ID).Updates(map[string]any{
-				"role":       strings.ToUpper(strings.TrimSpace(role)),
-				"updated_at": timex.NowUnix(),
-			}).Error; err != nil {
-				return err
-			}
-		} else if !stderrors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		} else {
-			row := &collaboratorRow{CourseID: access.ID, UserID: userID, Role: strings.ToUpper(strings.TrimSpace(role))}
-			if row.Role == "" {
-				row.Role = domain.CollaboratorRoleEditor
-			}
-			if err := touchCreateCourseEntity(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
-				return err
-			}
-		}
-		out, err = r.loadCollaborators(ctx, tx, courseID)
-		return err
-	})
-	return out, err
-}
-
 func (r *GormRepository) RemoveCollaborator(ctx context.Context, courseID string, actorUserID, userID string) ([]domain.Collaborator, error) {
 	var out []domain.Collaborator
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

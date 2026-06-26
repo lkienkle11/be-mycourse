@@ -154,7 +154,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |
 | GET | `/api/v1/courses/:courseId/collaborators` | `course_instructor:read` | List collaborators (paginated; query `page`, `per_page`, optional `search` on display_name/email) |
 | GET | `/api/v1/courses/:courseId/instructor-candidates` | `course_collaborator_candidate:read` (P67) | List instructor candidates for picker (paginated; **owner-only** in repo; excludes existing collaborators) |
-| POST | `/api/v1/courses/:courseId/collaborators` | `course:update` | Add collaborator |
+| POST | `/api/v1/courses/:courseId/collaborators/bulk` | `course:update` | Bulk add collaborators by `user_ids` |
 | DELETE | `/api/v1/courses/:courseId/collaborators/:userId` | `course:update` | Remove collaborator |
 | POST | `/api/v1/courses/:courseId/sections` | `course:update` | Create section |
 | PATCH | `/api/v1/courses/:courseId/sections/:sectionId` | `course:update` | Update section |

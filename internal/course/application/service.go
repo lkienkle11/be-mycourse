@@ -76,10 +76,6 @@ func (s *CourseService) ListInstructorCandidates(ctx context.Context, courseID s
 	return s.repo.ListInstructorCandidates(ctx, courseID, actorUserID, filter)
 }
 
-func (s *CourseService) AddCollaborator(ctx context.Context, courseID string, actorUserID, userID string, role string) ([]domain.Collaborator, error) {
-	return s.repo.AddCollaborator(ctx, courseID, actorUserID, userID, role)
-}
-
 func (s *CourseService) RemoveCollaborator(ctx context.Context, courseID string, actorUserID, userID string) ([]domain.Collaborator, error) {
 	return s.repo.RemoveCollaborator(ctx, courseID, actorUserID, userID)
 }

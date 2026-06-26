@@ -115,9 +115,19 @@ func (h *Handler) listInstructorCandidates(c *gin.Context) {
 	h.coursePaginatedUserList(c, "instructor-candidates")
 }
 
-func (h *Handler) addCollaborator(c *gin.Context) {
-	courseBodyOK(h, c, "updated", func(courseID string, req *addCollaboratorRequest) (any, error) {
-		return h.svc.AddCollaborator(c.Request.Context(), courseID, utils.CurrentUserID(c), req.UserID, req.Role)
+func (h *Handler) addCollaboratorsBulk(c *gin.Context) {
+	courseBodyOK(h, c, "ok", func(courseID string, req *addCollaboratorsBulkRequest) (any, error) {
+		result, err := h.svc.AddCollaboratorsBulk(
+			c.Request.Context(),
+			courseID,
+			utils.CurrentUserID(c),
+			req.UserIDs,
+			req.Role,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return toCollaboratorBulkResponse(result), nil
 	})
 }
 

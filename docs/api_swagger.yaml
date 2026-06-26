@@ -1695,9 +1695,16 @@ paths:
       responses:
         "200":
           description: Paginated list — `data.result[]` items are `Collaborator`.
+
+  /api/v1/courses/{courseId}/collaborators/bulk:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
     post:
       tags: [Course]
-      summary: Add collaborator
+      summary: Add multiple collaborators by user id
       security:
         - bearerJwt: []
       requestBody:
@@ -1706,13 +1713,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [user_id]
+              required: [user_ids]
               properties:
-                user_id: { type: integer }
+                user_ids:
+                  type: array
+                  minItems: 1
+                  items: { type: string, format: uuid }
                 role: { type: string, enum: [OWNER, EDITOR] }
       responses:
         "200":
-          description: Updated
+          description: Aggregated add result with `added[]` and `failed[]`
 
   /api/v1/courses/{courseId}/instructor-candidates:
     get:

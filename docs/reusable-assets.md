@@ -638,8 +638,16 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Name: `UserDisplayNameEmailSearchSQL`
 - Type: Function (`internal/shared/utils/user_search_sql.go`)
 - Purpose: Shared ILIKE clause for `users.display_name` / `users.email` (alias `u`); trims search term and returns named `@search` args.
-- Scope: Paginated collaborator list and instructor-candidate picker in `internal/course/infra/repo_collaborators.go`.
+- Scope: Paginated collaborator list, bulk add (`AddCollaboratorsBulk` / `POST …/collaborators/bulk` in `repo_collaborators_bulk.go` — single transaction, batch instructor/existing checks), and instructor-candidate picker in `internal/course/infra/repo_collaborators.go`.
 - Current Usage: `ListCollaborators`, `ListInstructorCandidates`.
+
+### Asset: Collaborator bulk add (batch repository)
+- Name: `AddCollaboratorsBulk`, `instructorUserIDSet`, `sqlCollaboratorEligibleRoleIN`, `planBulkCollaboratorWrites`, `applyBulkCollaboratorWrites`, `prepareCollaboratorBulkInput`
+- Type: Functions (`internal/course/infra/repo_collaborators_bulk.go`, `internal/course/application/service_collaborators_bulk.go`)
+- Purpose: Batch collaborator add — one transaction per request; shared role eligibility via `sqlCollaboratorEligibleRoleIN` (instructor/sysadmin/admin); batch `IN` eligibility query; batch existing-row load; **one** `UPDATE id IN (…)` for role changes; **`CreateInBatches` insert** for new rows; single hydrate. `planBulkCollaboratorWrites` classifies insert/update/failed in memory. Per-user business failures in `failed[]`; infra errors abort transaction.
+- Scope: `POST /api/v1/courses/:courseId/collaborators/bulk` only (legacy single POST removed).
+- Dependencies: `requireOwnerAccess`, `loadCollaboratorsByUserIDs`, `collaboratorRow`, `ensureCourseRowID`, `domain.CollaboratorBulkResult`, `instructordomain.RoleName*`.
+- Current Usage: `CourseService.AddCollaboratorsBulk`, `handler_instructor.go` bulk handler; submit validation via `instructorUserIDSet` + `loadCollaboratorAccessSnapshots`.
 
 ### Asset: Taxonomy list total inference
 - Name: `taxonomyListTotal`, `listTaxonomyWithImageURLs`

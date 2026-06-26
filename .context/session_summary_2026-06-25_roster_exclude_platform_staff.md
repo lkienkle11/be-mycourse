@@ -2,7 +2,7 @@
 
 ## Bug
 
-Users with `sysadmin` and/or `admin` roles (e.g. user01@yopmail.com) still appeared in instructor roster list despite being platform operators, not teaching instructors.
+Users with `sysadmin` and/or `admin` roles (platform staff accounts) still appeared in instructor roster list despite being platform operators, not teaching instructors.
 
 ## Fix
 

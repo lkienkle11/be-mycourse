@@ -167,6 +167,17 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 | Collaborators | at least 1 collaborator | `ErrCourseSubmitCollaboratorRequired` |
 | Collaborators | every collaborator must be an active (non-deleted, non-disabled, non-banned) instructor | `ErrCourseCollaboratorInactive` |
 
+### Collaborator membership (owner-only writes)
+
+| Action | RBAC / behaviour |
+|--------|------------------|
+| Bulk add collaborators | **Owner-only** (`requireOwnerAccess`). Each `user_id` must have `instructor`, `sysadmin`, or `admin` role (shared `instructorUserIDSet` / `sqlCollaboratorEligibleRoleIN`). Service dedupes/trims `user_ids` and defaults empty `role` to `EDITOR`. Repo runs **one transaction**: batch eligibility check, batch existing-row load, **one** `UPDATE … WHERE id IN (?)` for existing rows, **`CreateInBatches` insert** for new rows, single hydrate via `loadCollaboratorsByUserIDs`. Per-user business failures (e.g. not instructor) return in `failed[]`; infrastructure errors abort HTTP 500. |
+| List collaborators | `requireCourseAccess` — owner or `EDITOR` collaborator |
+| Instructor-candidate picker | **Owner-only**; excludes existing collaborators |
+| Remove collaborator | **Owner-only** |
+
+Implementation: `internal/course/application/service_collaborators_bulk.go`, `internal/course/infra/repo_collaborators_bulk.go`, `internal/course/infra/repo_collaborators.go`. Bulk add and submit validation both use `instructorUserIDSet` + `sqlCollaboratorEligibleRoleIN`. Submit validation (`validateDraftCollaborators`) batch-loads user snapshots via `loadCollaboratorAccessSnapshots` + eligibility set via `instructorUserIDSet` (no per-collaborator N+1 queries).
+
 All submit domain errors are mapped to HTTP `400` in `mapCourseError` (`delivery/handler_base.go`).
 
 ### Shared user access helper
@@ -194,7 +205,7 @@ Instructor / collaborator routes:
 - `POST /api/v1/courses/:courseId/draft/prepare`
 - `PATCH /api/v1/courses/:courseId/basic-info`
 - `DELETE /api/v1/courses/:courseId`
-- collaborator CRUD under `/api/v1/courses/:courseId/collaborators`
+- collaborator membership under `/api/v1/courses/:courseId/collaborators` — paginated `GET`, bulk add `POST …/collaborators/bulk`, remove `DELETE …/:userId`
 - paginated collaborator list (`GET …/collaborators?page&per_page&search`) — course detail still embeds full collaborators via `loadCollaborators`; search uses shared `utils.UserDisplayNameEmailSearchSQL` (ILIKE `display_name` / `email`, alias `u`)
 - instructor candidate picker list (`GET …/instructor-candidates`) — route permission `course_collaborator_candidate:read` (P67); **owner-only** in repo; excludes existing collaborators; instructor role filter
 - outline CRUD / reorder under `/api/v1/courses/:courseId/{sections,lessons,sub-lessons,...}`
@@ -331,6 +342,7 @@ Outline reorder and lease endpoints were optimized **without changing response s
 | Media duration reads | `batchMediaDurationMs` delegates to `batchMediaURLAndDurationMsMaps` (single source for URL + duration resolution) | `repos.go`, `repo_outline_batch.go` |
 | Edit leases | `AcquireLease` / `HeartbeatLease` avoid redundant row reload after update | `repo_outline.go` |
 | Course detail / review mutations | `loadCourseDetail` runs **after** transaction commit for approve, reject, reopen, prepare, basic-info, create | `repo_review.go`, `repo_versioning.go`, `repo_instructor.go` |
+| Collaborator bulk add | `AddCollaboratorsBulk` — one transaction; batch eligibility + existing checks; batch UPDATE + `CreateInBatches` insert; single hydrate | `repo_collaborators_bulk.go` |
 
 Measured warm reorder (2 sub-lessons, remote PostgreSQL): **~935ms–990ms** (down from ~2.35s+).
 

@@ -404,6 +404,8 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 
 - The system **MUST** provide course authoring endpoints under `/api/v1/courses` for create/read/update/delete and collaborator management.
 - Paginated collaborator list (`GET …/collaborators`) **MUST** support `page`, `per_page`, and optional `search` on collaborator `display_name` / `email`.
+- Bulk add collaborators (`POST …/collaborators/bulk`) **MUST** accept `user_ids[]` and optional `role`; per-user business failures return in `failed[]`; infrastructure errors (including DB failures during instructor-role checks) **MUST** abort with HTTP 500 — never map infra errors into `failed[]`.
+- Bulk add **MUST** run in a single repository transaction with batch instructor/existing-collaborator lookups and batch writes (`UPDATE … WHERE id IN (?)` + `CreateInBatches` insert) — not N per-user insert/update round-trips.
 - Instructor-candidate picker (`GET …/instructor-candidates`) **MUST** require dedicated permission **`course_collaborator_candidate:read` (P67)** at the route layer; repository **MUST** restrict picker access to course owners (`requireOwnerAccess`).
 - The system **MUST** enforce role-gated review endpoints under `/api/v1/course-reviews` for pending queue, approve, and reject actions.
 - The system **MUST** expose sysadmin catalog endpoints under `/api/v1/course-admin` for listing all non-trashed courses, listing trashed approved courses, moving eligible courses to trash, restoring from trash, and permanently deleting trashed courses (granular permissions **P62–P66**, not shell `admin:modify`).

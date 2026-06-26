@@ -448,6 +448,7 @@ type ListPermissionsParams struct {
 | `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID string, includeDraft, includeOutline bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
 | `UpdateBasicInfo` | `UpdateBasicInfo(ctx, courseID, actorUserID string, UpdateBasicInfoInput) (*CourseDetail, error)` | `*CourseDetail`; optimistic lock / validation errors |
 | `DeleteCourse` | `DeleteCourse(ctx, courseID, actorUserID string) error` | `nil`; owner-only / not-found errors |
+| Collaborators | `ListCollaborators`, `AddCollaboratorsBulk`, `RemoveCollaborator` | paginated `[]Collaborator`; `CollaboratorBulkResult` (`added` + `failed[]`); `[]Collaborator` on remove |
 | Outline CRUD / reorder | `CreateSection`, `UpdateSection`, `DeleteSection`, `ReorderSections`, lesson/sub-lesson variants | Entity or `[]Section`; draft/lease/lock errors |
 | Review | `SubmitForReview`, `ReopenDraft`, `ListPendingReviews`, `ApproveDraft`, `RejectDraft` | `*CourseDetail` or `[]CourseListItem` |
 | Learner | `ListPublishedCourses`, `GetLearningCourse`, `Enroll`, `GetProgress`, `SaveProgress` | Catalog / detail / enrollment / progress types |

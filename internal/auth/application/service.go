@@ -94,14 +94,12 @@ func (s *AuthService) Login(ctx context.Context, email, password string, remembe
 		if errors.Is(err, domain.ErrUserDisabled) || errors.Is(err, domain.ErrUserBanned) {
 			return domain.TokenPairResult{}, err
 		}
-		s.setLoginInvalidCache(ctx, normEmail)
 		return domain.TokenPairResult{}, domain.ErrInvalidCredentials
 	}
 	if !user.EmailConfirmed {
 		return domain.TokenPairResult{}, domain.ErrEmailNotConfirmed
 	}
 	if !checkPasswordHash(password, user.HashPassword) {
-		s.setLoginInvalidCache(ctx, normEmail)
 		return domain.TokenPairResult{}, domain.ErrInvalidCredentials
 	}
 

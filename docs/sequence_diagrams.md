@@ -283,7 +283,7 @@ sequenceDiagram
 
 ## 4. User Login
 
-**Description:** `POST /api/v1/auth/login` — validates credentials with Redis negative cache, bcrypt verification, issues token pair with session.
+**Description:** `POST /api/v1/auth/login` — validates credentials with Redis not-found active-user cache, bcrypt after access + email-confirmed checks, issues token pair with session.
 
 ```mermaid
 sequenceDiagram
@@ -301,24 +301,24 @@ sequenceDiagram
 
     H->>SVC: Login(email, password, rememberMe)
     SVC->>SVC: NormalizeLoginEmail(email) → normEmail
-    SVC->>Cache: LoginInvalidCached(ctx, normEmail)?
-    alt cached invalid
+    SVC->>Cache: loginInvalidCached(ctx, normEmail)?
+    alt cached not-found active-user
         SVC-->>H: ErrInvalidCredentials
         H-->>C: 401 {code:4002}
     end
 
-    SVC->>Cache: GetCachedLoginUserID(ctx, normEmail)?
+    SVC->>Cache: getCachedLoginUserID(ctx, normEmail)?
     alt cache hit
-        SVC->>DB: SELECT * FROM users WHERE id=?
+        SVC->>DB: SELECT * FROM users WHERE id=? (active only)
         DB-->>SVC: user row
     else cache miss
-        SVC->>DB: SELECT * FROM users WHERE email=?
-        alt not found
-            SVC->>Cache: SetLoginInvalidCache(normEmail)
+        SVC->>DB: SELECT * FROM users WHERE email=? (active only)
+        alt not found (unknown or soft-deleted)
+            SVC->>Cache: setLoginInvalidCache(normEmail)
             SVC-->>H: ErrInvalidCredentials
             H-->>C: 401 {code:4002}
         end
-        SVC->>Cache: SetCachedLoginUserID(normEmail, user.ID)
+        SVC->>Cache: setCachedLoginUserID(normEmail, user.ID)
         DB-->>SVC: user row
     end
 
@@ -333,7 +333,7 @@ sequenceDiagram
 
     SVC->>SVC: bcrypt.CompareHashAndPassword(hash, password)
     alt mismatch
-        SVC->>Cache: SetLoginInvalidCache(normEmail)
+        Note over SVC: no negative cache — bcrypt runs again on next attempt
         SVC-->>H: ErrInvalidCredentials
         H-->>C: 401 {code:4002}
     end
@@ -343,8 +343,8 @@ sequenceDiagram
     SVC->>DB: repository.AddRefreshSession(db, userID, sessionStr, entry) [in TX]
     DB-->>SVC: ok
 
-    SVC->>Cache: DelLoginInvalidCache(normEmail)
-    SVC->>Cache: SetCachedUserMe(ctx, meResponse)
+    SVC->>Cache: delLoginInvalidCache(normEmail)
+    SVC->>Cache: setCachedMe(ctx, meResponse)
 
     SVC-->>H: TokenPairResult{..., RefreshTTL, RememberMe}
     H->>H: setAuthCookies(c, accessToken, refreshToken, sessionID, refreshTTLSeconds)
@@ -477,7 +477,7 @@ sequenceDiagram
     H->>H: c.Get(ContextUserID) → uid
     H->>SVC: GetMe(uid)
 
-    SVC->>Cache: GetCachedUserMe(ctx, uid)
+    SVC->>Cache: getCachedMe(ctx, uid)
     alt cache hit
         Cache-->>SVC: *dto.MeResponse
         SVC-->>H: meResponse (from cache)
@@ -489,7 +489,7 @@ sequenceDiagram
         end
         SVC->>SVC: userPermissionSlice + mapping.BuildMeProfileFromUser(user, perms)
         Note over SVC: calls PermissionCodesForUser(uid) → SQL UNION
-        SVC->>Cache: SetCachedUserMe(ctx, meResponse)
+        SVC->>Cache: setCachedMe(ctx, meResponse)
         SVC-->>H: meResponse
     end
 

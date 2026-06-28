@@ -109,8 +109,9 @@
 - Access checks are implemented in **`internal/auth/application/service_access.go`** (`checkUserAccessible`), not in the domain layer.
 - Every JWT-protected `/api/v1` route **MUST** pass **`middleware.RequireActiveUser`** after `AuthJWT`, which calls `AuthService.EnsureActiveUser` (Postgres lookup) so ban/disable/delete apply even when the access token has not expired.
 - The system **MUST** reject login if `email_confirmed` is `false` (`ErrEmailNotConfirmed`).
-- The system **SHOULD** use a short-lived Redis negative cache (`mycourse:auth:login:invalid:{normalized_email}`, TTL 1 min) to avoid Postgres hits on repeat failed attempts.
-- The system **SHOULD** cache the email → user ID mapping in Redis (`mycourse:auth:login:user_by_email:{normalized_email}`, TTL 30 s) to skip the unique-email query on subsequent logins.
+- The system **SHOULD** use a short-lived Redis negative cache (`mycourse:auth:login:invalid:{normalized_email}`, TTL 1 min) when the **active-user** lookup returns not found — including unknown emails and emails belonging to soft-deleted users (`FindByEmail` filters `deleted_at IS NULL`).
+- The system **MUST NOT** populate the negative cache on wrong-password attempts; bcrypt verification **MUST** run on every login attempt that reaches the password step — i.e. after an active user row is loaded, `checkUserAccessible` passes, and `email_confirmed` is true. Disabled, banned, and unconfirmed users return before bcrypt.
+- The system **SHOULD** cache the email → user ID mapping in Redis (`mycourse:auth:login:user_by_email:{normalized_email}`, TTL 30 s) as a plain user ID string to skip the unique-email query on subsequent logins (cache hit still loads the user by ID from Postgres).
 - On success, the system **MUST** issue a token pair consisting of:
   - An **access token** (HS256 JWT, TTL 15 min) embedding `user_id`, `user_code`, `email`, `display_name`, `created_at`, and the user's `permissions` array.
   - A **refresh token** (HS256 JWT, TTL configurable via `remember_me`).
@@ -489,8 +490,8 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 
 - Redis is used for auth caching with the following TTLs:
   - `mycourse:user:me:{user_id}` — 1 minute (profile + permissions)
-  - `mycourse:auth:login:invalid:{normalized_email}` — 1 minute (negative login cache)
-  - `mycourse:auth:login:user_by_email:{normalized_email}` — 30 seconds (email → user ID)
+  - `mycourse:auth:login:invalid:{normalized_email}` — 1 minute (negative cache when active-user lookup not found)
+  - `mycourse:auth:login:user_by_email:{normalized_email}` — 30 seconds (plain user ID string)
 - If Redis is unavailable, all cache helpers degrade gracefully to no-ops.
 
 #### NFR-1.4 Session Limits

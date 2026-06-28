@@ -37,10 +37,10 @@ POST /api/v1/auth/register
 POST /api/v1/auth/login
   └─ internal/auth/delivery/handler.go (Login)
        └─ AuthService.Login
-            ├─ Check Redis negative cache (mycourse:auth:login:invalid:{email})
-            ├─ Load user from DB (with email→user_id Redis cache; active rows only)
+            ├─ Check Redis negative cache (mycourse:auth:login:invalid:{email}) — skip DB when prior active-user lookup was not found
+            ├─ Load user from DB (email→user_id Redis cache skips email query; active rows only; cache hit still FindByID)
             ├─ checkUserAccessible (application/service_access.go)
-            ├─ Verify password (bcrypt)
+            ├─ Verify password (bcrypt) — only after checkUserAccessible passes and email is confirmed; wrong password does not set negative cache
             ├─ Issue access token + refresh token + session_id
             ├─ Persist refresh session to users.refresh_token_session JSONB
             │   └─ Evict oldest session if count > MaxActiveSessions (5)

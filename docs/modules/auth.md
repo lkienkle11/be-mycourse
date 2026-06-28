@@ -174,10 +174,21 @@ Cookie `Max-Age` on `refresh_token` / `session_id` is `259200` (3 days) when `re
 
 **Access check:** After loading the user, `AuthService.Login` calls **`checkUserAccessible`** (`application/service_access.go`). Soft-deleted users are treated as invalid credentials (`4002`); disabled and banned users get `4005` / `4012`.
 
+**Login cache policy:**
+
+| Failure reason | Negative cache (`login:invalid`) | Password bcrypt check |
+|----------------|----------------------------------|------------------------|
+| Active-user lookup not found (unknown email **or** soft-deleted email) | **Set** (TTL 1 min) | Skipped |
+| Wrong password | **Not set** | **Always runs** (after access + email-confirmed checks pass) |
+| Disabled / banned | **Not set** | **Skipped** — returns before bcrypt |
+| Email not confirmed | **Not set** | **Skipped** — returns before bcrypt |
+
+`FindByEmail` uses `findActiveUserWhere` (`deleted_at IS NULL`), so soft-deleted users surface as **not found** and populate the negative cache the same way as unknown emails. Wrong-password attempts never populate the negative cache. Bcrypt runs only when an active user row is loaded **and** `checkUserAccessible` passes **and** `email_confirmed` is true; disabled, banned, and unconfirmed users return early without password verification.
+
 **Redis keys used:**
 - `mycourse:user:me:{user_id}` — cached `MeResponse`, TTL 1 minute
-- `mycourse:auth:login:invalid:{normalized_email}` — negative login cache, TTL 1 minute
-- `mycourse:auth:login:user_by_email:{normalized_email}` — email → user_id, TTL 30 seconds
+- `mycourse:auth:login:invalid:{normalized_email}` — negative cache when active-user lookup returns not found (unknown or soft-deleted email), TTL 1 minute
+- `mycourse:auth:login:user_by_email:{normalized_email}` — plain `user_id` string, TTL 30 seconds; skips the email unique lookup on repeat attempts (cache hit still loads user by ID from Postgres for access checks and bcrypt)
 
 ---
 

@@ -61,14 +61,21 @@ func (s *AuthService) getCachedLoginUserID(ctx context.Context, normEmail string
 		return "", false
 	}
 	v, err := s.redis.Get(ctx, s.redisKey(RedisKeyLoginUserByEmailPrefix, normEmail)).Result()
-	if err != nil {
+	if err != nil || v == "" {
 		return "", false
+	}
+	// Accept legacy JSON entries from a prior cache format; only user_id is used.
+	var legacy struct {
+		UserID string `json:"user_id"`
+	}
+	if err := json.Unmarshal([]byte(v), &legacy); err == nil && legacy.UserID != "" {
+		return legacy.UserID, true
 	}
 	return v, true
 }
 
-func (s *AuthService) setCachedLoginUserID(ctx context.Context, normEmail string, userID string) {
-	if s.redis == nil || normEmail == "" {
+func (s *AuthService) setCachedLoginUserID(ctx context.Context, normEmail, userID string) {
+	if s.redis == nil || normEmail == "" || userID == "" {
 		return
 	}
 	_ = s.redis.Set(ctx, s.redisKey(RedisKeyLoginUserByEmailPrefix, normEmail), userID, LoginEmailUserIDTTL).Err()

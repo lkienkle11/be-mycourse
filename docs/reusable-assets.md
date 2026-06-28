@@ -735,13 +735,13 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
   - Reuse unchanged for any new command/service modules.
 
 ### Asset: Cache helpers for auth/me
-- Name: `GetCachedUserMe`, `SetCachedUserMe`, `LoginInvalidCached`, etc.
+- Name: `getCachedMe`, `setCachedMe`, `loginInvalidCached`, `getCachedLoginUserID`, `setCachedLoginUserID`, etc.
 - Type: Util/Helper
-- Path: `internal/auth/application/ (cache helpers) and internal/shared/cache/auth_user.go`
-- Purpose: Cache-aside support for login and me endpoints; **`/me`** entries store **`entities.MeProfile`** JSON (same field JSON names as **`dto.MeResponse`**).
+- Path: `internal/auth/application/service_cache.go`
+- Purpose: Cache-aside support for login and `/me`. Login email cache stores plain `user_id` only (no password hash in Redis). Negative cache applies when active-user lookup returns not found (unknown or soft-deleted email). Wrong-password attempts never populate the negative cache.
 - Scope: High-frequency identity reads and login flows.
-- Dependencies: `pkg/cache_clients`, Redis.
-- Current Usage: `internal/auth/application/auth.go`.
+- Dependencies: Redis client injected into `AuthService`.
+- Current Usage: `internal/auth/application/service.go`, `internal/auth/application/service_session.go`.
 - Reuse Opportunity:
   - Reuse pattern for read-heavy course catalog/progress reads later.
 

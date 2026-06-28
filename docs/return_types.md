@@ -547,13 +547,13 @@ All cache functions return nothing on error (graceful no-op):
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `GetCachedUserMe` | `GetCachedUserMe(ctx, userID string) (*dto.MeResponse, bool)` | `(*MeResponse, true)` on hit; `(nil, false)` on miss/error |
-| `SetCachedUserMe` | `SetCachedUserMe(ctx, me *dto.MeResponse)` | none |
-| `GetCachedLoginUserID` | `GetCachedLoginUserID(ctx, normEmail string) (string, bool)` | `(uid, true)` on hit; `("", false)` on miss |
-| `SetCachedLoginUserID` | `SetCachedLoginUserID(ctx, normEmail string, userID string)` | none |
-| `LoginInvalidCached` | `LoginInvalidCached(ctx, normEmail string) bool` | `true` if negative cache hit |
-| `SetLoginInvalidCache` | `SetLoginInvalidCache(ctx, normEmail string)` | none |
-| `DelLoginInvalidCache` | `DelLoginInvalidCache(ctx, normEmail string)` | none |
+| `getCachedMe` | `getCachedMe(ctx, userID string) (*domain.MeProfile, bool)` | `(*MeProfile, true)` on hit; `(nil, false)` on miss/error |
+| `setCachedMe` | `setCachedMe(ctx, me *domain.MeProfile)` | none |
+| `getCachedLoginUserID` | `getCachedLoginUserID(ctx, normEmail string) (string, bool)` | `(userID, true)` on hit; `("", false)` on miss; accepts legacy JSON cache values but only reads `user_id` |
+| `setCachedLoginUserID` | `setCachedLoginUserID(ctx, normEmail, userID string)` | none — stores plain user ID string |
+| `loginInvalidCached` | `loginInvalidCached(ctx, normEmail string) bool` | `true` if negative cache hit (prior active-user lookup not found) |
+| `setLoginInvalidCache` | `setLoginInvalidCache(ctx, normEmail string)` | none — called when active-user lookup returns not found |
+| `delLoginInvalidCache` | `delLoginInvalidCache(ctx, normEmail string)` | none |
 | `NormalizeLoginEmail` | `NormalizeLoginEmail(email string) string` | lowercased email string |
 
 ---

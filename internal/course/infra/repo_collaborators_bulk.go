@@ -2,7 +2,6 @@ package infra
 
 import (
 	"context"
-	"fmt"
 
 	"gorm.io/gorm"
 
@@ -14,32 +13,12 @@ import (
 
 const collaboratorBulkInsertBatchSize = 100
 
-func sqlCollaboratorEligibleRoleIN() string {
-	return fmt.Sprintf("('%s', '%s', '%s')",
+func (r *GormRepository) instructorUserIDSet(ctx context.Context, db *gorm.DB, userIDs []string) (map[string]struct{}, error) {
+	return gormx.UserIDSetByRoleNames(ctx, db, userIDs, []string{
 		instructordomain.RoleNameInstructor,
 		instructordomain.RoleNameSysadmin,
 		instructordomain.RoleNameAdmin,
-	)
-}
-
-func (r *GormRepository) instructorUserIDSet(ctx context.Context, db *gorm.DB, userIDs []string) (map[string]struct{}, error) {
-	if len(userIDs) == 0 {
-		return map[string]struct{}{}, nil
-	}
-	var matched []string
-	err := db.WithContext(ctx).Raw(fmt.Sprintf(`
-SELECT DISTINCT ur.user_id::text
-FROM user_roles ur
-INNER JOIN roles ro ON ro.id = ur.role_id
-WHERE ur.user_id IN ? AND ro.name IN %s`, sqlCollaboratorEligibleRoleIN()), userIDs).Scan(&matched).Error
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]struct{}, len(matched))
-	for _, id := range matched {
-		out[id] = struct{}{}
-	}
-	return out, nil
+	})
 }
 
 type bulkCollaboratorWriteState struct {

@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-06-28 (`internal/instructor/`, migration `000013_instructor_management`, roster bulk batch repo)._
+_Last audited: 2026-06-29 (`internal/instructor/`, roster picker `per_page` cap scoped to roster endpoints only; FE `SearchableSelect` pinned selection + fetch error handling)._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / approve / reject), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -109,12 +109,15 @@ All routes require `Authorization: Bearer <token>` unless noted.
 
 | Method | Path | Permission |
 |--------|------|------------|
-| GET | `/instructors` | `instructor_roster:read` |
-| GET | `/instructors/roster-candidates` | `instructor_roster:create` — paginated picker; users without instructor/sysadmin/admin roles |
+| GET | `/instructors` | `instructor_roster:read` — paginated roster list; query `page`, `per_page` (default 20, **max 100 on this endpoint only** via `getRosterPerPage()`), `search` (ILIKE on `display_name` or `email`) |
+| GET | `/instructors/roster-candidates` | `instructor_roster:create` — paginated picker; users without instructor/sysadmin/admin roles; same `page` / `per_page` (max 100) / `search` params |
 | POST | `/instructors/bulk` | `instructor_roster:create` — body `{ "user_ids": ["..."] }` returns `added` + `failed`. Batch DB writes in `repo_roster_bulk.go` (mirrors collaborator bulk in `repo_collaborators_bulk.go`). |
 | DELETE | `/instructors/:id` | `instructor_roster:delete` — `:id` = user id |
 
-List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL).
+List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL). Paginated envelope: `data.result` + `data.page_info` (`page`, `per_page`, `total_pages`, `total_items`).
+
+**FE searchable dropdowns (expertise screen):** instructor picker uses `GET /instructors` with incremental `page` + optional `search` — not a bulk fetch. Topic/skill add pickers use taxonomy list APIs (`GET /taxonomy/topics`, `GET /taxonomy/skills`) with `page`, `per_page`, `status=ACTIVE`, `search_by=name`, `search_value`, `include_images=false`. Assigned expertise junction rows already include joined taxonomy `name` + `slug` on GET list responses — no separate taxonomy preload required to render assigned rows.
+
 Roster hydration now reuses the same generic avatar-hydration path as application/profile identity responses instead of keeping a separate roster-only implementation.
 
 `RosterRepository` port (writes): `AddRosterBulk` only. Platform staff validation is batch-only via `platformStaffUserIDSet` in `repo_roster_bulk.go` — no single-user staff-check repo method.
@@ -123,7 +126,7 @@ Roster hydration now reuses the same generic avatar-hydration path as applicatio
 
 | Method | Path | Permission |
 |--------|------|------------|
-| GET | `/instructor-applications` | `instructor_application:read` — query `status`, `has_profile`, pagination |
+| GET | `/instructor-applications` | `instructor_application:read` — query `status`, `has_profile`, `page`, `per_page` (no roster cap) |
 | POST | `/instructor-applications` | `instructor_application:create` — submit → pending |
 | GET | `/instructor-applications/:id` | `instructor_application:read` |
 | POST | `/instructor-applications/:id/approve` | `instructor_application:approve` |

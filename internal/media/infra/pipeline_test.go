@@ -57,7 +57,10 @@ func TestBuildPublicURL_R2_publicURLPlusKey(t *testing.T) {
 	t.Cleanup(func() { *setting.MediaSetting = prev })
 
 	setting.MediaSetting.R2.PublicURL = "https://cdn.example.com"
-	got := mediainfra.BuildPublicURL(constants.FileProviderR2, "12345678-photo.webp")
+	got, err := mediainfra.BuildPublicURL(constants.FileProviderR2, "12345678-photo.webp")
+	if err != nil {
+		t.Fatalf("BuildPublicURL: %v", err)
+	}
 	want := "https://cdn.example.com/12345678-photo.webp"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)

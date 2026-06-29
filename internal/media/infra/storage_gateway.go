@@ -25,7 +25,7 @@ func (StorageGateway) DefaultMediaProvider(kind string) string {
 	return DefaultMediaProvider(kind)
 }
 
-func (StorageGateway) BuildPublicURL(provider, objectKey string) string {
+func (StorageGateway) BuildPublicURL(provider, objectKey string) (string, error) {
 	return BuildPublicURL(provider, objectKey)
 }
 

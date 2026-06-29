@@ -1,49 +1,16 @@
 // Package delivery contains the MEDIA bounded-context HTTP delivery layer.
 package delivery
 
+import "mycourse-io-be/internal/shared/utils"
+
 // FileFilterRequest is the query-param DTO for listing media files.
 type FileFilterRequest struct {
-	Page      int     `form:"page"`
-	PerPage   int     `form:"per_page"`
-	Search    string  `form:"search"`
-	Provider  *string `form:"provider" binding:"omitempty,oneof=S3 GCS B2 R2 Bunny Local"`
-	Kind      *string `form:"kind" binding:"omitempty,oneof=FILE VIDEO"`
-	SortBy    string  `form:"sort_by" binding:"omitempty,oneof=created_at updated_at filename size_bytes"`
-	SortOrder string  `form:"sort_order" binding:"omitempty,oneof=asc desc"`
-	Category  *string `form:"category" binding:"omitempty,oneof=image document video"`
-}
-
-func (f FileFilterRequest) getPage() int {
-	if f.Page < 1 {
-		return 1
-	}
-	return f.Page
-}
-
-func (f FileFilterRequest) getPerPage() int {
-	if f.PerPage < 1 {
-		return 20
-	}
-	if f.PerPage > 100 {
-		return 100
-	}
-	return f.PerPage
-}
-
-// CreateFileRequest is the multipart/form-data request DTO for file creation.
-type CreateFileRequest struct {
-	Kind      string         `json:"kind" validate:"omitempty,oneof=FILE VIDEO"`
-	ObjectKey string         `json:"object_key" validate:"omitempty,max=512"`
-	Metadata  map[string]any `json:"metadata" validate:"omitempty"`
-}
-
-// UpdateFileRequest is the multipart/form-data request DTO for file update.
-type UpdateFileRequest struct {
-	Kind                  string         `json:"kind" validate:"omitempty,oneof=FILE VIDEO"`
-	Metadata              map[string]any `json:"metadata" validate:"omitempty"`
-	ReuseMediaID          string         `json:"reuse_media_id"`
-	ExpectedRowVersion    *int64         `json:"expected_row_version"`
-	SkipUploadIfUnchanged bool           `json:"skip_upload_if_unchanged"`
+	utils.BaseFilter
+	Search   string  `form:"search"`
+	Provider *string `form:"provider" binding:"omitempty,oneof=S3 GCS B2 R2 Bunny Local"`
+	Kind     *string `form:"kind" binding:"omitempty,oneof=FILE VIDEO"`
+	SortBy   string  `form:"sort_by" binding:"omitempty,oneof=created_at updated_at filename size_bytes"`
+	Category *string `form:"category" binding:"omitempty,oneof=image document video"`
 }
 
 // BatchDeleteMediaFilesRequest carries the batch delete body.

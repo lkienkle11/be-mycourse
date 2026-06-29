@@ -53,7 +53,6 @@ func wireCore(db *gorm.DB, rdb *redis.Client) *coreWiring {
 	orphanEnqueuer := mediajobs.NewOrphanEnqueuer(cleanupRepo)
 	mediaGW := mediainfra.NewStorageGateway()
 	mediaSvc := mediaapp.NewMediaService(fileRepo, cleanupRepo, orphanEnqueuer, mediajobs.GlobalCounters, mediaGW)
-	_, _ = mediainfra.NewCloudClientsFromSetting()
 
 	topicRepo := taxinfra.NewGormCourseTopicRepository(db)
 	outcomeRepo := taxinfra.NewGormCourseOutcomeRepository(db)

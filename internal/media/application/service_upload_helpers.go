@@ -99,56 +99,50 @@ func buildUpdateEntityInput(p updateUploadInputParams) domain.MediaUploadEntityI
 	}
 }
 
-func prepareCreateMultipartBody(gw domain.MediaGateway, req CreateFileInput, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (
-	payload []byte, filename, mime string, kind string, provider string, objectKey string, err error,
-) {
-	payload, filename, mime, err = readMultipartPayloadLimited(file, fileHeader, remainingTotal)
-	if err != nil {
-		return
-	}
+type normalizedUploadPart struct {
+	payload        []byte
+	filename, mime string
+	kind, provider string
+	objectKey      string
+}
+
+func prepareNormalizedUploadPart(
+	gw domain.MediaGateway,
+	filename, mime string,
+	payload []byte,
+	requestedObjectKey string,
+) (normalizedUploadPart, error) {
 	kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
-	provider = gw.ResolveUploadProvider(kind, kindInferred)
-	objectKey = gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+	provider := gw.ResolveUploadProvider(kind, kindInferred)
+	objectKey := gw.ResolveMediaUploadObjectKey(requestedObjectKey, filename, provider)
 	isImage := gw.IsImageMIMEOrExt(mime, filename)
-	if err = rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
-		return
+	if err := rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
+		return normalizedUploadPart{}, err
 	}
 	if isImage {
-		var enc []byte
-		var newMime, newName string
-		enc, newMime, newName, err = encodeUploadToWebP(payload, filename)
+		enc, encMime, encName, err := encodeUploadToWebP(payload, filename)
 		if err != nil {
-			return
+			return normalizedUploadPart{}, err
 		}
-		payload, mime, filename = enc, newMime, newName
-		objectKey = gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+		payload, mime, filename = enc, encMime, encName
+		objectKey = gw.ResolveMediaUploadObjectKey(requestedObjectKey, filename, provider)
 	}
-	return
+	return normalizedUploadPart{
+		payload: payload, filename: filename, mime: mime,
+		kind: kind, provider: provider, objectKey: objectKey,
+	}, nil
 }
 
 func normalizeUpdateMultipartPayload(gw domain.MediaGateway, filename, mime string, payload []byte) (
 	newPayload []byte, newFilename, newMime string, kind string, provider string, objectKey string, err error,
 ) {
-	kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
-	provider = gw.ResolveUploadProvider(kind, kindInferred)
-	objectKey = gw.ResolveMediaUploadObjectKey("", filename, provider)
-	isImage := gw.IsImageMIMEOrExt(mime, filename)
-	if err = rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
+	normalized, normErr := prepareNormalizedUploadPart(gw, filename, mime, payload, "")
+	if normErr != nil {
+		err = normErr
 		return
 	}
-	if isImage {
-		var enc []byte
-		var encMime, encName string
-		enc, encMime, encName, err = encodeUploadToWebP(payload, filename)
-		if err != nil {
-			return
-		}
-		newPayload, newMime, newFilename = enc, encMime, encName
-		objectKey = gw.ResolveMediaUploadObjectKey("", newFilename, provider)
-		return
-	}
-	newPayload, newMime, newFilename = payload, mime, filename
-	return
+	return normalized.payload, normalized.filename, normalized.mime,
+		normalized.kind, normalized.provider, normalized.objectKey, nil
 }
 
 func prepareCreatePartsSequential(gw domain.MediaGateway, req CreateFileInput, parts []domain.OpenedUploadPart, remaining *int64) ([]domain.PreparedCreatePart, error) {
@@ -158,24 +152,13 @@ func prepareCreatePartsSequential(gw domain.MediaGateway, req CreateFileInput, p
 		if err != nil {
 			return nil, err
 		}
-		kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
-		provider := gw.ResolveUploadProvider(kind, kindInferred)
-		objectKey := gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
-		isImage := gw.IsImageMIMEOrExt(mime, filename)
-		if err := rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
-			return nil, err
-		}
-		if isImage {
-			enc, encMime, encName, encErr := encodeUploadToWebP(payload, filename)
-			if encErr != nil {
-				return nil, encErr
-			}
-			payload, mime, filename = enc, encMime, encName
-			objectKey = gw.ResolveMediaUploadObjectKey(req.ObjectKey, filename, provider)
+		normalized, normErr := prepareNormalizedUploadPart(gw, filename, mime, payload, req.ObjectKey)
+		if normErr != nil {
+			return nil, normErr
 		}
 		prepared = append(prepared, domain.PreparedCreatePart{
-			Header: part.Header, Payload: payload, Filename: filename,
-			Mime: mime, Kind: kind, Provider: provider, ObjectKey: objectKey,
+			Header: part.Header, Payload: normalized.payload, Filename: normalized.filename,
+			Mime: normalized.mime, Kind: normalized.kind, Provider: normalized.provider, ObjectKey: normalized.objectKey,
 		})
 	}
 	return prepared, nil
@@ -283,22 +266,11 @@ func ValidateBatchDeleteKeys(keys []string) error {
 }
 
 func dedupeBatchDeleteKeys(keys []string) ([]string, error) {
-	seen := make(map[string]struct{}, len(keys))
-	for _, k := range keys {
-		k = strings.TrimSpace(k)
-		if k == "" {
-			return nil, apperrors.ErrMediaObjectKeyRequired
-		}
-		if _, ok := seen[k]; ok {
-			return nil, apperrors.ErrMediaDuplicateObjectKeysInBatchDelete
-		}
-		seen[k] = struct{}{}
-	}
-	out := make([]string, 0, len(seen))
-	for k := range seen {
-		out = append(out, k)
-	}
-	return out, nil
+	return utils.ValidateUniqueTrimmedStrings(
+		keys,
+		apperrors.ErrMediaObjectKeyRequired,
+		apperrors.ErrMediaDuplicateObjectKeysInBatchDelete,
+	)
 }
 
 func deleteUploadAttempt(gw domain.MediaGateway, provider, objectKey string, uploaded domain.ProviderUploadResult) {

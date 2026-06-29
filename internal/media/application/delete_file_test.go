@@ -80,7 +80,7 @@ func (f *fakeMediaGateway) DefaultMediaProvider(kind string) string {
 	return constants.FileProviderR2
 }
 
-func (f *fakeMediaGateway) BuildPublicURL(_, _ string) string { return "" }
+func (f *fakeMediaGateway) BuildPublicURL(_, _ string) (string, error) { return "", nil }
 
 func (f *fakeMediaGateway) NormalizeMetadata(in map[string]any) domain.RawMetadata {
 	return domain.RawMetadata(in)

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/instructor/domain"
-	apperrors "mycourse-io-be/internal/shared/errors"
 )
 
 func (s *InstructorService) ListApplications(ctx context.Context, f domain.ApplicationFilter) ([]domain.Application, int64, error) {
@@ -90,6 +89,3 @@ func (s *InstructorService) DeleteApplication(ctx context.Context, id string) er
 func (s *InstructorService) ApplicationHasProfile(p domain.ProfilePayload) bool {
 	return strings.TrimSpace(p.Headline) != "" && strings.TrimSpace(p.CVFileID) != ""
 }
-
-// ErrUserNotFoundForRoster re-exports not found for missing email user.
-var ErrUserNotFoundForRoster = apperrors.ErrNotFound

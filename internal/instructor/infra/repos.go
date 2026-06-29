@@ -281,30 +281,6 @@ func (r *GormRepository) ListRosterCandidates(ctx context.Context, f domain.Rost
 	return out, total, nil
 }
 
-func (r *GormRepository) UserHasInstructorRole(ctx context.Context, userID string) (bool, error) {
-	var n int64
-	q := fmt.Sprintf(`
-SELECT COUNT(*) FROM %s ur
-INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name = ?
-WHERE ur.user_id = ?`, constants.TableRBACUserRoles, constants.TableRBACRoles)
-	if err := r.db.WithContext(ctx).Raw(q, domain.RoleNameInstructor, userID).Scan(&n).Error; err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
-func (r *GormRepository) UserHasPlatformStaffRole(ctx context.Context, userID string) (bool, error) {
-	var n int64
-	q := fmt.Sprintf(`
-SELECT COUNT(*) FROM %s ur
-INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name IN (?, ?)
-WHERE ur.user_id = ?`, constants.TableRBACUserRoles, constants.TableRBACRoles)
-	if err := r.db.WithContext(ctx).Raw(q, domain.RoleNameSysadmin, domain.RoleNameAdmin, userID).Scan(&n).Error; err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
 // --- Expertise --------------------------------------------------------------
 
 func (r *GormRepository) ListExpertise(ctx context.Context, userID string, isTopic bool) (any, error) {

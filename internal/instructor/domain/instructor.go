@@ -156,8 +156,9 @@ type RosterBulkFailure struct {
 
 // RosterBulkResult aggregates bulk roster add outcomes.
 type RosterBulkResult struct {
-	Added  []RosterMember
-	Failed []RosterBulkFailure
+	Added           []RosterMember
+	Failed          []RosterBulkFailure
+	InsertedUserIDs []string `json:"-"` // users with new user_roles rows; drives /me cache invalidation
 }
 
 // ProfileFilter lists profiles.

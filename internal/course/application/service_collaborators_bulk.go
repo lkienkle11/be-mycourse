@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/course/domain"
+	sharedutils "mycourse-io-be/internal/shared/utils"
 )
 
 func prepareCollaboratorBulkInput(userIDs []string, role string) ([]string, string) {
@@ -12,20 +13,7 @@ func prepareCollaboratorBulkInput(userIDs []string, role string) ([]string, stri
 	if normalizedRole == "" {
 		normalizedRole = domain.CollaboratorRoleEditor
 	}
-	seen := make(map[string]struct{}, len(userIDs))
-	out := make([]string, 0, len(userIDs))
-	for _, rawID := range userIDs {
-		userID := strings.TrimSpace(rawID)
-		if userID == "" {
-			continue
-		}
-		if _, ok := seen[userID]; ok {
-			continue
-		}
-		seen[userID] = struct{}{}
-		out = append(out, userID)
-	}
-	return out, normalizedRole
+	return sharedutils.PrepareBulkUserIDs(userIDs), normalizedRole
 }
 
 func (s *CourseService) AddCollaboratorsBulk(

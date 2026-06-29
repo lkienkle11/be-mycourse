@@ -426,24 +426,12 @@ func collectImageFileIDs[T any](rows []T, getID func(*T) *string) []string {
 }
 
 func loadImageFileMap(ctx context.Context, db *gorm.DB, ids []string) (map[string]imageFileRow, error) {
-	if len(ids) == 0 {
-		return map[string]imageFileRow{}, nil
-	}
-	var rows []imageFileRow
-	err := db.WithContext(ctx).
-		Table(constants.TableMediaFiles).
-		Select("id, url, kind, mime_type").
-		Where("id IN ? AND deleted_at IS NULL", ids).
-		Find(&rows).
-		Error
+	rows, err := gormx.FindActiveByIDs[imageFileRow](ctx, db, constants.TableMediaFiles,
+		"id, url, kind, mime_type", ids)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]imageFileRow, len(rows))
-	for _, row := range rows {
-		out[row.ID] = row
-	}
-	return out, nil
+	return gormx.IndexByID(rows, func(row imageFileRow) string { return row.ID }), nil
 }
 
 func hydrateImageURLs[T any](

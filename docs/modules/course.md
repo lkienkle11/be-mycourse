@@ -171,12 +171,12 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Bulk add collaborators | **Owner-only** (`requireOwnerAccess`). Each `user_id` must have `instructor`, `sysadmin`, or `admin` role (shared `instructorUserIDSet` / `sqlCollaboratorEligibleRoleIN`). Service dedupes/trims `user_ids` and defaults empty `role` to `EDITOR`. Repo runs **one transaction**: batch eligibility check, batch existing-row load, **one** `UPDATE … WHERE id IN (?)` for existing rows, **`CreateInBatches` insert** for new rows, single hydrate via `loadCollaboratorsByUserIDs`. Per-user business failures (e.g. not instructor) return in `failed[]`; infrastructure errors abort HTTP 500. |
+| Bulk add collaborators | **Owner-only** (`requireOwnerAccess`). Each `user_id` must have `instructor`, `sysadmin`, or `admin` role (shared `instructorUserIDSet` via `gormx.UserIDSetByRoleNames`). Service dedupes/trims `user_ids` and defaults empty `role` to `EDITOR`. Repo runs **one transaction**: batch eligibility check, batch existing-row load, **one** `UPDATE … WHERE id IN (?)` for existing rows, **`CreateInBatches` insert** for new rows, single hydrate via `loadCollaboratorsByUserIDs`. Per-user business failures (e.g. not instructor) return in `failed[]`; infrastructure errors abort HTTP 500. |
 | List collaborators | `requireCourseAccess` — owner or `EDITOR` collaborator |
 | Instructor-candidate picker | **Owner-only**; excludes existing collaborators |
 | Remove collaborator | **Owner-only** |
 
-Implementation: `internal/course/application/service_collaborators_bulk.go`, `internal/course/infra/repo_collaborators_bulk.go`, `internal/course/infra/repo_collaborators.go`. Bulk add and submit validation both use `instructorUserIDSet` + `sqlCollaboratorEligibleRoleIN`. Submit validation (`validateDraftCollaborators`) batch-loads user snapshots via `loadCollaboratorAccessSnapshots` + eligibility set via `instructorUserIDSet` (no per-collaborator N+1 queries).
+Implementation: `internal/course/application/service_collaborators_bulk.go`, `internal/course/infra/repo_collaborators_bulk.go`, `internal/course/infra/repo_collaborators.go`. Bulk add and submit validation both use `instructorUserIDSet` (`gormx.UserIDSetByRoleNames`). Submit validation (`validateDraftCollaborators`) batch-loads user snapshots via `loadCollaboratorAccessSnapshots` + eligibility set via `instructorUserIDSet` (no per-collaborator N+1 queries).
 
 All submit domain errors are mapped to HTTP `400` in `mapCourseError` (`delivery/handler_base.go`).
 

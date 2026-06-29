@@ -497,7 +497,7 @@ type CourseListItem struct {
 
 | Area | Functions | Return types |
 |------|-----------|--------------|
-| Roster | `ListRoster`, `AddRosterByUserID`, `AddRosterBulk`, `RemoveFromRoster` | `[]RosterMember`, paginated totals |
+| Roster | `ListRoster`, `AddRosterBulk`, `RemoveFromRoster` | `[]RosterMember`, paginated totals |
 | Applications | `ListApplications`, `GetApplication`, `SubmitApplication`, `ApproveApplication`, `RejectApplication`, `DeleteApplication` | `*Application`, lists |
 | Profiles | `ListProfiles`, `GetProfileByUserID`, `UpsertProfile`, `DeleteProfile` | `*Profile`, lists |
 | Expertise | `ListExpertiseTopics/Skills`, `AddExpertiseTopic/Skill`, deletes | `ExpertiseTopic` / `ExpertiseSkill` — junction fields + joined taxonomy `name`, `slug` (snake_case JSON) |

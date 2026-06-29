@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-06-07 (`internal/instructor/`, migration `000013_instructor_management`, zero-logic review refactor cleanup)._
+_Last audited: 2026-06-28 (`internal/instructor/`, migration `000013_instructor_management`, roster bulk batch repo)._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / approve / reject), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -18,7 +18,7 @@ internal/instructor/
 │   └── repository.go      # Repository interface (roster, apps, profiles, expertise, tickets)
 ├── application/
 │   ├── service.go         # InstructorService facade
-│   ├── service_roster.go   # roster queries + avatar hydration reuse through service_identity helpers
+│   ├── service_roster.go   # roster queries + bulk add delegate + avatar hydration
 │   ├── service_applications.go
 │   ├── service_profiles.go
 │   ├── service_expertise.go
@@ -27,6 +27,7 @@ internal/instructor/
 │   └── validate_profile.go
 ├── infra/
 │   ├── repos.go           # GormRepository
+│   ├── repo_roster_bulk.go # batch roster add — transaction + CreateInBatches on user_roles
 │   ├── repos_load.go
 │   ├── repos_map.go
 │   ├── rows.go
@@ -88,7 +89,7 @@ After deploy: `go run ./cmd/syncpermissions` and `go run ./cmd/syncrolepermissio
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Add roster (bulk) | User must exist, must not have `sysadmin` or `admin` role; `AssignRole(instructor)` only — **learner kept**. Per-user business failures return in `failed[]`; infrastructure errors abort with HTTP 500 (no raw DB messages in `failed[]`). |
+| Add roster (bulk) | User must exist, must not have `sysadmin` or `admin` role; assigns `instructor` role only — **learner kept**. Service dedupes/trims via `utils.PrepareBulkUserIDs`. Repo runs **one transaction**: batch user load (`loadRosterUsersByIDs`), batch platform-staff check (`gormx.UserIDSetByRoleNames` via `platformStaffUserIDSet`), batch existing-instructor check (`existingInstructorUserIDSet`), **`CreateInBatches` + `ON CONFLICT DO NOTHING`** on `user_roles` (batch size 100), members built via `buildRosterMembersFromUsers`. Already-instructor users appear in `added[]` idempotently but are tracked separately in internal `InsertedUserIDs` (`json:"-"`). Service invalidates `/me` **only for `InsertedUserIDs`** (new DB writes), not for idempotent re-adds. Avatar hydrate is **best-effort**. Per-user business failures in `failed[]`; infra errors abort HTTP 500. |
 | List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` (platform staff) |
 | Roster picker | Users without `instructor`, `sysadmin`, or `admin` roles |
 | Remove roster | `RemoveRole(instructor)` only; wipe instructor-scoped rows; user account kept |
@@ -110,11 +111,13 @@ All routes require `Authorization: Bearer <token>` unless noted.
 |--------|------|------------|
 | GET | `/instructors` | `instructor_roster:read` |
 | GET | `/instructors/roster-candidates` | `instructor_roster:create` — paginated picker; users without instructor/sysadmin/admin roles |
-| POST | `/instructors/bulk` | `instructor_roster:create` — body `{ "user_ids": ["..."] }` returns `added` + `failed` |
+| POST | `/instructors/bulk` | `instructor_roster:create` — body `{ "user_ids": ["..."] }` returns `added` + `failed`. Batch DB writes in `repo_roster_bulk.go` (mirrors collaborator bulk in `repo_collaborators_bulk.go`). |
 | DELETE | `/instructors/:id` | `instructor_roster:delete` — `:id` = user id |
 
 List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL).
 Roster hydration now reuses the same generic avatar-hydration path as application/profile identity responses instead of keeping a separate roster-only implementation.
+
+`RosterRepository` port (writes): `AddRosterBulk` only. Platform staff validation is batch-only via `platformStaffUserIDSet` in `repo_roster_bulk.go` — no single-user staff-check repo method.
 
 ### Applications (`instructor_application:*`)
 

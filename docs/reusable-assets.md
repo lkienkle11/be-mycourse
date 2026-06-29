@@ -71,7 +71,7 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - **Reuse:** Never use `time.Now()` directly for persisted audit fields — use `NowUnix()` (see **`docs/patterns.md`** — Audit timestamps).
 
 ### Asset: gormx audit + soft-delete helpers
-- **Name:** `TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`, `ScopeActiveOnly`, `FirstWhere`, `CreateAndThen`, `EnsureStringID`, `DefaultConfig`, `NewSQLLogger`
+- **Name:** `TouchCreatedUpdated`, `TouchUpdated`, `SoftDeleteWithAudit`, `ScopeActiveOnly`, `FirstWhere`, `FindActiveByIDs`, `IndexByID`, `UserIDSetByRoleNames`, `CreateAndThen`, `EnsureStringID`, `DefaultConfig`, `NewSQLLogger`
 - **Type:** Package (`internal/shared/gormx`)
 - **Path:** `internal/shared/gormx/`
 - **Purpose:** Shared GORM patterns — audit timestamp writes, active-row scope, generic `First`/`Create` helpers, UUID v7 assignment for empty string primary keys before `Create`, shared `gorm.Config` (`DefaultConfig`), and latency-colored SQL console logging (`NewSQLLogger`).
@@ -641,10 +641,32 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Paginated collaborator list, bulk add (`AddCollaboratorsBulk` / `POST …/collaborators/bulk` in `repo_collaborators_bulk.go` — single transaction, batch instructor/existing checks), and instructor-candidate picker in `internal/course/infra/repo_collaborators.go`.
 - Current Usage: `ListCollaborators`, `ListInstructorCandidates`.
 
+### Asset: RBAC user ID set by role names
+- Name: `UserIDSetByRoleNames`
+- Type: Function (`internal/shared/gormx/user_role_set.go`)
+- Purpose: Batch query `user_roles` + `roles` for users in `userIDs` that have any of the given role names; returns `map[string]struct{}`.
+- Scope: Roster bulk platform-staff check, collaborator bulk instructor eligibility, and future batch role checks.
+- Current Usage: `platformStaffUserIDSet` (`repo_roster_bulk.go`), `instructorUserIDSet` (`repo_collaborators_bulk.go`).
+
+### Asset: Bulk user ID normalization
+- Name: `PrepareBulkUserIDs`
+- Type: Function (`internal/shared/utils/bulk_user_ids.go`)
+- Purpose: Trim, skip empty strings, dedupe while preserving first-seen order for bulk API request bodies.
+- Scope: Roster bulk add and collaborator bulk add input normalization.
+- Current Usage: `InstructorService.AddRosterBulk`, `prepareCollaboratorBulkInput`.
+
+### Asset: Instructor roster bulk add (batch repository)
+- Name: `AddRosterBulk`, `platformStaffUserIDSet`, `existingInstructorUserIDSet`, `planBulkRosterWrites`, `applyBulkRosterWrites`, `loadRosterUsersByIDs`, `buildRosterMembersFromUsers`
+- Type: Functions (`internal/instructor/infra/repo_roster_bulk.go`)
+- Purpose: Batch roster add — one transaction per request; batch user load (`loadRosterUsersByIDs`); batch platform-staff check via `gormx.UserIDSetByRoleNames`; batch existing-instructor check; **`CreateInBatches` + `ON CONFLICT DO NOTHING`** on `user_roles` (batch size 100); `buildRosterMembersFromUsers` assembles `added[]`; internal `InsertedUserIDs` tracks new writes for cache invalidation. Idempotent under concurrent requests. Avatar hydrate in service layer is best-effort.
+- Scope: `POST /api/v1/instructors/bulk` only.
+- Dependencies: `InstructorRoleManager.InstructorRoleID`, `domain.RosterBulkResult`, `utils.PrepareBulkUserIDs`, `gormx.FindActiveByIDs`, `gormx.IndexByID`, `gormx.UserIDSetByRoleNames`.
+- Current Usage: `InstructorService.AddRosterBulk`, `handler_roster.go` bulk handler.
+
 ### Asset: Collaborator bulk add (batch repository)
-- Name: `AddCollaboratorsBulk`, `instructorUserIDSet`, `sqlCollaboratorEligibleRoleIN`, `planBulkCollaboratorWrites`, `applyBulkCollaboratorWrites`, `prepareCollaboratorBulkInput`
+- Name: `AddCollaboratorsBulk`, `instructorUserIDSet`, `planBulkCollaboratorWrites`, `applyBulkCollaboratorWrites`, `prepareCollaboratorBulkInput`
 - Type: Functions (`internal/course/infra/repo_collaborators_bulk.go`, `internal/course/application/service_collaborators_bulk.go`)
-- Purpose: Batch collaborator add — one transaction per request; shared role eligibility via `sqlCollaboratorEligibleRoleIN` (instructor/sysadmin/admin); batch `IN` eligibility query; batch existing-row load; **one** `UPDATE id IN (…)` for role changes; **`CreateInBatches` insert** for new rows; single hydrate. `planBulkCollaboratorWrites` classifies insert/update/failed in memory. Per-user business failures in `failed[]`; infra errors abort transaction.
+- Purpose: Batch collaborator add — one transaction per request; instructor eligibility via `gormx.UserIDSetByRoleNames` (instructor/sysadmin/admin); batch existing-row load; **one** `UPDATE id IN (…)` for role changes; **`CreateInBatches` insert** for new rows; single hydrate. `planBulkCollaboratorWrites` classifies insert/update/failed in memory. Per-user business failures in `failed[]`; infra errors abort transaction.
 - Scope: `POST /api/v1/courses/:courseId/collaborators/bulk` only (legacy single POST removed).
 - Dependencies: `requireOwnerAccess`, `loadCollaboratorsByUserIDs`, `collaboratorRow`, `ensureCourseRowID`, `domain.CollaboratorBulkResult`, `instructordomain.RoleName*`.
 - Current Usage: `CourseService.AddCollaboratorsBulk`, `handler_instructor.go` bulk handler; submit validation via `instructorUserIDSet` + `loadCollaboratorAccessSnapshots`.

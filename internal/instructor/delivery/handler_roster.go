@@ -22,13 +22,13 @@ func (h *Handler) listRosterCandidates(c *gin.Context) {
 
 func (h *Handler) fetchRosterMembers(ctx context.Context, q listQuery) ([]domain.RosterMember, int64, error) {
 	return h.svc.ListRoster(ctx, domain.RosterFilter{
-		Page: q.getPage(), PageSize: q.getPerPage(), Search: q.Search,
+		Page: q.getPage(), PageSize: q.getRosterPerPage(), Search: q.Search,
 	})
 }
 
 func (h *Handler) fetchRosterCandidates(ctx context.Context, q listQuery) ([]domain.RosterCandidate, int64, error) {
 	return h.svc.ListRosterCandidates(ctx, domain.RosterCandidateFilter{
-		Page: q.getPage(), PageSize: q.getPerPage(), Search: q.Search,
+		Page: q.getPage(), PageSize: q.getRosterPerPage(), Search: q.Search,
 	})
 }
 

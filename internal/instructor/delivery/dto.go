@@ -26,6 +26,14 @@ func (q listQuery) getPerPage() int {
 	return q.PerPage
 }
 
+func (q listQuery) getRosterPerPage() int {
+	perPage := q.getPerPage()
+	if perPage > 100 {
+		return 100
+	}
+	return perPage
+}
+
 type addRosterBulkRequest struct {
 	UserIDs []string `json:"user_ids" binding:"required,min=1,dive,uuid"`
 }

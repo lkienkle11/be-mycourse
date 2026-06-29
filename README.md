@@ -203,8 +203,9 @@ Tests are **co-located** with their packages — not in a separate `tests/` dire
 | `internal/media/application/batch_upload_test.go` | `application_test` |
 | `internal/media/infra/pipeline_test.go` | `infra_test` |
 | `internal/media/infra/orphan_safety_test.go` | `infra_test` |
-| `internal/media/infra/orphan_image_test.go` | `infra_test` |
+| `internal/media/infra/list_filter_test.go` | `infra_test` |
 | `internal/media/infra/bunny_webhook_test.go` | `infra_test` |
+| `internal/media/delivery/mapping_test.go` | `delivery_test` |
 | `internal/media/delivery/server_owned_test.go` | `delivery_test` |
 | `internal/shared/utils/webp_test.go` | `utils_test` |
 | `internal/shared/logger/logger_test.go` | `logger_test` |

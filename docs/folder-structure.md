@@ -26,9 +26,9 @@ be-mycourse/
 │   ├── media/
 │   │   ├── domain/                 # File, MediaGateway port, repos interfaces, bunny/meta types
 │   │   ├── application/            # MediaService, service_upload_helpers.go
-│   │   ├── infra/                  # storage_gateway, repos, cloud clients, metadata, webhooks
-│   │   ├── delivery/               # HTTP handlers, routes, DTOs, handler_helpers via httpx
-│   │   └── jobs/                   # Cleanup scheduler, OrphanEnqueuer, cleanup_constants.go
+│   │   ├── infra/                  # storage_gateway, repos, provider_*, media_classification, multipart
+│   │   ├── delivery/               # HTTP handlers, routes, DTOs (BaseFilter), mapping via httpx
+│   │   └── jobs/                   # cleanup_job.go, OrphanEnqueuer, duration backfill
 │   ├── rbac/
 │   │   ├── domain/                 # Permission, Role entities
 │   │   ├── application/            # RBACService
@@ -120,11 +120,11 @@ be-mycourse/
 
 | Path | Purpose |
 |------|---------|
-| `domain/` | `File`, `MediaGateway` port, repository interfaces, Bunny status/webhook/meta types |
-| `application/` | `MediaService` (injected `MediaGateway`), `service_upload_helpers.go` |
-| `infra/` | `storage_gateway.go` (implements `MediaGateway`), `repos.go`, R2/Bunny clients, metadata, webhooks, multipart open/validate |
-| `delivery/` | `Handler` + `MediaGateway` for multipart/metadata; `routes.go`, DTOs, multipart bind helpers in `mapping.go` |
-| `jobs/` | `OrphanEnqueuer`, cleanup scheduler, `GlobalCounters`, `cleanup_constants.go` |
+| `domain/` | `File`, `MediaGateway` port, repository interfaces, Bunny status/webhook/meta types; `errors.go` holds `ProviderError` only |
+| `application/` | `MediaService` (injected `MediaGateway`), `service_upload_helpers.go` with shared upload normalization |
+| `infra/` | `storage_gateway.go`, `repos.go`, `provider_runtime.go`, `provider_r2.go`, `provider_bunny.go`, `provider_local.go`, `media_classification.go`, `media_entity_metadata.go`, `multipart.go` |
+| `delivery/` | `Handler` + `MediaGateway`; `FileFilterRequest` embeds `utils.BaseFilter`; multipart bind in `mapping.go` |
+| `jobs/` | `cleanup_job.go` (scheduler + batch + metrics), `OrphanEnqueuer`, `duration_backfill_scheduler.go` |
 
 ### `internal/rbac/`
 

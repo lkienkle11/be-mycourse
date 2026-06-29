@@ -1,3 +1,4 @@
+// Package jobs contains background workers for the MEDIA bounded context.
 package jobs
 
 import (
@@ -6,18 +7,71 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
 
 	"mycourse-io-be/internal/media/domain"
+	mediainfra "mycourse-io-be/internal/media/infra"
+)
+
+const (
+	MediaCleanupDefaultIntervalSec = 300
+	MediaCleanupBatchSize          = 50
+	MediaCleanupMaxAttempts        = 5
 )
 
 var (
+	CleanupCloudDeleted atomic.Uint64
+	CleanupCloudFailed  atomic.Uint64
+	CleanupCloudRetried atomic.Uint64
+
+	GlobalCounters = &counterAdaptor{}
+
 	mediaCleanupMu     sync.Mutex
 	mediaCleanupCancel context.CancelFunc
 	mediaCleanupWG     sync.WaitGroup
 )
+
+type counterAdaptor struct{}
+
+func (c *counterAdaptor) Deleted() uint64 { return CleanupCloudDeleted.Load() }
+func (c *counterAdaptor) Failed() uint64  { return CleanupCloudFailed.Load() }
+func (c *counterAdaptor) Retried() uint64 { return CleanupCloudRetried.Load() }
+
+// ProcessPendingCleanupBatch executes one batch of deferred cloud deletes from media_pending_cloud_cleanup.
+func ProcessPendingCleanupBatch(ctx context.Context, cleanupRepo domain.PendingCleanupRepository) {
+	if err := mediainfra.RequireInitialized(mediainfra.Cloud); err != nil {
+		return
+	}
+	rows, err := cleanupRepo.FindPending(ctx, MediaCleanupBatchSize)
+	if err != nil || len(rows) == 0 {
+		return
+	}
+	clients := mediainfra.Cloud
+	for _, row := range rows {
+		delErr := mediainfra.DeleteStoredObject(ctx, clients, row.ObjectKey, row.Provider, row.BunnyVideoID)
+		next := row.AttemptCount + 1
+		if delErr == nil {
+			_ = cleanupRepo.MarkDone(ctx, row.ID)
+			CleanupCloudDeleted.Add(1)
+			continue
+		}
+		if next >= MediaCleanupMaxAttempts {
+			_ = cleanupRepo.MarkFailed(ctx, row.ID, delErr.Error(), nil)
+			CleanupCloudFailed.Add(1)
+			continue
+		}
+		backoff := time.Duration(next*next) * time.Minute
+		if backoff > 30*time.Minute {
+			backoff = 30 * time.Minute
+		}
+		nextRunAt := time.Now().Add(backoff)
+		_ = cleanupRepo.MarkFailed(ctx, row.ID, delErr.Error(), nextRunAt)
+		CleanupCloudRetried.Add(1)
+	}
+}
 
 func mediaPendingCleanupIntervalFromEnv() time.Duration {
 	s := strings.TrimSpace(os.Getenv("MEDIA_CLEANUP_INTERVAL_SEC"))

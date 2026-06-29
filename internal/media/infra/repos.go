@@ -122,7 +122,7 @@ func NewGormFileRepository(db *gorm.DB) *GormFileRepository { return &GormFileRe
 
 func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter) ([]domain.File, int64, error) {
 	q := applyMediaListFilters(
-		r.db.WithContext(ctx).Model(&mediaFileRow{}).Where("deleted_at IS NULL"),
+		gormx.ScopeActiveOnly(r.db.WithContext(ctx).Model(&mediaFileRow{})),
 		filter,
 	)
 	var total int64
@@ -150,15 +150,15 @@ func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter)
 }
 
 func (r *GormFileRepository) GetByID(ctx context.Context, id string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "id = ? AND deleted_at IS NULL", id)
+	return firstActiveMediaFile(ctx, r.db, "id = ?", id)
 }
 
 func (r *GormFileRepository) GetByObjectKey(ctx context.Context, objectKey string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "object_key = ? AND deleted_at IS NULL", objectKey)
+	return firstActiveMediaFile(ctx, r.db, "object_key = ?", objectKey)
 }
 
 func (r *GormFileRepository) GetByBunnyVideoID(ctx context.Context, videoGUID string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "bunny_video_id = ? AND deleted_at IS NULL", videoGUID)
+	return firstActiveMediaFile(ctx, r.db, "bunny_video_id = ?", videoGUID)
 }
 
 func (r *GormFileRepository) ListBunnyVideoGUIDsWithMissingDuration(ctx context.Context, limit int) ([]string, error) {
@@ -312,10 +312,23 @@ func (r *GormPendingCleanupRepository) MarkDone(ctx context.Context, id int64) e
 	return r.db.WithContext(ctx).Delete(&pendingCleanupRow{}, id).Error
 }
 
-func (r *GormPendingCleanupRepository) MarkFailed(ctx context.Context, id int64, errMsg string, _ interface{}) error {
-	return r.db.WithContext(ctx).Model(&pendingCleanupRow{}).Where("id = ?", id).Updates(map[string]any{
-		"status": "FAILED", "last_error": errMsg, "updated_at": timex.NowUnix(),
-	}).Error
+func (r *GormPendingCleanupRepository) MarkFailed(ctx context.Context, id int64, errMsg string, nextRunAt interface{}) error {
+	updates := map[string]any{
+		"last_error": errMsg,
+		"updated_at": timex.NowUnix(),
+	}
+	if nextRunAt == nil {
+		updates["status"] = "FAILED"
+		updates["attempt_count"] = gorm.Expr("attempt_count + 1")
+	} else if when, ok := nextRunAt.(time.Time); ok {
+		updates["status"] = "PENDING"
+		updates["next_run_at"] = when
+		updates["attempt_count"] = gorm.Expr("attempt_count + 1")
+	} else {
+		updates["status"] = "FAILED"
+		updates["attempt_count"] = gorm.Expr("attempt_count + 1")
+	}
+	return r.db.WithContext(ctx).Model(&pendingCleanupRow{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func (r *GormPendingCleanupRepository) DeleteByObjectKey(ctx context.Context, objectKey string) error {

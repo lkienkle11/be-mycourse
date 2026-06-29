@@ -21,22 +21,6 @@ type MediaPendingCloudCleanup struct {
 	UpdatedAt    int64
 }
 
-// MediaFilePublic is the client-facing subset of a stored media row (no server-only fields).
-type MediaFilePublic struct {
-	ID                 string `json:"id"`
-	Kind               string `json:"kind"`
-	Provider           string `json:"provider"`
-	Filename           string `json:"filename"`
-	MimeType           string `json:"mime_type"`
-	SizeBytes          int64  `json:"size_bytes"`
-	Width              int    `json:"width"`
-	Height             int    `json:"height"`
-	URL                string `json:"url"`
-	Duration           int64  `json:"duration"`
-	ContentFingerprint string `json:"content_fingerprint"`
-	Status             string `json:"status"`
-}
-
 // FileMetadata holds basic file type and dimension metadata.
 type FileMetadata struct {
 	Size      int64  `json:"size,omitempty"`
@@ -118,24 +102,6 @@ func (f *File) RawMetadataMap() RawMetadata {
 func (f *File) MetadataJSONBytes() []byte {
 	return []byte(f.MetadataJSON)
 }
-
-// Provider constants — mirror constants/ so internal packages don't depend on top-level constants.
-const (
-	ProviderB2    = "B2"
-	ProviderBunny = "Bunny"
-	ProviderLocal = "Local"
-	ProviderGCS   = "GCS"
-	ProviderR2    = "R2"
-	ProviderS3    = "S3"
-
-	KindFile  = "FILE"
-	KindVideo = "VIDEO"
-
-	StatusReady   = "READY"
-	StatusDeleted = "DELETED"
-	StatusFailed  = "FAILED"
-	StatusPending = "PENDING"
-)
 
 // --- Provider / upload types ---
 

@@ -37,7 +37,7 @@ func (h *Handler) listFiles(c *gin.Context) {
 		func(ctx context.Context, q FileFilterRequest) ([]domain.File, int64, error) {
 			return h.svc.ListFiles(ctx, toFilterDomain(q))
 		},
-		func(q FileFilterRequest) (int, int) { return q.getPage(), q.getPerPage() },
+		func(q FileFilterRequest) (int, int) { return q.GetPage(), q.GetPerPage() },
 		toUploadFileResponses,
 	)
 }

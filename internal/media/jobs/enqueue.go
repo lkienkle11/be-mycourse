@@ -35,38 +35,62 @@ func (e *OrphanEnqueuer) EnqueueSupersededPendingCleanup(objectKey, provider, bu
 	})
 }
 
-// EnqueueOrphanImageCleanup schedules deferred cloud-object deletion for a raw URL or object key.
-// Resolution: DB lookup first, then infra-level URL parsing.
-// Returns true when a pending-cleanup row was inserted.
-func EnqueueOrphanImageCleanupByURL(
-	ctx context.Context,
-	fileRepo domain.FileRepository,
-	cleanupRepo domain.PendingCleanupRepository,
-	imageURL string,
-) bool {
-	url := strings.TrimSpace(imageURL)
-	if url == "" {
+func enqueueOrphanFromFileRow(ctx context.Context, cleanupRepo domain.PendingCleanupRepository, row *domain.File) bool {
+	if row == nil {
 		return false
 	}
-	var prov, objectKey, bunnyVideoID string
-	if row, err := fileRepo.GetByObjectKey(ctx, url); err == nil && row != nil {
-		prov = row.Provider
-		objectKey = row.ObjectKey
-		bunnyVideoID = row.BunnyVideoID
-	}
-	if prov == "" {
+	prov := strings.TrimSpace(row.Provider)
+	objectKey := strings.TrimSpace(row.ObjectKey)
+	bunnyVideoID := strings.TrimSpace(row.BunnyVideoID)
+	if prov == "" || prov == constants.FileProviderLocal {
 		return false
 	}
-	if prov == constants.FileProviderLocal {
-		return false
-	}
-	if strings.TrimSpace(objectKey) == "" && strings.TrimSpace(bunnyVideoID) == "" {
+	if objectKey == "" && bunnyVideoID == "" {
 		return false
 	}
 	_ = cleanupRepo.Create(ctx, &domain.MediaPendingCloudCleanup{
 		Provider:     prov,
-		ObjectKey:    strings.TrimSpace(objectKey),
-		BunnyVideoID: strings.TrimSpace(bunnyVideoID),
+		ObjectKey:    objectKey,
+		BunnyVideoID: bunnyVideoID,
 	})
 	return true
+}
+
+func enqueueOrphanCleanupFromResolvedRow(ctx context.Context, cleanupRepo domain.PendingCleanupRepository, row *domain.File, err error) bool {
+	if err != nil || row == nil {
+		return false
+	}
+	return enqueueOrphanFromFileRow(ctx, cleanupRepo, row)
+}
+
+// EnqueueOrphanCleanupForFileID schedules deferred cloud-object deletion for a media_files.id (UUID).
+// Returns true when a pending-cleanup row was inserted.
+func EnqueueOrphanCleanupForFileID(
+	ctx context.Context,
+	fileRepo domain.FileRepository,
+	cleanupRepo domain.PendingCleanupRepository,
+	fileID string,
+) bool {
+	id := strings.TrimSpace(fileID)
+	if id == "" {
+		return false
+	}
+	row, err := fileRepo.GetByID(ctx, id)
+	return enqueueOrphanCleanupFromResolvedRow(ctx, cleanupRepo, row, err)
+}
+
+// EnqueueOrphanCleanupByObjectKey schedules deferred cloud-object deletion when objectKey matches media_files.object_key.
+// Accepts object_key only — does not parse raw CDN or Bunny URLs. Returns true when a row was inserted.
+func EnqueueOrphanCleanupByObjectKey(
+	ctx context.Context,
+	fileRepo domain.FileRepository,
+	cleanupRepo domain.PendingCleanupRepository,
+	objectKey string,
+) bool {
+	key := strings.TrimSpace(objectKey)
+	if key == "" {
+		return false
+	}
+	row, err := fileRepo.GetByObjectKey(ctx, key)
+	return enqueueOrphanCleanupFromResolvedRow(ctx, cleanupRepo, row, err)
 }

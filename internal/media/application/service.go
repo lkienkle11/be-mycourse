@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"mime/multipart"
 	"strings"
 
 	"gorm.io/gorm"
@@ -89,7 +88,10 @@ func (s *MediaService) GetFile(ctx context.Context, objectKey, kind string) (*do
 		return f, nil
 	}
 	resolvedProvider := s.gw.DefaultMediaProvider(kind)
-	fileURL := s.gw.BuildPublicURL(resolvedProvider, key)
+	fileURL, err := s.gw.BuildPublicURL(resolvedProvider, key)
+	if err != nil {
+		return nil, err
+	}
 	now := timex.NowUnix()
 	return &domain.File{
 		ID:        key,
@@ -106,27 +108,6 @@ func (s *MediaService) GetFile(ctx context.Context, objectKey, kind string) (*do
 }
 
 // --- Create ------------------------------------------------------------------
-
-// CreateFile uploads one multipart file and persists it.
-func (s *MediaService) CreateFile(ctx context.Context, req CreateFileInput, file multipart.File, fileHeader *multipart.FileHeader) (*domain.File, error) {
-	if err := s.gw.RequireCloudReady(); err != nil {
-		return nil, err
-	}
-	payload, filename, mime, kind, provider, objectKey, err := prepareCreateMultipartBody(s.gw, req, file, fileHeader, nil)
-	if err != nil {
-		return nil, err
-	}
-	uploaded, err := uploadToProvider(s.gw, provider, objectKey, filename, payload, domain.RawMetadata{})
-	if err != nil {
-		return nil, err
-	}
-	now := timex.NowUnix()
-	input := buildCreateEntityInput(createUploadInputParams{
-		gw: s.gw, header: fileHeader, payload: payload, filename: filename, mime: mime,
-		kind: kind, provider: provider, requestedObjectKey: req.ObjectKey, uploaded: uploaded, now: now,
-	})
-	return s.persistCreateRow(ctx, input, payload)
-}
 
 // CreateFiles uploads multiple multipart files in parallel and persists them (all-or-nothing).
 func (s *MediaService) CreateFiles(ctx context.Context, req CreateFileInput, parts []domain.OpenedUploadPart) ([]*domain.File, error) {
@@ -149,18 +130,6 @@ func (s *MediaService) CreateFiles(ctx context.Context, req CreateFileInput, par
 }
 
 // --- Update ------------------------------------------------------------------
-
-// UpdateFile replaces the media row at objectKey with a new upload.
-func (s *MediaService) UpdateFile(ctx context.Context, objectKey string, req UpdateFileInput, file multipart.File, fileHeader *multipart.FileHeader) (*domain.File, error) {
-	prevRow, err := s.loadUpdateTarget(ctx, objectKey, req)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.gw.RequireCloudReady(); err != nil {
-		return nil, err
-	}
-	return s.runUpdateFileMultipartBody(ctx, prevRow, req, file, fileHeader, nil)
-}
 
 // UpdateFileBundle updates the primary row and creates additional tail rows in one request.
 func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, req UpdateFileInput, createReq CreateFileInput, parts []domain.OpenedUploadPart) ([]*domain.File, error) {
@@ -442,41 +411,6 @@ func (s *MediaService) loadUpdateTarget(ctx context.Context, objectKey string, r
 		return nil, apperrors.ErrMediaOptimisticLock
 	}
 	return prevFile, nil
-}
-
-func (s *MediaService) runUpdateFileMultipartBody(ctx context.Context, prevFile *domain.File, req UpdateFileInput, file multipart.File, fileHeader *multipart.FileHeader, remainingTotal *int64) (*domain.File, error) {
-	prevRaw := domain.RawMetadata{}
-	if raw := prevFile.RawMetadataMap(); raw != nil {
-		prevRaw = raw
-	}
-
-	payload, filename, mime, err := readMultipartPayloadLimited(file, fileHeader, remainingTotal)
-	if err != nil {
-		return nil, err
-	}
-	fp := utils.ContentFingerprint(payload)
-	if req.SkipUploadIfUnchanged && prevFile.ContentFingerprint != "" && fp == prevFile.ContentFingerprint {
-		return s.saveUnchangedFingerprintMetadata(ctx, prevFile, filename)
-	}
-
-	payload, filename, mime, kind, provider, resolvedObjectKey, err := normalizeUpdateMultipartPayload(s.gw, filename, mime, payload)
-	if err != nil {
-		return nil, err
-	}
-	isImage := s.gw.IsImageMIMEOrExt(mime, filename)
-
-	uploaded, err := uploadToProvider(s.gw, provider, resolvedObjectKey, filename, payload, domain.RawMetadata{})
-	if err != nil {
-		return nil, err
-	}
-
-	merged := mergeProviderMetadataWithPrevious(s.gw, uploaded, prevRaw)
-	sizeBytes := effectiveUploadSizeBytes(fileHeader.Size, payload, isImage)
-	input := buildUpdateEntityInput(updateUploadInputParams{
-		prevFile: prevFile, kind: kind, provider: provider, filename: filename, mime: mime,
-		sizeBytes: sizeBytes, payload: payload, uploaded: uploaded, merged: merged,
-	})
-	return s.persistUpdatedRow(ctx, prevFile, input, payload, fp)
 }
 
 func (s *MediaService) prepareUpdateBundleHead(ctx context.Context, prevFile *domain.File, req UpdateFileInput, part domain.OpenedUploadPart, remaining *int64) (*domain.File, *domain.PreparedUpdateHead, error) {

@@ -4,16 +4,15 @@ import (
 	"testing"
 
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/utils"
 )
 
 func TestToFilterDomain_setsSearchAndDefaults(t *testing.T) {
 	t.Parallel()
 	q := FileFilterRequest{
-		Page:      0,
-		PerPage:   0,
-		Search:    "  intro  ",
-		SortBy:    "",
-		SortOrder: "",
+		BaseFilter: utils.BaseFilter{Page: 0, PerPage: 0, SortOrder: ""},
+		Search:     "  intro  ",
+		SortBy:     "",
 	}
 
 	got := toFilterDomain(q)

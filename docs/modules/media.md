@@ -20,36 +20,36 @@ internal/media/
 │   ├── media.go                   # File entity, upload types, OpenedUploadPart
 │   ├── gateway.go                 # MediaGateway port (cloud upload, metadata, multipart, webhooks)
 │   ├── repository.go              # FileRepository + PendingCleanupRepository interfaces
-│   ├── errors.go                  # Domain errors
+│   ├── errors.go                  # ProviderError only (sentinels live in shared/errors)
 │   ├── bunny_status_codes.go      # Bunny numeric video status constants
 │   ├── bunny_webhook.go           # Bunny webhook payload types
 │   └── meta_keys.go               # JSON metadata key constants (video_id, thumbnail_url, etc.)
 ├── application/
-│   ├── service.go                 # MediaService (depends on MediaGateway, not infra)
-│   └── service_upload_helpers.go  # Upload orchestration helpers
+│   ├── service.go                 # MediaService — CreateFiles, UpdateFileBundle, delete/list
+│   └── service_upload_helpers.go  # Upload pipeline (prepareNormalizedUploadPart), batch helpers
 ├── infra/
 │   ├── storage_gateway.go         # StorageGateway — implements domain.MediaGateway
 │   ├── repos.go                   # GormFileRepository + GormPendingCleanupRepository
-│   ├── repos_query_helper.go      # Shared first-row lookups
-│   ├── cloud_clients.go           # R2 + BunnyCDN SDK (global Cloud clients)
-│   ├── media_metadata.go          # Typed metadata inference (image/video/document)
-│   ├── media_upload_entity.go     # BuildMediaFileEntityFromUpload
-│   ├── multipart_files.go           # Collect/validate multipart headers
-│   ├── multipart_opened_parts.go  # Open/close upload streams
-│   ├── webhook_signature.go         # Bunny webhook HMAC verification
-│   └── …                          # upload keys, delete stored object, local URL codec, etc.
+│   ├── provider_runtime.go        # Cloud bootstrap, CloudClients, RequireInitialized
+│   ├── provider_r2.go             # R2 upload/delete/public URL
+│   ├── provider_bunny.go          # Bunny Stream upload/get/status + webhook signature
+│   ├── provider_local.go          # Local signed-URL encode/decode (no hardcoded secret fallback)
+│   ├── media_classification.go    # Kind/provider/MIME rules, profile image acceptance, list filters
+│   ├── media_entity_metadata.go   # Typed metadata, upload entity build, object-key resolution
+│   ├── multipart.go               # Multipart collect/validate/open/close
+│   ├── stored_object_delete.go    # Provider-routed cloud delete
+│   └── media_replace_policy.go    # Superseded-object cleanup policy
 ├── delivery/
 │   ├── handler.go                 # HTTP handlers (injected MediaGateway for multipart/metadata)
 │   ├── webhook_handler.go         # Bunny webhook (signature via MediaGateway)
 │   ├── routes.go                  # RegisterRoutes + RegisterWebhookRoutes
-│   ├── dto.go                     # UploadFileResponse, VideoStatusResponse, etc.
-│   ├── mapping.go                 # Domain → DTO mapping
+│   ├── dto.go                     # FileFilterRequest (embeds utils.BaseFilter), response DTOs
+│   ├── mapping.go                 # Domain → DTO mapping, multipart bind helpers
 │   └── server_owned_test.go       # delivery_test
 └── jobs/
-    ├── enqueue.go                 # OrphanEnqueuer
-    ├── cleanup_scheduler.go       # Background cleanup worker
-    ├── cleanup_batch.go           # Batch cloud delete (imports infra — allowed for jobs)
-    └── metrics.go                 # GlobalCounters
+    ├── enqueue.go                 # OrphanEnqueuer (FK-based cleanup queue)
+    ├── cleanup_job.go             # Scheduler, batch worker, metrics, constants
+    └── duration_backfill_scheduler.go
 ```
 
 ### Layering
@@ -57,6 +57,12 @@ internal/media/
 - **`application.MediaService`** and **`delivery.Handler`** must not import `internal/media/infra`.
 - All R2/Bunny/multipart/webhook operations go through **`domain.MediaGateway`**, implemented by **`infra.StorageGateway`**, constructed in **`internal/server/wire.go`** and passed to both service and handler.
 - WebP encoding remains in **`internal/shared/utils/`** (CGO / stub), invoked from application upload paths.
+- HTTP upload flows use **`CreateFiles`** and **`UpdateFileBundle`** only; legacy single-file service methods and unused multipart DTO structs were removed.
+- List pagination reuses **`utils.BaseFilter`** (`GetPage` / `GetPerPage`); batch-delete key validation uses **`utils.ValidateUniqueTrimmedStrings`**.
+- Active-row lookups use **`gormx.FirstWhere`**; list queries use **`gormx.ScopeActiveOnly`**.
+- Provider/kind constants come from **`internal/shared/constants/media.go`** only (no duplicate exports in `domain/media.go`).
+- Bunny **Storage** SDK wiring was removed; only R2 + Bunny **Stream** + Local are initialized at runtime.
+- Local signed URLs require **`LOCAL_FILE_URL_SECRET`** (or `setting.MediaSetting.LocalFileURLSecret`); there is no hardcoded secret fallback. Missing secret returns **`ErrDependencyNotConfigured`** on upload, decode, and synthesized **`GetFile`** read paths — never an empty URL.
 
 ---
 
@@ -430,10 +436,12 @@ videos this includes:
 
 When a file is **replaced** or a parent row is **deleted**, the superseded cloud object is queued for deferred deletion:
 
-- **FK-based (Sub 14):** taxonomy `course_topics.image_file_id`, `course_outcomes.image_file_id`, or `users.avatar_file_id` replacement → `OrphanEnqueuer.EnqueueOrphanCleanupForFileID`
-- **URL-based (Sub 07):** `EnqueueOrphanImageCleanupByURL` — resolves URL pattern to cloud object key
+- **FK-based (Sub 14):** taxonomy `course_topics.image_file_id`, `course_outcomes.image_file_id`, or `users.avatar_file_id` replacement → `EnqueueOrphanCleanupForFileID` (loads row by **`media_files.id`**, then enqueues provider/object key)
+- **Object-key lookup:** `EnqueueOrphanCleanupByObjectKey` — accepts a stored **`object_key`** only (no raw URL parsing). Returns `false` when no active row matches.
 
-The background cleanup worker in `jobs/cleanup_scheduler.go` processes `media_pending_cloud_cleanup` rows asynchronously. Local provider rows are skipped.
+The background cleanup worker in `jobs/cleanup_job.go` processes `media_pending_cloud_cleanup` rows asynchronously. Local provider rows are skipped.
+
+**Retry semantics:** On transient cloud-delete failure, `MarkFailed` with a `nextRunAt` backoff keeps the row `PENDING`, increments `attempt_count`, and reschedules. After `MediaCleanupMaxAttempts`, the row is marked `FAILED` permanently and **`attempt_count` is incremented** on that final transition so DB metrics match the worker's attempt accounting.
 
 ---
 
@@ -473,10 +481,11 @@ Gin `MaxMultipartMemory` = 64 MiB (set in `internal/server/router.go`). Large pa
 | MediaService use-cases | `internal/media/application/service.go` |
 | `MediaGateway` implementation | `internal/media/infra/storage_gateway.go` |
 | GORM repositories | `internal/media/infra/repos.go` |
-| Cloud SDK client init | `internal/media/infra/cloud_clients.go`, `setup.go` |
-| Metadata inference | `internal/media/infra/media_metadata.go` |
+| Cloud SDK client init | `internal/media/infra/provider_runtime.go` (`main.go` → `mediainfra.Setup()`) |
+| Classification + list filters | `internal/media/infra/media_classification.go` |
+| Metadata + upload entity | `internal/media/infra/media_entity_metadata.go` |
 | WebP encoding | `internal/shared/utils/webp_encode.go` (CGO), `webp_encode_stub.go` (no-CGO) |
 | HTTP handlers | `internal/media/delivery/handler.go`, `webhook_handler.go` |
 | Route registration | `internal/media/delivery/routes.go` |
-| Orphan cleanup jobs | `internal/media/jobs/` |
+| Orphan cleanup jobs | `internal/media/jobs/cleanup_job.go`, `enqueue.go` |
 | DB migrations | `migrations/000003_media_metadata.*`, `000004_media_orphan_safety.*`, `000005_media_bunny_response_fields.*`, `000008_media_metadata_json_storage.*` |

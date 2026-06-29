@@ -89,9 +89,11 @@ func toFilterDomain(q FileFilterRequest) domain.FileFilter {
 	sortOrder := strings.TrimSpace(q.SortOrder)
 	if sortOrder == "" {
 		sortOrder = "desc"
+	} else if sortOrder != "desc" {
+		sortOrder = "asc"
 	}
 	return domain.FileFilter{
-		Page: q.getPage(), PageSize: q.getPerPage(),
+		Page: q.GetPage(), PageSize: q.GetPerPage(),
 		Search:   strings.TrimSpace(q.Search),
 		Provider: q.Provider, Kind: kind,
 		SortBy: sortBy, SortOrder: sortOrder, Category: q.Category,

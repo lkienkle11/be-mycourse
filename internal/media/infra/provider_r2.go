@@ -1,7 +1,6 @@
 package infra
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -33,14 +32,10 @@ func UploadR2(c *CloudClients, ctx context.Context, objectKey string, file io.Re
 		return domain.ProviderUploadResult{}, &domain.ProviderError{Code: apperrors.R2BucketNotConfigured}
 	}
 	key := strings.TrimLeft(objectKey, "/")
-	body, err := io.ReadAll(file)
-	if err != nil {
-		return domain.ProviderUploadResult{}, err
-	}
 	input := &s3.PutObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(key),
-		Body:   bytes.NewReader(body),
+		Body:   file,
 	}
 	if _, err := c.R2Client.PutObject(ctx, input); err != nil {
 		return domain.ProviderUploadResult{}, err

@@ -61,9 +61,9 @@ Unified API for file and video uploads with cloud storage providers.
 **Key files:**
 - `domain/` — `File`, `MediaGateway` port, repository interfaces, Bunny/webhook/meta types
 - `application/MediaService` — upload/delete/list/batch (uses `MediaGateway`, not `infra`)
-- `infra/storage_gateway.go` — implements `MediaGateway`; repos + cloud clients
+- `infra/storage_gateway.go` — implements `MediaGateway`; repos + provider runtime/R2/Bunny/Local
 - `delivery/Handler` — Gin handlers + injected `MediaGateway` for multipart/metadata
-- `jobs/` — `OrphanEnqueuer`, cleanup scheduler, `GlobalCounters`
+- `jobs/` — `cleanup_job.go` (scheduler + batch + metrics), `OrphanEnqueuer`, duration backfill
 
 See [`docs/modules/media.md`](modules/media.md) for full deep-dive.
 

@@ -9,7 +9,7 @@ import (
 type MediaGateway interface {
 	RequireCloudReady() error
 	DefaultMediaProvider(kind string) string
-	BuildPublicURL(provider, objectKey string) string
+	BuildPublicURL(provider, objectKey string) (string, error)
 	NormalizeMetadata(in map[string]any) RawMetadata
 	ParseMetadataFromRaw(raw string) (RawMetadata, error)
 	DecodeLocalURLToken(token string) (string, error)

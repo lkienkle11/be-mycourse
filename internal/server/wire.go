@@ -105,8 +105,7 @@ type taxOrphanEnqueuer struct {
 }
 
 func (t *taxOrphanEnqueuer) EnqueueOrphanCleanupForFileID(ctx context.Context, fileID string) {
-	// Try to resolve fileID → objectKey for cleanup via EnqueueOrphanImageCleanupByURL
-	mediajobs.EnqueueOrphanImageCleanupByURL(ctx, t.fileRepo, t.cleanupRepo, fileID)
+	mediajobs.EnqueueOrphanCleanupForFileID(ctx, t.fileRepo, t.cleanupRepo, fileID)
 }
 
 // Wire constructs all services and handlers using the provided DB and Redis connections.

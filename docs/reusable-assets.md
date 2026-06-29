@@ -396,19 +396,19 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
   - Reuse as canonical provider control for all future media upload entry points.
 
 ### Asset: Cloud SDK client bootstrap (`MediaSetting`)
-- Name: `NewCloudClientsFromSetting`
-- Type: Function (`pkg/media`)
-- Path: `pkg/media/clients_setting_attach.go`
-- Purpose: One-shot construction of `entities.CloudClients` (R2 S3 client + bucket name, Bunny Storage client) from **`setting.MediaSetting`** fields: `R2.*`, `BunnyStorageEndpoint`, `BunnyStoragePassword` (all `strings.TrimSpace`). No `os.Getenv` in this path — values arrive via `setting.Setup()` / YAML `${MEDIA_*}` expansion.
-- Scope: App startup only; caller `pkg/media.Setup()` (after `setting.Setup()` in `main.go`).
-- Dependencies: `pkg/setting`, `github.com/aws/aws-sdk-go-v2/service/s3`, Bunny Storage SDK, `pkg/logic/utils.NormalizeBaseURL`.
-- Current Usage: `pkg/media/setup.go`.
-- Reuse Opportunity: Any new process that needs the same cloud handles should call `media.Setup` or reuse the global `media.Cloud` rather than duplicating env reads.
+- Name: `NewCloudClientsFromSetting`, `Setup`
+- Type: Function (`internal/media/infra`)
+- Path: `internal/media/infra/provider_runtime.go`
+- Purpose: One-shot construction of `CloudClients` (R2 S3 client + bucket name, shared HTTP client) from **`setting.MediaSetting.R2.*`** (`strings.TrimSpace`). Bunny **Stream** uses the HTTP client directly — Bunny Storage SDK wiring was removed.
+- Scope: App startup only; caller `mediainfra.Setup()` (after `setting.Setup()` in `main.go`). `wire_core.go` does **not** call `NewCloudClientsFromSetting` again.
+- Dependencies: `internal/shared/setting`, `github.com/aws/aws-sdk-go-v2/service/s3`.
+- Current Usage: `main.go` → `mediainfra.Setup()`; global `mediainfra.Cloud`.
+- Reuse Opportunity: Any new process that needs the same cloud handles should call `mediainfra.Setup` or reuse `mediainfra.Cloud` rather than duplicating env reads.
 
 ### Asset: Media metadata parser helpers
 - Name: `ParseMetadataJSON`, `ParseMetadataFromRaw`, `NormalizeMetadata`, `BuildTypedMetadata`, `DefaultMediaProvider`
 - Type: Util/Helper
-- Path: `pkg/media/media_metadata.go`
+- Path: `internal/media/infra/media_entity_metadata.go`
 - Purpose: Parse raw metadata JSON, normalize metadata payload, and infer typed metadata contract `UploadFileMetadata` with explicit fields/default values (including `width_bytes`, `height_bytes`, `has_password`, `archive_entries`).
 - Scope: Media handlers/services and any upload endpoint accepting metadata JSON.
 - Dependencies: `encoding/json`, `fmt`, `strings`, `internal/<domain>/domain`, `pkg/setting`.
@@ -1014,35 +1014,17 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Any future upload endpoints that need the same client contract.
 - Dependencies: `response.Fail` callers supply HTTP 413 where appropriate; default **message** text for this code is **`constants.MsgFileTooLargeUpload`** (referenced from `messages.go`, not duplicated).
 
-### Asset: ParseImageURLForOrphanCleanup
-- Name: `ParseImageURLForOrphanCleanup`
-- Type: Util/Helper
-- Path: `pkg/media/media_url_orphan.go`
-- Purpose: Parse a stored image URL string back to `(provider, objectKey, bunnyVideoID, ok)` using configured `MediaSetting` (Bunny base + library ID, R2 public URL). Pure function — no I/O.
-- Scope: Orphan cleanup flows in any domain service that holds image URL strings.
-- Dependencies: `internal/shared/constants/media.go`, `pkg/logic/utils` (NormalizeBaseURL, JoinURLPathSegments), `pkg/setting`.
-- Current Usage: `internal/jobs/media/media_orphan_enqueue.go`.
-- Reuse Opportunity: Call whenever a stored image URL must be mapped back to a cloud object for deletion.
-
-### Asset: ScanJSONBForImageURLs
-- Name: `ScanJSONBForImageURLs`
-- Type: Util/Helper
-- Path: `pkg/media/media_jsonb_scan.go`
-- Purpose: Walk a raw JSONB payload and collect all string values stored under image-field-named keys (`_url`, `image`, `thumbnail`, `cover`, `banner`, `avatar`, `poster`, `icon`).
-- Scope: Future lesson/quiz/section cascade delete flows where content images are embedded in JSONB.
-- Dependencies: `encoding/json`, `strings`.
-- Current Usage: Tests only (`tests/sub07_orphan_image_test.go`). TODO hooks in `media_jsonb_scan.go`.
-- Reuse Opportunity: Use in Phase 05+ when lesson/section/quiz content JSONB is added.
-
-### Asset: EnqueueOrphanImageCleanup
-- Name: `EnqueueOrphanImageCleanup`
+### Asset: EnqueueOrphanCleanupByObjectKey
+- Name: `EnqueueOrphanCleanupByObjectKey`, `EnqueueOrphanCleanupForFileID`
 - Type: Function (enqueue helper)
-- Path: `internal/jobs/media/media_orphan_enqueue.go`
-- Purpose: Single entry-point to schedule deferred cloud-object deletion for any **plain image URL** field on a business entity. DB-lookup first, URL-parse fallback. Inserts `media_pending_cloud_cleanup` row.
-- Scope: Legacy URL fields, JSONB-harvested URLs (`ScanJSONBForImageURLs`), future course cover strings — **not** used for taxonomy/user after Sub 14 (those use **`EnqueueOrphanCleanupForMediaFileID`**).
-- Dependencies: `repository.FileRepository`, **`pkg/media.ParseImageURLForOrphanCleanup`**, `internal/shared/constants/media.go`, `internal/*/infra` GORM rows.
-- Current Usage: Reserved for URL-shaped domains; see `docs/data-flow.md` (Sub 07 path).
-- Reuse Opportunity: Wire into every future service that stores a **URL string** (not `media_files` FK) on delete/update.
+- Path: `internal/media/jobs/enqueue.go`
+- Purpose:
+  - **`EnqueueOrphanCleanupForFileID`** — primary FK path: `GetByID(media_files.id)` → enqueue pending cloud cleanup from the resolved row.
+  - **`EnqueueOrphanCleanupByObjectKey`** — legacy lookup when caller already has **`object_key`**: `GetByObjectKey` only; does **not** parse raw CDN/Bunny URLs.
+- Scope: Deferred deletion of superseded cloud objects after FK clear/replace. Prefer the file-ID helper when the caller holds `media_files.id`.
+- Dependencies: `domain.FileRepository`, `domain.PendingCleanupRepository`.
+- Current Usage: `internal/server/wire.go` (`taxOrphanEnqueuer` → `EnqueueOrphanCleanupForFileID`); auth/taxonomy FK flows.
+- Reuse Opportunity: Always use **`EnqueueOrphanCleanupForFileID`** when input is a media file UUID; use **`EnqueueOrphanCleanupByObjectKey`** only when input is already an `object_key`.
 
 ### Asset: EnqueueOrphanCleanupForMediaFileID
 - Name: `EnqueueOrphanCleanupForMediaFileID` / `EnqueueOrphanCleanupForMediaFileRow`

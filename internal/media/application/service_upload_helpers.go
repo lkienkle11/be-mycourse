@@ -21,6 +21,14 @@ import (
 	"mycourse-io-be/internal/shared/utils"
 )
 
+func uploadMetaWithMIME(mime string) domain.RawMetadata {
+	mime = strings.TrimSpace(mime)
+	if mime == "" {
+		return domain.RawMetadata{}
+	}
+	return domain.RawMetadata{domain.MediaMetaKeyMimeType: mime}
+}
+
 func uploadToProvider(gw domain.MediaGateway, provider, objectKey, filename string, payload []byte, meta domain.RawMetadata) (domain.ProviderUploadResult, error) {
 	return gw.UploadToProvider(context.Background(), provider, objectKey, filename, payload, meta)
 }
@@ -112,6 +120,7 @@ func prepareNormalizedUploadPart(
 	payload []byte,
 	requestedObjectKey string,
 ) (normalizedUploadPart, error) {
+	mime = gw.MIMEForUploadRouting(payload, filename, mime)
 	kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
 	provider := gw.ResolveUploadProvider(kind, kindInferred)
 	objectKey := gw.ResolveMediaUploadObjectKey(requestedObjectKey, filename, provider)
@@ -127,6 +136,7 @@ func prepareNormalizedUploadPart(
 		payload, mime, filename = enc, encMime, encName
 		objectKey = gw.ResolveMediaUploadObjectKey(requestedObjectKey, filename, provider)
 	}
+	mime = gw.CanonicalStorageMIME(payload, filename, mime, kind)
 	return normalizedUploadPart{
 		payload: payload, filename: filename, mime: mime,
 		kind: kind, provider: provider, objectKey: objectKey,
@@ -296,13 +306,13 @@ func scheduleParallelUpload(g *errgroup.Group, sem chan struct{}, fn func() erro
 
 func runParallelProviderUpload(
 	gw domain.MediaGateway,
-	provider, objectKey, filename string,
+	provider, objectKey, filename, mime string,
 	payload []byte,
 ) (domain.ProviderUploadResult, error) {
 	if MediaUploadParallelStartProbe != nil {
 		MediaUploadParallelStartProbe()
 	}
-	return uploadToProvider(gw, provider, objectKey, filename, payload, domain.RawMetadata{})
+	return uploadToProvider(gw, provider, objectKey, filename, payload, uploadMetaWithMIME(mime))
 }
 
 func recordParallelUploadIndex(mu *sync.Mutex, idx int, result domain.ProviderUploadResult, finished *[]int, results []domain.ProviderUploadResult) {
@@ -325,7 +335,7 @@ func uploadPreparedCreatesParallel(gw domain.MediaGateway, prepared []domain.Pre
 	for i := range prepared {
 		i := i
 		scheduleParallelUpload(g, sem, func() error {
-			r, err := runParallelProviderUpload(gw, prepared[i].Provider, prepared[i].ObjectKey, prepared[i].Filename, prepared[i].Payload)
+			r, err := runParallelProviderUpload(gw, prepared[i].Provider, prepared[i].ObjectKey, prepared[i].Filename, prepared[i].Mime, prepared[i].Payload)
 			if err != nil {
 				return err
 			}
@@ -360,7 +370,7 @@ func uploadBundleParallel(gw domain.MediaGateway, head *domain.PreparedUpdateHea
 
 	if head != nil {
 		schedule(func() error {
-			r, err := runParallelProviderUpload(gw, head.Provider, head.ResolvedObjectKey, head.FilenameNorm, head.PayloadNorm)
+			r, err := runParallelProviderUpload(gw, head.Provider, head.ResolvedObjectKey, head.FilenameNorm, head.MimeNorm, head.PayloadNorm)
 			if err != nil {
 				return err
 			}
@@ -374,7 +384,7 @@ func uploadBundleParallel(gw domain.MediaGateway, head *domain.PreparedUpdateHea
 	for i := range tail {
 		i := i
 		schedule(func() error {
-			r, err := runParallelProviderUpload(gw, tail[i].Provider, tail[i].ObjectKey, tail[i].Filename, tail[i].Payload)
+			r, err := runParallelProviderUpload(gw, tail[i].Provider, tail[i].ObjectKey, tail[i].Filename, tail[i].Mime, tail[i].Payload)
 			if err != nil {
 				return err
 			}

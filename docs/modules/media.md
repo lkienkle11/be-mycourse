@@ -34,6 +34,7 @@ internal/media/
 │   ├── provider_r2.go             # R2 upload/delete/public URL
 │   ├── provider_bunny.go          # Bunny Stream upload/get/status + webhook signature
 │   ├── provider_local.go          # Local signed-URL encode/decode (no hardcoded secret fallback)
+│   ├── media_storage_mime.go      # Server-side MIME canonicalization for R2 Content-Type
 │   ├── media_classification.go    # Kind/provider/MIME rules, profile image acceptance, list filters
 │   ├── media_entity_metadata.go   # Typed metadata, upload entity build, object-key resolution
 │   ├── multipart.go               # Multipart collect/validate/open/close
@@ -131,10 +132,13 @@ Provider routing for single delete is resolved from the persisted `media_files` 
 3. Validate aggregate size ≤ `MaxMediaMultipartTotalBytes` (2 GiB).
 4. Validate part count ≤ `MaxMediaFilesPerRequest` (5).
 5. For each part concurrently (up to `MaxConcurrentMediaUploadWorkers = 5`):
-   a. **Executable check** (non-image, non-video only): reject if extension or magic bytes match denylist → HTTP 400 / code 2004.
-   b. **WebP encoding** (images only): acquire encode gate, run `EncodeWebP` via bimg/libvips (CGO), update payload/filename/MIME/size.
-   c. **Provider upload**: R2 (non-video) or Bunny Stream (video).
-   d. **Metadata inference**: typed `ImageMetadata`, `VideoMetadata`, or `DocumentMetadata` inferred server-side from MIME/extension.
+   a. **Trusted MIME routing** — `MIMEForUploadRouting` (`detectTrustedMIME` via `github.com/gabriel-vasile/mimetype` on bytes). Multipart `Content-Type` from the client is never used. When detection is empty or blocked, routing falls back to filename extension only (`ResolveMediaKindFromServer` / `IsImageMIMEOrExt`).
+   b. **Kind and provider resolve** — `ResolveMediaKindFromServer` + `ResolveUploadProvider` use the routing MIME (content-aware when detection succeeds).
+   c. **Executable check** (non-image, non-video only): reject if extension or magic bytes match denylist → HTTP 400 / code 2004.
+   d. **WebP encoding** (images only): `IsImageMIMEOrExt` uses the same routing MIME; acquire encode gate, run `EncodeWebP` via bimg/libvips (CGO), update payload/filename/MIME/size.
+   e. **Storage MIME canonicalization** — `CanonicalStorageMIME` + `applyStorageMIMEPolicy` for final DB `mime_type` and R2 `PutObject.ContentType` (see **R2 Object Content-Type** below).
+   f. **Provider upload**: R2 (non-video) or Bunny Stream (video).
+   g. **Metadata inference**: typed `ImageMetadata`, `VideoMetadata`, or `DocumentMetadata` inferred server-side from final MIME/extension.
 6. Persist to `media_files` (DB create).
 7. Return array of `UploadFileResponse` (one entry per part).
 
@@ -161,6 +165,31 @@ All image uploads are **synchronously converted to WebP** before upload to the s
 - Concurrency: bounded by a semaphore in `internal/shared/utils/` (`AcquireEncodeGate` / `ReleaseEncodeGate`); cap = `MaxConcurrentImageEncode` (4).
 - `CGO_ENABLED=0` builds: stub returns `ErrImageEncodeBusy` → HTTP 503 / code 9017.
 - After encoding: `payload`, `filename` (`.webp`), `mime` (`image/webp`), and `sizeBytes` are updated before provider upload.
+
+---
+
+## R2 Object Content-Type
+
+Non-video uploads stored on Cloudflare R2 must carry the correct S3 object `ContentType` so browsers and CDNs serve files with the right MIME (e.g. `image/webp` for encoded images).
+
+**Server-side MIME (single source for routing + storage):** multipart `Content-Type` from the client is never trusted. `internal/media/infra/media_storage_mime.go` exposes three layers used by `prepareNormalizedUploadPart`:
+
+1. **`MIMEForUploadRouting(payload, filename)`** — runs first. Uses `detectTrustedMIME` (`github.com/gabriel-vasile/mimetype` on bytes) to drive **kind**, **provider route**, **WebP encode decision**, and executable checks. Returns detected MIME when safe; otherwise `""` so `ResolveMediaKindFromServer` / `IsImageMIMEOrExt` fall back to filename extension only.
+2. **`detectTrustedMIME(payload, filename)`** — magic-number detector (direct dependency in `go.mod`). Classifies OOXML, archives, video, images, PDF, plain text.
+3. **`applyStorageMIMEPolicy(detected, filename, kind)`** — final storage policy after routing/encode:
+   - **WebP (images):** after server encode, require WebP magic bytes (`RIFF` + `WEBP`) → `image/webp`; otherwise `application/octet-stream`.
+   - **Blocked active types** (`text/html`, `application/javascript`, `image/svg+xml`, …) → `application/octet-stream`.
+   - **OOXML mismatch:** `application/zip` with `.docx/.xlsx/.pptx` extension → `application/octet-stream`.
+   - **Video (`kind=VIDEO`):** require detected `video/*`; otherwise `application/octet-stream`.
+   - **Extension/content mismatch** (e.g. HTML bytes with `.pdf` extension) → `application/octet-stream`.
+   - **Unknown / empty detection** → `application/octet-stream`.
+
+`CanonicalStorageMIME` runs **after** kind is known and WebP encode completes; it orchestrates `detectTrustedMIME` + `applyStorageMIMEPolicy` for DB `mime_type` and R2 metadata.
+
+- **Create and update** (`POST /media/files`, `PUT /media/files/:id`): canonical MIME is stored in metadata under `domain.MediaMetaKeyMimeType` (`mime_type`).
+- **`UploadR2`** (`internal/media/infra/provider_r2.go`): sets `s3.PutObjectInput.ContentType` from canonical metadata only (blocked-MIME filter); defaults to `application/octet-stream` when metadata is absent — no extra `mime.TypeByExtension` fallback layer.
+- Applies to all R2 providers (`R2`, legacy `B2`, `S3`, `GCS`) routed through `UploadToProvider` → `UploadR2`.
+- DB `media_files.mime_type` and R2 object `ContentType` stay aligned for new uploads and replacements.
 
 ---
 
@@ -483,6 +512,7 @@ Gin `MaxMultipartMemory` = 64 MiB (set in `internal/server/router.go`). Large pa
 | GORM repositories | `internal/media/infra/repos.go` |
 | Cloud SDK client init | `internal/media/infra/provider_runtime.go` (`main.go` → `mediainfra.Setup()`) |
 | Classification + list filters | `internal/media/infra/media_classification.go` |
+| Storage MIME canonicalization | `internal/media/infra/media_storage_mime.go` |
 | Metadata + upload entity | `internal/media/infra/media_entity_metadata.go` |
 | WebP encoding | `internal/shared/utils/webp_encode.go` (CGO), `webp_encode_stub.go` (no-CGO) |
 | HTTP handlers | `internal/media/delivery/handler.go`, `webhook_handler.go` |

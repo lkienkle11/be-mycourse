@@ -57,6 +57,14 @@ func (StorageGateway) IsImageMIMEOrExt(mime, filename string) bool {
 	return IsImageMIMEOrExt(mime, filename)
 }
 
+func (StorageGateway) MIMEForUploadRouting(payload []byte, filename, clientMIME string) string {
+	return MIMEForUploadRouting(payload, filename, clientMIME)
+}
+
+func (StorageGateway) CanonicalStorageMIME(payload []byte, filename, clientMIME, kind string) string {
+	return CanonicalStorageMIME(payload, filename, clientMIME, kind)
+}
+
 func (StorageGateway) UploadToProvider(ctx context.Context, provider, objectKey, filename string, payload []byte, meta domain.RawMetadata) (domain.ProviderUploadResult, error) {
 	switch provider {
 	case constants.FileProviderLocal:
@@ -64,7 +72,7 @@ func (StorageGateway) UploadToProvider(ctx context.Context, provider, objectKey,
 	case constants.FileProviderBunny:
 		return UploadBunnyVideo(Cloud, ctx, filename, payload, objectKey, meta)
 	default:
-		return UploadR2(Cloud, ctx, objectKey, bytes.NewReader(payload), meta)
+		return UploadR2(Cloud, ctx, objectKey, filename, bytes.NewReader(payload), meta)
 	}
 }
 

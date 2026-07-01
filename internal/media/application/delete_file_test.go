@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"mime/multipart"
+	"strings"
 	"testing"
 
 	mediaapp "mycourse-io-be/internal/media/application"
@@ -103,6 +104,14 @@ func (f *fakeMediaGateway) ResolveUploadProvider(_ string, _ bool) string {
 func (f *fakeMediaGateway) ResolveMediaUploadObjectKey(_, _, _ string) string { return "" }
 
 func (f *fakeMediaGateway) IsImageMIMEOrExt(_, _ string) bool { return false }
+
+func (f *fakeMediaGateway) MIMEForUploadRouting(_ []byte, _, clientMIME string) string {
+	return strings.TrimSpace(clientMIME)
+}
+
+func (f *fakeMediaGateway) CanonicalStorageMIME(_ []byte, _, clientMIME, _ string) string {
+	return strings.TrimSpace(clientMIME)
+}
 
 func (f *fakeMediaGateway) UploadToProvider(
 	_ context.Context,

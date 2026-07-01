@@ -16,6 +16,10 @@ import (
 	"mycourse-io-be/internal/shared/utils"
 )
 
+type r2ObjectPutter interface {
+	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+}
+
 func effectiveR2Bucket(c *CloudClients) string {
 	if b := strings.TrimSpace(setting.MediaSetting.R2.Bucket); b != "" {
 		return b
@@ -23,24 +27,48 @@ func effectiveR2Bucket(c *CloudClients) string {
 	return strings.TrimSpace(c.R2BucketName)
 }
 
-func UploadR2(c *CloudClients, ctx context.Context, objectKey string, file io.Reader, meta domain.RawMetadata) (domain.ProviderUploadResult, error) {
-	if c.R2Client == nil {
+func UploadR2(c *CloudClients, ctx context.Context, objectKey, filename string, file io.Reader, meta domain.RawMetadata) (domain.ProviderUploadResult, error) {
+	if c == nil || c.R2Client == nil {
 		return domain.ProviderUploadResult{}, fmt.Errorf(constants.MsgR2ClientNotConfigured)
 	}
+	return uploadR2WithPutter(c, c.R2Client, ctx, objectKey, filename, file, meta)
+}
+
+func uploadR2WithPutter(
+	c *CloudClients,
+	putter r2ObjectPutter,
+	ctx context.Context,
+	objectKey, filename string,
+	file io.Reader,
+	meta domain.RawMetadata,
+) (domain.ProviderUploadResult, error) {
 	bucketName := effectiveR2Bucket(c)
 	if bucketName == "" {
 		return domain.ProviderUploadResult{}, &domain.ProviderError{Code: apperrors.R2BucketNotConfigured}
 	}
 	key := strings.TrimLeft(objectKey, "/")
-	input := &s3.PutObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(key),
-		Body:   file,
-	}
-	if _, err := c.R2Client.PutObject(ctx, input); err != nil {
+	contentType := r2ObjectContentType(meta)
+	if err := putR2Object(ctx, putter, bucketName, key, contentType, file); err != nil {
 		return domain.ProviderUploadResult{}, err
 	}
 	return r2UploadResultURLs(bucketName, key, meta), nil
+}
+
+func putR2Object(ctx context.Context, putter r2ObjectPutter, bucketName, key, contentType string, body io.Reader) error {
+	_, err := putter.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(bucketName),
+		Key:         aws.String(key),
+		Body:        body,
+		ContentType: aws.String(contentType),
+	})
+	return err
+}
+
+func r2ObjectContentType(meta domain.RawMetadata) string {
+	if mt := strings.TrimSpace(utils.StringFromRaw(meta, domain.MediaMetaKeyMimeType)); mt != "" && !isBlockedStorageMIME(mt) {
+		return mt
+	}
+	return "application/octet-stream"
 }
 
 func r2UploadResultURLs(bucketName, key string, meta domain.RawMetadata) domain.ProviderUploadResult {

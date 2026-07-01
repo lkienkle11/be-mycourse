@@ -21,3 +21,5 @@ CLAUDE.md
 .idea/
 
 .commandcode/
+openspec/
+.context/

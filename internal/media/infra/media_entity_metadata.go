@@ -150,7 +150,7 @@ func ApplyTypedMetadataToRaw(raw domain.RawMetadata, typed domain.UploadFileMeta
 	raw["size_bytes"] = typed.SizeBytes
 	raw["width_bytes"] = typed.WidthBytes
 	raw["height_bytes"] = typed.HeightBytes
-	raw["mime_type"] = typed.MimeType
+	raw[domain.MediaMetaKeyMimeType] = typed.MimeType
 	raw["extension"] = typed.Extension
 	raw["duration_seconds"] = typed.DurationSeconds
 	raw["bitrate"] = typed.Bitrate

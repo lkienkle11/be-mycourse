@@ -2,6 +2,7 @@ package domain
 
 // Metadata map keys used when reading/writing Bunny Stream video metadata fields.
 const (
+	MediaMetaKeyMimeType            = "mime_type"
 	MediaMetaKeyVideoGUID           = "video_guid"
 	MediaMetaKeyBunnyVideoID        = "bunny_video_id"
 	MediaMetaKeyVideoID             = "video_id"

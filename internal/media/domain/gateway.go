@@ -17,6 +17,8 @@ type MediaGateway interface {
 	ResolveUploadProvider(kind string, kindInferred bool) string
 	ResolveMediaUploadObjectKey(reqObjectKey, filename, provider string) string
 	IsImageMIMEOrExt(mime, filename string) bool
+	MIMEForUploadRouting(payload []byte, filename, clientMIME string) string
+	CanonicalStorageMIME(payload []byte, filename, clientMIME, kind string) string
 	UploadToProvider(ctx context.Context, provider, objectKey, filename string, payload []byte, meta RawMetadata) (ProviderUploadResult, error)
 	DeleteStoredObject(ctx context.Context, objectKey, provider, bunnyVideoID string) error
 	BuildMediaFileEntityFromUpload(in MediaUploadEntityInput) *File

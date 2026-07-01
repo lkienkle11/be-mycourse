@@ -142,9 +142,11 @@ POST /api/v1/media/files  (JWT + media_file:create required)
             ├─ Bind multipart form (1–5 parts)
             ├─ Validate per-part size (≤ 2 GiB) and aggregate size (≤ 2 GiB)
             ├─ For each part (up to 5 concurrent workers):
+            │   ├─ Trusted MIME routing (`MIMEForUploadRouting` → kind/provider/WebP decisions)
             │   ├─ Executable denylist check (non-image/non-video)
             │   ├─ WebP encoding (images — bimg/libvips CGO)
-            │   └─ Provider upload (R2 or Bunny Stream)
+            │   ├─ Storage MIME canonicalization (`CanonicalStorageMIME` + `applyStorageMIMEPolicy`)
+            │   └─ Provider upload (R2 with S3 ContentType from canonical MIME, or Bunny Stream)
             ├─ Infer typed metadata (image/video/document)
             ├─ Persist rows to media_files
             └─ Return array of UploadFileResponse

@@ -1,10 +1,10 @@
 # Instructor management module
 
-_Last audited: 2026-06-29 (`internal/instructor/`, roster picker `per_page` cap scoped to roster endpoints only; FE `SearchableSelect` pinned selection + fetch error handling)._
+_Last audited: 2026-07-02 — instructor application feature (migration `000029`): state machine A–H, `GET/PUT /me`, company snapshot, application expertise junctions, P68 `submit_blocked`, SLA 5-day `returned`._
 
-The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / approve / reject), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
+The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / resubmit / approve / reject / return), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
-**FE contract:** `fe-mycourse/docs/instructor-admin.md`
+**FE contract:** `fe-mycourse/docs/instructor-admin.md`, `fe-mycourse/docs/instructor-application.md`
 
 ---
 
@@ -18,20 +18,20 @@ internal/instructor/
 │   └── repository.go      # Repository interface (roster, apps, profiles, expertise, tickets)
 ├── application/
 │   ├── service.go         # InstructorService facade
-│   ├── service_roster.go   # roster queries + bulk add delegate + avatar hydration
+│   ├── service_roster.go
 │   ├── service_applications.go
 │   ├── service_profiles.go
 │   ├── service_expertise.go
 │   ├── service_tickets.go
-│   ├── ports.go           # User lookup, RBAC role manager, media validator, avatar hydrate
+│   ├── ports.go
 │   └── validate_profile.go
 ├── infra/
-│   ├── repos.go           # GormRepository
-│   ├── repo_roster_bulk.go # batch roster add — transaction + CreateInBatches on user_roles
+│   ├── repos.go
+│   ├── repo_roster_bulk.go
 │   ├── repos_load.go
 │   ├── repos_map.go
 │   ├── rows.go
-│   └── profile_jsonb.go   # certificates JSONB (not in domain)
+│   └── profile_jsonb.go   # certificates, portfolio_links, rejection_history JSONB
 └── delivery/
     ├── handler.go
     ├── handler_helpers.go
@@ -42,62 +42,128 @@ internal/instructor/
     ├── handler_ticket.go
     ├── routes.go
     └── dto.go
-
-internal/server/
-├── wire_instructor.go
-├── wire_instructor_adapters.go
-└── wire_core.go             # shared core wiring (RBAC, auth, media, taxonomy, …)
-
-internal/shared/mediaquery/hydrate.go   # shared avatar URL hydration primitives (no media/domain import)
 ```
 
 Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, h.Instructor, svc.RBAC)`.
 
 ---
 
-## Database (migrations `000013` + compatibility `000015`/`000018`/`000019` + finalize `000017`)
+## Database (migrations `000013` + compat `000015`–`000019` + feature `000029`)
 
 | Table | Purpose |
 |-------|---------|
 | `users.phone` | `VARCHAR(32)` on roster list |
-| `instructor_applications` | One active row per user; `review_status` pending/approved/rejected; profile columns inline |
-| `instructor_profiles` | Managed profile per user (admin CRUD) |
-| `instructor_expertise_topics` | `(user_id, topic_id)` → `course_topics` |
-| `instructor_expertise_skills` | `(user_id, skill_id)` → `course_skills` |
-| `instructor_tickets` | `status` open/closed; soft-delete via `deleted_at` — apply `000018` on drifted DBs |
-| `instructor_ticket_messages` | Thread messages; blocked when ticket closed; soft-delete via `deleted_at` — apply `000018` when column missing |
+| `instructor_applications` | One active row per user; inline profile snapshot + review state machine columns |
+| `instructor_application_topics` | Application-scoped topic snapshot (`application_id`, `topic_id`) — migration **`000029`** |
+| `instructor_application_skills` | Application-scoped skill snapshot (`application_id`, `skill_id`) — migration **`000029`** |
+| `instructor_profiles` | Managed profile per user (admin CRUD); same profile columns as applications after approve copy |
+| `instructor_expertise_topics` | Live instructor expertise (`user_id`, `topic_id`) — promoted from application junction on approve |
+| `instructor_expertise_skills` | Live instructor expertise (`user_id`, `skill_id`) |
+| `instructor_tickets` | `status` open/closed |
+| `instructor_ticket_messages` | Thread messages |
 
-Compatibility note: migration `000015_instructor_expertise_soft_delete_compat` is drift-safe for environments that still have legacy `course_topic_id` / `course_skill_id`. Up path ensures `deleted_at`, `topic_id`, `skill_id`, backfills from legacy columns when present, and rebuilds active-only unique indexes. Down path restores non-partial unique indexes and drops `deleted_at`.
+Physical model audit (BE-01): see **`docs/database.md` § Instructor application feature (`000029`)** for logical snapshot contract and column mapping.
 
-Migration `000017_instructor_expertise_drop_legacy_fk_cols` completes the normalization started in `000015`: drops legacy `course_topic_id` / `course_skill_id` (which can remain NOT NULL and block inserts into `topic_id` / `skill_id`), enforces NOT NULL on canonical columns, and adds FK constraints. POST `/api/v1/instructors/:id/expertise/topics` and `/expertise/skills` require this migration on drifted databases.
-
-Migration `000018_instructor_tickets_soft_delete_compat` ensures `deleted_at` on `instructor_tickets` and `instructor_ticket_messages` when drifted DBs were created without soft-delete columns. GET `/api/v1/instructor-tickets` requires this migration on such environments.
-
-Migration `000019_instructor_profiles_apps_soft_delete_compat` normalizes drifted profile/application tables: adds `deleted_at`, adds surrogate `id` PK on `instructor_profiles` when only `user_id` PK exists, rebuilds active-only unique indexes. GET `/api/v1/instructor-profiles/:id` requires this migration on drifted DBs. JOIN list/load queries use alias-qualified soft-delete filters (`ip.deleted_at IS NULL`, `ia.deleted_at IS NULL`).
-
-Permissions **P41–P58** seeded in the same migration. Role grants:
-
-- **sysadmin**, **admin**: P41–P58
-- **instructor**: P45, P47, P49, P55, P56, P57, P58 (plus pre-existing catalog from `roles_permission.go`)
-- **learner**: P45 (submit application / create ticket)
-
-After deploy: `go run ./cmd/syncpermissions` and `go run ./cmd/syncrolepermissions` so `roles_permission.go` stays aligned.
+Permissions **P41–P58** seeded in `000013`; **P68** `instructor_application:submit_blocked` in **`000029`**. After deploy: `go run ./cmd/syncpermissions` and `go run ./cmd/syncrolepermissions`.
 
 ---
 
-## Business rules
+## Instructor application — state machine (A–H)
+
+### State resolver priority (canonical — BE + FE must match)
+
+Approved users receive role `instructor` and therefore effective `P68` (`submit_blocked`). **State G must win over State B** when the user's application was approved through this flow.
+
+| Order | Check | State |
+|-------|-------|-------|
+| 1 | Not authenticated | **A** |
+| 2 | `GET /instructor-applications/me` → `review_status === "approved"` | **G** |
+| 3 | `rejection_count >= 5` | **H** |
+| 4 | Effective `instructor_application:submit_blocked` (P68) | **B** — pre-existing/roster instructor or system block; **not** users at step 2 |
+| 5 | No application row / eligible first submit | **C** |
+| 6 | `pending` within SLA | **D** |
+| 7 | `returned` | **E** |
+| 8 | `rejected` with `rejection_count < 5` | **F** |
+
+**State B vs State G:**
+
+| | State B | State G |
+|---|---------|---------|
+| Step | Permission gate (after API shows not approved / not H) | Application API (`review_status`) |
+| Typical cause | Instructor added via roster, legacy instructor, reject-quota `user_permissions` | Just approved via `POST …/approve` on this application |
+| Message | "You cannot submit at this time" | "Congratulations — application approved" |
+| P68 | Yes (blocks submit) | User may still have P68 on role, but **resolver shows G first** |
+
+Sources: `GET /instructor-applications/me`, `GET /api/v1/me/permissions`.
+
+| State | Condition | `review_status` / gate |
+|-------|-----------|------------------------|
+| A | Not authenticated | — |
+| G | `review_status === approved` | **checked before P68** |
+| H | `rejection_count >= 5` | `rejected` |
+| B | P68 and not G/H | permission |
+| C | No application or eligible first submit | no row / eligible |
+| D | Pending within SLA | `pending`, `now < review_due_at` |
+| E | Returned (SLA exceeded) | `returned` |
+| F | Rejected, `rejection_count < 5` | `rejected` |
+
+### Review status values
+
+| Value | Meaning |
+|-------|---------|
+| `pending` | Awaiting admin/sysadmin review; SLA clock active |
+| `approved` | Application accepted; instructor role assigned |
+| `rejected` | Admin rejected with reason; increments `rejection_count` |
+| `returned` | Pending exceeded 5 days without action; data preserved; does **not** increment `rejection_count` |
+
+### Valid transitions
+
+```
+(none) ──POST──► pending
+pending ──approve──► approved
+pending ──reject──► rejected
+pending ──SLA job──► returned
+returned ──PUT /me──► pending
+rejected ──PUT /me──► pending   (only if rejection_count < 5 and not submit_blocked)
+```
+
+### SLA (5 days)
+
+- On submit/resubmit: set `submitted_at = now`, `review_due_at = submitted_at + 5 days`, set `returned_at = NULL`.
+- When `pending` and `now >= review_due_at`: transition to `returned`, set `returned_at = now`, **do not** increment `rejection_count`.
+- Implementation: periodic job and/or query-time normalization in application service (BE-08).
+
+### Submit / resubmit rules (BE-04)
+
+| Rule | Behaviour |
+|------|-----------|
+| P68 `submit_blocked` | Reject `POST` and `PUT /me` |
+| Already instructor role | Reject submit |
+| `rejection_count >= 5` | Reject normal submit/resubmit (State H — contact admin flow) |
+| `POST /instructor-applications` | **First submit only** (State C) |
+| `PUT /instructor-applications/me` | **Resubmit only** from `returned` or `rejected` |
+| Resubmit from `returned` | Unlimited; does not increase `rejection_count` |
+| Resubmit from `rejected` | Allowed when `rejection_count < 5` |
+
+### Approve side effects
+
+- Idempotent `AssignRole(instructor)` (role grant includes P68 — submit blocked on future applications).
+- Copy inline profile snapshot from application → `instructor_profiles` (create if missing).
+- Copy `instructor_application_topics` / `instructor_application_skills` → `instructor_expertise_topics` / `instructor_expertise_skills`.
+- Set `review_status = approved`.
+- **FE:** after approve, `GET /me` returns `review_status=approved` → State **G**, not State B, even though user now has P68.
+
+---
+
+## Business rules (roster & tickets)
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Add roster (bulk) | User must exist, must not have `sysadmin` or `admin` role; assigns `instructor` role only — **learner kept**. Service dedupes/trims via `utils.PrepareBulkUserIDs`. Repo runs **one transaction**: batch user load (`loadRosterUsersByIDs`), batch platform-staff check (`gormx.UserIDSetByRoleNames` via `platformStaffUserIDSet`), batch existing-instructor check (`existingInstructorUserIDSet`), **`CreateInBatches` + `ON CONFLICT DO NOTHING`** on `user_roles` (batch size 100), members built via `buildRosterMembersFromUsers`. Already-instructor users appear in `added[]` idempotently but are tracked separately in internal `InsertedUserIDs` (`json:"-"`). Service invalidates `/me` **only for `InsertedUserIDs`** (new DB writes), not for idempotent re-adds. Avatar hydrate is **best-effort**. Per-user business failures in `failed[]`; infra errors abort HTTP 500. |
-| List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` (platform staff) |
-| Roster picker | Users without `instructor`, `sysadmin`, or `admin` roles |
-| Remove roster | `RemoveRole(instructor)` only; wipe instructor-scoped rows; user account kept |
-| Submit application | `review_status = pending`; **no role change** |
-| Approve | Idempotent `AssignRole(instructor)`; `approved` |
-| Reject | `rejection_reason` required (1–2000 chars); **no** instructor role |
+| Add roster (bulk) | User must exist, must not have `sysadmin` or `admin` role; assigns `instructor` role only — **learner kept** |
+| List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` |
+| Remove roster | `RemoveRole(instructor)` only; wipe instructor-scoped rows |
 | Ticket message | Rejected when ticket `closed` |
-| Close ticket | `instructor_ticket:close` (instructor); admins use read/create per ticket routes |
+| Close ticket | `instructor_ticket:close` (P58) |
 
 ---
 
@@ -109,85 +175,61 @@ All routes require `Authorization: Bearer <token>` unless noted.
 
 | Method | Path | Permission |
 |--------|------|------------|
-| GET | `/instructors` | `instructor_roster:read` — paginated roster list; query `page`, `per_page` (default 20, **max 100 on this endpoint only** via `getRosterPerPage()`), `search` (ILIKE on `display_name` or `email`) |
-| GET | `/instructors/roster-candidates` | `instructor_roster:create` — paginated picker; users without instructor/sysadmin/admin roles; same `page` / `per_page` (max 100) / `search` params |
-| POST | `/instructors/bulk` | `instructor_roster:create` — body `{ "user_ids": ["..."] }` returns `added` + `failed`. Batch DB writes in `repo_roster_bulk.go` (mirrors collaborator bulk in `repo_collaborators_bulk.go`). |
-| DELETE | `/instructors/:id` | `instructor_roster:delete` — `:id` = user id |
-
-List returns `id`, `full_name`, `email`, `phone`, `avatar` (hydrated URL). Paginated envelope: `data.result` + `data.page_info` (`page`, `per_page`, `total_pages`, `total_items`).
-
-**FE searchable dropdowns (expertise screen):** instructor picker uses `GET /instructors` with incremental `page` + optional `search` — not a bulk fetch. Topic/skill add pickers use taxonomy list APIs (`GET /taxonomy/topics`, `GET /taxonomy/skills`) with `page`, `per_page`, `status=ACTIVE`, `search_by=name`, `search_value`, `include_images=false`. Assigned expertise junction rows already include joined taxonomy `name` + `slug` on GET list responses — no separate taxonomy preload required to render assigned rows.
-
-Roster hydration now reuses the same generic avatar-hydration path as application/profile identity responses instead of keeping a separate roster-only implementation.
-
-`RosterRepository` port (writes): `AddRosterBulk` only. Platform staff validation is batch-only via `platformStaffUserIDSet` in `repo_roster_bulk.go` — no single-user staff-check repo method.
+| GET | `/instructors` | `instructor_roster:read` |
+| GET | `/instructors/roster-candidates` | `instructor_roster:create` |
+| POST | `/instructors/bulk` | `instructor_roster:create` |
+| DELETE | `/instructors/:id` | `instructor_roster:delete` |
 
 ### Applications (`instructor_application:*`)
 
-| Method | Path | Permission |
-|--------|------|------------|
-| GET | `/instructor-applications` | `instructor_application:read` — query `status`, `has_profile`, `page`, `per_page` (no roster cap) |
-| POST | `/instructor-applications` | `instructor_application:create` — submit → pending |
-| GET | `/instructor-applications/:id` | `instructor_application:read` |
-| POST | `/instructor-applications/:id/approve` | `instructor_application:approve` |
-| POST | `/instructor-applications/:id/reject` | `instructor_application:reject` — body `{ "rejection_reason": "..." }` |
-| DELETE | `/instructor-applications/:id` | `instructor_application:delete` |
+| Method | Path | Permission | Notes |
+|--------|------|------------|-------|
+| GET | `/instructor-applications/me` | `instructor_application:create` (P45) | Resolve state A–H; prefill + `rejection_history` inline |
+| PUT | `/instructor-applications/me` | `instructor_application:create` (P45) | Resubmit from `returned` / `rejected` — self-service applicant endpoint; **not** `instructor_application:update` (P46) |
+| GET | `/instructor-applications` | `instructor_application:read` | Query `status` (`pending`, `approved`, `rejected`, **`returned`**), `has_profile`, `page`, `per_page` |
+| POST | `/instructor-applications` | `instructor_application:create` | **First submit only** → `pending` |
+| GET | `/instructor-applications/:id` | `instructor_application:read` | Detail with identity + snapshot + hydrated media |
+| POST | `/instructor-applications/:id/approve` | `instructor_application:approve` | |
+| POST | `/instructor-applications/:id/reject` | `instructor_application:reject` | Body `{ "rejection_reason": "..." }` |
+| DELETE | `/instructor-applications/:id` | `instructor_application:delete` | |
 
-Application responses now include user identity fields for admin UI popups:
-`full_name` and `avatar` (hydrated URL, empty string when unavailable).
+**`GET /me` response groups** (see `docs/api_swagger.yaml`):
+
+- Identity: `user_id`, `display_name`, `email`, `avatar`
+- Review: `review_status`, `can_resubmit`, `rejection_count`, `submitted_at`, `review_due_at`, `returned_at`, `rejection_reason` (latest)
+- `latest_submission.profile` — full profile snapshot including company fields and `years_of_experience` enum code
+- `latest_submission.topic_ids`, `latest_submission.skill_ids`
+- `rejection_history[]` — `{ rejected_at, rejected_by_user_id, reviewer_display_name, reason }`
+- Hydrated read models: `cv_file`, `intro_video_file` when IDs present
+
+**List/detail admin DTO** adds `display_name`, `email`, `avatar`; company snapshot fields; topic/skill chips (joined taxonomy names); rejection history on detail.
 
 ### Profiles (`instructor_profile:*`)
 
-| Method | Path | Permission |
-|--------|------|------------|
-| GET | `/instructor-profiles` | `instructor_profile:read` |
-| GET | `/instructor-profiles/me` | `instructor_profile:read` |
-| GET | `/instructor-profiles/:id` | `instructor_profile:read` — user id |
-| POST | `/instructor-profiles` | `instructor_profile:create` — upsert |
-| PATCH | `/instructor-profiles/:id` | `instructor_profile:update` |
-| DELETE | `/instructor-profiles/:id` | `instructor_profile:delete` |
-
-Profile responses include `full_name` and `avatar` alongside `profile` payload data.
-
-CV / intro video file IDs validated via media service (PDF/images/video policy in application layer).
+Unchanged from prior contract; profile rows include company snapshot columns after **`000029`**.
 
 ### Expertise (`instructor_expertise:*`)
 
-Under `/instructors/:id/…` (`:id` = user id):
-
-| Method | Path | Permission |
-|--------|------|------------|
-| GET/POST | `…/expertise/topics` | read / create |
-| DELETE | `…/expertise/topics/:topicRowId` | delete — junction row id |
-| GET/POST | `…/expertise/skills` | read / create |
-| DELETE | `…/expertise/skills/:skillRowId` | delete |
-
-POST body: `{ "topic_id": N }` or `{ "skill_id": N }`.
-
-List/create responses use `domain.ExpertiseTopic` / `domain.ExpertiseSkill` JSON (`snake_case`): junction `id`, `user_id`, `topic_id` / `skill_id`, joined taxonomy `name` + `slug`, audit timestamps. Repository joins taxonomy with junction alias-qualified soft-delete filter (`iet.deleted_at IS NULL` / `ies.deleted_at IS NULL`) because both junction and taxonomy tables expose `deleted_at`.
+Under `/instructors/:id/…` — live instructor expertise (post-approve). Application expertise snapshot uses junction tables on the application row.
 
 ### Tickets
-
-Uses `instructor_application:read` / `:create` for list, create, messages; close uses `instructor_ticket:close`.
 
 | Method | Path | Permission |
 |--------|------|------------|
 | GET | `/instructor-tickets` | `instructor_application:read` |
 | POST | `/instructor-tickets` | `instructor_application:create` |
 | POST | `/instructor-tickets/:id/close` | `instructor_ticket:close` |
-| GET | `/instructor-tickets/:id/messages` | `instructor_application:read` |
-| POST | `/instructor-tickets/:id/messages` | `instructor_application:create` |
+| GET/POST | `/instructor-tickets/:id/messages` | read / create |
 
-### Stubs (coming soon)
+**State H contact (BE-10):** reuse `POST /instructor-tickets` + first message, or extend ticket payload — contract documented before FE-08 wires contact form.
 
-| GET | `/instructor-stubs/assignments` | `instructor_profile:read` |
-| GET | `/instructor-stubs/activity-log` | `instructor_profile:read` |
+### Permission check for submit block
 
-Returns standard “coming soon” envelope until implemented.
+`GET /api/v1/me/permissions` exposes effective permissions. FE uses P68 at resolver **step 4 only** (after G/H). Do not map P68 → State B before `review_status === "approved"`.
 
 ---
 
-## Permissions catalog (P41–P58)
+## Permissions catalog (P41–P58, P68)
 
 | ID | Name |
 |----|------|
@@ -196,7 +238,7 @@ Returns standard “coming soon” envelope until implemented.
 | P43 | `instructor_roster:delete` |
 | P44 | `instructor_application:read` |
 | P45 | `instructor_application:create` |
-| P46 | `instructor_application:update` |
+| P46 | `instructor_application:update` — admin-side updates only; **not** used for `PUT /me` resubmit |
 | P47 | `instructor_application:delete` |
 | P48 | `instructor_application:approve` |
 | P49 | `instructor_application:reject` |
@@ -209,6 +251,9 @@ Returns standard “coming soon” envelope until implemented.
 | P56 | `instructor_expertise:update` |
 | P57 | `instructor_expertise:delete` |
 | P58 | `instructor_ticket:close` |
+| **P68** | **`instructor_application:submit_blocked`** |
+
+**P68 grants:** `instructor` role (migration `000029`). Users at reject quota (≥5) may receive P68 via `user_permissions` at runtime (BE-04). **admin** / **sysadmin** do not receive P68 by default.
 
 Canonical definitions: `internal/shared/constants/permissions.go`. Grants: `internal/system/application/roles_permission.go`.
 
@@ -216,7 +261,9 @@ Canonical definitions: `internal/shared/constants/permissions.go`. Grants: `inte
 
 ## Related docs
 
-- [`docs/database.md`](../database.md) — tables, P41–P58 matrix, migration `000013`
-- [`docs/curl_api.md`](../curl_api.md) — §13 Instructor (smoke curls)
-- [`docs/folder-structure.md`](../folder-structure.md) — `internal/instructor/`
+- [`docs/database.md`](../database.md) — tables, BE-01 physical model, P68, migration `000029`
+- [`docs/router.md`](../router.md) — route matrix
+- [`docs/logic-flow.md`](../logic-flow.md) — application state flow
+- [`docs/api_swagger.yaml`](../api_swagger.yaml) — OpenAPI contract
 - [`fe-mycourse/docs/instructor-admin.md`](../../../fe-mycourse/docs/instructor-admin.md) — admin UI
+- [`fe-mycourse/docs/instructor-application.md`](../../../fe-mycourse/docs/instructor-application.md) — user become-instructor page

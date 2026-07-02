@@ -174,6 +174,155 @@ components:
       format: int64
       description: Unix epoch seconds (UTC). Stored as PostgreSQL BIGINT.
       example: 1713456789
+    YearsExperienceCode:
+      type: string
+      enum: [UNDER_1_YEAR, ONE_TO_TWO_YEARS, THREE_TO_FIVE_YEARS, SIX_TO_TEN_YEARS, OVER_TEN_YEARS]
+    InstructorApplicationProfile:
+      type: object
+      properties:
+        headline: { type: string }
+        bio: { type: string }
+        years_of_experience: { $ref: "#/components/schemas/YearsExperienceCode" }
+        current_job_title: { type: string }
+        current_job_title_id: { type: string }
+        current_company: { type: string }
+        current_company_id: { type: string, nullable: true }
+        current_company_domain: { type: string, nullable: true }
+        current_company_description: { type: string, nullable: true }
+        current_company_location: { type: string, nullable: true }
+        cv_file_id: { type: string }
+        cv_file: { type: object, description: Hydrated media read model }
+        linkedin_url: { type: string }
+        github_url: { type: string }
+        portfolio_links:
+          type: array
+          items: { type: string }
+        certificates:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              issuer: { type: string }
+              issued_year: { type: integer }
+              credential_url: { type: string }
+        intro_video_file_id: { type: string }
+        intro_video_file: { type: object, description: Hydrated media read model }
+    InstructorApplicationLatestSubmission:
+      type: object
+      properties:
+        profile: { $ref: "#/components/schemas/InstructorApplicationProfile" }
+        topic_ids:
+          type: array
+          items: { type: string, format: uuid }
+        skill_ids:
+          type: array
+          items: { type: string, format: uuid }
+    InstructorRejectionRecord:
+      type: object
+      properties:
+        rejected_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+        rejected_by_user_id: { type: string, format: uuid }
+        reviewer_display_name: { type: string }
+        reason: { type: string }
+    InstructorApplicationSubmitBody:
+      type: object
+      required: [headline, bio, years_of_experience, current_job_title, current_job_title_id, current_company, cv_file_id, topic_ids, skill_ids]
+      properties:
+        headline: { type: string, minLength: 1 }
+        bio: { type: string, minLength: 100, maxLength: 2000 }
+        years_of_experience: { $ref: "#/components/schemas/YearsExperienceCode" }
+        current_job_title: { type: string, minLength: 1 }
+        current_job_title_id: { type: string, minLength: 1, description: "Derived key e.g. custom:*, remote:*, hh:*" }
+        current_company: { type: string, minLength: 1 }
+        current_company_id: { type: string, nullable: true }
+        current_company_domain: { type: string, nullable: true }
+        current_company_description: { type: string, nullable: true }
+        current_company_location: { type: string, nullable: true }
+        cv_file_id: { type: string, minLength: 1 }
+        linkedin_url: { type: string }
+        github_url: { type: string }
+        portfolio_links:
+          type: array
+          items: { type: string }
+        certificates:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              issuer: { type: string }
+              issued_year: { type: integer }
+              credential_url: { type: string }
+        intro_video_file_id: { type: string }
+        topic_ids:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+          maxItems: 5
+        skill_ids:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+          maxItems: 15
+      example:
+        headline: "Cloud and backend instructor"
+        bio: "I have eight years of experience building production systems, mentoring engineers, and delivering technical workshops for enterprise teams across multiple domains."
+        years_of_experience: THREE_TO_FIVE_YEARS
+        current_job_title: "Senior Backend Engineer"
+        current_job_title_id: "custom:senior-backend-engineer"
+        current_company: "Riot Games"
+        current_company_id: "riotgames.com"
+        current_company_domain: "riotgames.com"
+        cv_file_id: "00000000-0000-0000-0000-000000000001"
+        linkedin_url: "https://linkedin.com/in/example"
+        github_url: "https://github.com/example"
+        portfolio_links: ["https://example.com/talks"]
+        intro_video_file_id: ""
+        topic_ids: ["00000000-0000-0000-0000-000000000010"]
+        skill_ids:
+          - "00000000-0000-0000-0000-000000000020"
+          - "00000000-0000-0000-0000-000000000021"
+    InstructorApplicationMeResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        display_name: { type: string }
+        email: { type: string }
+        avatar: { type: string }
+        review_status: { type: string, enum: [pending, approved, rejected, returned] }
+        can_resubmit: { type: boolean }
+        rejection_count: { type: integer }
+        rejection_reason: { type: string }
+        submitted_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+        review_due_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
+        returned_at: { $ref: "#/components/schemas/AuditTimestampUnix", nullable: true }
+        latest_submission: { $ref: "#/components/schemas/InstructorApplicationLatestSubmission" }
+        rejection_history:
+          type: array
+          items: { $ref: "#/components/schemas/InstructorRejectionRecord" }
+    InstructorApplicationDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/InstructorApplicationMeResponse"
+        - type: object
+          properties:
+            topics:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  slug: { type: string }
+            skills:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  slug: { type: string }
     TaxonomySlugStatus:
       type: object
       description: Shared list/detail shape for levels, tags, and similar slug+status resources.
@@ -2618,6 +2767,38 @@ paths:
         "200":
           description: Deleted
 
+  /api/v1/instructor-applications/me:
+    get:
+      tags: [Instructor]
+      summary: Get current user's instructor application (state resolve + prefill)
+      description: Requires permission `instructor_application:create` (P45).
+      security:
+        - bearerJwt: []
+      responses:
+        "200":
+          description: Application me response with latest_submission and rejection_history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorApplicationMeResponse"
+        "404":
+          description: No application row (State C — first submit eligible)
+    put:
+      tags: [Instructor]
+      summary: Resubmit instructor application (returned or rejected)
+      description: Requires permission `instructor_application:create` (P45). Self-service resubmit uses P45, not `instructor_application:update` (P46).
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstructorApplicationSubmitBody"
+      responses:
+        "200":
+          description: Resubmitted — review_status pending
+
   /api/v1/instructor-applications:
     get:
       tags: [Instructor]
@@ -2629,16 +2810,16 @@ paths:
         - $ref: "#/components/parameters/PerPage"
         - name: status
           in: query
-          schema: { type: string, enum: [pending, approved, rejected] }
+          schema: { type: string, enum: [pending, approved, rejected, returned] }
         - name: has_profile
           in: query
           schema: { type: boolean }
       responses:
         "200":
-          description: Paginated applications
+          description: Paginated applications with identity and snapshot fields
     post:
       tags: [Instructor]
-      summary: Submit instructor application
+      summary: Submit instructor application (first submit only)
       security:
         - bearerJwt: []
       requestBody:
@@ -2646,39 +2827,17 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                headline: { type: string }
-                bio: { type: string }
-                years_of_experience: { type: integer }
-                current_job_title: { type: string }
-                current_company: { type: string }
-                cv_file_id: { type: string }
-                linkedin_url: { type: string }
-                github_url: { type: string }
-                portfolio_links:
-                  type: array
-                  items: { type: string }
-                certificates:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      title: { type: string }
-                      issuer: { type: string }
-                      issued_year: { type: integer }
-                      credential_url: { type: string }
-                intro_video_file_id: { type: string }
+              $ref: "#/components/schemas/InstructorApplicationSubmitBody"
       responses:
         "200":
-          description: Submitted
+          description: Submitted — review_status pending
 
   /api/v1/instructor-applications/{id}:
     parameters:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
     get:
       tags: [Instructor]
       summary: Get instructor application detail
@@ -2686,7 +2845,11 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: Application detail with identity, snapshot, media hydrate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstructorApplicationDetailResponse"
     delete:
       tags: [Instructor]
       summary: Delete instructor application
@@ -2706,7 +2869,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: integer }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: Approved
@@ -2721,7 +2884,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: integer }
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -2730,7 +2893,7 @@ paths:
               type: object
               required: [rejection_reason]
               properties:
-                rejection_reason: { type: string }
+                rejection_reason: { type: string, minLength: 1, maxLength: 2000 }
       responses:
         "200":
           description: Rejected

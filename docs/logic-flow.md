@@ -41,5 +41,16 @@
 
 ## Course / Instructor Logic
 - Course authoring: `internal/course` owns draft lifecycle, collaborator roles (`OWNER`, `EDITOR`), review transitions, outline stable IDs, and learner progress. `EDITOR` may edit basic info and outline; **prepare draft**, **submit for review**, and **reopen draft** are **owner-only** (`requireOwnerAccess` → `ErrCourseOwnerOnly`).
-- Instructor management: `internal/instructor` owns roster, application review, profile upsert, expertise links, and ticket messaging.
+- Instructor management: `internal/instructor` owns roster, application review (state machine `pending` / `approved` / `rejected` / `returned`), profile upsert, expertise links, and ticket messaging.
 - Both modules are mounted on authenticated `/api/v1` and guarded by RBAC permissions at route level.
+
+## Instructor application flow (user)
+
+1. **Auth + permission gate:** `GET /api/v1/me/permissions` — used at resolver step 4 only (after G/H).
+2. **Bootstrap:** `GET /api/v1/instructor-applications/me` — returns `review_status`, SLA timestamps, `latest_submission`, `rejection_history`, hydrated media. Resolver: if `review_status=approved` → State **G** (before P68 / State B).
+3. **First submit (State C):** `POST /api/v1/instructor-applications` with profile + `topic_ids` + `skill_ids` → `pending`, sets `submitted_at` / `review_due_at`.
+4. **Resubmit (State E/F):** `PUT /api/v1/instructor-applications/me` — permission `instructor_application:create` (P45); only from `returned` or `rejected` (quota rules apply).
+5. **SLA:** pending past `review_due_at` → `returned` without incrementing `rejection_count`.
+6. **Admin:** `GET /instructor-applications?status=returned`, approve/reject with identity + snapshot in list/detail DTOs.
+
+See **`docs/modules/instructor.md`** and **`fe-mycourse/docs/instructor-application.md`** for state A–H mapping.

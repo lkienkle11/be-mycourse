@@ -65,13 +65,15 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - Note: multipart text fields `kind` and `metadata` are accepted for backward-compat parsing only and ignored in create/update business flow (server-owned policy).
 - Public webhook (registered before auth middleware):
   - `POST /webhook/bunny`
-- Instructor management (see **`docs/modules/instructor.md`**):
-  - `GET/DELETE /instructors` — roster list/remove; `POST /instructors/bulk` — add
-  - `GET/POST /instructor-applications`, `POST …/approve`, `POST …/reject`, `DELETE …/:id`
-  - `GET/POST/PATCH/DELETE /instructor-profiles`, `GET …/me`
+- Instructor management (see **`docs/modules/instructor.md`**, migration **`000029`**):
+  - `GET /instructors`, `DELETE /instructors/:id`, `POST /instructors/bulk` — roster
+  - `GET /instructor-applications/me`, `PUT /instructor-applications/me` — resolve state, prefill, resubmit (P45)
+  - `GET /instructor-applications`, `POST /instructor-applications`, `GET /instructor-applications/:id`, `POST …/:id/approve`, `POST …/:id/reject`, `DELETE …/:id` — list filter includes `returned`
+  - `GET /instructor-profiles`, `GET /instructor-profiles/me`, `POST /instructor-profiles`, `PATCH /instructor-profiles/:id`, `DELETE /instructor-profiles/:id`
   - `GET/POST/DELETE /instructors/:id/expertise/topics|skills`
   - `GET/POST /instructor-tickets`, `POST …/close`, `GET/POST …/messages`
   - `GET /instructor-stubs/assignments|activity-log` — stubs
+  - P68 `instructor_application:submit_blocked` on `GET /me/permissions` (resolver step 4, after G/H)
 - Course management (see **`docs/modules/course.md`**):
   - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId` (query `include_outline=false` skips outline tree — info/collaborators tabs), `PATCH /courses/:courseId/basic-info`, paginated `GET …/collaborators`, picker `GET …/instructor-candidates` (P67), `POST …/collaborators/bulk` + `DELETE …/collaborators/:userId`, outline CRUD/reorder, lease acquire/heartbeat/release
   - Review: `POST /courses/:courseId/draft/prepare`, `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft` (**owner-only** in repo — `EDITOR` may edit draft/outline but not these three), `GET /course-reviews/pending` (`[]CourseListItem` + `owner_display_name`), `POST /course-reviews/:courseId/approve|reject`

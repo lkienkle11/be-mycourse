@@ -303,6 +303,7 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 | P65 | `course_trash:restore` | Course trash bin |
 | P66 | `course_trash:delete` | Course trash bin |
 | P67 | `course_collaborator_candidate:read` | Course collaborator picker |
+| P68 | `instructor_application:submit_blocked` | Blocks instructor application submit/resubmit |
 
 - **P1–P13** are seeded in `000001_schema.up.sql`.
 - **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
@@ -313,6 +314,7 @@ Reflection helper for sync: **`internal/system/application/catalog.go`** → `Al
 - **P41–P58** are inserted in **`000013_instructor_management`** (instructor roster, applications, profiles, expertise, ticket close). Migration also seeds role grants; keep **`roles_permission.go`** in sync and run **`go run ./cmd/syncpermissions`** + **`go run ./cmd/syncrolepermissions`** after code changes.
 - **P59–P66** are inserted in **`000024_course_admin_permissions`** (course review queue, catalog, trash). Granted to **sysadmin** and **admin** only.
 - **P67** is inserted in **`000027_course_collaborator_candidate_permission`**. Granted to **sysadmin**, **admin**, and **instructor** (picker for course owners). Migration **`000028_admin_collaborator_candidate_permission`** backfills **admin** if `000027` ran before admin was included.
+- **P68** is inserted in **`000029_instructor_application_feature`**. Granted to **instructor** role by default. May also be assigned per-user via `user_permissions` when reject quota is reached (application layer, BE-04).
 
 ---
 
@@ -323,9 +325,9 @@ Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
 
 | Role | Permission IDs (summary) |
 |------|--------------------------|
-| **sysadmin** | P1–P67 (full catalog) |
-| **admin** | P1–P8, P10–P67 except **P9** `course_instructor:read` and **P38** `sysadmin:modify` |
-| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, P40, **P45, P47, P49, P55–P58, P67** (applications submit/delete/reject, expertise mutate, ticket close, collaborator picker) |
+| **sysadmin** | P1–P67 (full catalog except **P68** — submit block is instructor-only negative flag) |
+| **admin** | P1–P8, P10–P68 except **P9** `course_instructor:read`, **P38** `sysadmin:modify`, and **P68** `instructor_application:submit_blocked` |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, P40, **P45, P47, P49, P55–P58, P67, P68** |
 | **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34, **P45** (submit application / create ticket) |
 
 `000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
@@ -664,19 +666,96 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000024 | `course_admin_permissions` | Seed P59–P66 (course review, catalog, trash) + sysadmin/admin grants |
 | 000027 | `course_collaborator_candidate_permission` | Seed P67 `course_collaborator_candidate:read` + sysadmin/admin/instructor grants |
 | 000028 | `admin_collaborator_candidate_permission` | Backfill P67 grant for **admin** when `000027` ran without admin |
+| 000029 | `instructor_application_feature` | Application state machine columns, company snapshot columns, `years_of_experience` enum codes, application expertise junction tables, seed P68 + instructor grant |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
 ---
 
-## Instructor management tables (`000013`)
+## Instructor management tables (`000013` + feature `000029`)
+
+### BE-01 audit — logical snapshot contract
+
+The API exposes a logical `latest_submission` object. Physical storage maps as follows:
+
+| Logical field | Physical storage |
+|---------------|------------------|
+| `latest_submission.profile.*` (headline, bio, job/company, URLs, media IDs, portfolio, certificates) | Inline columns on `instructor_applications` (shared `profileDataRow` in `internal/instructor/infra/rows.go`) |
+| `latest_submission.profile.years_of_experience` | `VARCHAR(32)` enum code on `instructor_applications` and `instructor_profiles` |
+| `latest_submission.profile.current_job_title_id` | `current_job_title_id VARCHAR(255) NOT NULL` — no `DEFAULT ''`; legacy backfill `custom:<slug>` |
+| `latest_submission.profile.current_company_*` | `current_company_id`, `current_company_domain`, `current_company_description`, `current_company_location` — **nullable** when user types company free-text (no suggestion selected) |
+| `latest_submission.profile.cv_file_id` | `cv_file_id VARCHAR(64)` — metadata hydrated at read time from `media_files` |
+| `latest_submission.topic_ids` | Junction `instructor_application_topics` (`application_id`, `topic_id`) |
+| `latest_submission.skill_ids` | Junction `instructor_application_skills` (`application_id`, `skill_id`) |
+| `rejection_history` | `rejection_history JSONB` on `instructor_applications` |
+| Review SLA / state | `submitted_at`, `review_due_at`, `returned_at` (nullable), `rejection_count`, `review_status` |
+
+**`years_of_experience` enum codes:** `UNDER_1_YEAR`, `ONE_TO_TWO_YEARS`, `THREE_TO_FIVE_YEARS`, `SIX_TO_TEN_YEARS`, `OVER_TEN_YEARS`.
+
+**`rejection_history` JSON element shape:**
+
+```json
+{
+  "rejected_at": 1719900000,
+  "rejected_by_user_id": "uuid",
+  "reviewer_display_name": "Admin A",
+  "reason": "..."
+}
+```
+
+**Approve copy:** profile inline columns + junction rows promote to `instructor_profiles` and `instructor_expertise_*` without re-fetching external providers.
+
+**Company snapshot nullability (Case A — matches spec `temporary-docs/yeu-cau-lam-giang-vien/database.md`):**
+
+| Field | When user selects suggestion | When user types free-text |
+|-------|------------------------------|---------------------------|
+| `current_company` | Provider label | User text |
+| `current_company_id` | Stable id (e.g. domain `riotgames.com`, `wikidata:Q…`, `fallback:…`) | `NULL` |
+| `current_company_domain` | Domain when available | `NULL` |
+| `current_company_description` | Description when available | `NULL` |
+| `current_company_location` | Location when available | `NULL` |
+
+Do **not** persist empty string `''` as a fake id — use `NULL` for absent snapshot fields. `current_job_title_id` is **NOT NULL** with no column default: FE must send `remote:*`, `hh:*`, or `custom:*` on every submit. Migration **`000029`** backfills legacy rows to `custom:<slug-from-title>` or `custom:unknown` — never `''`.
+
+**Self-service `/me` routes:** `GET` and `PUT /instructor-applications/me` both require **`instructor_application:create` (P45)** so learners can resubmit without `instructor_application:update` (P46). P46 remains for admin-side application mutations.
+
+### `instructor_applications`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID FK → users | Unique active row per user (`deleted_at IS NULL`) |
+| `review_status` | VARCHAR(32) | `pending`, `approved`, `rejected`, **`returned`** |
+| `rejection_reason` | TEXT | Latest reject reason (legacy compat); history in JSONB |
+| `rejection_count` | INT | Count of admin rejects only (not returns) — **`000029`** |
+| `rejection_history` | JSONB | Array of reject records — **`000029`** |
+| `submitted_at` | BIGINT | Unix seconds when entered `pending` — **`000029`** |
+| `review_due_at` | BIGINT | `submitted_at + 5 days` — **`000029`** |
+| `returned_at` | BIGINT nullable | Unix seconds when SLA auto-returned; **NULL** when never returned — **`000029`** |
+| Profile columns | inline | `headline`, `bio`, `years_of_experience` (enum), `current_job_title`, **`current_job_title_id`** (NOT NULL), `current_company`, **`current_company_id`** (nullable), **`current_company_domain`** (nullable), **`current_company_description`** (nullable), **`current_company_location`** (nullable), `cv_file_id`, URLs, `portfolio_links` JSONB, `certificates` JSONB, `intro_video_file_id` |
+| `created_at`, `updated_at`, `deleted_at` | BIGINT | Soft delete |
+
+### `instructor_application_topics` / `instructor_application_skills` (**`000029`**)
+
+Application-scoped expertise snapshot. Same soft-delete + partial unique index pattern as `instructor_expertise_*`.
+
+| Column | Type |
+|--------|------|
+| `id` | UUID PK |
+| `application_id` | UUID FK → `instructor_applications` ON DELETE CASCADE |
+| `topic_id` / `skill_id` | UUID FK → `course_topics` / `course_skills` |
+| `created_at`, `updated_at`, `deleted_at` | BIGINT |
+
+### `instructor_profiles`
+
+Same inline profile shape as applications (including company snapshot columns from **`000029`**). Promoted on approve.
+
+### Other instructor tables (unchanged)
 
 | Table | Notes |
 |-------|--------|
-| `instructor_applications` | `review_status`, `rejection_reason`, inline profile fields; unique active row per `user_id` |
-| `instructor_profiles` | Same profile shape as applications; unique active row per `user_id` |
-| `instructor_expertise_topics` | FK `topic_id` → `course_topics`; on drifted DBs apply `000015` then `000017` (legacy `course_topic_id` blocks INSERT until dropped) |
-| `instructor_expertise_skills` | FK `skill_id` → `course_skills`; same drift patch chain as topics |
+| `instructor_expertise_topics` | Live expertise FK `topic_id` → `course_topics` |
+| `instructor_expertise_skills` | Live expertise FK `skill_id` → `course_skills` |
 | `instructor_tickets` | `subject`, `status` (`open` / `closed`) |
 | `instructor_ticket_messages` | `author_user_id`, `body` |
 
@@ -719,6 +798,8 @@ DROP TABLE IF EXISTS public.media_pending_cloud_cleanup;
 DROP TABLE IF EXISTS public.user_permissions;
 DROP TABLE IF EXISTS public.user_roles;
 DROP TABLE IF EXISTS public.role_permissions;
+DROP TABLE IF EXISTS public.instructor_application_skills;
+DROP TABLE IF EXISTS public.instructor_application_topics;
 DROP TABLE IF EXISTS public.instructor_ticket_messages;
 DROP TABLE IF EXISTS public.instructor_tickets;
 DROP TABLE IF EXISTS public.instructor_expertise_skills;

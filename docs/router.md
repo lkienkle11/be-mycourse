@@ -202,9 +202,11 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | GET | `/api/v1/instructors/:id/expertise/skills` | `instructor_expertise:read` | List expertise skills |
 | POST | `/api/v1/instructors/:id/expertise/skills` | `instructor_expertise:create` | Add expertise skill |
 | DELETE | `/api/v1/instructors/:id/expertise/skills/:skillRowId` | `instructor_expertise:delete` | Delete expertise skill row |
-| GET | `/api/v1/instructor-applications` | `instructor_application:read` | List applications |
-| POST | `/api/v1/instructor-applications` | `instructor_application:create` | Submit application |
-| GET | `/api/v1/instructor-applications/:id` | `instructor_application:read` | Get application |
+| GET | `/api/v1/instructor-applications/me` | `instructor_application:create` | Current user's application — state resolve + prefill + `rejection_history` |
+| PUT | `/api/v1/instructor-applications/me` | `instructor_application:create` | Resubmit after `returned` or `rejected` (self-service; same permission as first submit) |
+| GET | `/api/v1/instructor-applications` | `instructor_application:read` | List applications; query `status` (`pending`, `approved`, `rejected`, `returned`), `has_profile`, `page`, `per_page` |
+| POST | `/api/v1/instructor-applications` | `instructor_application:create` | First submit → `pending` |
+| GET | `/api/v1/instructor-applications/:id` | `instructor_application:read` | Application detail (identity + snapshot + media hydrate) |
 | POST | `/api/v1/instructor-applications/:id/approve` | `instructor_application:approve` | Approve application |
 | POST | `/api/v1/instructor-applications/:id/reject` | `instructor_application:reject` | Reject application |
 | DELETE | `/api/v1/instructor-applications/:id` | `instructor_application:delete` | Delete application |

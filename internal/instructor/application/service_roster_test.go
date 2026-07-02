@@ -24,6 +24,31 @@ func (r rosterBulkTestRepo) GetApplicationByID(context.Context, string) (*domain
 func (r rosterBulkTestRepo) GetActiveApplicationByUserID(context.Context, string) (*domain.Application, error) {
 	return nil, nil
 }
+func (r rosterBulkTestRepo) CreateFirstApplication(context.Context, string, domain.SubmitApplicationInput) (*domain.Application, error) {
+	return nil, nil
+}
+func (r rosterBulkTestRepo) ResubmitApplication(context.Context, string, domain.SubmitApplicationInput) (*domain.Application, error) {
+	return nil, nil
+}
+func (r rosterBulkTestRepo) MarkReturnedIfDue(context.Context, string) error { return nil }
+func (r rosterBulkTestRepo) RejectApplicationWithHistory(context.Context, domain.RejectApplicationInput) error {
+	return nil
+}
+func (r rosterBulkTestRepo) ApproveApplicationCopySnapshot(context.Context, string, string) error {
+	return nil
+}
+func (r rosterBulkTestRepo) ListApplicationTopicIDs(context.Context, string) ([]string, error) {
+	return nil, nil
+}
+func (r rosterBulkTestRepo) ListApplicationSkillIDs(context.Context, string) ([]string, error) {
+	return nil, nil
+}
+func (r rosterBulkTestRepo) ListApplicationTopics(context.Context, string) ([]domain.ApplicationTaxonomyChip, error) {
+	return nil, nil
+}
+func (r rosterBulkTestRepo) ListApplicationSkills(context.Context, string) ([]domain.ApplicationTaxonomyChip, error) {
+	return nil, nil
+}
 func (r rosterBulkTestRepo) UpsertPendingApplication(context.Context, string, domain.ProfilePayload) (*domain.Application, error) {
 	return nil, nil
 }
@@ -84,6 +109,13 @@ type rosterBulkTestRoleMgr struct{}
 func (rosterBulkTestRoleMgr) InstructorRoleID(context.Context) (uint, error)     { return 1, nil }
 func (rosterBulkTestRoleMgr) AssignInstructorRole(context.Context, string) error { return nil }
 func (rosterBulkTestRoleMgr) RemoveInstructorRole(context.Context, string) error { return nil }
+func (rosterBulkTestRoleMgr) UserHasInstructorRole(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+type rosterBulkTestPerms struct{}
+
+func (rosterBulkTestPerms) HasPermission(context.Context, string, string) bool { return false }
 
 type rosterBulkTestMeCache struct {
 	invalidated []string
@@ -113,9 +145,11 @@ func TestAddRosterBulkInvalidatesCacheOnlyForInsertedUserIDs(t *testing.T) {
 		}},
 		nil,
 		rosterBulkTestRoleMgr{},
+		rosterBulkTestPerms{},
 		meCache,
 		nil,
 		rosterBulkTestHydrator{},
+		nil,
 	)
 
 	_, err := svc.AddRosterBulk(t.Context(), []string{"existing", "new"})
@@ -138,9 +172,11 @@ func TestAddRosterBulkNoCacheInvalidationWhenIdempotent(t *testing.T) {
 		}},
 		nil,
 		rosterBulkTestRoleMgr{},
+		rosterBulkTestPerms{},
 		meCache,
 		nil,
 		rosterBulkTestHydrator{},
+		nil,
 	)
 
 	_, err := svc.AddRosterBulk(t.Context(), []string{"existing"})

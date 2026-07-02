@@ -8,25 +8,29 @@ import (
 
 // InstructorService implements instructor dashboard use cases.
 type InstructorService struct {
-	repo     domain.Repository
-	users    UserLookup
-	roles    InstructorRoleManager
-	meCache  MeCacheInvalidator
-	mediaVal ProfileMediaValidator
-	hydrator AvatarHydrator
+	repo      domain.Repository
+	users     UserLookup
+	roles     InstructorRoleManager
+	perms     PermissionChecker
+	meCache   MeCacheInvalidator
+	mediaVal  ProfileMediaValidator
+	hydrator  AvatarHydrator
+	mediaHydr MediaHydrator
 }
 
 func NewInstructorService(
 	repo domain.Repository,
 	users UserLookup,
 	roles InstructorRoleManager,
+	perms PermissionChecker,
 	meCache MeCacheInvalidator,
 	mediaVal ProfileMediaValidator,
 	hydrator AvatarHydrator,
+	mediaHydr MediaHydrator,
 ) *InstructorService {
 	return &InstructorService{
-		repo: repo, users: users, roles: roles, meCache: meCache,
-		mediaVal: mediaVal, hydrator: hydrator,
+		repo: repo, users: users, roles: roles, perms: perms, meCache: meCache,
+		mediaVal: mediaVal, hydrator: hydrator, mediaHydr: mediaHydr,
 	}
 }
 

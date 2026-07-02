@@ -52,21 +52,36 @@ func (h *Handler) listApplications(c *gin.Context) {
 	)
 }
 
+func (h *Handler) getMyApplication(c *gin.Context) {
+	userID := utils.CurrentUserID(c)
+	row, err := h.svc.GetMyApplication(c.Request.Context(), userID)
+	if mapInstructorError(c, err) {
+		return
+	}
+	response.OK(c, "ok", toApplicationMeResponse(*row))
+}
+
+func (h *Handler) resubmitMyApplication(c *gin.Context) {
+	h.handleApplicationSubmit(c, h.svc.ResubmitMyApplication)
+}
+
 func (h *Handler) getApplication(c *gin.Context) { h.respondApplicationByID(c, h.svc.GetApplication) }
 
 func (h *Handler) submitApplication(c *gin.Context) {
-	var req profileBody
+	h.handleApplicationSubmit(c, h.svc.SubmitApplication)
+}
+
+func (h *Handler) handleApplicationSubmit(c *gin.Context, submit func(context.Context, domain.SubmitApplicationInput) (*domain.Application, error)) {
+	var req submitApplicationBody
 	if err := validate.BindJSON(c, &req); err != nil {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	row, err := h.svc.SubmitApplication(c.Request.Context(), domain.SubmitApplicationInput{
-		ActorUserID: utils.CurrentUserID(c), ProfilePayload: req.toPayload(),
-	})
+	row, err := submit(c.Request.Context(), req.toInput(utils.CurrentUserID(c)))
 	if mapInstructorError(c, err) {
 		return
 	}
-	response.OK(c, "ok", toApplicationResponse(*row))
+	response.OK(c, "ok", toApplicationMeResponse(*row))
 }
 
 func (h *Handler) approveApplication(c *gin.Context) {
@@ -95,11 +110,25 @@ func (h *Handler) rejectApplication(c *gin.Context) {
 	}
 	row, err := h.svc.RejectApplication(c.Request.Context(), domain.RejectApplicationInput{
 		ApplicationID: id, RejectionReason: req.RejectionReason,
+		ReviewerUserID: utils.CurrentUserID(c),
 	})
 	if mapInstructorError(c, err) {
 		return
 	}
 	response.OK(c, "ok", toApplicationResponse(*row))
+}
+
+func (h *Handler) contactAdmin(c *gin.Context) {
+	var req contactAdminRequest
+	if err := validate.BindJSON(c, &req); err != nil {
+		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
+		return
+	}
+	ticket, err := h.svc.CreateContactTicket(c.Request.Context(), utils.CurrentUserID(c), req.Subject, req.Message)
+	if mapInstructorError(c, err) {
+		return
+	}
+	response.OK(c, "ok", gin.H{"ticket_id": ticket.ID, "status": ticket.Status})
 }
 
 func (h *Handler) deleteApplication(c *gin.Context) {

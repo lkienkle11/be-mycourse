@@ -17,10 +17,41 @@ func mapNotFound(err error) error {
 }
 
 type profileFields struct {
-	Headline, Bio, CurrentJobTitle, CurrentCompany, CVFileID, LinkedinURL, GithubURL, IntroVideoFileID string
-	YearsOfExperience                                                                                  int
-	PortfolioLinks                                                                                     *StringSliceJSON
-	Certificates                                                                                       *CertificatesJSON
+	Headline, Bio, YearsOfExperience, CurrentJobTitle, CurrentJobTitleID, CurrentCompany      string
+	CurrentCompanyID, CurrentCompanyDomain, CurrentCompanyDescription, CurrentCompanyLocation *string
+	CVFileID, LinkedinURL, GithubURL, IntroVideoFileID                                        string
+	PortfolioLinks                                                                            *StringSliceJSON
+	Certificates                                                                              *CertificatesJSON
+}
+
+func nullableStringPtr(s string) *string {
+	s = trimNullable(s)
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func trimNullable(s string) string {
+	// strings import avoided in map file — use inline trim
+	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
+		s = s[1:]
+	}
+	for len(s) > 0 {
+		last := s[len(s)-1]
+		if last != ' ' && last != '\t' {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
+func derefString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func fieldsFromPayload(p domain.ProfilePayload) (profileFields, error) {
@@ -30,8 +61,13 @@ func fieldsFromPayload(p domain.ProfilePayload) (profileFields, error) {
 	}
 	return profileFields{
 		Headline: p.Headline, Bio: p.Bio, YearsOfExperience: p.YearsOfExperience,
-		CurrentJobTitle: p.CurrentJobTitle, CurrentCompany: p.CurrentCompany,
-		CVFileID: p.CVFileID, LinkedinURL: p.LinkedinURL, GithubURL: p.GithubURL,
+		CurrentJobTitle: p.CurrentJobTitle, CurrentJobTitleID: p.CurrentJobTitleID,
+		CurrentCompany:            p.CurrentCompany,
+		CurrentCompanyID:          nullableStringPtr(derefString(p.CurrentCompanyID)),
+		CurrentCompanyDomain:      nullableStringPtr(derefString(p.CurrentCompanyDomain)),
+		CurrentCompanyDescription: nullableStringPtr(derefString(p.CurrentCompanyDescription)),
+		CurrentCompanyLocation:    nullableStringPtr(derefString(p.CurrentCompanyLocation)),
+		CVFileID:                  p.CVFileID, LinkedinURL: p.LinkedinURL, GithubURL: p.GithubURL,
 		IntroVideoFileID: p.IntroVideoFileID, PortfolioLinks: &pl, Certificates: &cj,
 	}, nil
 }
@@ -39,7 +75,14 @@ func fieldsFromPayload(p domain.ProfilePayload) (profileFields, error) {
 func payloadFromFields(f profileFields) domain.ProfilePayload {
 	return domain.ProfilePayload{
 		Headline: f.Headline, Bio: f.Bio, YearsOfExperience: f.YearsOfExperience,
-		CurrentJobTitle: f.CurrentJobTitle, CurrentCompany: f.CurrentCompany,
+		CurrentJobTitle: f.CurrentJobTitle, CurrentJobTitleID: f.CurrentJobTitleID,
+		CurrentCompany: f.CurrentCompany,
+		CompanySnapshot: domain.CompanySnapshot{
+			CurrentCompanyID:          f.CurrentCompanyID,
+			CurrentCompanyDomain:      f.CurrentCompanyDomain,
+			CurrentCompanyDescription: f.CurrentCompanyDescription,
+			CurrentCompanyLocation:    f.CurrentCompanyLocation,
+		},
 		CVFileID: f.CVFileID, LinkedinURL: f.LinkedinURL, GithubURL: f.GithubURL,
 		IntroVideoFileID: f.IntroVideoFileID,
 		PortfolioLinks:   stringSliceFromJSON(f.PortfolioLinks),
@@ -50,7 +93,10 @@ func payloadFromFields(f profileFields) domain.ProfilePayload {
 func rowFieldsFromData(d *profileDataRow) profileFields {
 	return profileFields{
 		Headline: d.Headline, Bio: d.Bio, YearsOfExperience: d.YearsOfExperience,
-		CurrentJobTitle: d.CurrentJobTitle, CurrentCompany: d.CurrentCompany,
+		CurrentJobTitle: d.CurrentJobTitle, CurrentJobTitleID: d.CurrentJobTitleID,
+		CurrentCompany:   d.CurrentCompany,
+		CurrentCompanyID: d.CurrentCompanyID, CurrentCompanyDomain: d.CurrentCompanyDomain,
+		CurrentCompanyDescription: d.CurrentCompanyDescription, CurrentCompanyLocation: d.CurrentCompanyLocation,
 		CVFileID: d.CVFileID, LinkedinURL: d.LinkedinURL, GithubURL: d.GithubURL,
 		IntroVideoFileID: d.IntroVideoFileID, PortfolioLinks: d.PortfolioLinks, Certificates: d.Certificates,
 	}
@@ -58,16 +104,48 @@ func rowFieldsFromData(d *profileDataRow) profileFields {
 
 func writeFieldsToData(d *profileDataRow, f profileFields) {
 	d.Headline, d.Bio, d.YearsOfExperience = f.Headline, f.Bio, f.YearsOfExperience
-	d.CurrentJobTitle, d.CurrentCompany = f.CurrentJobTitle, f.CurrentCompany
+	d.CurrentJobTitle, d.CurrentJobTitleID, d.CurrentCompany = f.CurrentJobTitle, f.CurrentJobTitleID, f.CurrentCompany
+	d.CurrentCompanyID, d.CurrentCompanyDomain = f.CurrentCompanyID, f.CurrentCompanyDomain
+	d.CurrentCompanyDescription, d.CurrentCompanyLocation = f.CurrentCompanyDescription, f.CurrentCompanyLocation
 	d.CVFileID, d.LinkedinURL, d.GithubURL = f.CVFileID, f.LinkedinURL, f.GithubURL
 	d.PortfolioLinks, d.Certificates, d.IntroVideoFileID = f.PortfolioLinks, f.Certificates, f.IntroVideoFileID
 }
 
+func rejectionHistoryFromJSON(h *RejectionHistoryJSON) []domain.RejectionRecord {
+	if h == nil {
+		return []domain.RejectionRecord{}
+	}
+	raw := []rejectionHistoryJSON(*h)
+	out := make([]domain.RejectionRecord, len(raw))
+	for i, r := range raw {
+		out[i] = domain.RejectionRecord{
+			RejectedAt: r.RejectedAt, RejectedByUserID: r.RejectedByUserID,
+			ReviewerDisplayName: r.ReviewerDisplayName, Reason: r.Reason,
+		}
+	}
+	return out
+}
+
+func rejectionHistoryToJSON(records []domain.RejectionRecord) RejectionHistoryJSON {
+	out := make(RejectionHistoryJSON, len(records))
+	for i, r := range records {
+		out[i] = rejectionHistoryJSON{
+			RejectedAt: r.RejectedAt, RejectedByUserID: r.RejectedByUserID,
+			ReviewerDisplayName: r.ReviewerDisplayName, Reason: r.Reason,
+		}
+	}
+	return out
+}
+
 func appRowToDomain(r *applicationRow) domain.Application {
+	history := rejectionHistoryFromJSON(r.RejectionHistory)
 	return domain.Application{
 		ID: r.ID, UserID: r.UserID, ReviewStatus: r.ReviewStatus,
-		RejectionReason: r.RejectionReason, ProfilePayload: payloadFromFields(rowFieldsFromData(&r.profileDataRow)),
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		RejectionReason: r.RejectionReason, SubmittedAt: r.SubmittedAt,
+		ReviewDueAt: r.ReviewDueAt, ReturnedAt: r.ReturnedAt,
+		RejectionCount: r.RejectionCount, RejectionHistory: history,
+		ProfilePayload: payloadFromFields(rowFieldsFromData(&r.profileDataRow)),
+		CreatedAt:      r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 

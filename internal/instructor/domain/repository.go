@@ -16,8 +16,16 @@ type ApplicationRepository interface {
 	ListApplications(ctx context.Context, f ApplicationFilter) ([]Application, int64, error)
 	GetApplicationByID(ctx context.Context, id string) (*Application, error)
 	GetActiveApplicationByUserID(ctx context.Context, userID string) (*Application, error)
-	UpsertPendingApplication(ctx context.Context, userID string, p ProfilePayload) (*Application, error)
+	CreateFirstApplication(ctx context.Context, userID string, in SubmitApplicationInput) (*Application, error)
+	ResubmitApplication(ctx context.Context, userID string, in SubmitApplicationInput) (*Application, error)
+	MarkReturnedIfDue(ctx context.Context, userID string) error
 	SetApplicationReview(ctx context.Context, id string, status, rejectionReason string) error
+	RejectApplicationWithHistory(ctx context.Context, in RejectApplicationInput) error
+	ApproveApplicationCopySnapshot(ctx context.Context, appID, userID string) error
+	ListApplicationTopicIDs(ctx context.Context, appID string) ([]string, error)
+	ListApplicationSkillIDs(ctx context.Context, appID string) ([]string, error)
+	ListApplicationTopics(ctx context.Context, appID string) ([]ApplicationTaxonomyChip, error)
+	ListApplicationSkills(ctx context.Context, appID string) ([]ApplicationTaxonomyChip, error)
 	DeleteApplicationsByUserID(ctx context.Context, userID string) error
 }
 

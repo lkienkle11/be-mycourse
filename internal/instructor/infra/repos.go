@@ -62,11 +62,13 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	type applicationWithUserRow struct {
 		applicationRow
 		FullName     string `gorm:"column:full_name"`
+		Email        string `gorm:"column:email"`
+		Phone        string `gorm:"column:phone"`
 		AvatarFileID string `gorm:"column:avatar_file_id"`
 	}
 	var rows []applicationWithUserRow
 	if err := q.
-		Select("ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Select("ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
 		Order("ia.id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -77,6 +79,9 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	for i := range rows {
 		out[i] = appRowToDomain(&rows[i].applicationRow)
 		out[i].FullName = rows[i].FullName
+		out[i].DisplayName = rows[i].FullName
+		out[i].Email = rows[i].Email
+		out[i].Phone = rows[i].Phone
 		out[i].AvatarFileID = rows[i].AvatarFileID
 	}
 	return out, total, nil
@@ -88,36 +93,6 @@ func (r *GormRepository) GetApplicationByID(ctx context.Context, id string) (*do
 
 func (r *GormRepository) GetActiveApplicationByUserID(ctx context.Context, userID string) (*domain.Application, error) {
 	return loadApplicationRow(ctx, r.db, "ia.user_id = ?", userID)
-}
-
-func (r *GormRepository) UpsertPendingApplication(ctx context.Context, userID string, p domain.ProfilePayload) (*domain.Application, error) {
-	var existing applicationRow
-	err := activeScope(r.db.WithContext(ctx)).Where("user_id = ?", userID).First(&existing).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
-		return nil, err
-	}
-	row := &applicationRow{UserID: userID, ReviewStatus: domain.ReviewStatusPending}
-	if err == nil {
-		if existing.ReviewStatus != domain.ReviewStatusPending {
-			return nil, fmt.Errorf("application not pending")
-		}
-		row = &existing
-	}
-	if e := applyPayloadToAppRow(row, p); e != nil {
-		return nil, e
-	}
-	row.RejectionReason = ""
-	gormx.TouchUpdated(&row.UpdatedAt)
-	if row.ID == "" {
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
-			return nil, err
-		}
-	} else if err := r.db.WithContext(ctx).Save(row).Error; err != nil {
-		return nil, err
-	}
-	a := appRowToDomain(row)
-	return &a, nil
 }
 
 func (r *GormRepository) SetApplicationReview(ctx context.Context, id string, status, rejectionReason string) error {

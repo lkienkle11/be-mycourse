@@ -63,6 +63,27 @@ func (c *CertificatesJSON) Scan(value any) error {
 	return scanJSONValue(value, c, "CertificatesJSON")
 }
 
+type rejectionHistoryJSON struct {
+	RejectedAt          int64  `json:"rejected_at"`
+	RejectedByUserID    string `json:"rejected_by_user_id"`
+	ReviewerDisplayName string `json:"reviewer_display_name"`
+	Reason              string `json:"reason"`
+}
+
+// RejectionHistoryJSON stores []domain.RejectionRecord in JSONB.
+type RejectionHistoryJSON []rejectionHistoryJSON
+
+func (r RejectionHistoryJSON) Value() (driver.Value, error) {
+	if r == nil {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(r)
+}
+
+func (r *RejectionHistoryJSON) Scan(value any) error {
+	return scanJSONValue(value, r, "RejectionHistoryJSON")
+}
+
 func scanJSONValue(value any, dest any, label string) error {
 	if value == nil {
 		switch d := dest.(type) {
@@ -70,6 +91,8 @@ func scanJSONValue(value any, dest any, label string) error {
 			*d = []string{}
 		case *CertificatesJSON:
 			*d = []certificateJSON{}
+		case *RejectionHistoryJSON:
+			*d = RejectionHistoryJSON{}
 		}
 		return nil
 	}

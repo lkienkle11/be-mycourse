@@ -34,7 +34,7 @@
 | `000026_course_approval_note` | Adds `course_versions.approval_note` for admin review feedback. |
 | `000027_course_collaborator_candidate_permission` | Seeds **P67** `course_collaborator_candidate:read` + sysadmin/admin/instructor grants (picker `GET …/instructor-candidates`). |
 | `000028_admin_collaborator_candidate_permission` | Backfills P67 grant for **admin** when `000027` ran without admin. |
-| `000029_instructor_application_feature` | Application state machine, company snapshot, application expertise junctions, P68, `years_of_experience` enum codes. See **`docs/modules/instructor.md`**. |
+| `000029_instructor_application_feature` | Application state machine, company snapshot, application expertise junctions, P68, `years_of_experience` enum codes, **backfill `submitted_at`/`review_due_at` for legacy pending rows**. See **`docs/modules/instructor.md`**. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

@@ -24,9 +24,11 @@ func wireInstructor(
 		instRepo,
 		&instructorUserLookup{repo: userRepo},
 		newInstructorRoleManager(rbacSvc),
+		&instructorPermissionChecker{rbac: rbacSvc},
 		&instructorMeCache{auth: authSvc},
 		&instructorProfileMediaValidator{files: fileRepo},
 		&instructorAvatarHydrator{resolver: &mediaFileURLResolver{repo: fileRepo}},
+		&instructorMediaHydrator{resolver: &mediaFileURLResolver{repo: fileRepo}},
 	)
 	return instSvc, instdelivery.NewHandler(instSvc)
 }

@@ -54,6 +54,15 @@ WHERE current_job_title_id IS NULL
 ALTER TABLE instructor_applications
     ALTER COLUMN current_job_title_id SET NOT NULL;
 
+-- Backfill SLA timestamps for legacy pending rows so SLA job does not auto-return immediately
+-- after deploy (submitted_at/review_due_at default to 0).
+UPDATE instructor_applications
+SET submitted_at = created_at,
+    review_due_at = created_at + (5 * 24 * 60 * 60)
+WHERE review_status = 'pending'
+  AND submitted_at = 0
+  AND deleted_at IS NULL;
+
 ALTER TABLE instructor_profiles
     ADD COLUMN IF NOT EXISTS current_job_title_id VARCHAR(255),
     ADD COLUMN IF NOT EXISTS current_company_id VARCHAR(255),

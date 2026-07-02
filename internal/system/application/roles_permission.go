@@ -161,7 +161,8 @@ var RolePermissions = struct {
 	Instructor_InstructorExpertiseUpdate       string `role:"instructor" perm_id:"P56"`
 	Instructor_InstructorExpertiseDelete       string `role:"instructor" perm_id:"P57"`
 	Instructor_InstructorTicketClose           string `role:"instructor" perm_id:"P58"`
-	Instructor_CourseCollaboratorCandidateRead string `role:"instructor" perm_id:"P67"`
+	Instructor_CourseCollaboratorCandidateRead      string `role:"instructor" perm_id:"P67"`
+	Instructor_InstructorApplicationSubmitBlocked   string `role:"instructor" perm_id:"P68"`
 	// learner
 	Learner_ProfileRead                 string `role:"learner" perm_id:"P1"`
 	Learner_CourseRead                  string `role:"learner" perm_id:"P5"`

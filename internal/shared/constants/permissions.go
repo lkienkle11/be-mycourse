@@ -90,6 +90,8 @@ var AllPermissions = struct {
 	CourseTrashDelete  string `perm_id:"P66"`
 	// Course collaborator picker
 	CourseCollaboratorCandidateRead string `perm_id:"P67"`
+	// Instructor application submit block (effective permission gate)
+	InstructorApplicationSubmitBlocked string `perm_id:"P68"`
 }{
 	ProfileRead:                     "profile:read",
 	ProfileUpdate:                   "profile:update",
@@ -157,5 +159,6 @@ var AllPermissions = struct {
 	CourseTrashRead:                 "course_trash:read",
 	CourseTrashRestore:              "course_trash:restore",
 	CourseTrashDelete:               "course_trash:delete",
-	CourseCollaboratorCandidateRead: "course_collaborator_candidate:read",
+	CourseCollaboratorCandidateRead:    "course_collaborator_candidate:read",
+	InstructorApplicationSubmitBlocked: "instructor_application:submit_blocked",
 }

@@ -47,8 +47,10 @@ const TableAppUsers = "users"
 // --- Instructor ---
 
 const (
-	TableInstructorApplications    = "instructor_applications"
-	TableInstructorProfiles        = "instructor_profiles"
+	TableInstructorApplications      = "instructor_applications"
+	TableInstructorApplicationTopics = "instructor_application_topics"
+	TableInstructorApplicationSkills = "instructor_application_skills"
+	TableInstructorProfiles          = "instructor_profiles"
 	TableInstructorExpertiseTopics = "instructor_expertise_topics"
 	TableInstructorExpertiseSkills = "instructor_expertise_skills"
 	TableInstructorTickets         = "instructor_tickets"

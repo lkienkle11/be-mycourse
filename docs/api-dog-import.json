@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "e37b2dc13ade7ebf4e0c30",
+    "_postman_id": "299affb4c50694c61eb3fb",
     "name": "MyCourse Backend API",
     "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n**Audit timestamps:** `created_at`, `updated_at`, and soft-delete `deleted_at` (where present) are **Unix epoch seconds** (`integer` / `int64` in JSON), not ISO-8601 strings. DB columns are PostgreSQL `BIGINT` (migration `000011`).\n\n**Apidog / Postman — auto-save tokens:** After **Login**, **Confirm email**, or **Refresh**, post-processors in `x-postman-event` set `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (from JSON `data` or cookies). Select an **Environment** with those variables before other requests. **Bearer** auth uses `{{ACCESS_TOKEN}}`. **System token:** obtain via `CLI_SYSTEM_LOGIN=1 go run .` (stdout only) and set `SYSTEM_TOKEN` manually in your environment.\n\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb` (token scripts + examples from `docs/api_swagger.yaml` only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -3481,7 +3481,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"topic_id\": 0\n}",
+              "raw": "{\n  \"topic_id\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3577,7 +3577,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"skill_id\": 0\n}",
+              "raw": "{\n  \"skill_id\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3670,6 +3670,45 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"headline\": \"Cloud and backend instructor\",\n  \"bio\": \"I have eight years of experience building production systems, mentoring engineers, and delivering technical workshops for enterprise teams across multiple domains.\",\n  \"years_of_experience\": \"THREE_TO_FIVE_YEARS\",\n  \"current_job_title\": \"Senior Backend Engineer\",\n  \"current_job_title_id\": \"custom:senior-backend-engineer\",\n  \"current_company\": \"Riot Games\",\n  \"current_company_id\": \"riotgames.com\",\n  \"current_company_domain\": \"riotgames.com\",\n  \"cv_file_id\": \"00000000-0000-0000-0000-000000000001\",\n  \"linkedin_url\": \"https://linkedin.com/in/example\",\n  \"github_url\": \"https://github.com/example\",\n  \"portfolio_links\": [\n    \"https://example.com/talks\"\n  ],\n  \"intro_video_file_id\": \"\",\n  \"topic_ids\": [\n    \"00000000-0000-0000-0000-000000000010\"\n  ],\n  \"skill_ids\": [\n    \"00000000-0000-0000-0000-000000000020\",\n    \"00000000-0000-0000-0000-000000000021\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Contact admin (State H — rejection quota reached)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/instructor-applications/contact-admin",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "instructor-applications",
+                "contact-admin"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"\",\n  \"message\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

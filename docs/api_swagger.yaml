@@ -393,17 +393,17 @@ components:
       type: object
       description: Junction row plus joined course topic taxonomy (snake_case JSON).
       example:
-        id: 4
-        user_id: 14
-        topic_id: 7
+        id: "00000000-0000-0000-0000-000000000004"
+        user_id: "00000000-0000-0000-0000-000000000014"
+        topic_id: "00000000-0000-0000-0000-000000000007"
         name: Business
         slug: business
         created_at: 1780887061
         updated_at: 1780887061
       properties:
-        id: { type: integer }
-        user_id: { type: integer }
-        topic_id: { type: integer }
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        topic_id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
@@ -412,17 +412,17 @@ components:
       type: object
       description: Junction row plus joined course skill taxonomy (snake_case JSON).
       example:
-        id: 2
-        user_id: 14
-        skill_id: 3
+        id: "00000000-0000-0000-0000-000000000002"
+        user_id: "00000000-0000-0000-0000-000000000014"
+        skill_id: "00000000-0000-0000-0000-000000000003"
         name: Leadership
         slug: leadership
         created_at: 1780887061
         updated_at: 1780887061
       properties:
-        id: { type: integer }
-        user_id: { type: integer }
-        skill_id: { type: integer }
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        skill_id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
@@ -2644,7 +2644,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: integer }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: Deleted
@@ -2654,7 +2654,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
     get:
       tags: [Instructor]
       summary: List expertise topics by user
@@ -2680,7 +2680,7 @@ paths:
               type: object
               required: [topic_id]
               properties:
-                topic_id: { type: integer }
+                topic_id: { type: string, format: uuid }
       responses:
         "200":
           description: OK — envelope `data` is one `InstructorExpertiseTopic`.
@@ -2699,11 +2699,11 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: integer }
+          schema: { type: string, format: uuid }
         - name: topicRowId
           in: path
           required: true
-          schema: { type: integer }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: Deleted
@@ -2713,7 +2713,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
     get:
       tags: [Instructor]
       summary: List expertise skills by user
@@ -2739,7 +2739,7 @@ paths:
               type: object
               required: [skill_id]
               properties:
-                skill_id: { type: integer }
+                skill_id: { type: string, format: uuid }
       responses:
         "200":
           description: OK — envelope `data` is one `InstructorExpertiseSkill`.
@@ -2758,11 +2758,11 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: integer }
+          schema: { type: string, format: uuid }
         - name: skillRowId
           in: path
           required: true
-          schema: { type: integer }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: Deleted
@@ -2798,6 +2798,27 @@ paths:
       responses:
         "200":
           description: Resubmitted — review_status pending
+
+  /api/v1/instructor-applications/contact-admin:
+    post:
+      tags: [Instructor]
+      summary: Contact admin (State H — rejection quota reached)
+      description: Creates an instructor ticket with subject and first message. Requires `instructor_application:create` (P45).
+      security:
+        - bearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject, message]
+              properties:
+                subject: { type: string, minLength: 1 }
+                message: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Ticket created — returns ticket_id and status
 
   /api/v1/instructor-applications:
     get:

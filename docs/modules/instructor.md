@@ -221,7 +221,7 @@ Under `/instructors/:id/…` — live instructor expertise (post-approve). Appli
 | POST | `/instructor-tickets/:id/close` | `instructor_ticket:close` |
 | GET/POST | `/instructor-tickets/:id/messages` | read / create |
 
-**State H contact (BE-10):** reuse `POST /instructor-tickets` + first message, or extend ticket payload — contract documented before FE-08 wires contact form.
+**State H contact (BE-10):** `POST /api/v1/instructor-applications/contact-admin` with body `{ "subject", "message" }` — creates an `instructor_tickets` row plus first message (P45). Response: `{ ticket_id, status }`. FE State H tab calls this endpoint after rejection quota ≥ 5.
 
 ### Permission check for submit block
 

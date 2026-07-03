@@ -732,7 +732,7 @@ Do **not** persist empty string `''` as a fake id — use `NULL` for absent snap
 | `submitted_at` | BIGINT | Unix seconds when entered `pending` — **`000029`** |
 | `review_due_at` | BIGINT | `submitted_at + 5 days` — **`000029`** |
 | `returned_at` | BIGINT nullable | Unix seconds when SLA auto-returned; **NULL** when never returned — **`000029`** |
-| Profile columns | inline | `headline`, `bio`, `years_of_experience` (enum), `current_job_title`, **`current_job_title_id`** (NOT NULL), `current_company`, **`current_company_id`** (nullable), **`current_company_domain`** (nullable), **`current_company_description`** (nullable), **`current_company_location`** (nullable), `cv_file_id`, URLs, `portfolio_links` JSONB, `certificates` JSONB, `intro_video_file_id` |
+| Profile columns | inline | `headline` (optional, default `''`), `bio` (optional, default `''` on become-instructor form), `years_of_experience` (enum), `current_job_title`, **`current_job_title_id`** (NOT NULL), `current_company`, **`current_company_id`** (nullable), **`current_company_domain`** (nullable), **`current_company_description`** (nullable), **`current_company_location`** (nullable), `cv_file_id`, URLs, `portfolio_links` JSONB, `certificates` JSONB (`title`, `issuer`, `issued_year`, `credential_url?`, `certificate_file_id?`), `intro_video_file_id` |
 | `created_at`, `updated_at`, `deleted_at` | BIGINT | Soft delete |
 
 ### `instructor_application_topics` / `instructor_application_skills` (**`000029`**)

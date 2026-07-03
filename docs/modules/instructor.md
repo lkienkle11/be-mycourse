@@ -143,6 +143,8 @@ rejected ──PUT /me──► pending   (only if rejection_count < 5 and not s
 | `PUT /instructor-applications/me` | **Resubmit only** from `returned` or `rejected` |
 | Resubmit from `returned` | Unlimited; does not increase `rejection_count` |
 | Resubmit from `rejected` | Allowed when `rejection_count < 5` |
+| `cv_file_id` | **Required** on `POST` / `PUT /me`. Server loads `media_files` and rejects unless status is **READY** and `mime_type` is exactly **`application/pdf`** (`instructorProfileMediaValidator.validatePDF` in `internal/server/wire_instructor_adapters.go`) → `ErrInvalidProfileMediaFile` / HTTP 400 |
+| `intro_video_file_id` | Optional; when set, must be **READY** + `kind = VIDEO` |
 
 ### Approve side effects (ordering — atomic DB first)
 

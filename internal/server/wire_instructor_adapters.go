@@ -120,11 +120,10 @@ func (v *instructorProfileMediaValidator) validatePDF(ctx context.Context, fileI
 	if f.Status != constants.FileStatusReady {
 		return apperrors.ErrInvalidProfileMediaFile
 	}
-	mt := strings.ToLower(f.MimeType)
-	if strings.Contains(mt, "pdf") || strings.HasSuffix(strings.ToLower(f.Filename), ".pdf") {
-		return nil
+	if strings.TrimSpace(strings.ToLower(f.MimeType)) != "application/pdf" {
+		return apperrors.ErrInvalidProfileMediaFile
 	}
-	return apperrors.ErrInvalidProfileMediaFile
+	return nil
 }
 
 func (v *instructorProfileMediaValidator) validateVideo(ctx context.Context, fileID string) error {

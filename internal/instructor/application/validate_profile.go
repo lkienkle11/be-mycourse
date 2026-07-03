@@ -39,6 +39,9 @@ func (s *InstructorService) validateSubmitInput(ctx context.Context, in domain.S
 	if strings.TrimSpace(p.CurrentJobTitleID) == "" {
 		return domain.ErrInvalidApplicationPayload
 	}
+	if strings.TrimSpace(p.CVFileID) == "" {
+		return domain.ErrInvalidApplicationPayload
+	}
 	if len(in.TopicIDs) < 1 || len(in.TopicIDs) > 5 {
 		return domain.ErrInvalidApplicationPayload
 	}

@@ -241,6 +241,8 @@ Under `/instructors/:id/…` — live instructor expertise (post-approve). Appli
 | Ticket | `display_name`, `email`, `avatar` (hydrated URL) |
 | Ticket message | `author_full_name`, `author_email` |
 
+**POST message hydration:** after `AddMessage`, service loads the new row via `GetMessageByID` (single joined read) — does not re-list the full thread.
+
 **Server-side guard:** backend reads the caller's active application and rejects unless `rejection_count >= 5` (State H). Permission P45 alone is insufficient. Error: `instructor_application:contact_not_allowed` when guard fails.
 
 ### Permission check for submit block

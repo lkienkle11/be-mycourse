@@ -28,7 +28,7 @@ func wireInstructor(
 		&instructorMeCache{auth: authSvc},
 		&instructorProfileMediaValidator{files: fileRepo},
 		&instructorAvatarHydrator{resolver: &mediaFileURLResolver{repo: fileRepo}},
-		&instructorMediaHydrator{resolver: &mediaFileURLResolver{repo: fileRepo}},
+		&instructorMediaHydrator{repo: fileRepo},
 	)
 	return instSvc, instdelivery.NewHandler(instSvc)
 }

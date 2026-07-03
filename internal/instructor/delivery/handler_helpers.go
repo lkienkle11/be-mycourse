@@ -35,6 +35,7 @@ func mapInstructorError(c *gin.Context, err error) bool {
 		stderrors.Is(err, domain.ErrApplicationSubmitBlocked) ||
 		stderrors.Is(err, domain.ErrApplicationRejectQuota) ||
 		stderrors.Is(err, domain.ErrApplicationAlreadyInstructor) ||
+		stderrors.Is(err, domain.ErrApplicationContactNotAllowed) ||
 		stderrors.Is(err, domain.ErrInvalidApplicationPayload) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return true

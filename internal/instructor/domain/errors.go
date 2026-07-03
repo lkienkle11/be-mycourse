@@ -11,6 +11,7 @@ var (
 	ErrApplicationAlreadyExists     = stderrors.New("instructor application already exists")
 	ErrApplicationAlreadyInstructor = stderrors.New("user is already an instructor")
 	ErrInvalidApplicationPayload    = stderrors.New("invalid application payload")
+	ErrApplicationContactNotAllowed = stderrors.New("instructor application contact not allowed")
 	ErrTicketClosed                 = stderrors.New("ticket is closed")
 	ErrRosterPlatformStaffUser      = stderrors.New("platform staff cannot be added to instructor roster")
 )

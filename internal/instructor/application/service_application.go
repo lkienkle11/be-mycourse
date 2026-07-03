@@ -96,16 +96,14 @@ func (s *InstructorService) ApproveApplication(ctx context.Context, id string) (
 	if app.ReviewStatus != domain.ReviewStatusPending {
 		return nil, domain.ErrApplicationNotPending
 	}
+	// DB first: copy snapshot + set approved in one transaction; role grant only after success.
+	if err := s.repo.ApproveApplicationCopySnapshot(ctx, id, app.UserID); err != nil {
+		return nil, err
+	}
 	if err := s.roles.AssignInstructorRole(ctx, app.UserID); err != nil {
 		return nil, err
 	}
 	s.invalidateMe(ctx, app.UserID)
-	if err := s.repo.ApproveApplicationCopySnapshot(ctx, id, app.UserID); err != nil {
-		return nil, err
-	}
-	if err := s.repo.SetApplicationReview(ctx, id, domain.ReviewStatusApproved, ""); err != nil {
-		return nil, err
-	}
 	return s.GetApplication(ctx, id)
 }
 
@@ -230,6 +228,13 @@ func (s *InstructorService) CreateContactTicket(ctx context.Context, userID, sub
 	body = strings.TrimSpace(body)
 	if subject == "" || body == "" {
 		return nil, domain.ErrInvalidApplicationPayload
+	}
+	app, err := s.repo.GetActiveApplicationByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if app.RejectionCount < domain.MaxApplicationRejections {
+		return nil, domain.ErrApplicationContactNotAllowed
 	}
 	ticket, err := s.repo.CreateTicket(ctx, userID, subject)
 	if err != nil {

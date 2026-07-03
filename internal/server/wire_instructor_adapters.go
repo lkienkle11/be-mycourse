@@ -164,19 +164,27 @@ func (h *instructorAvatarHydrator) ResolveAvatarURLs(ctx context.Context, fileID
 	return mediaquery.HydrateAvatarURLs(ctx, h.resolver, fileIDs)
 }
 
-type instructorMediaHydrator struct{ resolver *mediaFileURLResolver }
+type instructorMediaHydrator struct {
+	repo mediadomain.FileRepository
+}
 
 func (h *instructorMediaHydrator) ResolveMediaFiles(ctx context.Context, fileIDs []string) (map[string]domain.MediaFileReadModel, error) {
 	out := make(map[string]domain.MediaFileReadModel, len(fileIDs))
-	if h.resolver == nil {
+	if h.repo == nil {
 		return out, nil
 	}
-	urls, err := h.resolver.URLsForFileIDs(ctx, fileIDs)
-	if err != nil {
-		return nil, err
-	}
-	for id, url := range urls {
-		out[id] = domain.MediaFileReadModel{ID: id, URL: url}
+	for _, id := range fileIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		f, err := h.repo.GetByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		out[id] = domain.MediaFileReadModel{
+			ID: id, URL: f.URL, Filename: f.Filename, MimeType: f.MimeType,
+		}
 	}
 	return out, nil
 }

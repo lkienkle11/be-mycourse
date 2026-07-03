@@ -43,39 +43,51 @@ func (r *GormRepository) ResubmitApplication(ctx context.Context, userID string,
 }
 
 func (r *GormRepository) saveApplication(ctx context.Context, userID string, in domain.SubmitApplicationInput, isCreate bool) (*domain.Application, error) {
-	var row applicationRow
-	if !isCreate {
-		if err := activeScope(r.db.WithContext(ctx)).Where("user_id = ?", userID).First(&row).Error; err != nil {
-			return nil, mapNotFound(err)
+	var result *domain.Application
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row applicationRow
+		if !isCreate {
+			if err := activeScope(tx).Where("user_id = ?", userID).First(&row).Error; err != nil {
+				return mapNotFound(err)
+			}
+		} else {
+			row = applicationRow{UserID: userID}
 		}
-	} else {
-		row = applicationRow{UserID: userID}
-	}
-	if err := applyPayloadToAppRow(&row, in.ProfilePayload); err != nil {
-		return nil, err
-	}
-	now := timex.NowUnix()
-	row.ReviewStatus = domain.ReviewStatusPending
-	row.RejectionReason = ""
-	row.SubmittedAt = now
-	row.ReviewDueAt = now + applicationSLASeconds
-	row.ReturnedAt = nil
-	gormx.TouchUpdated(&row.UpdatedAt)
-	if isCreate {
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, &row); err != nil {
-			return nil, err
+		if err := applyPayloadToAppRow(&row, in.ProfilePayload); err != nil {
+			return err
 		}
-	} else if err := r.db.WithContext(ctx).Save(&row).Error; err != nil {
+		now := timex.NowUnix()
+		row.ReviewStatus = domain.ReviewStatusPending
+		row.RejectionReason = ""
+		row.SubmittedAt = now
+		row.ReviewDueAt = now + applicationSLASeconds
+		row.ReturnedAt = nil
+		gormx.TouchUpdated(&row.UpdatedAt)
+		if isCreate {
+			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
+			if err := touchAndCreate(ctx, tx, &row.CreatedAt, &row.UpdatedAt, &row); err != nil {
+				return err
+			}
+		} else if err := tx.Save(&row).Error; err != nil {
+			return err
+		}
+		if err := replaceApplicationJunctionDB(tx, row.ID, in.TopicIDs, true); err != nil {
+			return err
+		}
+		if err := replaceApplicationJunctionDB(tx, row.ID, in.SkillIDs, false); err != nil {
+			return err
+		}
+		loaded, err := loadApplicationRow(ctx, tx, "ia.user_id = ?", userID)
+		if err != nil {
+			return err
+		}
+		result = loaded
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	if err := r.replaceApplicationTopics(ctx, row.ID, in.TopicIDs); err != nil {
-		return nil, err
-	}
-	if err := r.replaceApplicationSkills(ctx, row.ID, in.SkillIDs); err != nil {
-		return nil, err
-	}
-	return loadApplicationRow(ctx, r.db, "ia.user_id = ?", userID)
+	return result, nil
 }
 
 func (r *GormRepository) MarkReturnedIfDue(ctx context.Context, userID string) error {
@@ -134,15 +146,24 @@ func (r *GormRepository) ApproveApplicationCopySnapshot(ctx context.Context, app
 		if err := upsertProfileFromApplication(ctx, tx, userID, app.ProfilePayload); err != nil {
 			return err
 		}
-		topicIDs, err := r.pluckApplicationRefIDs(ctx, appID, true)
+		topicIDs, err := pluckApplicationRefIDsDB(tx, appID, true)
 		if err != nil {
 			return err
 		}
-		skillIDs, err := r.pluckApplicationRefIDs(ctx, appID, false)
+		skillIDs, err := pluckApplicationRefIDsDB(tx, appID, false)
 		if err != nil {
 			return err
 		}
-		return copyExpertiseFromApplication(tx, userID, topicIDs, skillIDs)
+		if err := copyExpertiseFromApplication(tx, userID, topicIDs, skillIDs); err != nil {
+			return err
+		}
+		now := timex.NowUnix()
+		return tx.Model(&applicationRow{}).Where("id = ? AND deleted_at IS NULL", appID).
+			Updates(map[string]any{
+				"review_status":    domain.ReviewStatusApproved,
+				"rejection_reason": "",
+				"updated_at":       now,
+			}).Error
 	})
 }
 
@@ -205,8 +226,12 @@ func (r *GormRepository) ListApplicationSkillIDs(ctx context.Context, appID stri
 }
 
 func (r *GormRepository) pluckApplicationRefIDs(ctx context.Context, appID string, isTopic bool) ([]string, error) {
+	return pluckApplicationRefIDsDB(r.db.WithContext(ctx), appID, isTopic)
+}
+
+func pluckApplicationRefIDsDB(db *gorm.DB, appID string, isTopic bool) ([]string, error) {
 	var ids []string
-	q := activeScope(r.db.WithContext(ctx))
+	q := activeScope(db)
 	if isTopic {
 		err := q.Model(&applicationTopicRow{}).Where("application_id = ?", appID).Pluck("topic_id", &ids).Error
 		return ids, err
@@ -249,15 +274,7 @@ func (r *GormRepository) listApplicationTaxonomyChips(ctx context.Context, appID
 	return out, nil
 }
 
-func (r *GormRepository) replaceApplicationTopics(ctx context.Context, appID string, topicIDs []string) error {
-	return r.replaceApplicationJunction(ctx, appID, topicIDs, true)
-}
-
-func (r *GormRepository) replaceApplicationSkills(ctx context.Context, appID string, skillIDs []string) error {
-	return r.replaceApplicationJunction(ctx, appID, skillIDs, false)
-}
-
-func (r *GormRepository) replaceApplicationJunction(ctx context.Context, appID string, refIDs []string, isTopic bool) error {
+func replaceApplicationJunctionDB(tx *gorm.DB, appID string, refIDs []string, isTopic bool) error {
 	table := constants.TableInstructorApplicationSkills
 	col := "skill_id"
 	if isTopic {
@@ -265,24 +282,22 @@ func (r *GormRepository) replaceApplicationJunction(ctx context.Context, appID s
 		col = "topic_id"
 	}
 	now := timex.NowUnix()
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Table(table).Where("application_id = ? AND deleted_at IS NULL", appID).
-			Update("deleted_at", now).Error; err != nil {
-			return err
+	if err := tx.Table(table).Where("application_id = ? AND deleted_at IS NULL", appID).
+		Update("deleted_at", now).Error; err != nil {
+		return err
+	}
+	for _, refID := range refIDs {
+		if refID == "" {
+			continue
 		}
-		for _, refID := range refIDs {
-			if refID == "" {
-				continue
-			}
-			id := uuid.NewString()
-			row := map[string]any{
-				"id": id, "application_id": appID, col: refID,
-				"created_at": now, "updated_at": now,
-			}
-			if err := tx.Table(table).Create(row).Error; err != nil {
-				return fmt.Errorf("insert %s: %w", table, err)
-			}
+		id := uuid.NewString()
+		row := map[string]any{
+			"id": id, "application_id": appID, col: refID,
+			"created_at": now, "updated_at": now,
 		}
-		return nil
-	})
+		if err := tx.Table(table).Create(row).Error; err != nil {
+			return fmt.Errorf("insert %s: %w", table, err)
+		}
+	}
+	return nil
 }

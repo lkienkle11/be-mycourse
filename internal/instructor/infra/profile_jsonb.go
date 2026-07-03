@@ -83,6 +83,11 @@ func (r RejectionHistoryJSON) Value() (driver.Value, error) {
 	return json.Marshal(r)
 }
 
+func emptyRejectionHistoryPtr() *RejectionHistoryJSON {
+	h := RejectionHistoryJSON{}
+	return &h
+}
+
 func (r *RejectionHistoryJSON) Scan(value any) error {
 	return scanJSONValue(value, r, "RejectionHistoryJSON")
 }

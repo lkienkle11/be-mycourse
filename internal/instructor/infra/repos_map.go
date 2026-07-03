@@ -90,7 +90,7 @@ func payloadFromFields(f profileFields) domain.ProfilePayload {
 	}
 }
 
-func rowFieldsFromData(d *profileDataRow) profileFields {
+func rowFieldsFromData(d *ProfileDataRow) profileFields {
 	return profileFields{
 		Headline: d.Headline, Bio: d.Bio, YearsOfExperience: d.YearsOfExperience,
 		CurrentJobTitle: d.CurrentJobTitle, CurrentJobTitleID: d.CurrentJobTitleID,
@@ -102,7 +102,7 @@ func rowFieldsFromData(d *profileDataRow) profileFields {
 	}
 }
 
-func writeFieldsToData(d *profileDataRow, f profileFields) {
+func writeFieldsToData(d *ProfileDataRow, f profileFields) {
 	d.Headline, d.Bio, d.YearsOfExperience = f.Headline, f.Bio, f.YearsOfExperience
 	d.CurrentJobTitle, d.CurrentJobTitleID, d.CurrentCompany = f.CurrentJobTitle, f.CurrentJobTitleID, f.CurrentCompany
 	d.CurrentCompanyID, d.CurrentCompanyDomain = f.CurrentCompanyID, f.CurrentCompanyDomain
@@ -144,14 +144,14 @@ func appRowToDomain(r *applicationRow) domain.Application {
 		RejectionReason: r.RejectionReason, SubmittedAt: r.SubmittedAt,
 		ReviewDueAt: r.ReviewDueAt, ReturnedAt: r.ReturnedAt,
 		RejectionCount: r.RejectionCount, RejectionHistory: history,
-		ProfilePayload: payloadFromFields(rowFieldsFromData(&r.profileDataRow)),
+		ProfilePayload: payloadFromFields(rowFieldsFromData(&r.ProfileDataRow)),
 		CreatedAt:      r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
 func profileRowToDomain(r *profileRow) domain.Profile {
 	return domain.Profile{
-		ID: r.ID, UserID: r.UserID, ProfilePayload: payloadFromFields(rowFieldsFromData(&r.profileDataRow)),
+		ID: r.ID, UserID: r.UserID, ProfilePayload: payloadFromFields(rowFieldsFromData(&r.ProfileDataRow)),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -177,7 +177,7 @@ func applyPayloadToAppRow(r *applicationRow, p domain.ProfilePayload) error {
 	if err != nil {
 		return err
 	}
-	writeFieldsToData(&r.profileDataRow, f)
+	writeFieldsToData(&r.ProfileDataRow, f)
 	return nil
 }
 
@@ -186,7 +186,7 @@ func applyPayloadToProfileRow(r *profileRow, p domain.ProfilePayload) error {
 	if err != nil {
 		return err
 	}
-	writeFieldsToData(&r.profileDataRow, f)
+	writeFieldsToData(&r.ProfileDataRow, f)
 	return nil
 }
 

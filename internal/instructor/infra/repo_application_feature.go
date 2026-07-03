@@ -62,6 +62,7 @@ func (r *GormRepository) saveApplication(ctx context.Context, userID string, in 
 		row.SubmittedAt = now
 		row.ReviewDueAt = now + applicationSLASeconds
 		row.ReturnedAt = nil
+		ensureApplicationRowDefaults(&row)
 		gormx.TouchUpdated(&row.UpdatedAt)
 		if isCreate {
 			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
@@ -88,6 +89,12 @@ func (r *GormRepository) saveApplication(ctx context.Context, userID string, in 
 		return nil, err
 	}
 	return result, nil
+}
+
+func ensureApplicationRowDefaults(row *applicationRow) {
+	if row.RejectionHistory == nil {
+		row.RejectionHistory = emptyRejectionHistoryPtr()
+	}
 }
 
 func (r *GormRepository) MarkReturnedIfDue(ctx context.Context, userID string) error {

@@ -39,8 +39,8 @@ func loadEntityWithIdentity[TRow any, TDomain any](
 	mapFn func(*TRow, identityProjection) TDomain,
 ) (*TDomain, error) {
 	type rowWithIdentity struct {
-		Row TRow `gorm:"embedded"`
-		identityProjection
+		Row                TRow `gorm:"embedded"`
+		identityProjection `gorm:"embedded"`
 	}
 
 	var row rowWithIdentity

@@ -2,7 +2,7 @@ package infra
 
 import "mycourse-io-be/internal/shared/constants"
 
-type profileDataRow struct {
+type ProfileDataRow struct {
 	Headline                  string            `gorm:"size:255"`
 	Bio                       string            `gorm:"type:text"`
 	YearsOfExperience         string            `gorm:"size:32"`
@@ -31,21 +31,21 @@ type applicationRow struct {
 	ReturnedAt       *int64
 	RejectionCount   int
 	RejectionHistory *RejectionHistoryJSON `gorm:"type:jsonb"`
-	profileDataRow
-	CreatedAt int64
-	UpdatedAt int64
-	DeletedAt *int64
+	ProfileDataRow   `gorm:"embedded"`
+	CreatedAt        int64
+	UpdatedAt        int64
+	DeletedAt        *int64
 }
 
 func (applicationRow) TableName() string { return constants.TableInstructorApplications }
 
 type profileRow struct {
-	ID     string `gorm:"column:id;primaryKey;type:uuid"`
-	UserID string `gorm:"type:uuid;not null"`
-	profileDataRow
-	CreatedAt int64
-	UpdatedAt int64
-	DeletedAt *int64
+	ID             string `gorm:"column:id;primaryKey;type:uuid"`
+	UserID         string `gorm:"type:uuid;not null"`
+	ProfileDataRow `gorm:"embedded"`
+	CreatedAt      int64
+	UpdatedAt      int64
+	DeletedAt      *int64
 }
 
 func (profileRow) TableName() string { return constants.TableInstructorProfiles }

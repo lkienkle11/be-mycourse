@@ -60,11 +60,11 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
 	type applicationWithUserRow struct {
-		applicationRow
-		FullName     string `gorm:"column:full_name"`
-		Email        string `gorm:"column:email"`
-		Phone        string `gorm:"column:phone"`
-		AvatarFileID string `gorm:"column:avatar_file_id"`
+		Row          applicationRow `gorm:"embedded"`
+		FullName     string         `gorm:"column:full_name"`
+		Email        string         `gorm:"column:email"`
+		Phone        string         `gorm:"column:phone"`
+		AvatarFileID string         `gorm:"column:avatar_file_id"`
 	}
 	var rows []applicationWithUserRow
 	if err := q.
@@ -77,12 +77,12 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	}
 	out := make([]domain.Application, len(rows))
 	for i := range rows {
-		out[i] = appRowToDomain(&rows[i].applicationRow)
-		out[i].FullName = rows[i].FullName
-		out[i].DisplayName = rows[i].FullName
-		out[i].Email = rows[i].Email
-		out[i].Phone = rows[i].Phone
-		out[i].AvatarFileID = rows[i].AvatarFileID
+		out[i] = mapApplicationWithIdentity(&rows[i].Row, identityProjection{
+			FullName:     rows[i].FullName,
+			Email:        rows[i].Email,
+			Phone:        rows[i].Phone,
+			AvatarFileID: rows[i].AvatarFileID,
+		})
 	}
 	return out, total, nil
 }

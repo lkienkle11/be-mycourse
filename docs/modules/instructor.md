@@ -155,7 +155,7 @@ Approve orchestration **must not** assign the instructor role before the applica
 
 | Step | Action |
 |------|--------|
-| 1 | Single DB transaction: copy inline profile → `instructor_profiles`, copy application junctions → live expertise, set `review_status = approved` |
+| 1 | Single DB transaction: copy inline profile → `instructor_profiles`, copy application junctions (`instructor_application_topics` / `instructor_application_skills`) → live expertise (`instructor_expertise_topics` / `instructor_expertise_skills`), set `review_status = approved` |
 | 2 | `AssignRole(instructor)` — idempotent; role grant includes P68 |
 | 3 | Invalidate `/me` cache for the applicant |
 
@@ -171,7 +171,9 @@ If step 2 fails after step 1 succeeds, the application is already `approved` wit
 
 On **first submit**, `saveApplication` initializes `rejection_history` to **`[]`** (empty JSON array) before `Create`. Column is `NOT NULL` (`000029`); a nil `*RejectionHistoryJSON` makes GORM insert SQL `NULL` and PostgreSQL rejects → HTTP 500 / `code:9001`. `*RejectionHistoryJSON` must implement `sql.Scanner` (`Scan` in `profile_jsonb.go`) so post-insert reload via `loadApplicationRow` can read the JSONB column.
 
-**Admin list (`GET /instructor-applications`):** `ListApplications` joins `users` for identity columns and scans into a wrapper struct. The wrapper must embed **`applicationRow`** with **`gorm:"embedded"`** on a named `Row` field (same pattern as `loadApplicationRow`). Identity columns (`full_name`, `email`, `phone`, `avatar_file_id`) are **sibling scalar fields** with explicit `gorm:"column:…"` tags — not a nested `identityProjection` embed (GORM `Scan` on aliased joins does not map nested embed). Map rows via `mapApplicationWithIdentity`. Without `Row` embed, `id` is empty → junction `application_id = ''` → HTTP 500. Without identity sibling fields, API returns `display_name: ""`, `email: ""`.
+**Admin list (`GET /instructor-applications`):** `ListApplications` joins `users` for identity columns and scans into a wrapper struct. The wrapper must embed **`applicationRow`** with **`gorm:"embedded"`** on a named `Row` field (same pattern as `loadApplicationRow`). Identity columns (`full_name`, `email`, `phone`, `avatar_file_id`) are **sibling scalar fields** with explicit `gorm:"column:…"` tags — not a nested `identityProjection` embed (GORM `Scan` on aliased joins does not map nested embed). Map rows via `mapApplicationWithIdentity`. Without `Row` embed, `id` is empty → junction `application_id = ''` → HTTP 500. Without identity sibling fields, API returns `display_name: ""`, `email: ""`. **List rows do not hydrate CV/certificate media or taxonomy chips** — use `GET /instructor-applications/:id` for admin view dialog (full snapshot + `PreviewPdf` URLs).
+
+**Admin profiles:** `ListProfiles` uses the same list-scan wrapper pattern as applications (`Row profileRow` + identity sibling fields → `mapProfileWithIdentity`). **`GET /instructor-profiles/:id`** (user UUID) returns managed profile with hydrated `cv_file`, `intro_video_file`, and certificate PDFs on `latest_submission.profile`.
 
 ---
 

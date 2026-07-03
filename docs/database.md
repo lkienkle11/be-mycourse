@@ -680,7 +680,7 @@ The API exposes a logical `latest_submission` object. Physical storage maps as f
 
 | Logical field | Physical storage |
 |---------------|------------------|
-| `latest_submission.profile.*` (headline, bio, job/company, URLs, media IDs, portfolio, certificates) | Inline columns on `instructor_applications` (shared `profileDataRow` in `internal/instructor/infra/rows.go`) |
+| `latest_submission.profile.*` (headline, bio, job/company, URLs, media IDs, portfolio, certificates) | Inline columns on `instructor_applications` (shared exported `ProfileDataRow` embedded in `applicationRow` with `gorm:"embedded"` in `internal/instructor/infra/rows.go`) |
 | `latest_submission.profile.years_of_experience` | `VARCHAR(32)` enum code on `instructor_applications` and `instructor_profiles` |
 | `latest_submission.profile.current_job_title_id` | `current_job_title_id VARCHAR(255) NOT NULL` — no `DEFAULT ''`; legacy backfill `custom:<slug>` |
 | `latest_submission.profile.current_company_*` | `current_company_id`, `current_company_domain`, `current_company_description`, `current_company_location` — **nullable** when user types company free-text (no suggestion selected) |
@@ -719,6 +719,8 @@ Do **not** persist empty string `''` as a fake id — use `NULL` for absent snap
 
 **Self-service `/me` routes:** `GET` and `PUT /instructor-applications/me` both require **`instructor_application:create` (P45)** so learners can resubmit without `instructor_application:update` (P46). P46 remains for admin-side application mutations.
 
+**Admin list load:** `ListApplications` (`internal/instructor/infra/repos.go`) scans `ia.*` plus joined user identity. Wrapper embeds `applicationRow` as `Row` with `gorm:"embedded"`; identity columns are explicit sibling fields (`full_name`, `email`, …); maps via `mapApplicationWithIdentity`.
+
 ### `instructor_applications`
 
 | Column | Type | Notes |
@@ -728,7 +730,7 @@ Do **not** persist empty string `''` as a fake id — use `NULL` for absent snap
 | `review_status` | VARCHAR(32) | `pending`, `approved`, `rejected`, **`returned`** |
 | `rejection_reason` | TEXT | Latest reject reason (legacy compat); history in JSONB |
 | `rejection_count` | INT | Count of admin rejects only (not returns) — **`000029`** |
-| `rejection_history` | JSONB | Array of reject records — **`000029`** |
+| `rejection_history` | JSONB | Array of reject records — **`000029`**, `NOT NULL DEFAULT '[]'`; first submit must persist `[]`, not SQL `NULL` |
 | `submitted_at` | BIGINT | Unix seconds when entered `pending` — **`000029`** |
 | `review_due_at` | BIGINT | `submitted_at + 5 days` — **`000029`** |
 | `returned_at` | BIGINT nullable | Unix seconds when SLA auto-returned; **NULL** when never returned — **`000029`** |

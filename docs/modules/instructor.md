@@ -167,6 +167,12 @@ If step 2 fails after step 1 succeeds, the application is already `approved` wit
 
 `CreateFirstApplication` and `ResubmitApplication` persist application row + `instructor_application_topics` + `instructor_application_skills` inside **one DB transaction** so partial snapshots cannot exist.
 
+`applicationRow` and `profileRow` in `internal/instructor/infra/rows.go` embed exported `ProfileDataRow` with **`gorm:"embedded"`** so GORM `Create`/`Save` writes inline profile columns (`current_job_title_id`, `bio`, `cv_file_id`, …) on `instructor_applications` / `instructor_profiles`. Without exported embed + tag, GORM inserts only review metadata and PostgreSQL rejects the row (`current_job_title_id` NOT NULL) → HTTP 500 / `code:9001`.
+
+On **first submit**, `saveApplication` initializes `rejection_history` to **`[]`** (empty JSON array) before `Create`. Column is `NOT NULL` (`000029`); a nil `*RejectionHistoryJSON` makes GORM insert SQL `NULL` and PostgreSQL rejects → HTTP 500 / `code:9001`. `*RejectionHistoryJSON` must implement `sql.Scanner` (`Scan` in `profile_jsonb.go`) so post-insert reload via `loadApplicationRow` can read the JSONB column.
+
+**Admin list (`GET /instructor-applications`):** `ListApplications` joins `users` for identity columns and scans into a wrapper struct. The wrapper must embed **`applicationRow`** with **`gorm:"embedded"`** on a named `Row` field (same pattern as `loadApplicationRow`). Identity columns (`full_name`, `email`, `phone`, `avatar_file_id`) are **sibling scalar fields** with explicit `gorm:"column:…"` tags — not a nested `identityProjection` embed (GORM `Scan` on aliased joins does not map nested embed). Map rows via `mapApplicationWithIdentity`. Without `Row` embed, `id` is empty → junction `application_id = ''` → HTTP 500. Without identity sibling fields, API returns `display_name: ""`, `email: ""`.
+
 ---
 
 ## Business rules (roster & tickets)

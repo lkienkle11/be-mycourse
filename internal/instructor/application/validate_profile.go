@@ -29,6 +29,10 @@ func (s *InstructorService) validateSubmitInput(ctx context.Context, in domain.S
 	if err := s.validateProfile(ctx, p); err != nil {
 		return err
 	}
+	bio := strings.TrimSpace(p.Bio)
+	if len(bio) < 100 || len(bio) > 2000 {
+		return domain.ErrInvalidApplicationPayload
+	}
 	if _, ok := validYearsCodes[strings.TrimSpace(p.YearsOfExperience)]; !ok {
 		return domain.ErrInvalidApplicationPayload
 	}

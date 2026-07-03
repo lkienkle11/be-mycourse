@@ -63,16 +63,7 @@ func (s *InstructorService) AddTicketMessage(ctx context.Context, ticketID strin
 	if err != nil {
 		return nil, err
 	}
-	messages, err := s.repo.ListMessages(ctx, ticketID)
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range messages {
-		if m.ID == msg.ID {
-			return &m, nil
-		}
-	}
-	return msg, nil
+	return s.repo.GetMessageByID(ctx, msg.ID)
 }
 
 // ComingSoon is a placeholder for assignments / activity log APIs.

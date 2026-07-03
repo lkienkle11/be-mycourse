@@ -553,6 +553,14 @@ func (r *GormRepository) DeleteTicketsByUserID(ctx context.Context, userID strin
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &ticketRow{}, "user_id = ?", userID)
 }
 
+func mapTicketMessageRow(row ticketMessageRow, authorFullName, authorEmail string) domain.TicketMessage {
+	return domain.TicketMessage{
+		ID: row.ID, TicketID: row.TicketID, AuthorUserID: row.AuthorUserID,
+		AuthorFullName: authorFullName, AuthorEmail: authorEmail,
+		Body: row.Body, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
 func (r *GormRepository) ListMessages(ctx context.Context, ticketID string) ([]domain.TicketMessage, error) {
 	type messageWithAuthorRow struct {
 		ticketMessageRow
@@ -570,13 +578,30 @@ func (r *GormRepository) ListMessages(ctx context.Context, ticketID string) ([]d
 	}
 	out := make([]domain.TicketMessage, len(rows))
 	for i, row := range rows {
-		out[i] = domain.TicketMessage{
-			ID: row.ID, TicketID: row.TicketID, AuthorUserID: row.AuthorUserID,
-			AuthorFullName: row.AuthorFullName, AuthorEmail: row.AuthorEmail,
-			Body: row.Body, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		}
+		out[i] = mapTicketMessageRow(row.ticketMessageRow, row.AuthorFullName, row.AuthorEmail)
 	}
 	return out, nil
+}
+
+func (r *GormRepository) GetMessageByID(ctx context.Context, id string) (*domain.TicketMessage, error) {
+	type messageWithAuthorRow struct {
+		ticketMessageRow
+		AuthorFullName string `gorm:"column:author_full_name"`
+		AuthorEmail    string `gorm:"column:author_email"`
+	}
+	var row messageWithAuthorRow
+	if err := activeScopeAlias(r.db.WithContext(ctx), "tm").Table(constants.TableInstructorTicketMessages+" tm").
+		Select("tm.*, COALESCE(u.display_name, '') AS author_full_name, COALESCE(u.email, '') AS author_email").
+		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = tm.author_user_id AND u.deleted_at IS NULL").
+		Where("tm.id = ? AND tm.deleted_at IS NULL", id).
+		Scan(&row).Error; err != nil {
+		return nil, mapNotFound(err)
+	}
+	if row.ID == "" {
+		return nil, mapNotFound(gorm.ErrRecordNotFound)
+	}
+	msg := mapTicketMessageRow(row.ticketMessageRow, row.AuthorFullName, row.AuthorEmail)
+	return &msg, nil
 }
 
 func (r *GormRepository) AddMessage(ctx context.Context, ticketID string, authorUserID string, body string) (*domain.TicketMessage, error) {

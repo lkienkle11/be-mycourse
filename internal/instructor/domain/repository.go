@@ -60,6 +60,7 @@ type TicketRepository interface {
 	CloseTicket(ctx context.Context, id string) error
 	DeleteTicketsByUserID(ctx context.Context, userID string) error
 	ListMessages(ctx context.Context, ticketID string) ([]TicketMessage, error)
+	GetMessageByID(ctx context.Context, id string) (*TicketMessage, error)
 	AddMessage(ctx context.Context, ticketID string, authorUserID string, body string) (*TicketMessage, error)
 }
 

@@ -116,6 +116,9 @@ func (r *appTestRepo) DeleteTicketsByUserID(context.Context, string) error { ret
 func (r *appTestRepo) ListMessages(context.Context, string) ([]domain.TicketMessage, error) {
 	return nil, nil
 }
+func (r *appTestRepo) GetMessageByID(context.Context, string) (*domain.TicketMessage, error) {
+	return &domain.TicketMessage{}, nil
+}
 func (r *appTestRepo) AddMessage(context.Context, string, string, string) (*domain.TicketMessage, error) {
 	return &domain.TicketMessage{}, nil
 }

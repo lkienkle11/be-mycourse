@@ -145,13 +145,23 @@ rejected ──PUT /me──► pending   (only if rejection_count < 5 and not s
 | Resubmit from `returned` | Unlimited; does not increase `rejection_count` |
 | Resubmit from `rejected` | Allowed when `rejection_count < 5` |
 
-### Approve side effects
+### Approve side effects (ordering — atomic DB first)
 
-- Idempotent `AssignRole(instructor)` (role grant includes P68 — submit blocked on future applications).
-- Copy inline profile snapshot from application → `instructor_profiles` (create if missing).
-- Copy `instructor_application_topics` / `instructor_application_skills` → `instructor_expertise_topics` / `instructor_expertise_skills`.
-- Set `review_status = approved`.
-- **FE:** after approve, `GET /me` returns `review_status=approved` → State **G**, not State B, even though user now has P68.
+Approve orchestration **must not** assign the instructor role before the application row and profile/expertise snapshot are finalized in the database.
+
+| Step | Action |
+|------|--------|
+| 1 | Single DB transaction: copy inline profile → `instructor_profiles`, copy application junctions → live expertise, set `review_status = approved` |
+| 2 | `AssignRole(instructor)` — idempotent; role grant includes P68 |
+| 3 | Invalidate `/me` cache for the applicant |
+
+If step 2 fails after step 1 succeeds, the application is already `approved` without the role — safer than granting role while the application remains `pending`. Admin may retry approve (idempotent).
+
+- **FE:** after approve, `GET /me` returns `review_status=approved` → page state `approved`, not `submit_blocked`, even though user now has P68.
+
+### Submit / resubmit persistence
+
+`CreateFirstApplication` and `ResubmitApplication` persist application row + `instructor_application_topics` + `instructor_application_skills` inside **one DB transaction** so partial snapshots cannot exist.
 
 ---
 
@@ -200,9 +210,11 @@ All routes require `Authorization: Bearer <token>` unless noted.
 - `latest_submission.profile` — full profile snapshot including company fields and `years_of_experience` enum code
 - `latest_submission.topic_ids`, `latest_submission.skill_ids`
 - `rejection_history[]` — `{ rejected_at, rejected_by_user_id, reviewer_display_name, reason }`
-- Hydrated read models: `cv_file`, `intro_video_file` when IDs present
+- Hydrated read models: `cv_file`, `intro_video_file` when IDs present — includes `id`, `url`, `filename`, `mime_type` when media repo has metadata
 
 **List/detail admin DTO** adds `display_name`, `email`, `avatar`; company snapshot fields; topic/skill chips (joined taxonomy names); rejection history on detail.
+
+**Managed profiles list** (`GET /instructor-profiles`) returns each row with `latest_submission.profile` (not a top-level `profile` field). FE must read `latest_submission.profile` for headline/detail.
 
 ### Profiles (`instructor_profile:*`)
 
@@ -221,7 +233,9 @@ Under `/instructors/:id/…` — live instructor expertise (post-approve). Appli
 | POST | `/instructor-tickets/:id/close` | `instructor_ticket:close` |
 | GET/POST | `/instructor-tickets/:id/messages` | read / create |
 
-**State H contact (BE-10):** `POST /api/v1/instructor-applications/contact-admin` with body `{ "subject", "message" }` — creates an `instructor_tickets` row plus first message (P45). Response: `{ ticket_id, status }`. FE State H tab calls this endpoint after rejection quota ≥ 5.
+**State H contact (BE-10):** `POST /api/v1/instructor-applications/contact-admin` with body `{ "subject", "message" }` — creates an `instructor_tickets` row plus first message (P45). Response: `{ ticket_id, status }`.
+
+**Server-side guard:** backend reads the caller's active application and rejects unless `rejection_count >= 5` (State H). Permission P45 alone is insufficient. Error: `instructor_application:contact_not_allowed` when guard fails.
 
 ### Permission check for submit block
 

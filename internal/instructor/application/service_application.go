@@ -133,7 +133,7 @@ func (s *InstructorService) DeleteApplication(ctx context.Context, id string) er
 }
 
 func (s *InstructorService) ApplicationHasProfile(p domain.ProfilePayload) bool {
-	return strings.TrimSpace(p.Headline) != "" && strings.TrimSpace(p.CVFileID) != ""
+	return strings.TrimSpace(p.CVFileID) != ""
 }
 
 func (s *InstructorService) assertCanSubmit(ctx context.Context, userID string) error {
@@ -188,12 +188,17 @@ func (s *InstructorService) hydrateApplicationMedia(ctx context.Context, app *do
 	if s.mediaHydr == nil {
 		return nil
 	}
-	ids := make([]string, 0, 2)
+	ids := make([]string, 0, 2+len(app.Certificates))
 	if id := strings.TrimSpace(app.CVFileID); id != "" {
 		ids = append(ids, id)
 	}
 	if id := strings.TrimSpace(app.IntroVideoFileID); id != "" {
 		ids = append(ids, id)
+	}
+	for _, cert := range app.Certificates {
+		if id := strings.TrimSpace(cert.CertificateFileID); id != "" {
+			ids = append(ids, id)
+		}
 	}
 	if len(ids) == 0 {
 		return nil
@@ -209,6 +214,13 @@ func (s *InstructorService) hydrateApplicationMedia(ctx context.Context, app *do
 	if f, ok := files[strings.TrimSpace(app.IntroVideoFileID)]; ok {
 		copy := f
 		app.IntroVideoFile = &copy
+	}
+	for i := range app.Certificates {
+		id := strings.TrimSpace(app.Certificates[i].CertificateFileID)
+		if f, ok := files[id]; ok {
+			copy := f
+			app.Certificates[i].CertificateFile = &copy
+		}
 	}
 	return nil
 }

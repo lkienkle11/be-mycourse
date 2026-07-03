@@ -34,10 +34,13 @@ const MaxApplicationRejections = 5
 
 // Certificate is one credential entry stored in profile JSONB.
 type Certificate struct {
-	Title         string `json:"title"`
-	Issuer        string `json:"issuer"`
-	IssuedYear    int    `json:"issued_year"`
-	CredentialURL string `json:"credential_url,omitempty"`
+	Title             string `json:"title"`
+	Issuer            string `json:"issuer"`
+	IssuedYear        int    `json:"issued_year"`
+	CredentialURL     string `json:"credential_url,omitempty"`
+	CertificateFileID string `json:"certificate_file_id,omitempty"`
+	// CertificateFile is hydrated on read; not stored in JSONB.
+	CertificateFile *MediaFileReadModel `json:"certificate_file,omitempty"`
 }
 
 // CompanySnapshot holds normalized company fields from combobox selection.

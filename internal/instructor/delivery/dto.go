@@ -94,17 +94,20 @@ type mediaFileBody struct {
 }
 
 type certificateBody struct {
-	Title         string `json:"title"`
-	Issuer        string `json:"issuer"`
-	IssuedYear    int    `json:"issued_year"`
-	CredentialURL string `json:"credential_url"`
+	Title             string         `json:"title"`
+	Issuer            string         `json:"issuer"`
+	IssuedYear        int            `json:"issued_year"`
+	CredentialURL     string         `json:"credential_url"`
+	CertificateFileID string         `json:"certificate_file_id,omitempty"`
+	CertificateFile   *mediaFileBody `json:"certificate_file,omitempty"`
 }
 
 func (b profileBody) toPayload() domain.ProfilePayload {
 	certs := make([]domain.Certificate, len(b.Certificates))
 	for i, c := range b.Certificates {
 		certs[i] = domain.Certificate{
-			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear, CredentialURL: c.CredentialURL,
+			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear,
+			CredentialURL: c.CredentialURL, CertificateFileID: c.CertificateFileID,
 		}
 	}
 	links := b.PortfolioLinks
@@ -292,9 +295,14 @@ func mediaFileFromDomain(f *domain.MediaFileReadModel) *mediaFileBody {
 func certBodiesFromDomain(certs []domain.Certificate) []certificateBody {
 	out := make([]certificateBody, len(certs))
 	for i, c := range certs {
-		out[i] = certificateBody{
-			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear, CredentialURL: c.CredentialURL,
+		body := certificateBody{
+			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear,
+			CredentialURL: c.CredentialURL, CertificateFileID: c.CertificateFileID,
 		}
+		if c.CertificateFile != nil {
+			body.CertificateFile = mediaFileFromDomain(c.CertificateFile)
+		}
+		out[i] = body
 	}
 	return out
 }

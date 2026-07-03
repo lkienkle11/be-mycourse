@@ -138,13 +138,12 @@ func (r appTestRoles) UserHasInstructorRole(context.Context, string) (bool, erro
 }
 
 func validSubmitInput() domain.SubmitApplicationInput {
-	bio := "I have eight years of experience building production systems, mentoring engineers, and delivering technical workshops for enterprise teams across multiple domains."
 	return domain.SubmitApplicationInput{
 		ActorUserID: "user-1",
 		TopicIDs:    []string{"00000000-0000-0000-0000-000000000010"},
 		SkillIDs:    []string{"00000000-0000-0000-0000-000000000020"},
 		ProfilePayload: domain.ProfilePayload{
-			Headline: "Cloud instructor", Bio: bio,
+			Headline: "", Bio: "",
 			YearsOfExperience: domain.YearsThreeToFiveYears,
 			CurrentJobTitle:   "Senior Engineer", CurrentJobTitleID: "custom:senior-engineer",
 			CurrentCompany: "Example Co", CVFileID: "00000000-0000-0000-0000-000000000001",

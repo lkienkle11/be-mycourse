@@ -9,17 +9,19 @@ import (
 )
 
 type certificateJSON struct {
-	Title         string `json:"title"`
-	Issuer        string `json:"issuer"`
-	IssuedYear    int    `json:"issued_year"`
-	CredentialURL string `json:"credential_url,omitempty"`
+	Title             string `json:"title"`
+	Issuer            string `json:"issuer"`
+	IssuedYear        int    `json:"issued_year"`
+	CredentialURL     string `json:"credential_url,omitempty"`
+	CertificateFileID string `json:"certificate_file_id,omitempty"`
 }
 
 func certificatesToJSON(certs []domain.Certificate) ([]certificateJSON, error) {
 	out := make([]certificateJSON, len(certs))
 	for i, c := range certs {
 		out[i] = certificateJSON{
-			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear, CredentialURL: c.CredentialURL,
+			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear,
+			CredentialURL: c.CredentialURL, CertificateFileID: c.CertificateFileID,
 		}
 	}
 	return out, nil
@@ -29,7 +31,8 @@ func certificatesFromJSON(raw []certificateJSON) []domain.Certificate {
 	out := make([]domain.Certificate, len(raw))
 	for i, c := range raw {
 		out[i] = domain.Certificate{
-			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear, CredentialURL: c.CredentialURL,
+			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear,
+			CredentialURL: c.CredentialURL, CertificateFileID: c.CertificateFileID,
 		}
 	}
 	return out

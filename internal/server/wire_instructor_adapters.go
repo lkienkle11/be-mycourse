@@ -109,6 +109,13 @@ func (v *instructorProfileMediaValidator) ValidateProfilePayload(ctx context.Con
 			return err
 		}
 	}
+	for _, cert := range p.Certificates {
+		if id := strings.TrimSpace(cert.CertificateFileID); id != "" {
+			if err := v.validatePDF(ctx, id); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

@@ -49,9 +49,9 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	}
 	if f.HasProfile != nil {
 		if *f.HasProfile {
-			q = q.Where("ia.headline <> '' AND ia.cv_file_id <> ''")
+			q = q.Where("ia.cv_file_id <> ''")
 		} else {
-			q = q.Where("ia.headline = '' OR ia.cv_file_id = ''")
+			q = q.Where("ia.cv_file_id = ''")
 		}
 	}
 	var total int64

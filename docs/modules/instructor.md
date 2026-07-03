@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-07-02 — instructor application feature (migration `000029`): state machine A–H, `GET/PUT /me`, company snapshot, application expertise junctions, P68 `submit_blocked`, SLA 5-day `returned`._
+_Last audited: 2026-07-03 — permission-first submit guard, atomic contact-admin ticket, ticket/message identity fields on list APIs._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / resubmit / approve / reject / return), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -137,8 +137,7 @@ rejected ──PUT /me──► pending   (only if rejection_count < 5 and not s
 
 | Rule | Behaviour |
 |------|-----------|
-| P68 `submit_blocked` | Reject `POST` and `PUT /me` |
-| Already instructor role | Reject submit |
+| P68 `submit_blocked` | Reject `POST` and `PUT /me` — **only** permission/effective-permission gate; no direct `instructor` role check in `assertCanSubmit()` |
 | `rejection_count >= 5` | Reject normal submit/resubmit (State H — contact admin flow) |
 | `POST /instructor-applications` | **First submit only** (State C) |
 | `PUT /instructor-applications/me` | **Resubmit only** from `returned` or `rejected` |
@@ -214,7 +213,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 
 **List/detail admin DTO** adds `display_name`, `email`, `avatar`; company snapshot fields; topic/skill chips (joined taxonomy names); rejection history on detail.
 
-**Managed profiles list** (`GET /instructor-profiles`) returns each row with `latest_submission.profile` (not a top-level `profile` field). FE must read `latest_submission.profile` for headline/detail.
+**Managed profiles list** (`GET /instructor-profiles`) returns each row with identity (`display_name`, `email`, `avatar`) plus `latest_submission.profile` (not a top-level `profile` field). FE must read `latest_submission.profile` for headline/detail.
 
 ### Profiles (`instructor_profile:*`)
 
@@ -233,7 +232,14 @@ Under `/instructors/:id/…` — live instructor expertise (post-approve). Appli
 | POST | `/instructor-tickets/:id/close` | `instructor_ticket:close` |
 | GET/POST | `/instructor-tickets/:id/messages` | read / create |
 
-**State H contact (BE-10):** `POST /api/v1/instructor-applications/contact-admin` with body `{ "subject", "message" }` — creates an `instructor_tickets` row plus first message (P45). Response: `{ ticket_id, status }`.
+**State H contact (BE-10):** `POST /api/v1/instructor-applications/contact-admin` with body `{ "subject", "message" }` — creates ticket + first message in **one DB transaction** (P45). Response: `{ ticket_id, status }`.
+
+**Ticket list/message read models** (admin support UI):
+
+| Entity | Identity fields (joined from `users`) |
+|--------|---------------------------------------|
+| Ticket | `display_name`, `email`, `avatar` (hydrated URL) |
+| Ticket message | `author_full_name`, `author_email` |
 
 **Server-side guard:** backend reads the caller's active application and rejects unless `rejection_count >= 5` (State H). Permission P45 alone is insufficient. Error: `instructor_application:contact_not_allowed` when guard fails.
 

@@ -133,12 +133,14 @@ func (a Application) CanResubmit() bool {
 
 // Profile is the admin-managed instructor profile per user.
 type Profile struct {
-	ID           string
-	UserID       string
-	FullName     string
-	Email        string
-	AvatarURL    string
-	AvatarFileID string
+	ID             string
+	UserID         string
+	FullName       string
+	Email          string
+	AvatarURL      string
+	AvatarFileID   string
+	CVFile         *MediaFileReadModel
+	IntroVideoFile *MediaFileReadModel
 	ProfilePayload
 	CreatedAt int64
 	UpdatedAt int64

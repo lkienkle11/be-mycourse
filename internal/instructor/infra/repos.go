@@ -120,10 +120,10 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
 	type profileWithUserRow struct {
-		profileRow
-		FullName     string `gorm:"column:full_name"`
-		Email        string `gorm:"column:email"`
-		AvatarFileID string `gorm:"column:avatar_file_id"`
+		Row          profileRow `gorm:"embedded"`
+		FullName     string     `gorm:"column:full_name"`
+		Email        string     `gorm:"column:email"`
+		AvatarFileID string     `gorm:"column:avatar_file_id"`
 	}
 	var rows []profileWithUserRow
 	if err := q.
@@ -136,10 +136,11 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 	}
 	out := make([]domain.Profile, len(rows))
 	for i := range rows {
-		out[i] = profileRowToDomain(&rows[i].profileRow)
-		out[i].FullName = rows[i].FullName
-		out[i].Email = rows[i].Email
-		out[i].AvatarFileID = rows[i].AvatarFileID
+		out[i] = mapProfileWithIdentity(&rows[i].Row, identityProjection{
+			FullName:     rows[i].FullName,
+			Email:        rows[i].Email,
+			AvatarFileID: rows[i].AvatarFileID,
+		})
 	}
 	return out, total, nil
 }

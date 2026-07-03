@@ -215,10 +215,17 @@ func toRosterBulkResponse(result domain.RosterBulkResult) rosterBulkResponse {
 }
 
 func profileToResponse(row domain.Profile) applicationResponse {
+	profile := profileBodyFromPayload(row.ProfilePayload)
+	if row.CVFile != nil {
+		profile.CVFile = mediaFileFromDomain(row.CVFile)
+	}
+	if row.IntroVideoFile != nil {
+		profile.IntroVideoFile = mediaFileFromDomain(row.IntroVideoFile)
+	}
 	return applicationResponse{applicationMeResponse: applicationMeResponse{
 		ID: row.ID, UserID: row.UserID, DisplayName: row.FullName, Email: row.Email, Avatar: row.AvatarURL,
 		ReviewStatus:     "managed",
-		LatestSubmission: latestSubmissionResponse{Profile: profileBodyFromPayload(row.ProfilePayload)},
+		LatestSubmission: latestSubmissionResponse{Profile: profile},
 	}}
 }
 

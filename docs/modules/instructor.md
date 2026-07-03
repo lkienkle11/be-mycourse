@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-07-03 — permission-first submit guard, atomic contact-admin ticket, ticket/message identity fields on list APIs._
+_Last audited: 2026-07-03 — required bio on application submit; permission-first submit guard, atomic contact-admin ticket, ticket/message identity fields on list APIs._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / resubmit / approve / reject / return), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -144,8 +144,8 @@ rejected ──PUT /me──► pending   (only if rejection_count < 5 and not s
 | Resubmit from `returned` | Unlimited; does not increase `rejection_count` |
 | Resubmit from `rejected` | Allowed when `rejection_count < 5` |
 | `cv_file_id` | **Required** on `POST` / `PUT /me`. Server loads `media_files` and rejects unless status is **READY** and `mime_type` is exactly **`application/pdf`** (`instructorProfileMediaValidator.validatePDF` in `internal/server/wire_instructor_adapters.go`) → `ErrInvalidProfileMediaFile` / HTTP 400 |
-| `headline` | **Optional** (omitted or empty string). No longer collected on the become-instructor form; column kept for legacy/admin rows. `ApplicationHasProfile` / `has_profile` list filter use **`cv_file_id` only** |
-| `bio` | **Optional** (omitted or empty string). No longer collected on the become-instructor form; column kept for legacy/admin rows |
+| `headline` | **Optional** (omitted or empty string). **Not collected** on the become-instructor form; column kept for legacy/admin rows. `ApplicationHasProfile` / `has_profile` list filter use **`cv_file_id` only** |
+| `bio` | **Required** on `POST` / `PUT /me`: trimmed length **100–2000** characters (`validateSubmitInput` in `validate_profile.go`). Become-instructor form section 2 collects `bio`; FE Zod mirrors the same bounds |
 | `certificates[]` | Optional array (≤10). Each persisted row with non-empty `title` must include `issuer`, `issued_year`, and **either** `credential_url` **or** `certificate_file_id`. When `certificate_file_id` is set, same PDF rules as `cv_file_id`. Response may hydrate `certificate_file` read model on `GET` detail |
 | `intro_video_file_id` | Optional; when set, must be **READY** + `kind = VIDEO` |
 

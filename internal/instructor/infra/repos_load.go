@@ -84,6 +84,7 @@ func mapApplicationWithIdentity(row *applicationRow, identity identityProjection
 func mapProfileWithIdentity(row *profileRow, identity identityProjection) domain.Profile {
 	out := profileRowToDomain(row)
 	out.FullName = identity.FullName
+	out.Email = identity.Email
 	out.AvatarFileID = identity.AvatarFileID
 	return out
 }

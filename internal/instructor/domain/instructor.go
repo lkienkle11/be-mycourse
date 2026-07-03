@@ -133,6 +133,7 @@ type Profile struct {
 	ID           string
 	UserID       string
 	FullName     string
+	Email        string
 	AvatarURL    string
 	AvatarFileID string
 	ProfilePayload
@@ -174,22 +175,28 @@ type ExpertiseSkill struct {
 
 // Ticket is a support thread owned by an instructor user.
 type Ticket struct {
-	ID        string
-	UserID    string
-	Subject   string
-	Status    string
-	CreatedAt int64
-	UpdatedAt int64
+	ID           string
+	UserID       string
+	DisplayName  string
+	Email        string
+	AvatarURL    string
+	AvatarFileID string
+	Subject      string
+	Status       string
+	CreatedAt    int64
+	UpdatedAt    int64
 }
 
 // TicketMessage is one message in a ticket thread.
 type TicketMessage struct {
-	ID           string
-	TicketID     string
-	AuthorUserID string
-	Body         string
-	CreatedAt    int64
-	UpdatedAt    int64
+	ID             string
+	TicketID       string
+	AuthorUserID   string
+	AuthorFullName string
+	AuthorEmail    string
+	Body           string
+	CreatedAt      int64
+	UpdatedAt      int64
 }
 
 // ApplicationFilter lists applications.

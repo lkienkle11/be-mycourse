@@ -102,3 +102,7 @@ func setApplicationAvatarURL(row *domain.Application, url string) { row.AvatarUR
 func profileAvatarFileID(row domain.Profile) string { return row.AvatarFileID }
 
 func setProfileAvatarURL(row *domain.Profile, url string) { row.AvatarURL = url }
+
+func ticketAvatarFileID(row domain.Ticket) string { return row.AvatarFileID }
+
+func setTicketAvatarURL(row *domain.Ticket, url string) { row.AvatarURL = url }

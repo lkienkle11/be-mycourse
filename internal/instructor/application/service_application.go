@@ -140,15 +140,6 @@ func (s *InstructorService) assertCanSubmit(ctx context.Context, userID string) 
 	if s.perms != nil && s.perms.HasPermission(ctx, userID, constants.AllPermissions.InstructorApplicationSubmitBlocked) {
 		return domain.ErrApplicationSubmitBlocked
 	}
-	if s.roles != nil {
-		hasRole, err := s.roles.UserHasInstructorRole(ctx, userID)
-		if err != nil {
-			return err
-		}
-		if hasRole {
-			return domain.ErrApplicationAlreadyInstructor
-		}
-	}
 	return nil
 }
 
@@ -236,11 +227,8 @@ func (s *InstructorService) CreateContactTicket(ctx context.Context, userID, sub
 	if app.RejectionCount < domain.MaxApplicationRejections {
 		return nil, domain.ErrApplicationContactNotAllowed
 	}
-	ticket, err := s.repo.CreateTicket(ctx, userID, subject)
+	ticket, err := s.repo.CreateTicketWithFirstMessage(ctx, userID, subject, body)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := s.repo.AddMessage(ctx, ticket.ID, userID, body); err != nil {
 		return nil, err
 	}
 	return ticket, nil

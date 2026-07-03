@@ -213,7 +213,7 @@ func toRosterBulkResponse(result domain.RosterBulkResult) rosterBulkResponse {
 
 func profileToResponse(row domain.Profile) applicationResponse {
 	return applicationResponse{applicationMeResponse: applicationMeResponse{
-		ID: row.ID, UserID: row.UserID, DisplayName: row.FullName, Avatar: row.AvatarURL,
+		ID: row.ID, UserID: row.UserID, DisplayName: row.FullName, Email: row.Email, Avatar: row.AvatarURL,
 		ReviewStatus:     "managed",
 		LatestSubmission: latestSubmissionResponse{Profile: profileBodyFromPayload(row.ProfilePayload)},
 	}}
@@ -313,4 +313,58 @@ type createTicketRequest struct {
 
 type ticketMessageRequest struct {
 	Body string `json:"body" binding:"required"`
+}
+
+type ticketResponse struct {
+	ID          string `json:"id"`
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Avatar      string `json:"avatar"`
+	Subject     string `json:"subject"`
+	Status      string `json:"status"`
+	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
+}
+
+type ticketMessageResponse struct {
+	ID             string `json:"id"`
+	TicketID       string `json:"ticket_id"`
+	AuthorUserID   string `json:"author_user_id"`
+	AuthorFullName string `json:"author_full_name"`
+	AuthorEmail    string `json:"author_email"`
+	Body           string `json:"body"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
+}
+
+func toTicketResponse(t domain.Ticket) ticketResponse {
+	return ticketResponse{
+		ID: t.ID, UserID: t.UserID, DisplayName: t.DisplayName, Email: t.Email, Avatar: t.AvatarURL,
+		Subject: t.Subject, Status: t.Status, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+	}
+}
+
+func toTicketResponses(rows []domain.Ticket) []ticketResponse {
+	out := make([]ticketResponse, len(rows))
+	for i, row := range rows {
+		out[i] = toTicketResponse(row)
+	}
+	return out
+}
+
+func toTicketMessageResponse(m domain.TicketMessage) ticketMessageResponse {
+	return ticketMessageResponse{
+		ID: m.ID, TicketID: m.TicketID, AuthorUserID: m.AuthorUserID,
+		AuthorFullName: m.AuthorFullName, AuthorEmail: m.AuthorEmail,
+		Body: m.Body, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt,
+	}
+}
+
+func toTicketMessageResponses(rows []domain.TicketMessage) []ticketMessageResponse {
+	out := make([]ticketMessageResponse, len(rows))
+	for i, row := range rows {
+		out[i] = toTicketMessageResponse(row)
+	}
+	return out
 }

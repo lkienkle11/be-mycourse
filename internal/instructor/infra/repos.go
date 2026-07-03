@@ -122,11 +122,12 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 	type profileWithUserRow struct {
 		profileRow
 		FullName     string `gorm:"column:full_name"`
+		Email        string `gorm:"column:email"`
 		AvatarFileID string `gorm:"column:avatar_file_id"`
 	}
 	var rows []profileWithUserRow
 	if err := q.
-		Select("ip.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Select("ip.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
 		Order("ip.id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -137,6 +138,7 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 	for i := range rows {
 		out[i] = profileRowToDomain(&rows[i].profileRow)
 		out[i].FullName = rows[i].FullName
+		out[i].Email = rows[i].Email
 		out[i].AvatarFileID = rows[i].AvatarFileID
 	}
 	return out, total, nil
@@ -445,35 +447,69 @@ func touchAndCreate(ctx context.Context, db *gorm.DB, created, updated *int64, r
 // --- Tickets ----------------------------------------------------------------
 
 func (r *GormRepository) ListTickets(ctx context.Context, f domain.TicketFilter) ([]domain.Ticket, int64, error) {
-	q := activeScope(r.db.WithContext(ctx).Model(&ticketRow{}))
+	q := r.db.WithContext(ctx).Table(constants.TableInstructorTickets + " t").
+		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = t.user_id AND u.deleted_at IS NULL").
+		Where("t.deleted_at IS NULL")
 	if f.UserID != "" {
-		q = q.Where("user_id = ?", f.UserID)
+		q = q.Where("t.user_id = ?", f.UserID)
 	}
 	if s := strings.TrimSpace(f.Status); s != "" {
-		q = q.Where("status = ?", s)
+		q = q.Where("t.status = ?", s)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
-	var rows []ticketRow
-	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
+	type ticketWithUserRow struct {
+		ticketRow
+		FullName     string `gorm:"column:full_name"`
+		Email        string `gorm:"column:email"`
+		AvatarFileID string `gorm:"column:avatar_file_id"`
+	}
+	var rows []ticketWithUserRow
+	if err := q.
+		Select("t.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Order("t.id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.Ticket, len(rows))
 	for i, row := range rows {
-		out[i] = domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		out[i] = ticketRowToDomain(&row.ticketRow, row.FullName, row.Email, row.AvatarFileID)
 	}
 	return out, total, nil
 }
 
+func ticketRowToDomain(row *ticketRow, fullName, email, avatarFileID string) domain.Ticket {
+	return domain.Ticket{
+		ID: row.ID, UserID: row.UserID, DisplayName: fullName, Email: email,
+		AvatarFileID: avatarFileID, Subject: row.Subject, Status: row.Status,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
 func (r *GormRepository) GetTicketByID(ctx context.Context, id string) (*domain.Ticket, error) {
-	var row ticketRow
-	if err := activeScope(r.db.WithContext(ctx)).First(&row, "id = ?", id).Error; err != nil {
+	type ticketWithUserRow struct {
+		ticketRow
+		FullName     string `gorm:"column:full_name"`
+		Email        string `gorm:"column:email"`
+		AvatarFileID string `gorm:"column:avatar_file_id"`
+	}
+	var row ticketWithUserRow
+	if err := r.db.WithContext(ctx).Table(constants.TableInstructorTickets+" t").
+		Select("t.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = t.user_id AND u.deleted_at IS NULL").
+		Where("t.id = ? AND t.deleted_at IS NULL", id).
+		Scan(&row).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
-	t := domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	if row.ID == "" {
+		return nil, mapNotFound(gorm.ErrRecordNotFound)
+	}
+	t := ticketRowToDomain(&row.ticketRow, row.FullName, row.Email, row.AvatarFileID)
 	return &t, nil
 }
 
@@ -482,8 +518,28 @@ func (r *GormRepository) CreateTicket(ctx context.Context, userID string, subjec
 	if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 		return nil, err
 	}
-	t := domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	t := ticketRowToDomain(row, "", "", "")
 	return &t, nil
+}
+
+func (r *GormRepository) CreateTicketWithFirstMessage(ctx context.Context, userID, subject, body string) (*domain.Ticket, error) {
+	var ticket domain.Ticket
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		row := &ticketRow{UserID: userID, Subject: subject, Status: domain.TicketStatusOpen}
+		if err := touchAndCreate(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
+			return err
+		}
+		msg := &ticketMessageRow{TicketID: row.ID, AuthorUserID: userID, Body: body}
+		if err := touchAndCreate(ctx, tx, &msg.CreatedAt, &msg.UpdatedAt, msg); err != nil {
+			return err
+		}
+		ticket = ticketRowToDomain(row, "", "", "")
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &ticket, nil
 }
 
 func (r *GormRepository) CloseTicket(ctx context.Context, id string) error {
@@ -498,14 +554,25 @@ func (r *GormRepository) DeleteTicketsByUserID(ctx context.Context, userID strin
 }
 
 func (r *GormRepository) ListMessages(ctx context.Context, ticketID string) ([]domain.TicketMessage, error) {
-	var rows []ticketMessageRow
-	if err := activeScope(r.db.WithContext(ctx)).Where("ticket_id = ?", ticketID).Order("id ASC").Find(&rows).Error; err != nil {
+	type messageWithAuthorRow struct {
+		ticketMessageRow
+		AuthorFullName string `gorm:"column:author_full_name"`
+		AuthorEmail    string `gorm:"column:author_email"`
+	}
+	var rows []messageWithAuthorRow
+	if err := activeScopeAlias(r.db.WithContext(ctx), "tm").Table(constants.TableInstructorTicketMessages+" tm").
+		Select("tm.*, COALESCE(u.display_name, '') AS author_full_name, COALESCE(u.email, '') AS author_email").
+		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = tm.author_user_id AND u.deleted_at IS NULL").
+		Where("tm.ticket_id = ?", ticketID).
+		Order("tm.id ASC").
+		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]domain.TicketMessage, len(rows))
 	for i, row := range rows {
 		out[i] = domain.TicketMessage{
 			ID: row.ID, TicketID: row.TicketID, AuthorUserID: row.AuthorUserID,
+			AuthorFullName: row.AuthorFullName, AuthorEmail: row.AuthorEmail,
 			Body: row.Body, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		}
 	}

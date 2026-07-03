@@ -94,6 +94,9 @@ func (r rosterBulkTestRepo) GetTicketByID(context.Context, string) (*domain.Tick
 func (r rosterBulkTestRepo) CreateTicket(context.Context, string, string) (*domain.Ticket, error) {
 	return nil, nil
 }
+func (r rosterBulkTestRepo) CreateTicketWithFirstMessage(context.Context, string, string, string) (*domain.Ticket, error) {
+	return nil, nil
+}
 func (r rosterBulkTestRepo) CloseTicket(context.Context, string) error           { return nil }
 func (r rosterBulkTestRepo) DeleteTicketsByUserID(context.Context, string) error { return nil }
 func (r rosterBulkTestRepo) ListMessages(context.Context, string) ([]domain.TicketMessage, error) {

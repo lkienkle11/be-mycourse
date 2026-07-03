@@ -108,6 +108,9 @@ func (r *appTestRepo) GetTicketByID(context.Context, string) (*domain.Ticket, er
 func (r *appTestRepo) CreateTicket(context.Context, string, string) (*domain.Ticket, error) {
 	return &domain.Ticket{ID: "ticket-1", Status: domain.TicketStatusOpen}, nil
 }
+func (r *appTestRepo) CreateTicketWithFirstMessage(context.Context, string, string, string) (*domain.Ticket, error) {
+	return &domain.Ticket{ID: "ticket-1", Status: domain.TicketStatusOpen}, nil
+}
 func (r *appTestRepo) CloseTicket(context.Context, string) error           { return nil }
 func (r *appTestRepo) DeleteTicketsByUserID(context.Context, string) error { return nil }
 func (r *appTestRepo) ListMessages(context.Context, string) ([]domain.TicketMessage, error) {

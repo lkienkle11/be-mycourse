@@ -56,6 +56,7 @@ type TicketRepository interface {
 	ListTickets(ctx context.Context, f TicketFilter) ([]Ticket, int64, error)
 	GetTicketByID(ctx context.Context, id string) (*Ticket, error)
 	CreateTicket(ctx context.Context, userID string, subject string) (*Ticket, error)
+	CreateTicketWithFirstMessage(ctx context.Context, userID, subject, body string) (*Ticket, error)
 	CloseTicket(ctx context.Context, id string) error
 	DeleteTicketsByUserID(ctx context.Context, userID string) error
 	ListMessages(ctx context.Context, ticketID string) ([]TicketMessage, error)

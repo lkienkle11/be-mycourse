@@ -641,6 +641,27 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Paginated collaborator list, bulk add (`AddCollaboratorsBulk` / `POST …/collaborators/bulk` in `repo_collaborators_bulk.go` — single transaction, batch instructor/existing checks), and instructor-candidate picker in `internal/course/infra/repo_collaborators.go`.
 - Current Usage: `ListCollaborators`, `ListInstructorCandidates`.
 
+### Asset: Eligible user picker SQL clause
+- Name: `EligiblePickerWhereClause`, `ActiveUserWhereClause`, `EligibilitySortTierExpr`
+- Type: Function (`internal/shared/userpicker/eligible_clause.go`, `eligible_sort.go`)
+- Purpose: `EligiblePickerWhereClause` / `ActiveUserWhereClause` — SQL `WHERE` fragments for Nhóm A pickers/lists. `EligibilitySortTierExpr(userAlias, nowUnix)` — `CASE` expression (`0` = assignment-eligible, `1` = ineligible) for Nhóm B audit list `ORDER BY`.
+- Scope: Nhóm A: roster-candidates, instructor-candidates, roster/collaborator lists. Nhóm B: `ListApplications`, `ListProfiles` sort (no row filter; API still returns `is_disabled` / `email_confirmed` for FE badges).
+- Current Usage: `rosterCandidatesBaseSQL`, `instructorCandidatesBaseSQL`, `ListRoster`, `collaboratorsFilteredSelectSQL`, `ListApplications`, `ListProfiles`.
+
+### Asset: User assignment eligibility (Go)
+- Name: `CheckEligibleForAssignment`, `AssignmentSnapshot`, `AssignmentFailureMessage`
+- Type: Functions/types (`internal/shared/useraccess/eligibility.go`)
+- Purpose: Go-side mutation validator with same semantics as login (`CheckAccessible` + `email_confirmed`). Returns sentinel errors; `AssignmentFailureMessage` maps them for bulk `failed[]` payloads.
+- Scope: `POST /instructors/bulk`, `POST /instructor-applications/:id/approve`, `POST /internal-v1/rbac/users/:userId/roles`; collaborator bulk uses `CheckAccessible` only (#2).
+- Current Usage: `planBulkRosterWrites`, `ApproveApplication`, `GormUserRoleRepository.AssignRole`, `planBulkCollaboratorWrites` (via `CheckAccessible`).
+
+### Asset: Batch assignment snapshot load
+- Name: `LoadAssignmentSnapshotsByIDs`, `LoadAssignmentSnapshotByID`
+- Type: Functions (`internal/shared/gormx/user_assignment.go`)
+- Purpose: Batch-load `useraccess.AssignmentSnapshot` rows for mutation validators without N+1 queries.
+- Scope: Roster bulk, collaborator bulk, RBAC role assign.
+- Current Usage: `AddRosterBulk`, `AddCollaboratorsBulk`, `GormUserRoleRepository.AssignRole`.
+
 ### Asset: RBAC user ID set by role names
 - Name: `UserIDSetByRoleNames`
 - Type: Function (`internal/shared/gormx/user_role_set.go`)

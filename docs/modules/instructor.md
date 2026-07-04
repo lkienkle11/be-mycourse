@@ -182,10 +182,41 @@ On **first submit**, `saveApplication` initializes `rejection_history` to **`[]`
 
 ## Business rules (roster & tickets)
 
+### User eligibility (#2 / #3)
+
+Picker, promote, and mutation paths (**Nhóm A**) share the same semantics as login and `RequireActiveUser`:
+
+| Rule | Meaning |
+|------|---------|
+| **#2** | User not soft-deleted, `is_disable = false`, and not temporarily banned (`banned_until` nil or ≤ now) |
+| **#3** | `email_confirmed = true` |
+
+**SQL list filter** — `userpicker.EligiblePickerWhereClause()` (requires named arg `@now`):
+
+```sql
+AND u.is_disable = FALSE
+AND (u.banned_until IS NULL OR u.banned_until <= @now)
+AND u.email_confirmed = TRUE
+```
+
+**Go mutation validator** — `useraccess.CheckEligibleForAssignment(snapshot, now)` wraps `CheckAccessible` plus `EmailConfirmed`. Used by roster bulk, approve, collaborator bulk (#2 only), and internal RBAC role assign.
+
+**Audit admin lists** (`GET /instructor-applications`, `GET /instructor-profiles`) do **not** filter rows with the picker `WHERE` clause — all applications/profiles remain visible. **Sort policy (Nhóm B):**
+
+1. **Eligible users first** — same semantics as assignment (#2 + #3): user exists, not disabled, not banned, `email_confirmed = true`.
+2. **Within eligible tier:** applications by `submitted_at DESC` (newest submit first); profiles by `updated_at DESC`.
+3. **Ineligible users** (disabled, banned, unconfirmed, or missing user join) sort **after** eligible rows; same recency tie-break inside that tier.
+
+SQL helper: `userpicker.EligibilitySortTierExpr("u", nowUnix)` → `0` = eligible, `1` = ineligible for `ORDER BY … ASC`.
+
+Responses **also** include `is_disabled` and `email_confirmed` from the joined `users` row so FE can show badges on audit lists (`InstructorUserCell`).
+
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Add roster (bulk) | User must exist, must not have `sysadmin` or `admin` role; assigns `instructor` role only — **learner kept** |
-| List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` |
+| Roster candidates picker | Eligible users (#2 + #3) without `instructor` / `sysadmin` / `admin` role |
+| Add roster (bulk) | User must exist, pass #2 + #3, must not have `sysadmin` or `admin` role; assigns `instructor` role only — **learner kept**; ineligible users return in `failed[]` |
+| List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` and **excluding** inactive (#2) users |
+| Approve application | Applicant must pass #2 + #3 before snapshot copy; HTTP `400` if ineligible |
 | Remove roster | `RemoveRole(instructor)` only; wipe instructor-scoped rows |
 | Ticket message | Rejected when ticket `closed` |
 | Close ticket | `instructor_ticket:close` (P58) |

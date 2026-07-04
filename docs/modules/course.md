@@ -171,9 +171,9 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Bulk add collaborators | **Owner-only** (`requireOwnerAccess`). Each `user_id` must have `instructor`, `sysadmin`, or `admin` role (shared `instructorUserIDSet` via `gormx.UserIDSetByRoleNames`). Service dedupes/trims `user_ids` and defaults empty `role` to `EDITOR`. Repo runs **one transaction**: batch eligibility check, batch existing-row load, **one** `UPDATE … WHERE id IN (?)` for existing rows, **`CreateInBatches` insert** for new rows, single hydrate via `loadCollaboratorsByUserIDs`. Per-user business failures (e.g. not instructor) return in `failed[]`; infrastructure errors abort HTTP 500. |
-| List collaborators | `requireCourseAccess` — owner or `EDITOR` collaborator |
-| Instructor-candidate picker | **Owner-only**; excludes existing collaborators |
+| Bulk add collaborators | **Owner-only** (`requireOwnerAccess`). Each `user_id` must have `instructor`, `sysadmin`, or `admin` role (shared `instructorUserIDSet` via `gormx.UserIDSetByRoleNames`) and pass **#2** active-user check via `useraccess.CheckAccessible`. Service dedupes/trims `user_ids` and defaults empty `role` to `EDITOR`. Repo runs **one transaction**: batch role check, batch access snapshot load, batch existing-row load, **one** `UPDATE … WHERE id IN (?)` for existing rows, **`CreateInBatches` insert** for new rows, single hydrate via `loadCollaboratorsByUserIDs`. Per-user business failures (e.g. not instructor, inactive user) return in `failed[]`; infrastructure errors abort HTTP 500. |
+| List collaborators | `requireCourseAccess` — owner or `EDITOR` collaborator; **hides inactive (#2) collaborators** |
+| Instructor-candidate picker | **Owner-only**; excludes existing collaborators; eligible instructors only (#2 + #3 via `userpicker.EligiblePickerWhereClause`) |
 | Remove collaborator | **Owner-only** |
 
 Implementation: `internal/course/application/service_collaborators_bulk.go`, `internal/course/infra/repo_collaborators_bulk.go`, `internal/course/infra/repo_collaborators.go`. Bulk add and submit validation both use `instructorUserIDSet` (`gormx.UserIDSetByRoleNames`). Submit validation (`validateDraftCollaborators`) batch-loads user snapshots via `loadCollaboratorAccessSnapshots` + eligibility set via `instructorUserIDSet` (no per-collaborator N+1 queries).
@@ -182,7 +182,15 @@ All submit domain errors are mapped to HTTP `400` in `mapCourseError` (`delivery
 
 ### Shared user access helper
 
-`internal/shared/useraccess` exposes `CheckAccessible(snapshot *Snapshot, now int64) error` and is used by both the submit collaborator validator and the auth service access checks. This avoids duplicated accessibility logic across modules.
+`internal/shared/useraccess` exposes:
+
+| Symbol | Use |
+|--------|-----|
+| `CheckAccessible(snapshot *Snapshot, now int64) error` | Login, `RequireActiveUser`, submit collaborator validation, collaborator bulk add (#2) |
+| `CheckEligibleForAssignment(snapshot *AssignmentSnapshot, now int64) error` | Roster bulk, approve application, internal RBAC role assign (#2 + #3) |
+| `AssignmentFailureMessage(err error) string` | Bulk partial-failure messages |
+
+`internal/shared/userpicker.EligiblePickerWhereClause()` supplies the SQL fragment for roster-candidates and instructor-candidates pickers (requires `@now` named arg). Same semantics as login; separate from Go mutation validators to avoid auth-app coupling.
 
 ## Learner model
 

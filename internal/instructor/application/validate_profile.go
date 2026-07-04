@@ -30,6 +30,19 @@ func (s *InstructorService) validateSubmitInput(ctx context.Context, in domain.S
 	if err := s.validateProfile(ctx, p); err != nil {
 		return err
 	}
+	if err := validateSubmitProfileFields(p, in.TopicIDs, in.SkillIDs); err != nil {
+		return err
+	}
+	if err := validateProfileLinkURLs(p); err != nil {
+		return err
+	}
+	if err := validateCertificatePayload(p.Certificates); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateSubmitProfileFields(p domain.ProfilePayload, topicIDs, skillIDs []string) error {
 	bio := strings.TrimSpace(p.Bio)
 	if len(bio) < 100 || len(bio) > 2000 {
 		return domain.ErrInvalidApplicationPayload
@@ -40,23 +53,23 @@ func (s *InstructorService) validateSubmitInput(ctx context.Context, in domain.S
 	if strings.TrimSpace(p.CurrentJobTitleID) == "" {
 		return domain.ErrInvalidApplicationPayload
 	}
+	if strings.TrimSpace(p.CurrentJobTitle) == "" {
+		return domain.ErrInvalidApplicationPayload
+	}
+	if strings.TrimSpace(p.CurrentCompany) == "" {
+		return domain.ErrInvalidApplicationPayload
+	}
 	if strings.TrimSpace(p.CVFileID) == "" {
 		return domain.ErrInvalidApplicationPayload
 	}
-	if len(in.TopicIDs) < 1 || len(in.TopicIDs) > 5 {
+	if len(topicIDs) < 1 || len(topicIDs) > 5 {
 		return domain.ErrInvalidApplicationPayload
 	}
-	if len(in.SkillIDs) < 1 || len(in.SkillIDs) > 15 {
+	if len(skillIDs) < 1 || len(skillIDs) > 15 {
 		return domain.ErrInvalidApplicationPayload
 	}
 	if len(p.PortfolioLinks) > 5 {
 		return domain.ErrInvalidApplicationPayload
-	}
-	if err := validateProfileLinkURLs(p); err != nil {
-		return err
-	}
-	if err := validateCertificatePayload(p.Certificates); err != nil {
-		return err
 	}
 	return nil
 }
@@ -83,6 +96,9 @@ func validateCertificatePayload(certs []domain.Certificate) error {
 	for _, cert := range certs {
 		title := strings.TrimSpace(cert.Title)
 		if title == "" {
+			if certificateRowHasPartialData(cert) {
+				return domain.ErrInvalidApplicationPayload
+			}
 			continue
 		}
 		if strings.TrimSpace(cert.Issuer) == "" || cert.IssuedYear < 1950 {
@@ -98,6 +114,19 @@ func validateCertificatePayload(certs []domain.Certificate) error {
 		}
 	}
 	return nil
+}
+
+func certificateRowHasPartialData(cert domain.Certificate) bool {
+	if strings.TrimSpace(cert.Issuer) != "" {
+		return true
+	}
+	if strings.TrimSpace(cert.CredentialURL) != "" {
+		return true
+	}
+	if strings.TrimSpace(cert.CertificateFileID) != "" {
+		return true
+	}
+	return false
 }
 
 func normalizeRejectionReason(reason string) (string, error) {

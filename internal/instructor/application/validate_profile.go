@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/instructor/domain"
+	sharedutils "mycourse-io-be/internal/shared/utils"
 )
 
 var validYearsCodes = map[string]struct{}{
@@ -51,8 +52,26 @@ func (s *InstructorService) validateSubmitInput(ctx context.Context, in domain.S
 	if len(p.PortfolioLinks) > 5 {
 		return domain.ErrInvalidApplicationPayload
 	}
+	if err := validateProfileLinkURLs(p); err != nil {
+		return err
+	}
 	if err := validateCertificatePayload(p.Certificates); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateProfileLinkURLs(p domain.ProfilePayload) error {
+	if !sharedutils.IsOptionalLinkedInURL(p.LinkedinURL) {
+		return domain.ErrInvalidApplicationPayload
+	}
+	if !sharedutils.IsOptionalGitHubURL(p.GithubURL) {
+		return domain.ErrInvalidApplicationPayload
+	}
+	for _, link := range p.PortfolioLinks {
+		if !sharedutils.IsOptionalHTTPURL(link) {
+			return domain.ErrInvalidApplicationPayload
+		}
 	}
 	return nil
 }
@@ -72,6 +91,9 @@ func validateCertificatePayload(certs []domain.Certificate) error {
 		url := strings.TrimSpace(cert.CredentialURL)
 		fileID := strings.TrimSpace(cert.CertificateFileID)
 		if url == "" && fileID == "" {
+			return domain.ErrInvalidApplicationPayload
+		}
+		if url != "" && !sharedutils.IsOptionalHTTPURL(url) {
 			return domain.ErrInvalidApplicationPayload
 		}
 	}

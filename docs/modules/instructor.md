@@ -146,7 +146,9 @@ rejected ──PUT /me──► pending   (only if rejection_count < 5 and not s
 | `cv_file_id` | **Required** on `POST` / `PUT /me`. Server loads `media_files` and rejects unless status is **READY** and `mime_type` is exactly **`application/pdf`** (`instructorProfileMediaValidator.validatePDF` in `internal/server/wire_instructor_adapters.go`) → `ErrInvalidProfileMediaFile` / HTTP 400 |
 | `headline` | **Optional** (omitted or empty string). **Not collected** on the become-instructor form; column kept for legacy/admin rows. `ApplicationHasProfile` / `has_profile` list filter use **`cv_file_id` only** |
 | `bio` | **Required** on `POST` / `PUT /me`: trimmed length **100–2000** characters (`validateSubmitInput` in `validate_profile.go`). Become-instructor form section 2 collects `bio`; FE Zod mirrors the same bounds |
-| `certificates[]` | Optional array (≤10). Each persisted row with non-empty `title` must include `issuer`, `issued_year`, and **either** `credential_url` **or** `certificate_file_id`. When `certificate_file_id` is set, same PDF rules as `cv_file_id`. Response may hydrate `certificate_file` read model on `GET` detail |
+| `certificates[]` | Optional array (≤10). Each persisted row with non-empty `title` must include `issuer`, `issued_year`, and **either** `credential_url` **or** `certificate_file_id`. When `certificate_file_id` is set, same PDF rules as `cv_file_id`. Non-empty `credential_url` must be a valid **http(s) URL**. Response may hydrate `certificate_file` read model on `GET` detail |
+| `linkedin_url` / `github_url` | Optional. When non-empty: valid **http(s) URL**; host must be **linkedin.com** (incl. subdomains) or **github.com** (incl. subdomains) respectively (`internal/shared/utils/http_url.go`) |
+| `portfolio_links[]` | Optional (≤5). Each non-empty entry must be a valid **http(s) URL** |
 | `intro_video_file_id` | Optional; when set, must be **READY** + `kind = VIDEO` |
 
 ### Approve side effects (ordering — atomic DB first)

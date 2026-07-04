@@ -68,8 +68,15 @@ func TestBuildPublicURL_R2_publicURLPlusKey(t *testing.T) {
 }
 
 func TestResolveMediaUploadObjectKey_R2UsesEightDigitPrefix(t *testing.T) {
-	if g := mediainfra.ResolveMediaUploadObjectKey("", "a.webp", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
+	if g := mediainfra.ResolveMediaUploadObjectKey("", "", "a.webp", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
 		t.Fatalf("R2 default key should start with 8 digits, got %q", g)
+	}
+}
+
+func TestResolveMediaUploadObjectKey_R2UsesUserCodePrefix(t *testing.T) {
+	got := mediainfra.ResolveMediaUploadObjectKey("", "UCODE123", "a.webp", constants.FileProviderR2)
+	if !regexp.MustCompile(`^UCODE123/\d{8}-`).MatchString(got) {
+		t.Fatalf("R2 scoped key should be user_code/8digits-name, got %q", got)
 	}
 }
 
@@ -84,10 +91,10 @@ func TestBuildObjectStorageKey_eightDigitsAndSanitizedName(t *testing.T) {
 }
 
 func TestResolveMediaUploadObjectKey_byProvider(t *testing.T) {
-	if g := mediainfra.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderBunny); g != "" {
+	if g := mediainfra.ResolveMediaUploadObjectKey("", "", "a.mp4", constants.FileProviderBunny); g != "" {
 		t.Fatalf("Bunny default key should be empty before GUID, got %q", g)
 	}
-	if g := mediainfra.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
+	if g := mediainfra.ResolveMediaUploadObjectKey("", "", "a.mp4", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
 		t.Fatalf("R2 default key should start with 8 digits, got %q", g)
 	}
 }

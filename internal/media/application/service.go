@@ -66,8 +66,11 @@ var MediaUploadParallelStartProbe func()
 
 // --- List / Get --------------------------------------------------------------
 
-// ListFiles returns a paginated list of media files.
+// ListFiles returns a paginated list of media files scoped to the viewer.
 func (s *MediaService) ListFiles(ctx context.Context, filter domain.FileFilter) ([]domain.File, int64, error) {
+	if strings.TrimSpace(filter.ViewerUserID) == "" {
+		return nil, 0, apperrors.ErrMediaAccessDenied
+	}
 	files, total, err := s.fileRepo.List(ctx, filter)
 	if err != nil {
 		return nil, 0, err
@@ -76,35 +79,25 @@ func (s *MediaService) ListFiles(ctx context.Context, filter domain.FileFilter) 
 	return files, total, nil
 }
 
-// GetFile resolves a file by object key. If not in DB it synthesises a domain.File from infra defaults.
-func (s *MediaService) GetFile(ctx context.Context, objectKey, kind string) (*domain.File, error) {
+// GetFile resolves a file by object key. Requires an active DB row; no storage URL fallback.
+func (s *MediaService) GetFile(ctx context.Context, objectKey, kind, viewerUserID string) (*domain.File, error) {
+	_ = kind
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
 		return nil, apperrors.ErrMediaObjectKeyRequired
 	}
 	f, err := s.fileRepo.GetByObjectKey(ctx, key)
-	if err == nil {
-		s.scheduleVideoDurationRefresh(context.WithoutCancel(ctx), []domain.File{*f})
-		return f, nil
-	}
-	resolvedProvider := s.gw.DefaultMediaProvider(kind)
-	fileURL, err := s.gw.BuildPublicURL(resolvedProvider, key)
 	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return nil, apperrors.ErrMediaFileNotFoundForObjectKey
+		}
 		return nil, err
 	}
-	now := timex.NowUnix()
-	return &domain.File{
-		ID:        key,
-		Kind:      kind,
-		Provider:  resolvedProvider,
-		Filename:  key,
-		URL:       fileURL,
-		OriginURL: fileURL,
-		ObjectKey: key,
-		Status:    constants.FileStatusReady,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}, nil
+	if !canViewMediaFile(f, viewerUserID) {
+		return nil, apperrors.ErrMediaAccessDenied
+	}
+	s.scheduleVideoDurationRefresh(context.WithoutCancel(ctx), []domain.File{*f})
+	return f, nil
 }
 
 // --- Create ------------------------------------------------------------------
@@ -117,6 +110,7 @@ func (s *MediaService) CreateFiles(ctx context.Context, req CreateFileInput, par
 	if err := s.gw.RequireCloudReady(); err != nil {
 		return nil, err
 	}
+	req.Visibility = normalizeMediaVisibility(req.Visibility)
 	remaining := constants.MaxMediaMultipartTotalBytes
 	prepared, err := prepareCreatePartsSequential(s.gw, req, parts, &remaining)
 	if err != nil {
@@ -126,14 +120,14 @@ func (s *MediaService) CreateFiles(ctx context.Context, req CreateFileInput, par
 	if err != nil {
 		return nil, err
 	}
-	return s.persistPreparedCreates(ctx, prepared, uploaded)
+	return s.persistPreparedCreates(ctx, req, prepared, uploaded)
 }
 
 // --- Update ------------------------------------------------------------------
 
 // UpdateFileBundle updates the primary row and creates additional tail rows in one request.
-func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, req UpdateFileInput, createReq CreateFileInput, parts []domain.OpenedUploadPart) ([]*domain.File, error) {
-	prevRow, err := s.loadUpdateTarget(ctx, objectKey, req)
+func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, req UpdateFileInput, createReq CreateFileInput, parts []domain.OpenedUploadPart, viewerUserID string) ([]*domain.File, error) {
+	prevRow, err := s.loadUpdateTarget(ctx, objectKey, req, viewerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -152,13 +146,13 @@ func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, r
 		return nil, err
 	}
 	if skipHead != nil {
-		return s.finishUpdateBundleSkipHead(ctx, out, tailPrepared, skipHead)
+		return s.finishUpdateBundleSkipHead(ctx, createReq, out, tailPrepared, skipHead)
 	}
 	headUploaded, tailUploaded, err := uploadBundleParallel(s.gw, headPrep, tailPrepared)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.persistBundleAfterUpload(ctx, prevRow, headPrep, tailPrepared, headUploaded, tailUploaded, out); err != nil {
+	if err := s.persistBundleAfterUpload(ctx, createReq, prevRow, headPrep, tailPrepared, headUploaded, tailUploaded, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -167,7 +161,7 @@ func (s *MediaService) UpdateFileBundle(ctx context.Context, objectKey string, r
 // --- Delete ------------------------------------------------------------------
 
 // DeleteFile soft-deletes the row and removes the cloud object.
-func (s *MediaService) DeleteFile(ctx context.Context, objectKey string, metadata domain.RawMetadata) error {
+func (s *MediaService) DeleteFile(ctx context.Context, objectKey string, metadata domain.RawMetadata, viewerUserID string) error {
 	if err := s.gw.RequireCloudReady(); err != nil {
 		return err
 	}
@@ -184,6 +178,9 @@ func (s *MediaService) DeleteFile(ctx context.Context, objectKey string, metadat
 	row, err := s.fileRepo.GetByObjectKey(ctx, key)
 	switch {
 	case err == nil:
+		if !canMutateMediaFile(row, viewerUserID) {
+			return apperrors.ErrMediaAccessDenied
+		}
 		if rowProvider := strings.TrimSpace(row.Provider); rowProvider != "" {
 			provider = rowProvider
 		} else {
@@ -212,7 +209,7 @@ func (s *MediaService) DeleteFile(ctx context.Context, objectKey string, metadat
 }
 
 // DeleteFilesByObjectKeys batch-deletes up to MaxMediaBatchDelete rows (all-or-nothing).
-func (s *MediaService) DeleteFilesByObjectKeys(ctx context.Context, keys []string) error {
+func (s *MediaService) DeleteFilesByObjectKeys(ctx context.Context, keys []string, viewerUserID string) error {
 	if len(keys) == 0 {
 		return apperrors.ErrBatchDeleteEmptyKeys
 	}
@@ -234,6 +231,9 @@ func (s *MediaService) DeleteFilesByObjectKeys(ctx context.Context, keys []strin
 				return apperrors.ErrMediaFileNotFoundForObjectKey
 			}
 			return err
+		}
+		if !canMutateMediaFile(row, viewerUserID) {
+			return apperrors.ErrMediaAccessDenied
 		}
 		rows = append(rows, row)
 	}
@@ -392,7 +392,7 @@ func (s *MediaService) saveUnchangedFingerprintMetadata(ctx context.Context, pre
 	return saved, nil
 }
 
-func (s *MediaService) loadUpdateTarget(ctx context.Context, objectKey string, req UpdateFileInput) (*domain.File, error) {
+func (s *MediaService) loadUpdateTarget(ctx context.Context, objectKey string, req UpdateFileInput, viewerUserID string) (*domain.File, error) {
 	key := strings.TrimSpace(objectKey)
 	if key == "" {
 		return nil, apperrors.ErrMediaObjectKeyRequired
@@ -403,6 +403,9 @@ func (s *MediaService) loadUpdateTarget(ctx context.Context, objectKey string, r
 			return nil, apperrors.ErrMediaFileNotFoundForObjectKey
 		}
 		return nil, err
+	}
+	if !canMutateMediaFile(prevFile, viewerUserID) {
+		return nil, apperrors.ErrMediaAccessDenied
 	}
 	if rid := strings.TrimSpace(req.ReuseMediaID); rid != "" && rid != prevFile.ID {
 		return nil, apperrors.ErrMediaReuseMismatch
@@ -442,7 +445,7 @@ func (s *MediaService) prepareUpdateBundleHead(ctx context.Context, prevFile *do
 	}, nil
 }
 
-func (s *MediaService) persistPreparedCreates(ctx context.Context, prepared []domain.PreparedCreatePart, uploaded []domain.ProviderUploadResult) ([]*domain.File, error) {
+func (s *MediaService) persistPreparedCreates(ctx context.Context, req CreateFileInput, prepared []domain.PreparedCreatePart, uploaded []domain.ProviderUploadResult) ([]*domain.File, error) {
 	if len(prepared) == 0 {
 		return nil, nil
 	}
@@ -453,6 +456,7 @@ func (s *MediaService) persistPreparedCreates(ctx context.Context, prepared []do
 			gw: s.gw, header: prepared[i].Header, payload: prepared[i].Payload,
 			filename: prepared[i].Filename, mime: prepared[i].Mime, kind: prepared[i].Kind,
 			provider: prepared[i].Provider, requestedObjectKey: prepared[i].ObjectKey, uploaded: uploaded[i], now: now,
+			userCode: req.UserCode, userID: req.UserID, visibility: req.Visibility,
 		})
 		ent, err := s.persistCreateRow(ctx, input, prepared[i].Payload)
 		if err != nil {
@@ -474,7 +478,7 @@ func (s *MediaService) rollbackCreatedRows(ctx context.Context, rows []*domain.F
 	}
 }
 
-func (s *MediaService) finishUpdateBundleSkipHead(ctx context.Context, out []*domain.File, tailPrepared []domain.PreparedCreatePart, skipHead *domain.File) ([]*domain.File, error) {
+func (s *MediaService) finishUpdateBundleSkipHead(ctx context.Context, createReq CreateFileInput, out []*domain.File, tailPrepared []domain.PreparedCreatePart, skipHead *domain.File) ([]*domain.File, error) {
 	out[0] = skipHead
 	if len(tailPrepared) == 0 {
 		return out[:1], nil
@@ -483,7 +487,7 @@ func (s *MediaService) finishUpdateBundleSkipHead(ctx context.Context, out []*do
 	if err != nil {
 		return nil, err
 	}
-	tailEntities, err := s.persistPreparedCreates(ctx, tailPrepared, uploadedTail)
+	tailEntities, err := s.persistPreparedCreates(ctx, createReq, tailPrepared, uploadedTail)
 	if err != nil {
 		return nil, err
 	}
@@ -493,8 +497,8 @@ func (s *MediaService) finishUpdateBundleSkipHead(ctx context.Context, out []*do
 	return out, nil
 }
 
-func (s *MediaService) persistBundleAfterUpload(ctx context.Context, prevFile *domain.File, headPrep *domain.PreparedUpdateHead, tailPrepared []domain.PreparedCreatePart, headUploaded domain.ProviderUploadResult, tailUploaded []domain.ProviderUploadResult, out []*domain.File) error {
-	tailEntities, err := s.persistPreparedCreates(ctx, tailPrepared, tailUploaded)
+func (s *MediaService) persistBundleAfterUpload(ctx context.Context, createReq CreateFileInput, prevFile *domain.File, headPrep *domain.PreparedUpdateHead, tailPrepared []domain.PreparedCreatePart, headUploaded domain.ProviderUploadResult, tailUploaded []domain.ProviderUploadResult, out []*domain.File) error {
+	tailEntities, err := s.persistPreparedCreates(ctx, createReq, tailPrepared, tailUploaded)
 	if err != nil {
 		deleteUploadAttempt(s.gw, headPrep.Provider, headPrep.ResolvedObjectKey, headUploaded)
 		return err

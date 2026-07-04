@@ -269,8 +269,11 @@ func preservedOrNewEntityID(in domain.MediaUploadEntityInput) string {
 }
 
 func newFileEntityUploadCore(in domain.MediaUploadEntityInput, merged domain.RawMetadata, typed domain.UploadFileMetadata) *domain.File {
+	visibility := normalizeStoredVisibility(in.Visibility)
 	return &domain.File{
 		ID:           preservedOrNewEntityID(in),
+		UserID:       strings.TrimSpace(in.UserID),
+		Visibility:   visibility,
 		Kind:         in.Kind,
 		Provider:     in.Provider,
 		Filename:     in.Filename,
@@ -344,19 +347,30 @@ func BuildMediaFileEntityFromUpload(in domain.MediaUploadEntityInput) *domain.Fi
 	})
 }
 
-// ResolveMediaUploadObjectKey selects the object key before upload (explicit key, Bunny empty until GUID, local nano key, R2 eight-digit prefix key).
-func ResolveMediaUploadObjectKey(reqObjectKey, filename string, provider string) string {
-	if dk := strings.TrimSpace(reqObjectKey); dk != "" {
-		return strings.TrimLeft(dk, "/")
-	}
+// ResolveMediaUploadObjectKey selects the object key before upload (explicit key, Bunny empty until GUID, local nano key, R2 user-scoped or legacy flat key).
+func ResolveMediaUploadObjectKey(reqObjectKey, userCode, filename, provider string) string {
 	switch provider {
 	case constants.FileProviderBunny:
 		return ""
 	case constants.FileProviderLocal:
 		return buildLocalUploadObjectKey("", filename)
 	default:
+		userCode = strings.TrimSpace(userCode)
+		if userCode != "" {
+			return userCode + "/" + BuildObjectStorageKey(filename)
+		}
+		if dk := strings.TrimSpace(reqObjectKey); dk != "" {
+			return strings.TrimLeft(dk, "/")
+		}
 		return BuildObjectStorageKey(filename)
 	}
+}
+
+func normalizeStoredVisibility(raw string) string {
+	if strings.TrimSpace(raw) == constants.MediaVisibilityPublic {
+		return constants.MediaVisibilityPublic
+	}
+	return constants.MediaVisibilityPrivate
 }
 
 func buildLocalUploadObjectKey(defaultKey, filename string) string {

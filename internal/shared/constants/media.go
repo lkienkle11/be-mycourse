@@ -12,6 +12,9 @@ const (
 	FileStatusReady   = "READY"
 	FileStatusDeleted = "DELETED"
 	FileStatusFailed  = "FAILED"
+
+	MediaVisibilityPrivate = "private"
+	MediaVisibilityPublic  = "public"
 )
 
 // --- Sub 11: image encode concurrency gate ---

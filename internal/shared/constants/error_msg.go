@@ -161,6 +161,7 @@ const (
 	MsgMediaVideoGUIDRequired              = "video guid is required"
 	MsgMediaObjectKeyRequired              = "object key is required"
 	MsgMediaFileNotFoundForObjectKey       = "media file not found for object_key"
+	MsgMediaAccessDenied                   = "media file access denied"
 	MsgBunnyStreamResponseMissingVideoGUID = "bunny stream did not return video guid"
 	MsgBunnyGetVideoHTTP                   = "bunny get video: HTTP %d"
 	MsgInvalidMetadataJSON                 = "invalid metadata json: %w"

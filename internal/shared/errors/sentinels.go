@@ -16,6 +16,7 @@ var (
 	ErrMediaVideoGUIDRequired         = errors.New(constants.MsgMediaVideoGUIDRequired)
 	ErrMediaObjectKeyRequired         = errors.New(constants.MsgMediaObjectKeyRequired)
 	ErrMediaFileNotFoundForObjectKey  = errors.New(constants.MsgMediaFileNotFoundForObjectKey)
+	ErrMediaAccessDenied              = errors.New(constants.MsgMediaAccessDenied)
 	ErrBunnyStreamResponseMissingGUID = errors.New(constants.MsgBunnyStreamResponseMissingVideoGUID)
 )
 

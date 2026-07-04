@@ -39,7 +39,8 @@ func ToUploadFileResponsePtr(file *domain.File) *UploadFileResponse {
 
 func toUploadFileResponse(file domain.File) UploadFileResponse {
 	return UploadFileResponse{
-		ID: file.ID, Kind: file.Kind, Filename: file.Filename, MimeType: file.MimeType,
+		ID: file.ID, UserID: file.UserID, DisplayName: file.DisplayName, Visibility: file.Visibility,
+		Kind: file.Kind, Filename: file.Filename, MimeType: file.MimeType,
 		SizeBytes: file.SizeBytes, Status: file.Status, R2BucketName: file.R2BucketName,
 		URL: file.URL, ObjectKey: file.ObjectKey, BunnyVideoID: file.BunnyVideoID,
 		BunnyLibraryID: file.BunnyLibraryID, VideoID: file.VideoID, ThumbnailURL: file.ThumbnailURL,
@@ -117,7 +118,8 @@ func bindCreateFileMultipart(c *gin.Context, gw domain.MediaGateway) (applicatio
 		return application.CreateFileInput{}, err
 	}
 	return application.CreateFileInput{
-		ObjectKey: c.PostForm("object_key"),
+		ObjectKey:  c.PostForm("object_key"),
+		Visibility: c.PostForm("visibility"),
 	}, nil
 }
 

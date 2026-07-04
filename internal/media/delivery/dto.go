@@ -44,6 +44,9 @@ type MediaCleanupMetricsResponse struct {
 // The raw provider blob is kept server-side only and is not returned.
 type UploadFileResponse struct {
 	ID                  string             `json:"id,omitempty"`
+	UserID              string             `json:"user_id,omitempty"`
+	DisplayName         string             `json:"display_name,omitempty"`
+	Visibility          string             `json:"visibility,omitempty"`
 	Kind                string             `json:"kind,omitempty"`
 	Filename            string             `json:"filename,omitempty"`
 	MimeType            string             `json:"mime_type,omitempty"`

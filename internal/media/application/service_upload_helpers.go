@@ -53,6 +53,9 @@ type createUploadInputParams struct {
 	kind               string
 	provider           string
 	requestedObjectKey string
+	userCode           string
+	userID             string
+	visibility         string
 	uploaded           domain.ProviderUploadResult
 	now                int64
 }
@@ -62,6 +65,8 @@ func buildCreateEntityInput(p createUploadInputParams) domain.MediaUploadEntityI
 	merged := p.gw.NormalizeMetadata(uploadedMeta)
 	isImage := p.gw.IsImageMIMEOrExt(p.mime, p.filename)
 	return domain.MediaUploadEntityInput{
+		UserID:        strings.TrimSpace(p.userID),
+		Visibility:    normalizeMediaVisibility(p.visibility),
 		Kind:          p.kind,
 		Provider:      p.provider,
 		Filename:      p.filename,
@@ -91,6 +96,8 @@ type updateUploadInputParams struct {
 
 func buildUpdateEntityInput(p updateUploadInputParams) domain.MediaUploadEntityInput {
 	return domain.MediaUploadEntityInput{
+		UserID:        strings.TrimSpace(p.prevFile.UserID),
+		Visibility:    normalizeMediaVisibility(p.prevFile.Visibility),
 		Kind:          p.kind,
 		Provider:      p.provider,
 		Filename:      p.filename,
@@ -118,12 +125,12 @@ func prepareNormalizedUploadPart(
 	gw domain.MediaGateway,
 	filename, mime string,
 	payload []byte,
-	requestedObjectKey string,
+	requestedObjectKey, userCode string,
 ) (normalizedUploadPart, error) {
 	mime = gw.MIMEForUploadRouting(payload, filename, mime)
 	kind, kindInferred := gw.ResolveMediaKindFromServer(mime, filename)
 	provider := gw.ResolveUploadProvider(kind, kindInferred)
-	objectKey := gw.ResolveMediaUploadObjectKey(requestedObjectKey, filename, provider)
+	objectKey := gw.ResolveMediaUploadObjectKey(requestedObjectKey, userCode, filename, provider)
 	isImage := gw.IsImageMIMEOrExt(mime, filename)
 	if err := rejectExecutableNonMedia(kind, isImage, filename, payload); err != nil {
 		return normalizedUploadPart{}, err
@@ -134,7 +141,7 @@ func prepareNormalizedUploadPart(
 			return normalizedUploadPart{}, err
 		}
 		payload, mime, filename = enc, encMime, encName
-		objectKey = gw.ResolveMediaUploadObjectKey(requestedObjectKey, filename, provider)
+		objectKey = gw.ResolveMediaUploadObjectKey(requestedObjectKey, userCode, filename, provider)
 	}
 	mime = gw.CanonicalStorageMIME(payload, filename, mime, kind)
 	return normalizedUploadPart{
@@ -146,7 +153,7 @@ func prepareNormalizedUploadPart(
 func normalizeUpdateMultipartPayload(gw domain.MediaGateway, filename, mime string, payload []byte) (
 	newPayload []byte, newFilename, newMime string, kind string, provider string, objectKey string, err error,
 ) {
-	normalized, normErr := prepareNormalizedUploadPart(gw, filename, mime, payload, "")
+	normalized, normErr := prepareNormalizedUploadPart(gw, filename, mime, payload, "", "")
 	if normErr != nil {
 		err = normErr
 		return
@@ -162,7 +169,7 @@ func prepareCreatePartsSequential(gw domain.MediaGateway, req CreateFileInput, p
 		if err != nil {
 			return nil, err
 		}
-		normalized, normErr := prepareNormalizedUploadPart(gw, filename, mime, payload, req.ObjectKey)
+		normalized, normErr := prepareNormalizedUploadPart(gw, filename, mime, payload, req.ObjectKey, req.UserCode)
 		if normErr != nil {
 			return nil, normErr
 		}

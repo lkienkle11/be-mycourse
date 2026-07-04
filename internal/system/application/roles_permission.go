@@ -173,5 +173,8 @@ var RolePermissions = struct {
 	Learner_CourseSkillRead             string `role:"learner" perm_id:"P34"`
 	Learner_TagRead                     string `role:"learner" perm_id:"P22"`
 	Learner_MediaFileRead               string `role:"learner" perm_id:"P26"`
+	Learner_MediaFileCreate             string `role:"learner" perm_id:"P27"`
+	Learner_MediaFileUpdate             string `role:"learner" perm_id:"P28"`
+	Learner_MediaFileDelete             string `role:"learner" perm_id:"P29"`
 	Learner_InstructorApplicationCreate string `role:"learner" perm_id:"P45"`
 }{}

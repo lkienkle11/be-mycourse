@@ -185,44 +185,13 @@ func (s *InstructorService) hydrateApplicationResponse(ctx context.Context, app 
 }
 
 func (s *InstructorService) hydrateApplicationMedia(ctx context.Context, app *domain.Application) error {
-	if s.mediaHydr == nil {
-		return nil
-	}
-	ids := make([]string, 0, 2+len(app.Certificates))
-	if id := strings.TrimSpace(app.CVFileID); id != "" {
-		ids = append(ids, id)
-	}
-	if id := strings.TrimSpace(app.IntroVideoFileID); id != "" {
-		ids = append(ids, id)
-	}
-	for _, cert := range app.Certificates {
-		if id := strings.TrimSpace(cert.CertificateFileID); id != "" {
-			ids = append(ids, id)
-		}
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	files, err := s.mediaHydr.ResolveMediaFiles(ctx, ids)
-	if err != nil {
-		return err
-	}
-	if f, ok := files[strings.TrimSpace(app.CVFileID)]; ok {
-		copy := f
-		app.CVFile = &copy
-	}
-	if f, ok := files[strings.TrimSpace(app.IntroVideoFileID)]; ok {
-		copy := f
-		app.IntroVideoFile = &copy
-	}
-	for i := range app.Certificates {
-		id := strings.TrimSpace(app.Certificates[i].CertificateFileID)
-		if f, ok := files[id]; ok {
-			copy := f
-			app.Certificates[i].CertificateFile = &copy
-		}
-	}
-	return nil
+	return hydrateProfilePayloadMedia(
+		ctx,
+		s.mediaHydr,
+		&app.ProfilePayload,
+		func(f *domain.MediaFileReadModel) { app.CVFile = f },
+		func(f *domain.MediaFileReadModel) { app.IntroVideoFile = f },
+	)
 }
 
 // CreateContactTicket creates an instructor support ticket for State H contact flow.

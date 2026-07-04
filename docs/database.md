@@ -327,8 +327,8 @@ Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
 |------|--------------------------|
 | **sysadmin** | P1–P67 (full catalog except **P68** — submit block is instructor-only negative flag) |
 | **admin** | P1–P8, P10–P68 except **P9** `course_instructor:read`, **P38** `sysadmin:modify`, and **P68** `instructor_application:submit_blocked` |
-| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, P26–P29, P30, P34, P40, **P45, P47, P49, P55–P58, P67, P68** |
-| **learner** | P1, P5, P10, P14, P18, P22, P26, P30, P34, **P45** (submit application / create ticket) |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, **P26–P29** (full media CRUD), P30, P34, P40, **P45, P47, P49, P55–P58, P67, P68** |
+| **learner** | P1, P5, P10, P14, P18, P22, **P26–P29** (full media CRUD), P30, P34, **P45** (submit application / create ticket) |
 
 `000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
 
@@ -501,7 +501,9 @@ Product media (R2 files, Bunny Stream videos, local signed URLs, etc.).
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | Logical media row id (client-facing) |
-| `object_key` | `VARCHAR(512)` | UNIQUE NOT NULL | R2 object key or Bunny video GUID |
+| `object_key` | `VARCHAR(512)` | UNIQUE NOT NULL | R2 object key or Bunny video GUID. **New R2 uploads:** `{user_code}/{8digits}-{sanitized-filename}` (see media module). Legacy rows may still use flat `{8digits}-{filename}`. |
+| `user_id` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | Uploader (`users.id` from JWT). **NULL** on legacy rows until a future R2 repath migration. |
+| `visibility` | `VARCHAR(16)` | NOT NULL DEFAULT `private` | `private` (default) or `public`. Controls who sees the row in `GET /media/files` and who may read/delete/update it. |
 | `kind` | `VARCHAR(16)` | NOT NULL | `FILE` or `VIDEO` (server-derived; see media module) |
 | `provider` | `VARCHAR(16)` | NOT NULL | e.g. `R2`, `Bunny`, `Local` (legacy rows may still show `B2`) |
 | `filename` | `VARCHAR(512)` | NOT NULL | Original filename |
@@ -528,7 +530,7 @@ Product media (R2 files, Bunny Stream videos, local signed URLs, etc.).
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
-**Indexes:** `idx_media_files_kind`, `idx_media_files_provider`, `idx_media_files_bunny_video_id`, `idx_media_files_created_at`, `idx_media_files_metadata_json_gin` (GIN on `metadata_json`, migration `000008`).
+**Indexes:** `idx_media_files_kind`, `idx_media_files_provider`, `idx_media_files_bunny_video_id`, `idx_media_files_created_at`, `idx_media_files_metadata_json_gin` (GIN on `metadata_json`, migration `000008`), `idx_media_files_user_id`, `idx_media_files_visibility` (migration `000030`).
 
 **GORM model:** `internal/media/infra/repos.go` (`mediaFileRow`).  
 **Domain entity:** `internal/media/domain/media.go` (`File`, `MediaFile`).

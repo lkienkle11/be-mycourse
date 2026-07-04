@@ -9,6 +9,7 @@ import (
 	instructordomain "mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
+	"mycourse-io-be/internal/shared/useraccess"
 )
 
 const collaboratorBulkInsertBatchSize = 100
@@ -31,7 +32,9 @@ type bulkCollaboratorWriteState struct {
 func planBulkCollaboratorWrites(
 	userIDs []string,
 	instructorSet map[string]struct{},
+	accessByID map[string]useraccess.AssignmentSnapshot,
 	existingByUser map[string]collaboratorRow,
+	now int64,
 ) bulkCollaboratorWriteState {
 	state := bulkCollaboratorWriteState{
 		failed:           make([]domain.CollaboratorBulkFailure, 0),
@@ -44,6 +47,21 @@ func planBulkCollaboratorWrites(
 			state.failed = append(state.failed, domain.CollaboratorBulkFailure{
 				UserID:  userID,
 				Message: domain.ErrCourseInstructorRequired.Error(),
+			})
+			continue
+		}
+		snap, ok := accessByID[userID]
+		if !ok {
+			state.failed = append(state.failed, domain.CollaboratorBulkFailure{
+				UserID:  userID,
+				Message: useraccess.ErrUserNotFound.Error(),
+			})
+			continue
+		}
+		if err := useraccess.CheckAccessible(&snap.Snapshot, now); err != nil {
+			state.failed = append(state.failed, domain.CollaboratorBulkFailure{
+				UserID:  userID,
+				Message: domain.ErrCourseCollaboratorInactive.Error(),
 			})
 			continue
 		}
@@ -64,13 +82,14 @@ func applyBulkCollaboratorWrites(
 	userIDs []string,
 	role string,
 	instructorSet map[string]struct{},
+	accessByID map[string]useraccess.AssignmentSnapshot,
 	existingByUser map[string]collaboratorRow,
 ) (bulkCollaboratorWriteState, error) {
-	plan := planBulkCollaboratorWrites(userIDs, instructorSet, existingByUser)
+	now := timex.NowUnix()
+	plan := planBulkCollaboratorWrites(userIDs, instructorSet, accessByID, existingByUser, now)
 	if len(plan.updateIDs) == 0 && len(plan.insertUserIDs) == 0 {
 		return plan, nil
 	}
-	now := timex.NowUnix()
 	if len(plan.updateIDs) > 0 {
 		if err := tx.WithContext(ctx).Model(&collaboratorRow{}).
 			Where("id IN ? AND deleted_at IS NULL", plan.updateIDs).
@@ -126,7 +145,11 @@ func (r *GormRepository) AddCollaboratorsBulk(
 		for _, row := range existingRows {
 			existingByUser[row.UserID] = row
 		}
-		writeState, err := applyBulkCollaboratorWrites(ctx, tx, access.ID, userIDs, role, instructorSet, existingByUser)
+		accessByID, err := gormx.LoadAssignmentSnapshotsByIDs(ctx, tx, userIDs)
+		if err != nil {
+			return err
+		}
+		writeState, err := applyBulkCollaboratorWrites(ctx, tx, access.ID, userIDs, role, instructorSet, accessByID, existingByUser)
 		if err != nil {
 			return err
 		}

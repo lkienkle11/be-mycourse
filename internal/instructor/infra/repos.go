@@ -59,17 +59,21 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
+	now := timex.NowUnix()
+	tier := userpicker.EligibilitySortTierExpr("u", now)
 	type applicationWithUserRow struct {
-		Row          applicationRow `gorm:"embedded"`
-		FullName     string         `gorm:"column:full_name"`
-		Email        string         `gorm:"column:email"`
-		Phone        string         `gorm:"column:phone"`
-		AvatarFileID string         `gorm:"column:avatar_file_id"`
+		Row            applicationRow `gorm:"embedded"`
+		FullName       string         `gorm:"column:full_name"`
+		Email          string         `gorm:"column:email"`
+		Phone          string         `gorm:"column:phone"`
+		AvatarFileID   string         `gorm:"column:avatar_file_id"`
+		IsDisabled     bool           `gorm:"column:is_disabled"`
+		EmailConfirmed bool           `gorm:"column:email_confirmed"`
 	}
 	var rows []applicationWithUserRow
 	if err := q.
-		Select("ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
-		Order("ia.id DESC").
+		Select(`ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed`).
+		Order(fmt.Sprintf("(%s) ASC, ia.submitted_at DESC, ia.id DESC", tier)).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Scan(&rows).Error; err != nil {
@@ -78,10 +82,12 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	out := make([]domain.Application, len(rows))
 	for i := range rows {
 		out[i] = mapApplicationWithIdentity(&rows[i].Row, identityProjection{
-			FullName:     rows[i].FullName,
-			Email:        rows[i].Email,
-			Phone:        rows[i].Phone,
-			AvatarFileID: rows[i].AvatarFileID,
+			FullName:       rows[i].FullName,
+			Email:          rows[i].Email,
+			Phone:          rows[i].Phone,
+			AvatarFileID:   rows[i].AvatarFileID,
+			IsDisabled:     rows[i].IsDisabled,
+			EmailConfirmed: rows[i].EmailConfirmed,
 		})
 	}
 	return out, total, nil
@@ -119,16 +125,20 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
+	now := timex.NowUnix()
+	tier := userpicker.EligibilitySortTierExpr("u", now)
 	type profileWithUserRow struct {
-		Row          profileRow `gorm:"embedded"`
-		FullName     string     `gorm:"column:full_name"`
-		Email        string     `gorm:"column:email"`
-		AvatarFileID string     `gorm:"column:avatar_file_id"`
+		Row            profileRow `gorm:"embedded"`
+		FullName       string     `gorm:"column:full_name"`
+		Email          string     `gorm:"column:email"`
+		AvatarFileID   string     `gorm:"column:avatar_file_id"`
+		IsDisabled     bool       `gorm:"column:is_disabled"`
+		EmailConfirmed bool       `gorm:"column:email_confirmed"`
 	}
 	var rows []profileWithUserRow
 	if err := q.
-		Select("ip.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
-		Order("ip.id DESC").
+		Select(`ip.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed`).
+		Order(fmt.Sprintf("(%s) ASC, ip.updated_at DESC, ip.id DESC", tier)).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Scan(&rows).Error; err != nil {
@@ -137,9 +147,11 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 	out := make([]domain.Profile, len(rows))
 	for i := range rows {
 		out[i] = mapProfileWithIdentity(&rows[i].Row, identityProjection{
-			FullName:     rows[i].FullName,
-			Email:        rows[i].Email,
-			AvatarFileID: rows[i].AvatarFileID,
+			FullName:       rows[i].FullName,
+			Email:          rows[i].Email,
+			AvatarFileID:   rows[i].AvatarFileID,
+			IsDisabled:     rows[i].IsDisabled,
+			EmailConfirmed: rows[i].EmailConfirmed,
 		})
 	}
 	return out, total, nil
@@ -176,87 +188,6 @@ func (r *GormRepository) UpsertProfile(ctx context.Context, in domain.UpsertProf
 
 func (r *GormRepository) DeleteProfileByUserID(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &profileRow{}, "user_id = ?", userID)
-}
-
-// --- Roster -----------------------------------------------------------------
-
-func sqlUserWithoutPlatformStaffRoles(userIDColumn string) string {
-	return fmt.Sprintf(`
-  AND NOT EXISTS (
-      SELECT 1
-      FROM %s ur_staff
-      INNER JOIN %s ro_staff ON ro_staff.id = ur_staff.role_id AND ro_staff.name IN ('%s', '%s')
-      WHERE ur_staff.user_id = %s
-  )`, constants.TableRBACUserRoles, constants.TableRBACRoles, domain.RoleNameSysadmin, domain.RoleNameAdmin, userIDColumn)
-}
-
-func sqlUserWithoutRosterBlockingRoles(userIDColumn string) string {
-	return fmt.Sprintf(`
-  AND NOT EXISTS (
-      SELECT 1
-      FROM %s ur
-      INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name IN ('%s', '%s', '%s')
-      WHERE ur.user_id = %s
-  )`, constants.TableRBACUserRoles, constants.TableRBACRoles, domain.RoleNameInstructor, domain.RoleNameSysadmin, domain.RoleNameAdmin, userIDColumn)
-}
-
-func (r *GormRepository) ListRoster(ctx context.Context, f domain.RosterFilter) ([]domain.RosterMember, int64, error) {
-	base := fmt.Sprintf(`
-SELECT u.id, u.display_name, u.email, COALESCE(u.phone, '') AS phone,
-       COALESCE(u.avatar_file_id::text, '') AS avatar_file_id
-FROM %s u
-INNER JOIN %s ur ON ur.user_id = u.id
-INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name = ?
-WHERE u.deleted_at IS NULL%s`, constants.TableAppUsers, constants.TableRBACUserRoles, constants.TableRBACRoles, sqlUserWithoutPlatformStaffRoles("u.id"))
-	q := r.db.WithContext(ctx).Table("(?) AS roster", r.db.Raw(base, domain.RoleNameInstructor))
-	if s := strings.TrimSpace(f.Search); s != "" {
-		like := "%" + s + "%"
-		q = q.Where("display_name ILIKE ? OR email ILIKE ?", like, like)
-	}
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	page, pageSize := instrPageParams(f.Page, f.PageSize)
-	type scanRow struct {
-		ID           string
-		DisplayName  string
-		Email        string
-		Phone        string
-		AvatarFileID string
-	}
-	var rows []scanRow
-	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.RosterMember, len(rows))
-	for i, row := range rows {
-		out[i] = domain.RosterMember{
-			UserID: row.ID, FullName: row.DisplayName, Email: row.Email,
-			Phone: row.Phone, AvatarFileID: row.AvatarFileID,
-		}
-	}
-	return out, total, nil
-}
-
-func rosterCandidatesBaseSQL() string {
-	return userpicker.UserPickerSelectSQL(constants.TableAppUsers) + fmt.Sprintf(`
-WHERE u.deleted_at IS NULL%s`, sqlUserWithoutRosterBlockingRoles("u.id"))
-}
-
-func (r *GormRepository) ListRosterCandidates(ctx context.Context, f domain.RosterCandidateFilter) ([]domain.RosterCandidate, int64, error) {
-	rows, total, err := userpicker.ListRows(ctx, r.db, rosterCandidatesBaseSQL(), map[string]any{}, userpicker.ListFilter{Page: f.Page, PerPage: f.PageSize, Search: f.Search})
-	if err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.RosterCandidate, len(rows))
-	for i, row := range rows {
-		out[i] = domain.RosterCandidate{
-			UserID: row.UserID, DisplayName: row.DisplayName, Email: row.Email,
-			AvatarFileID: row.AvatarFileID, AvatarURL: row.AvatarURL,
-		}
-	}
-	return out, total, nil
 }
 
 // --- Expertise --------------------------------------------------------------

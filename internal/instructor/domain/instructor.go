@@ -101,6 +101,8 @@ type Application struct {
 	Phone            string
 	AvatarURL        string
 	AvatarFileID     string
+	IsDisabled       bool
+	EmailConfirmed   bool
 	ReviewStatus     string
 	RejectionReason  string
 	SubmittedAt      int64
@@ -139,6 +141,8 @@ type Profile struct {
 	Email          string
 	AvatarURL      string
 	AvatarFileID   string
+	IsDisabled     bool
+	EmailConfirmed bool
 	CVFile         *MediaFileReadModel
 	IntroVideoFile *MediaFileReadModel
 	ProfilePayload

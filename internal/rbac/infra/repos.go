@@ -13,6 +13,8 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/timex"
+	"mycourse-io-be/internal/shared/useraccess"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -312,6 +314,16 @@ func (r *GormUserRoleRepository) ListRolesForUser(ctx context.Context, userID st
 }
 
 func (r *GormUserRoleRepository) AssignRole(ctx context.Context, userID string, roleID uint) error {
+	snap, err := gormx.LoadAssignmentSnapshotByID(ctx, r.db, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return useraccess.ErrUserNotFound
+		}
+		return err
+	}
+	if err := useraccess.CheckEligibleForAssignment(&snap, timex.NowUnix()); err != nil {
+		return err
+	}
 	row := userRoleRow{UserID: userID, RoleID: roleID}
 	return r.db.WithContext(ctx).FirstOrCreate(&row, userRoleRow{UserID: userID, RoleID: roleID}).Error
 }

@@ -11,10 +11,12 @@ import (
 )
 
 type identityProjection struct {
-	FullName     string `gorm:"column:full_name"`
-	Email        string `gorm:"column:email"`
-	Phone        string `gorm:"column:phone"`
-	AvatarFileID string `gorm:"column:avatar_file_id"`
+	FullName       string `gorm:"column:full_name"`
+	Email          string `gorm:"column:email"`
+	Phone          string `gorm:"column:phone"`
+	AvatarFileID   string `gorm:"column:avatar_file_id"`
+	IsDisabled     bool   `gorm:"column:is_disabled"`
+	EmailConfirmed bool   `gorm:"column:email_confirmed"`
 }
 
 func loadApplicationRow(ctx context.Context, db *gorm.DB, query string, args ...any) (*domain.Application, error) {
@@ -61,7 +63,7 @@ func loadRowWithIdentity(
 	dest any,
 ) error {
 	selectSQL := fmt.Sprintf(
-		"%s.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id",
+		"%s.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed",
 		alias,
 	)
 	return activeScopeAlias(db.WithContext(ctx), alias).Table(tableName+" "+alias).
@@ -78,6 +80,8 @@ func mapApplicationWithIdentity(row *applicationRow, identity identityProjection
 	out.Email = identity.Email
 	out.Phone = identity.Phone
 	out.AvatarFileID = identity.AvatarFileID
+	out.IsDisabled = identity.IsDisabled
+	out.EmailConfirmed = identity.EmailConfirmed
 	return out
 }
 
@@ -86,5 +90,7 @@ func mapProfileWithIdentity(row *profileRow, identity identityProjection) domain
 	out.FullName = identity.FullName
 	out.Email = identity.Email
 	out.AvatarFileID = identity.AvatarFileID
+	out.IsDisabled = identity.IsDisabled
+	out.EmailConfirmed = identity.EmailConfirmed
 	return out
 }

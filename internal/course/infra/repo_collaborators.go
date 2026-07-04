@@ -10,6 +10,7 @@ import (
 	"mycourse-io-be/internal/course/domain"
 	instructordomain "mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/userpicker"
 	"mycourse-io-be/internal/shared/utils"
 )
@@ -37,6 +38,10 @@ INNER JOIN users u
 LEFT JOIN media_files m
     ON m.id = u.avatar_file_id AND m.deleted_at IS NULL
 WHERE cc.course_id = @course_id AND cc.deleted_at IS NULL`
+
+func collaboratorsFilteredSelectSQL() string {
+	return collaboratorsSelectSQL + userpicker.ActiveUserWhereClause()
+}
 
 func collaboratorOrderSQL() string {
 	return " ORDER BY CASE WHEN cc.role = 'OWNER' THEN 0 ELSE 1 END, cc.id ASC"
@@ -76,8 +81,8 @@ func (r *GormRepository) ListCollaborators(ctx context.Context, courseID string,
 		PerPage: filter.PerPage,
 	})
 	searchClause, searchArgs := utils.UserDisplayNameEmailSearchSQL(filter.Search)
-	countQ := collaboratorsSelectSQL + searchClause
-	args := map[string]any{"course_id": courseID}
+	countQ := collaboratorsFilteredSelectSQL() + searchClause
+	args := map[string]any{"course_id": courseID, "now": timex.NowUnix()}
 	for k, v := range searchArgs {
 		args[k] = v
 	}
@@ -97,12 +102,12 @@ func instructorCandidatesBaseSQL() string {
 	return userpicker.UserPickerSelectSQL(constants.TableAppUsers) + fmt.Sprintf(`
 INNER JOIN %s ur ON ur.user_id = u.id
 INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name = @role_name
-WHERE u.deleted_at IS NULL
+WHERE u.deleted_at IS NULL%s
   AND u.id NOT IN (
       SELECT cc.user_id
       FROM course_collaborators cc
       WHERE cc.course_id = @course_id AND cc.deleted_at IS NULL
-  )`, constants.TableRBACUserRoles, constants.TableRBACRoles)
+  )`, constants.TableRBACUserRoles, constants.TableRBACRoles, userpicker.EligiblePickerWhereClause())
 }
 
 func (r *GormRepository) ListInstructorCandidates(ctx context.Context, courseID string, actorUserID string, filter domain.InstructorCandidateFilter) ([]domain.InstructorCandidate, int64, error) {
@@ -116,6 +121,7 @@ func (r *GormRepository) ListInstructorCandidates(ctx context.Context, courseID 
 	rows, total, err := userpicker.ListRows(ctx, r.db, instructorCandidatesBaseSQL(), map[string]any{
 		"course_id": courseID,
 		"role_name": instructordomain.RoleNameInstructor,
+		"now":       timex.NowUnix(),
 	}, userpicker.ListFilter{Page: filter.Page, PerPage: filter.PerPage, Search: filter.Search})
 	if err != nil {
 		return nil, 0, err

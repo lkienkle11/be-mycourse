@@ -4,7 +4,23 @@ import (
 	"testing"
 
 	"mycourse-io-be/internal/instructor/domain"
+	"mycourse-io-be/internal/shared/useraccess"
 )
+
+const testEligibilityNow = int64(1_700_000_000)
+
+func eligibleSnap() useraccess.AssignmentSnapshot {
+	return useraccess.AssignmentSnapshot{EmailConfirmed: true}
+}
+
+func eligibilityFor(users ...string) map[string]useraccess.AssignmentSnapshot {
+	out := make(map[string]useraccess.AssignmentSnapshot, len(users))
+	snap := eligibleSnap()
+	for _, id := range users {
+		out[id] = snap
+	}
+	return out
+}
 
 func TestPlanBulkRosterWritesAllSuccess(t *testing.T) {
 	t.Parallel()
@@ -14,7 +30,7 @@ func TestPlanBulkRosterWritesAllSuccess(t *testing.T) {
 	}
 	existingSet := map[string]struct{}{"u1": {}}
 
-	plan := planBulkRosterWrites([]string{"u1", "u2"}, usersByID, nil, existingSet)
+	plan := planBulkRosterWrites([]string{"u1", "u2"}, usersByID, eligibilityFor("u1", "u2"), nil, existingSet, testEligibilityNow)
 	if len(plan.failed) != 0 {
 		t.Fatalf("failed = %v", plan.failed)
 	}
@@ -33,7 +49,14 @@ func TestPlanBulkRosterWritesPartialSuccess(t *testing.T) {
 	}
 	staffSet := map[string]struct{}{"staff": {}}
 
-	plan := planBulkRosterWrites([]string{"u1", "missing", "staff"}, usersByID, staffSet, nil)
+	plan := planBulkRosterWrites(
+		[]string{"u1", "missing", "staff"},
+		usersByID,
+		eligibilityFor("u1", "staff"),
+		staffSet,
+		nil,
+		testEligibilityNow,
+	)
 	if len(plan.failed) != 2 {
 		t.Fatalf("failed = %v", plan.failed)
 	}
@@ -52,7 +75,7 @@ func TestPlanBulkRosterWritesAllFailed(t *testing.T) {
 	}
 	staffSet := map[string]struct{}{"staff": {}}
 
-	plan := planBulkRosterWrites([]string{"missing1", "staff"}, usersByID, staffSet, nil)
+	plan := planBulkRosterWrites([]string{"missing1", "staff"}, usersByID, eligibilityFor("staff"), staffSet, nil, testEligibilityNow)
 	if len(plan.failed) != 2 {
 		t.Fatalf("failed = %v", plan.failed)
 	}
@@ -71,7 +94,7 @@ func TestPlanBulkRosterWritesFailedMessages(t *testing.T) {
 	}
 	staffSet := map[string]struct{}{"staff": {}}
 
-	plan := planBulkRosterWrites([]string{"missing", "staff"}, usersByID, staffSet, nil)
+	plan := planBulkRosterWrites([]string{"missing", "staff"}, usersByID, eligibilityFor("staff"), staffSet, nil, testEligibilityNow)
 	if len(plan.failed) != 2 {
 		t.Fatalf("failed = %v", plan.failed)
 	}
@@ -83,6 +106,24 @@ func TestPlanBulkRosterWritesFailedMessages(t *testing.T) {
 	}
 }
 
+func TestPlanBulkRosterWritesIneligibleUser(t *testing.T) {
+	t.Parallel()
+	usersByID := map[string]rosterUserRow{
+		"u1": {ID: "u1", DisplayName: "User 1", Email: "u1@example.com"},
+	}
+	eligibility := map[string]useraccess.AssignmentSnapshot{
+		"u1": {Snapshot: useraccess.Snapshot{IsDisabled: true}, EmailConfirmed: true},
+	}
+
+	plan := planBulkRosterWrites([]string{"u1"}, usersByID, eligibility, nil, nil, testEligibilityNow)
+	if len(plan.failed) != 1 {
+		t.Fatalf("failed = %v", plan.failed)
+	}
+	if plan.failed[0].Message != useraccess.ErrUserDisabled.Error() {
+		t.Fatalf("message = %q", plan.failed[0].Message)
+	}
+}
+
 func TestPlanBulkRosterWritesIdempotentExisting(t *testing.T) {
 	t.Parallel()
 	usersByID := map[string]rosterUserRow{
@@ -90,7 +131,7 @@ func TestPlanBulkRosterWritesIdempotentExisting(t *testing.T) {
 	}
 	existingSet := map[string]struct{}{"u1": {}}
 
-	plan := planBulkRosterWrites([]string{"u1"}, usersByID, nil, existingSet)
+	plan := planBulkRosterWrites([]string{"u1"}, usersByID, eligibilityFor("u1"), nil, existingSet, testEligibilityNow)
 	if len(plan.failed) != 0 {
 		t.Fatalf("failed = %v", plan.failed)
 	}

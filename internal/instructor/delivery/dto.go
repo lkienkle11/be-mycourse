@@ -167,6 +167,8 @@ type applicationMeResponse struct {
 	DisplayName      string                    `json:"display_name"`
 	Email            string                    `json:"email"`
 	Avatar           string                    `json:"avatar"`
+	IsDisabled       bool                      `json:"is_disabled"`
+	EmailConfirmed   bool                      `json:"email_confirmed"`
 	ReviewStatus     string                    `json:"review_status"`
 	CanResubmit      bool                      `json:"can_resubmit"`
 	RejectionCount   int                       `json:"rejection_count"`
@@ -224,6 +226,7 @@ func profileToResponse(row domain.Profile) applicationResponse {
 	}
 	return applicationResponse{applicationMeResponse: applicationMeResponse{
 		ID: row.ID, UserID: row.UserID, DisplayName: row.FullName, Email: row.Email, Avatar: row.AvatarURL,
+		IsDisabled: row.IsDisabled, EmailConfirmed: row.EmailConfirmed,
 		ReviewStatus:     "managed",
 		LatestSubmission: latestSubmissionResponse{Profile: profile},
 	}}
@@ -264,6 +267,7 @@ func toApplicationMeResponse(a domain.Application) applicationMeResponse {
 	}
 	resp := applicationMeResponse{
 		ID: a.ID, UserID: a.UserID, DisplayName: displayName, Email: a.Email, Avatar: a.AvatarURL,
+		IsDisabled: a.IsDisabled, EmailConfirmed: a.EmailConfirmed,
 		ReviewStatus: a.ReviewStatus, CanResubmit: a.CanResubmit(), RejectionCount: a.RejectionCount,
 		RejectionReason: a.RejectionReason, SubmittedAt: a.SubmittedAt, ReviewDueAt: a.ReviewDueAt,
 		ReturnedAt: a.ReturnedAt, RejectionHistory: history,

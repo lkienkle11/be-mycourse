@@ -6,6 +6,8 @@ import (
 
 	"mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/timex"
+	"mycourse-io-be/internal/shared/useraccess"
 )
 
 func (s *InstructorService) ListApplications(ctx context.Context, f domain.ApplicationFilter) ([]domain.Application, int64, error) {
@@ -95,6 +97,21 @@ func (s *InstructorService) ApproveApplication(ctx context.Context, id string) (
 	}
 	if app.ReviewStatus != domain.ReviewStatusPending {
 		return nil, domain.ErrApplicationNotPending
+	}
+	if s.users != nil {
+		u, uerr := s.users.FindByID(ctx, app.UserID)
+		if uerr != nil {
+			return nil, uerr
+		}
+		snap := useraccess.AssignmentSnapshot{
+			Snapshot: useraccess.Snapshot{
+				DeletedAt: u.DeletedAt, IsDisabled: u.IsDisable, BannedUntil: u.BannedUntil,
+			},
+			EmailConfirmed: u.EmailConfirmed,
+		}
+		if err := useraccess.CheckEligibleForAssignment(&snap, timex.NowUnix()); err != nil {
+			return nil, err
+		}
 	}
 	// DB first: copy snapshot + set approved in one transaction; role grant only after success.
 	if err := s.repo.ApproveApplicationCopySnapshot(ctx, id, app.UserID); err != nil {

@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-07-03 — required bio on application submit; permission-first submit guard, atomic contact-admin ticket, ticket/message identity fields on list APIs._
+_Last audited: 2026-07-05 — duplicate-certificate rejection (`ErrDuplicateCertificate`, dedicated API code `2010` `DuplicateCertificate`) on application submit/resubmit and admin profile upsert; `validateCertificatePayload` enforces intra-array uniqueness on `certificate_file_id` (trim), `credential_url` (trim), and the normalized (case-insensitive, internal-whitespace-collapsed) `title | issuer | issued_year` composite; FE `.superRefine` mirrors the same rule and flags both colliding rows._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / resubmit / approve / reject / return), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -14,7 +14,7 @@ The instructor module (`internal/instructor/`) manages the **instructor roster**
 internal/instructor/
 ├── domain/
 │   ├── instructor.go      # Entities, review/ticket statuses, profile payload, certificates
-│   ├── errors.go          # ErrRejectionReasonRequired, ErrApplicationNotPending, ErrTicketClosed
+│   ├── errors.go          # ErrRejectionReasonRequired, ErrApplicationNotPending, ErrTicketClosed, ErrDuplicateCertificate
 │   └── repository.go      # Repository interface (roster, apps, profiles, expertise, tickets)
 ├── application/
 │   ├── service.go         # InstructorService facade
@@ -147,7 +147,7 @@ rejected ──PUT /me──► pending   (only if rejection_count < 5 and not s
 | `current_job_title` / `current_company` | **Required** text labels on `POST` / `PUT /me` (trimmed non-empty), in addition to `current_job_title_id` |
 | `headline` | **Optional** (omitted or empty string). **Not collected** on become-instructor; **hidden** from admin profiles list and profile view dialog. Column kept in DB for legacy rows only |
 | `bio` | **Required** on `POST` / `PUT /me`: trimmed length **100–2000** characters (`validateSubmitInput` in `validate_profile.go`). Become-instructor form section 2 collects `bio`; FE Zod mirrors the same bounds |
-| `certificates[]` | Optional array (≤10). Rows with empty `title` and no other field data are skipped. Rows with empty `title` but any of `issuer`, `credential_url`, or `certificate_file_id` set are **rejected**. Each persisted row with non-empty `title` must include `issuer`, `issued_year`, and **either** `credential_url` **or** `certificate_file_id`. When `certificate_file_id` is set, same PDF rules as `cv_file_id`. Non-empty `credential_url` must be a valid **http(s) URL**. Response may hydrate `certificate_file` read model on `GET` detail |
+| `certificates[]` | Optional array (≤10). Rows with empty `title` and no other field data are skipped. Rows with empty `title` but any of `issuer`, `credential_url`, or `certificate_file_id` set are **rejected**. Each persisted row with non-empty `title` must include `issuer`, `issued_year`, and **either** `credential_url` **or** `certificate_file_id`. When `certificate_file_id` is set, same PDF rules as `cv_file_id`. Non-empty `credential_url` must be a valid **http(s) URL**. **Duplicate certificate rows are rejected** with `ErrDuplicateCertificate` (HTTP 400, **`code: 2010` `DuplicateCertificate`** — a dedicated validation code, not the generic `3001`): two persisted rows are considered duplicates when they share the same non-empty `certificate_file_id`, the same non-empty trimmed `credential_url`, **or** the same normalized `title \| issuer \| issued_year` composite key. Normalization for the composite key is case-insensitive and collapses internal whitespace runs to a single space (so `"AWS"` matches `"aws"` and `"AWS  Certified"` matches `"AWS Certified"`); `credential_url` and `certificate_file_id` are compared after trim only. Validation runs on application submit/resubmit (`validateCertificatePayload` in `validate_profile.go`) **and** on admin profile upsert (`UpsertProfile` in `service_profile.go`) so both write paths enforce the same dedup rule. FE mirrors the same rule in `instructorApplicationSubmitSchema` `.superRefine` and flags **both** colliding rows with `validation.certDuplicate`. Response may hydrate `certificate_file` read model on `GET` detail |
 | `linkedin_url` / `github_url` | Optional. When non-empty: valid **http(s) URL**; host must be **linkedin.com** (incl. subdomains) or **github.com** (incl. subdomains) respectively (`internal/shared/utils/http_url.go`) |
 | `portfolio_links[]` | Optional (≤5). Each non-empty entry must be a valid **http(s) URL** |
 | `intro_video_file_id` | Optional; when set, must be **READY** + `kind = VIDEO` |

@@ -199,6 +199,7 @@ components:
           items: { type: string }
         certificates:
           type: array
+          description: Optional (≤10). Empty-title rows with no other data are skipped; empty-title rows with partial data are rejected. Each saved row requires issuer, issued_year, and either credential_url or certificate_file_id. Duplicate rows (same non-empty certificate_file_id after trim, same non-empty credential_url after trim, or same normalized title|issuer|issued_year composite — case-insensitive, internal whitespace collapsed) are rejected with ErrDuplicateCertificate (HTTP 400, error_code 2010 DuplicateCertificate).
           items:
             type: object
             properties:
@@ -263,6 +264,7 @@ components:
           items: { type: string }
         certificates:
           type: array
+          description: Optional (≤10). Empty-title rows with no other data are skipped; empty-title rows with partial data are rejected. Each saved row requires issuer, issued_year, and either credential_url or certificate_file_id. Duplicate rows (same non-empty certificate_file_id after trim, same non-empty credential_url after trim, or same normalized title|issuer|issued_year composite — case-insensitive, internal whitespace collapsed) are rejected with ErrDuplicateCertificate (HTTP 400, error_code 2010 DuplicateCertificate).
           items:
             type: object
             properties:
@@ -2963,6 +2965,7 @@ paths:
                   items: { type: string }
                 certificates:
                   type: array
+                  description: Optional (≤10). Empty-title rows with no other data are skipped; empty-title rows with partial data are rejected. Each saved row requires issuer, issued_year, and either credential_url or certificate_file_id. Duplicate rows (same non-empty certificate_file_id after trim, same non-empty credential_url after trim, or same normalized title|issuer|issued_year composite — case-insensitive, internal whitespace collapsed) are rejected with ErrDuplicateCertificate (HTTP 400, error_code 2010 DuplicateCertificate).
                   items:
                     type: object
                     properties:
@@ -2970,6 +2973,7 @@ paths:
                       issuer: { type: string }
                       issued_year: { type: integer }
                       credential_url: { type: string }
+                      certificate_file_id: { type: string, format: uuid }
                 intro_video_file_id: { type: string }
       responses:
         "200":
@@ -3024,6 +3028,7 @@ paths:
                   items: { type: string }
                 certificates:
                   type: array
+                  description: Optional (≤10). Empty-title rows with no other data are skipped; empty-title rows with partial data are rejected. Each saved row requires issuer, issued_year, and either credential_url or certificate_file_id. Duplicate rows (same non-empty certificate_file_id after trim, same non-empty credential_url after trim, or same normalized title|issuer|issued_year composite — case-insensitive, internal whitespace collapsed) are rejected with ErrDuplicateCertificate (HTTP 400, error_code 2010 DuplicateCertificate).
                   items:
                     type: object
                     properties:
@@ -3031,6 +3036,7 @@ paths:
                       issuer: { type: string }
                       issued_year: { type: integer }
                       credential_url: { type: string }
+                      certificate_file_id: { type: string, format: uuid }
                 intro_video_file_id: { type: string }
       responses:
         "200":

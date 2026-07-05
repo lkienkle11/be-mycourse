@@ -8,10 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"mycourse-io-be/internal/media/domain"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/setting"
 	"mycourse-io-be/internal/shared/utils"
 )
@@ -262,8 +261,11 @@ func r2BucketFromUploadInput(in domain.MediaUploadEntityInput, merged domain.Raw
 
 func preservedOrNewEntityID(in domain.MediaUploadEntityInput) string {
 	id := strings.TrimSpace(in.PreserveID)
-	if in.GenerateNewID || id == "" {
-		return uuid.NewString()
+	if !in.GenerateNewID && id != "" {
+		return id
+	}
+	if err := gormx.EnsureStringID(&id); err != nil {
+		return ""
 	}
 	return id
 }

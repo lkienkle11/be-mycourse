@@ -224,6 +224,9 @@ func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.Fi
 		First(&existing).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := gormx.EnsureStringID(&row.ID); err != nil {
+				return err
+			}
 			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 			return db.Create(row).Error
 		}

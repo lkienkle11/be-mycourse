@@ -311,6 +311,16 @@ components:
         display_name: { type: string }
         email: { type: string }
         avatar: { type: string }
+        is_disabled: { type: boolean, description: Joined from users.is_disable for admin audit lists }
+        email_confirmed: { type: boolean, description: Joined from users.email_confirmed for admin audit lists }
+        banned_until:
+          type: integer
+          format: int64
+          nullable: true
+          description: Unix seconds when a time-limited ban lifts; null when not banned
+        is_banned:
+          type: boolean
+          description: True when banned_until is set and still in the future at query time
         review_status: { type: string, enum: [pending, approved, rejected, returned] }
         can_resubmit: { type: boolean }
         rejection_count: { type: integer }
@@ -2840,6 +2850,7 @@ paths:
         - $ref: "#/components/parameters/PerPage"
         - name: status
           in: query
+          description: Filter by review status. When omitted, returns pending, returned, and rejected only (excludes approved). Pass approved to list approved applications.
           schema: { type: string, enum: [pending, approved, rejected, returned] }
         - name: has_profile
           in: query

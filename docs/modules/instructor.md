@@ -201,7 +201,18 @@ AND u.email_confirmed = TRUE
 
 **Go mutation validator** — `useraccess.CheckEligibleForAssignment(snapshot, now)` wraps `CheckAccessible` plus `EmailConfirmed`. Used by roster bulk, approve, collaborator bulk (#2 only), and internal RBAC role assign.
 
-**Audit admin lists** (`GET /instructor-applications`, `GET /instructor-profiles`) do **not** filter rows with the picker `WHERE` clause — all applications/profiles remain visible. **Sort policy (Nhóm B):**
+**Audit admin lists** (`GET /instructor-applications`, `GET /instructor-profiles`) do **not** filter rows with the picker `WHERE` clause for user eligibility (#2 + #3) — disabled, banned, and unconfirmed applicants remain visible on application/profile lists.
+
+**Application list review-status filter (`GET /instructor-applications`):**
+
+| Query `status` | Result |
+|----------------|--------|
+| *(omitted — default)* | `pending`, `returned`, and `rejected` only — **`approved` excluded** so the default admin view focuses on actionable rows |
+| `pending` / `returned` / `rejected` / `approved` | Exactly that `review_status` |
+
+FE approvals dropdown **All statuses** maps to omitting `status`; **Approved** maps to `status=approved`.
+
+**Sort policy (Nhóm B):**
 
 1. **Eligible users first** — same semantics as assignment (#2 + #3): user exists, not disabled, not banned, `email_confirmed = true`.
 2. **Within eligible tier:** applications by `submitted_at DESC` (newest submit first); profiles by `updated_at DESC`.
@@ -209,7 +220,9 @@ AND u.email_confirmed = TRUE
 
 SQL helper: `userpicker.EligibilitySortTierExpr("u", nowUnix)` → `0` = eligible, `1` = ineligible for `ORDER BY … ASC`.
 
-Responses **also** include `is_disabled` and `email_confirmed` from the joined `users` row so FE can show badges on audit lists (`InstructorUserCell`).
+Responses **also** include `is_disabled`, `email_confirmed`, `banned_until` (Unix seconds, nullable), and `is_banned` (computed at query time from `banned_until > now`) from the joined `users` row so FE can render the **user account status** column on audit lists and hide review actions for ineligible applicants without client-side clock checks.
+
+**Admin review mutations (approve / reject):** Both `POST /instructor-applications/:id/approve` and `POST /instructor-applications/:id/reject` call `useraccess.CheckEligibleForAssignment` on the applicant **before** any state change. Ineligible applicants (disabled, actively banned, or email unconfirmed) return HTTP **400** with the same domain errors as roster bulk (`ErrUserDisabled`, `ErrUserBanned`, `ErrEmailNotConfirmed`). FE must not show Approve / Reject in the row ⋮ menu when the list row indicates the applicant fails #2 or #3.
 
 | Action | RBAC / behaviour |
 |--------|------------------|
@@ -217,6 +230,7 @@ Responses **also** include `is_disabled` and `email_confirmed` from the joined `
 | Add roster (bulk) | User must exist, pass #2 + #3, must not have `sysadmin` or `admin` role; assigns `instructor` role only — **learner kept**; ineligible users return in `failed[]` |
 | List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` and **excluding** inactive (#2) users |
 | Approve application | Applicant must pass #2 + #3 before snapshot copy; HTTP `400` if ineligible |
+| Reject application | Applicant must pass #2 + #3 before rejection history write; HTTP `400` if ineligible |
 | Remove roster | `RemoveRole(instructor)` only; wipe instructor-scoped rows |
 | Ticket message | Rejected when ticket `closed` |
 | Close ticket | `instructor_ticket:close` (P58) |
@@ -242,7 +256,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 |--------|------|------------|-------|
 | GET | `/instructor-applications/me` | `instructor_application:create` (P45) | Resolve state A–H; prefill + `rejection_history` inline |
 | PUT | `/instructor-applications/me` | `instructor_application:create` (P45) | Resubmit from `returned` / `rejected` — self-service applicant endpoint; **not** `instructor_application:update` (P46) |
-| GET | `/instructor-applications` | `instructor_application:read` | Query `status` (`pending`, `approved`, `rejected`, **`returned`**), `has_profile`, `page`, `per_page` |
+| GET | `/instructor-applications` | `instructor_application:read` | Query `status` (`pending`, `approved`, `rejected`, **`returned`**), `has_profile`, `page`, `per_page`. **Default (no `status`):** excludes `approved`; pass `status=approved` to list approved applications only |
 | POST | `/instructor-applications` | `instructor_application:create` | **First submit only** → `pending` |
 | GET | `/instructor-applications/:id` | `instructor_application:read` | Detail with identity + snapshot + hydrated media |
 | POST | `/instructor-applications/:id/approve` | `instructor_application:approve` | |

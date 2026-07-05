@@ -176,7 +176,7 @@ Migration **`000030_media_owner_visibility`** adds:
    e. **Storage MIME canonicalization** — `CanonicalStorageMIME` + `applyStorageMIMEPolicy` for final DB `mime_type` and R2 `PutObject.ContentType` (see **R2 Object Content-Type** below).
    f. **Provider upload**: R2 (non-video) or Bunny Stream (video).
    g. **Metadata inference**: typed `ImageMetadata`, `VideoMetadata`, or `DocumentMetadata` inferred server-side from final MIME/extension.
-6. Persist to `media_files` (DB create).
+6. Persist to `media_files` (DB create) — new rows receive **UUID v7** `id` via `gormx.EnsureStringID` in `preservedOrNewEntityID` and again before GORM `Create` in `UpsertByObjectKey`; bundle updates preserve the existing `id`.
 7. Return array of `UploadFileResponse` (one entry per part).
 
 ### Bundle update (`PUT /media/files/:id`)

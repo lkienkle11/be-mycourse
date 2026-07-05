@@ -443,6 +443,7 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 
 - The system **MUST** provide unified media endpoints under `/api/v1/media/files` for `GET/POST/PUT/DELETE/OPTIONS`.
 - The system **MUST** persist media cloud metadata in local DB (`media_files`) after successful create/update/delete sync while keeping provider upload execution in cloud services.
+- New `media_files` rows **MUST** receive a **UUID v7** primary key (`gormx.EnsureStringID` in `internal/media/infra/media_entity_metadata.go` and before GORM `Create` in `UpsertByObjectKey`). Bundle updates **MUST** preserve the existing row `id`.
 - The system **MUST** select provider from server configuration (`setting.MediaSetting.AppMediaProvider`), not client request fields.
 - The system **MUST** infer typed metadata (`ImageMetadata` / `VideoMetadata` / `DocumentMetadata`) in backend.
 - The system **MUST** keep **media** feature logic under **`internal/media/{application,infra}`**, **taxonomy** JSONB validators under **`internal/shared/taxonomy`**, Gin/HTTP helpers under **`internal/shared/{httperr,response,validate,utils}`**, and cross-domain primitives under **`internal/shared/*`**. The legacy **`pkg/logic/*`**, **`pkg/media`**, **`pkg/taxonomy`**, and **`pkg/requestutil`** trees **MUST NOT** be reintroduced.

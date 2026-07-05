@@ -500,7 +500,7 @@ Product media (R2 files, Bunny Stream videos, local signed URLs, etc.).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| `id` | `UUID` | PK | Logical media row id (client-facing) |
+| `id` | `UUID` | PK | Logical media row id (client-facing). **New rows** receive a **UUID v7** via `gormx.EnsureStringID` in `preservedOrNewEntityID` / `UpsertByObjectKey` before insert; legacy/import rows may still hold v4 ids. |
 | `object_key` | `VARCHAR(512)` | UNIQUE NOT NULL | R2 object key or Bunny video GUID. **New R2 uploads:** `{user_code}/{8digits}-{sanitized-filename}` (see media module). Legacy rows may still use flat `{8digits}-{filename}`. |
 | `user_id` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | Uploader (`users.id` from JWT). **NULL** on legacy rows until a future R2 repath migration. |
 | `visibility` | `VARCHAR(16)` | NOT NULL DEFAULT `private` | `private` (default) or `public`. Controls who sees the row in `GET /media/files` and who may read/delete/update it. |

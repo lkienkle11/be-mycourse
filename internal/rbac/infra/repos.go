@@ -232,6 +232,15 @@ func (r *GormRoleRepository) GetByID(ctx context.Context, id uint, withPermissio
 	return &role, nil
 }
 
+func (r *GormRoleRepository) GetByName(ctx context.Context, name string) (*domain.Role, error) {
+	var row roleRow
+	if err := r.db.WithContext(ctx).Where("name = ?", strings.TrimSpace(name)).First(&row).Error; err != nil {
+		return nil, mapNotFound(err)
+	}
+	role := rowToRole(&row, nil)
+	return &role, nil
+}
+
 func (r *GormRoleRepository) Create(ctx context.Context, role *domain.Role) error {
 	row := &roleRow{Name: role.Name, Description: role.Description}
 	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)

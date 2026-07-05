@@ -63,6 +63,13 @@ func (r *rbacPermissionReader) PermissionCodesForUser(userID string) (map[string
 	return r.svc.PermissionCodesForUser(context.Background(), userID)
 }
 
+// rbacLearnerRoleEnsurer adapts RBACService to authapp.LearnerRoleEnsurer.
+type rbacLearnerRoleEnsurer struct{ svc *rbacapp.RBACService }
+
+func (r *rbacLearnerRoleEnsurer) EnsureLearnerRole(userID string) error {
+	return r.svc.EnsureLearnerRole(context.Background(), userID)
+}
+
 // rbacPermissionUseCase adapts RBACService to authdelivery.PermissionUseCase.
 type rbacPermissionUseCase struct{ svc *rbacapp.RBACService }
 

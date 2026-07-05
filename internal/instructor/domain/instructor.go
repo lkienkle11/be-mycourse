@@ -103,6 +103,8 @@ type Application struct {
 	AvatarFileID     string
 	IsDisabled       bool
 	EmailConfirmed   bool
+	BannedUntil      *int64
+	IsBanned         bool
 	ReviewStatus     string
 	RejectionReason  string
 	SubmittedAt      int64

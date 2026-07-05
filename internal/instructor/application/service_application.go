@@ -98,20 +98,8 @@ func (s *InstructorService) ApproveApplication(ctx context.Context, id string) (
 	if app.ReviewStatus != domain.ReviewStatusPending {
 		return nil, domain.ErrApplicationNotPending
 	}
-	if s.users != nil {
-		u, uerr := s.users.FindByID(ctx, app.UserID)
-		if uerr != nil {
-			return nil, uerr
-		}
-		snap := useraccess.AssignmentSnapshot{
-			Snapshot: useraccess.Snapshot{
-				DeletedAt: u.DeletedAt, IsDisabled: u.IsDisable, BannedUntil: u.BannedUntil,
-			},
-			EmailConfirmed: u.EmailConfirmed,
-		}
-		if err := useraccess.CheckEligibleForAssignment(&snap, timex.NowUnix()); err != nil {
-			return nil, err
-		}
+	if err := s.assertApplicantEligibleForReview(ctx, app.UserID); err != nil {
+		return nil, err
 	}
 	// DB first: copy snapshot + set approved in one transaction; role grant only after success.
 	if err := s.repo.ApproveApplicationCopySnapshot(ctx, id, app.UserID); err != nil {
@@ -130,6 +118,16 @@ func (s *InstructorService) RejectApplication(ctx context.Context, in domain.Rej
 		return nil, err
 	}
 	in.RejectionReason = reason
+	app, err := s.repo.GetApplicationByID(ctx, in.ApplicationID)
+	if err != nil {
+		return nil, err
+	}
+	if app.ReviewStatus != domain.ReviewStatusPending {
+		return nil, domain.ErrApplicationNotPending
+	}
+	if err := s.assertApplicantEligibleForReview(ctx, app.UserID); err != nil {
+		return nil, err
+	}
 	if in.ReviewerDisplayName == "" && s.users != nil && in.ReviewerUserID != "" {
 		if u, uerr := s.users.FindByID(ctx, in.ReviewerUserID); uerr == nil && u != nil {
 			in.ReviewerDisplayName = u.DisplayName
@@ -139,6 +137,23 @@ func (s *InstructorService) RejectApplication(ctx context.Context, in domain.Rej
 		return nil, err
 	}
 	return s.GetApplication(ctx, in.ApplicationID)
+}
+
+func (s *InstructorService) assertApplicantEligibleForReview(ctx context.Context, userID string) error {
+	if s.users == nil {
+		return nil
+	}
+	u, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	snap := useraccess.AssignmentSnapshot{
+		Snapshot: useraccess.Snapshot{
+			DeletedAt: u.DeletedAt, IsDisabled: u.IsDisable, BannedUntil: u.BannedUntil,
+		},
+		EmailConfirmed: u.EmailConfirmed,
+	}
+	return useraccess.CheckEligibleForAssignment(&snap, timex.NowUnix())
 }
 
 func (s *InstructorService) DeleteApplication(ctx context.Context, id string) error {

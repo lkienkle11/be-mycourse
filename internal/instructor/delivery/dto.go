@@ -169,6 +169,8 @@ type applicationMeResponse struct {
 	Avatar           string                    `json:"avatar"`
 	IsDisabled       bool                      `json:"is_disabled"`
 	EmailConfirmed   bool                      `json:"email_confirmed"`
+	BannedUntil      *int64                    `json:"banned_until,omitempty"`
+	IsBanned         bool                      `json:"is_banned"`
 	ReviewStatus     string                    `json:"review_status"`
 	CanResubmit      bool                      `json:"can_resubmit"`
 	RejectionCount   int                       `json:"rejection_count"`
@@ -267,7 +269,7 @@ func toApplicationMeResponse(a domain.Application) applicationMeResponse {
 	}
 	resp := applicationMeResponse{
 		ID: a.ID, UserID: a.UserID, DisplayName: displayName, Email: a.Email, Avatar: a.AvatarURL,
-		IsDisabled: a.IsDisabled, EmailConfirmed: a.EmailConfirmed,
+		IsDisabled: a.IsDisabled, EmailConfirmed: a.EmailConfirmed, BannedUntil: a.BannedUntil, IsBanned: a.IsBanned,
 		ReviewStatus: a.ReviewStatus, CanResubmit: a.CanResubmit(), RejectionCount: a.RejectionCount,
 		RejectionReason: a.RejectionReason, SubmittedAt: a.SubmittedAt, ReviewDueAt: a.ReviewDueAt,
 		ReturnedAt: a.ReturnedAt, RejectionHistory: history,

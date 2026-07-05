@@ -8,6 +8,7 @@ import (
 
 	"mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/timex"
 )
 
 type identityProjection struct {
@@ -17,6 +18,8 @@ type identityProjection struct {
 	AvatarFileID   string `gorm:"column:avatar_file_id"`
 	IsDisabled     bool   `gorm:"column:is_disabled"`
 	EmailConfirmed bool   `gorm:"column:email_confirmed"`
+	BannedUntil    *int64 `gorm:"column:banned_until"`
+	IsBanned       bool   `gorm:"column:is_banned"`
 }
 
 func loadApplicationRow(ctx context.Context, db *gorm.DB, query string, args ...any) (*domain.Application, error) {
@@ -62,9 +65,10 @@ func loadRowWithIdentity(
 	args []any,
 	dest any,
 ) error {
+	now := timex.NowUnix()
 	selectSQL := fmt.Sprintf(
-		"%s.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed",
-		alias,
+		"%s.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed, u.banned_until AS banned_until, (u.banned_until IS NOT NULL AND u.banned_until > %d) AS is_banned",
+		alias, now,
 	)
 	return activeScopeAlias(db.WithContext(ctx), alias).Table(tableName+" "+alias).
 		Select(selectSQL).
@@ -82,6 +86,8 @@ func mapApplicationWithIdentity(row *applicationRow, identity identityProjection
 	out.AvatarFileID = identity.AvatarFileID
 	out.IsDisabled = identity.IsDisabled
 	out.EmailConfirmed = identity.EmailConfirmed
+	out.BannedUntil = identity.BannedUntil
+	out.IsBanned = identity.IsBanned
 	return out
 }
 

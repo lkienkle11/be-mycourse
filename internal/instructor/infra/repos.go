@@ -46,6 +46,8 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 		Where("ia.deleted_at IS NULL")
 	if s := strings.TrimSpace(f.ReviewStatus); s != "" {
 		q = q.Where("ia.review_status = ?", s)
+	} else {
+		q = q.Where("ia.review_status <> ?", domain.ReviewStatusApproved)
 	}
 	if f.HasProfile != nil {
 		if *f.HasProfile {
@@ -69,10 +71,12 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 		AvatarFileID   string         `gorm:"column:avatar_file_id"`
 		IsDisabled     bool           `gorm:"column:is_disabled"`
 		EmailConfirmed bool           `gorm:"column:email_confirmed"`
+		BannedUntil    *int64         `gorm:"column:banned_until"`
+		IsBanned       bool           `gorm:"column:is_banned"`
 	}
 	var rows []applicationWithUserRow
 	if err := q.
-		Select(`ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed`).
+		Select(fmt.Sprintf(`ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed, u.banned_until AS banned_until, (u.banned_until IS NOT NULL AND u.banned_until > %d) AS is_banned`, now)).
 		Order(fmt.Sprintf("(%s) ASC, ia.submitted_at DESC, ia.id DESC", tier)).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -88,6 +92,8 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 			AvatarFileID:   rows[i].AvatarFileID,
 			IsDisabled:     rows[i].IsDisabled,
 			EmailConfirmed: rows[i].EmailConfirmed,
+			BannedUntil:    rows[i].BannedUntil,
+			IsBanned:       rows[i].IsBanned,
 		})
 	}
 	return out, total, nil

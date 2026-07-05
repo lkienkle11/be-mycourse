@@ -143,7 +143,7 @@ rejected ──PUT /me──► pending   (only if rejection_count < 5 and not s
 | `PUT /instructor-applications/me` | **Resubmit only** from `returned` or `rejected` |
 | Resubmit from `returned` | Unlimited; does not increase `rejection_count` |
 | Resubmit from `rejected` | Allowed when `rejection_count < 5` |
-| `cv_file_id` | **Required** on `POST` / `PUT /me`. Server loads `media_files` and rejects unless status is **READY** and `mime_type` is exactly **`application/pdf`** (`instructorProfileMediaValidator.validatePDF` in `internal/server/wire_instructor_adapters.go`) → `ErrInvalidProfileMediaFile` / HTTP 400 |
+| `cv_file_id` | **Required** on `POST` / `PUT /me`. Server loads the row from **`media_files`** via `FileRepository.GetByID` (queries `media_files.id` with table-qualified predicate because the owner join adds `users.id`; unqualified `id = ?` would miss rows). Rejects unless status is **READY** and `mime_type` is exactly **`application/pdf`** (`instructorProfileMediaValidator.validatePDF` in `internal/server/wire_instructor_adapters.go`) → `ErrInvalidProfileMediaFile` / HTTP 400 code **2001** |
 | `current_job_title` / `current_company` | **Required** text labels on `POST` / `PUT /me` (trimmed non-empty), in addition to `current_job_title_id` |
 | `headline` | **Optional** (omitted or empty string). **Not collected** on become-instructor; **hidden** from admin profiles list and profile view dialog. Column kept in DB for legacy rows only |
 | `bio` | **Required** on `POST` / `PUT /me`: trimmed length **100–2000** characters (`validateSubmitInput` in `validate_profile.go`). Become-instructor form section 2 collects `bio`; FE Zod mirrors the same bounds |

@@ -30,6 +30,11 @@ type LearnerRoleEnsurer interface {
 	EnsureLearnerRole(userID string) error
 }
 
+// EmailConfirmer atomically persists email-confirm fields and assigns the learner role.
+type EmailConfirmer interface {
+	ConfirmEmailWithLearnerRole(ctx context.Context, user *domain.User) error
+}
+
 // MediaFileValidator checks if a file ID references a valid, READY non-video raster image.
 type MediaFileValidator interface {
 	ValidateProfileImageFile(fileID string) error
@@ -46,6 +51,7 @@ type AuthService struct {
 	sessionRepo        sessionRepo // extended infra methods
 	permReader         PermissionReader
 	learnerRoleEnsurer LearnerRoleEnsurer
+	emailConfirmer     EmailConfirmer
 	mediaValidator     MediaFileValidator
 	orphanEnqueuer     OrphanCleanupEnqueuer
 	redis              *redis.Client
@@ -65,6 +71,7 @@ func NewAuthService(
 	sess sessionRepo,
 	perm PermissionReader,
 	learner LearnerRoleEnsurer,
+	emailConfirmer EmailConfirmer,
 	media MediaFileValidator,
 	orphan OrphanCleanupEnqueuer,
 	rdb *redis.Client,
@@ -74,6 +81,7 @@ func NewAuthService(
 		sessionRepo:        sess,
 		permReader:         perm,
 		learnerRoleEnsurer: learner,
+		emailConfirmer:     emailConfirmer,
 		mediaValidator:     media,
 		orphanEnqueuer:     orphan,
 		redis:              rdb,
@@ -246,10 +254,10 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, confirmToken string) (do
 	user.EmailConfirmed = true
 	user.ConfirmationToken = nil
 	user.RegistrationEmailSendTotal = 0
-	if err := s.userRepo.Save(ctx, user); err != nil {
-		return domain.TokenPairResult{}, err
+	if s.emailConfirmer == nil {
+		return domain.TokenPairResult{}, errors.New("email confirmer not configured")
 	}
-	if err := s.ensureLearnerRole(user.ID); err != nil {
+	if err := s.emailConfirmer.ConfirmEmailWithLearnerRole(ctx, user); err != nil {
 		return domain.TokenPairResult{}, err
 	}
 	norm := normalizeEmail(user.Email)

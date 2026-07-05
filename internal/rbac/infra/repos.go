@@ -323,7 +323,12 @@ func (r *GormUserRoleRepository) ListRolesForUser(ctx context.Context, userID st
 }
 
 func (r *GormUserRoleRepository) AssignRole(ctx context.Context, userID string, roleID uint) error {
-	snap, err := gormx.LoadAssignmentSnapshotByID(ctx, r.db, userID)
+	return r.AssignRoleWithDB(ctx, r.db, userID, roleID)
+}
+
+// AssignRoleWithDB assigns a role using the given DB handle (supports transactions).
+func (r *GormUserRoleRepository) AssignRoleWithDB(ctx context.Context, db *gorm.DB, userID string, roleID uint) error {
+	snap, err := gormx.LoadAssignmentSnapshotByID(ctx, db, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return useraccess.ErrUserNotFound
@@ -334,7 +339,7 @@ func (r *GormUserRoleRepository) AssignRole(ctx context.Context, userID string, 
 		return err
 	}
 	row := userRoleRow{UserID: userID, RoleID: roleID}
-	return r.db.WithContext(ctx).FirstOrCreate(&row, userRoleRow{UserID: userID, RoleID: roleID}).Error
+	return db.WithContext(ctx).FirstOrCreate(&row, userRoleRow{UserID: userID, RoleID: roleID}).Error
 }
 
 func (r *GormUserRoleRepository) RemoveRole(ctx context.Context, userID string, roleID uint) error {

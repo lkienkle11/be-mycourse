@@ -11,9 +11,10 @@ import (
 
 func firstActiveMediaFile(ctx context.Context, db *gorm.DB, query string, args ...any) (*domain.File, error) {
 	var row mediaFileListRow
+	base := gormx.ScopeActiveOnly(db).Model(&mediaFileRow{})
 	if err := gormx.FirstWhere(
 		ctx,
-		gormx.ScopeActiveOnly(db).Joins(mediaOwnerJoinSQL).Select(mediaOwnerSelectSQL),
+		base.Joins(mediaOwnerJoinSQL).Select(mediaOwnerSelectSQL),
 		&row,
 		query,
 		args...,

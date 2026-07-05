@@ -190,15 +190,15 @@ func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter)
 }
 
 func (r *GormFileRepository) GetByID(ctx context.Context, id string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "id = ?", id)
+	return firstActiveMediaFile(ctx, r.db, constants.TableMediaFiles+".id = ?", id)
 }
 
 func (r *GormFileRepository) GetByObjectKey(ctx context.Context, objectKey string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "object_key = ?", objectKey)
+	return firstActiveMediaFile(ctx, r.db, constants.TableMediaFiles+".object_key = ?", objectKey)
 }
 
 func (r *GormFileRepository) GetByBunnyVideoID(ctx context.Context, videoGUID string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "bunny_video_id = ?", videoGUID)
+	return firstActiveMediaFile(ctx, r.db, constants.TableMediaFiles+".bunny_video_id = ?", videoGUID)
 }
 
 func (r *GormFileRepository) ListBunnyVideoGUIDsWithMissingDuration(ctx context.Context, limit int) ([]string, error) {

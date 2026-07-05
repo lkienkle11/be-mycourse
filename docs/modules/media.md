@@ -63,7 +63,7 @@ internal/media/
 - Active-row lookups use **`gormx.FirstWhere`**; list queries use **`gormx.ScopeActiveOnly`**.
 - Provider/kind constants come from **`internal/shared/constants/media.go`** only (no duplicate exports in `domain/media.go`).
 - Bunny **Storage** SDK wiring was removed; only R2 + Bunny **Stream** + Local are initialized at runtime.
-- Local signed URLs require **`LOCAL_FILE_URL_SECRET`** (or `setting.MediaSetting.LocalFileURLSecret`); there is no hardcoded secret fallback. Missing secret returns **`ErrDependencyNotConfigured`** on upload, decode, and synthesized **`GetFile`** read paths — never an empty URL.
+- Local signed URLs require **`LOCAL_FILE_URL_SECRET`** (or `setting.MediaSetting.LocalFileURLSecret`); there is no hardcoded secret fallback. Missing secret returns **`ErrDependencyNotConfigured`** on upload and local decode paths — never an empty URL.
 
 ---
 
@@ -103,6 +103,10 @@ Query parameters (all optional unless noted):
 | `sort_by` | `created_at`, `updated_at`, `filename`, `size_bytes` | `created_at` | Whitelisted column only |
 | `sort_order` | `asc`, `desc` | `desc` | Sort direction |
 
+**Access filter (server-side, not a query param):** authenticated caller's `user_id` scopes the result set to **own files + public files** only. Rows with **`user_id` NULL** (legacy, pre-backfill) are **excluded** from list until owner backfill completes. Private files owned by other users are excluded.
+
+**List fail-closed:** `MediaService.ListFiles` returns **`ErrMediaAccessDenied`** when `ViewerUserID` is empty — access scoping is enforced in the service layer, not only in the HTTP handler.
+
 `DELETE /media/files/:id` uses **`:id` = `object_key`**, not the row UUID.
 Provider routing for single delete is resolved from the persisted `media_files` row first:
 
@@ -120,6 +124,39 @@ Provider routing for single delete is resolved from the persisted `media_files` 
 | P27 | `media_file:create` |
 | P28 | `media_file:update` |
 | P29 | `media_file:delete` |
+
+**Default role grants** (`internal/system/application/roles_permission.go`; sync via `go run ./cmd/syncrolepermissions`):
+
+| Role | Media permissions |
+|------|-------------------|
+| **sysadmin** / **admin** | P26–P29 |
+| **instructor** | P26–P29 |
+| **learner** | P26–P29 (added in code — no migration; operator syncs via system route) |
+
+Route-level JWT permission is still required. **Row-level access** (owner + visibility) is enforced in the media service on list/get/update/delete — see **Ownership and visibility** below.
+
+---
+
+## Ownership and visibility
+
+Migration **`000030_media_owner_visibility`** adds:
+
+| Column | Values | Default |
+|--------|--------|---------|
+| `user_id` | `users.id` of uploader | set on every new upload from JWT `user_id` |
+| `visibility` | `private`, `public` | **`private`** |
+
+**List (`GET /media/files`):** returns rows where **`user_id` = caller** or **`visibility` = `public`**. Legacy rows with **`user_id` NULL** are **not listed** (transition until owner backfill + `NOT NULL` constraint). Other users' **private** files never appear in the media picker popup.
+
+**Get / update / delete:** caller must be the owner when `user_id` is set and the row is **private**. **Public** rows are readable by anyone with P26; mutate (update/delete) still requires owner match when `user_id` is set. Rows with **`user_id` NULL** (legacy): **read** may still succeed when the caller knows the `object_key` (e.g. existing course references); **update/delete are denied** until owner is backfilled.
+
+**Get (`GET /media/files/:id`):** requires an **active** `media_files` row for the `object_key`. There is **no URL synthesis fallback** when the row is missing or soft-deleted — the handler returns **not found** so row-level access cannot be bypassed via storage/CDN keys alone.
+
+**Upload (`POST /media/files`):** optional multipart field `visibility` (`private` \| `public`); omitted → **`private`**. Server sets `user_id` from JWT — never from client body.
+
+**R2 object key (new uploads):** `{user_code}/{8digits}-{sanitized-filename}` where `user_code` comes from JWT `ctx_user_code`. Bunny Stream and Local providers keep existing key rules; **`user_id`** / **`visibility`** are still persisted on the row.
+
+**Out of scope (later):** repathing legacy flat R2 keys, **backfilling `user_id` on old rows**, and migrating `user_id` to **`NOT NULL`** after backfill completes.
 
 ---
 
@@ -139,7 +176,7 @@ Provider routing for single delete is resolved from the persisted `media_files` 
    e. **Storage MIME canonicalization** — `CanonicalStorageMIME` + `applyStorageMIMEPolicy` for final DB `mime_type` and R2 `PutObject.ContentType` (see **R2 Object Content-Type** below).
    f. **Provider upload**: R2 (non-video) or Bunny Stream (video).
    g. **Metadata inference**: typed `ImageMetadata`, `VideoMetadata`, or `DocumentMetadata` inferred server-side from final MIME/extension.
-6. Persist to `media_files` (DB create).
+6. Persist to `media_files` (DB create) — new rows receive **UUID v7** `id` via `gormx.EnsureStringID` in `preservedOrNewEntityID` and again before GORM `Create` in `UpsertByObjectKey`; bundle updates preserve the existing `id`.
 7. Return array of `UploadFileResponse` (one entry per part).
 
 ### Bundle update (`PUT /media/files/:id`)
@@ -352,22 +389,20 @@ Public fields returned in API responses:
 | Field | Notes |
 |-------|-------|
 | `url` | Public distribution URL |
-| `object_key` | Storage object key |
+| `object_key` | Storage object key (`{user_code}/…` for new R2 uploads) |
+| `user_id` | Uploader UUID (omitted when empty) |
+| `video_id` | Provider video identifier (for Bunny: numeric id or GUID fallback) |
+| `display_name` | Uploader display name from `users.display_name` (omitted when empty; populated on list/get via JOIN; on upload responses enriched from JWT for the current uploader). **Email is not exposed** on media list/get responses. |
+| `visibility` | `private` or `public` |
 | `metadata` | **Typed** sub-object (`UploadFileMetadata`). Normalised shape for image / video / document. See "Typed `metadata` shape" below. **This is the only metadata sub-object exposed to clients.** |
-| `bunny_video_id` | Bunny video GUID |
-| `bunny_library_id` | Bunny library ID |
-| `video_id` | Numeric Bunny ID or GUID |
 | `thumbnail_url` | Built from `BunnyStreamCDNHostname` + `guid` + `thumbnailFileName` (defaults to `thumbnail.jpg` when Bunny omits the filename); falls back to `thumbnailUrl` / `defaultThumbnailUrl` if Bunny ever populates them |
 | `embeded_html` | Escaped `<iframe ...>` embed HTML |
-| `direct_play_url` | Bunny direct play page: `https://player.mediadelivery.net/play/{libraryId}/{guid}` |
-| `hls_playlist_url` | HLS master playlist on CDN: `https://{cdn}/{guid}/playlist.m3u8` |
-| `preview_animation_url` | Animated preview WebP on CDN: `https://{cdn}/{guid}/preview.webp` |
 | `duration` | Video duration in seconds (persisted on `media_files.duration`; sourced from Bunny webhook / backfill, not resolved at course read time) |
+| `row_version` | Optimistic concurrency version |
+| `created_at` | Unix timestamp (seconds) |
+| `updated_at` | Unix timestamp (seconds) |
 
 **Video duration backfill:** When Bunny encoding finishes but `duration` was still `0`, `applyBunnyWebhookFinishedStatus` persists Bunny `length` into `media_files.duration`. A **delayed** one-shot job (`StartVideoDurationBackfillJob`, ~2 min after process start) backfills stale rows without blocking HTTP startup. `ListFiles` / `GetFile` may enqueue the same sync **asynchronously** (deduped by `bunny_video_id`); responses are never blocked on Bunny. Course outline reads only the DB row.
-
-| `row_version` | Optimistic concurrency version (Sub 06) |
-| `content_fingerprint` | SHA-256 hex of file bytes (Sub 06) |
 
 **`origin_url` and the full raw metadata blob are NOT in the public API response.**
 The DB column `metadata_json` is populated with rich provider data (Bunny
@@ -375,6 +410,12 @@ telemetry, thumbnail blurhash, encode progress, available resolutions, …)
 for server-side use only — it backs the typed `metadata` field above and is
 queryable via SQL for analytics and orphan cleanup, but the untyped map is
 never serialised onto the response.
+
+The following fields are intentionally hidden from API JSON (`json:"-"`) and
+must never be exposed to FE clients: `r2_bucket_name`,
+`bunny_video_id`, `bunny_library_id`, `direct_play_url`,
+`hls_playlist_url`, `preview_animation_url`, `video_provider`,
+`content_fingerprint`.
 
 ### Typed `metadata` shape
 

@@ -329,9 +329,12 @@ func (r *GormRepository) loadVersionRow(ctx context.Context, db *gorm.DB, versio
 }
 
 func (r *GormRepository) loadCollaborators(ctx context.Context, db *gorm.DB, courseID string) ([]domain.Collaborator, error) {
-	q := collaboratorsSelectSQL + collaboratorOrderSQL()
+	q := collaboratorsFilteredSelectSQL() + collaboratorOrderSQL()
 	var rows []collaboratorScanRow
-	if err := db.WithContext(ctx).Raw(q, map[string]any{"course_id": courseID}).Scan(&rows).Error; err != nil {
+	if err := db.WithContext(ctx).Raw(q, map[string]any{
+		"course_id": courseID,
+		"now":       timex.NowUnix(),
+	}).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	return scanRowsToCollaborators(rows), nil

@@ -8,11 +8,18 @@ import (
 
 	"mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/timex"
 )
 
 type identityProjection struct {
-	FullName     string `gorm:"column:full_name"`
-	AvatarFileID string `gorm:"column:avatar_file_id"`
+	FullName       string `gorm:"column:full_name"`
+	Email          string `gorm:"column:email"`
+	Phone          string `gorm:"column:phone"`
+	AvatarFileID   string `gorm:"column:avatar_file_id"`
+	IsDisabled     bool   `gorm:"column:is_disabled"`
+	EmailConfirmed bool   `gorm:"column:email_confirmed"`
+	BannedUntil    *int64 `gorm:"column:banned_until"`
+	IsBanned       bool   `gorm:"column:is_banned"`
 }
 
 func loadApplicationRow(ctx context.Context, db *gorm.DB, query string, args ...any) (*domain.Application, error) {
@@ -37,8 +44,8 @@ func loadEntityWithIdentity[TRow any, TDomain any](
 	mapFn func(*TRow, identityProjection) TDomain,
 ) (*TDomain, error) {
 	type rowWithIdentity struct {
-		Row TRow `gorm:"embedded"`
-		identityProjection
+		Row                TRow `gorm:"embedded"`
+		identityProjection `gorm:"embedded"`
 	}
 
 	var row rowWithIdentity
@@ -58,9 +65,10 @@ func loadRowWithIdentity(
 	args []any,
 	dest any,
 ) error {
+	now := timex.NowUnix()
 	selectSQL := fmt.Sprintf(
-		"%s.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id",
-		alias,
+		"%s.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed, u.banned_until AS banned_until, (u.banned_until IS NOT NULL AND u.banned_until > %d) AS is_banned",
+		alias, now,
 	)
 	return activeScopeAlias(db.WithContext(ctx), alias).Table(tableName+" "+alias).
 		Select(selectSQL).
@@ -72,13 +80,23 @@ func loadRowWithIdentity(
 func mapApplicationWithIdentity(row *applicationRow, identity identityProjection) domain.Application {
 	out := appRowToDomain(row)
 	out.FullName = identity.FullName
+	out.DisplayName = identity.FullName
+	out.Email = identity.Email
+	out.Phone = identity.Phone
 	out.AvatarFileID = identity.AvatarFileID
+	out.IsDisabled = identity.IsDisabled
+	out.EmailConfirmed = identity.EmailConfirmed
+	out.BannedUntil = identity.BannedUntil
+	out.IsBanned = identity.IsBanned
 	return out
 }
 
 func mapProfileWithIdentity(row *profileRow, identity identityProjection) domain.Profile {
 	out := profileRowToDomain(row)
 	out.FullName = identity.FullName
+	out.Email = identity.Email
 	out.AvatarFileID = identity.AvatarFileID
+	out.IsDisabled = identity.IsDisabled
+	out.EmailConfirmed = identity.EmailConfirmed
 	return out
 }

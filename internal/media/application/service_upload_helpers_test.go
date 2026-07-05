@@ -10,7 +10,7 @@ import (
 func TestPrepareNormalizedUploadPart_routesVideoFromDetectedMIME(t *testing.T) {
 	gw := mediainfra.NewStorageGateway()
 	payload := []byte{0, 0, 0, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-	got, err := prepareNormalizedUploadPart(gw, "upload.bin", "application/octet-stream", payload, "")
+	got, err := prepareNormalizedUploadPart(gw, "upload.bin", "application/octet-stream", payload, "", "")
 	if err != nil {
 		t.Fatalf("prepareNormalizedUploadPart returned error: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestPrepareNormalizedUploadPart_encodesImageFromDetectedMIME(t *testing.T) 
 		8, 0xd7, 0x63, 0xf8, 0xff, 0xff, 0x3f, 0, 5, 0xfe, 0x2, 0xfe, 0xdc, 0xcc,
 		0x59, 0xe7, 0, 0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 	}
-	got, err := prepareNormalizedUploadPart(gw, "photo.bin", "application/octet-stream", payload, "")
+	got, err := prepareNormalizedUploadPart(gw, "photo.bin", "application/octet-stream", payload, "", "")
 	if err != nil {
 		t.Fatalf("prepareNormalizedUploadPart returned error: %v", err)
 	}

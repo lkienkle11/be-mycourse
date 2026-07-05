@@ -69,6 +69,25 @@ func (m *instructorRoleManager) RemoveInstructorRole(ctx context.Context, userID
 	return m.rbac.RemoveRoleFromUser(ctx, userID, roleID)
 }
 
+func (m *instructorRoleManager) UserHasInstructorRole(ctx context.Context, userID string) (bool, error) {
+	roles, err := m.rbac.ListRolesForUser(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	for _, r := range roles {
+		if r.Name == domain.RoleNameInstructor {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+type instructorPermissionChecker struct{ rbac *rbacapp.RBACService }
+
+func (p *instructorPermissionChecker) HasPermission(ctx context.Context, userID, action string) bool {
+	return p.rbac.HasPermission(ctx, userID, action)
+}
+
 type instructorMeCache struct{ auth *authapp.AuthService }
 
 func (c *instructorMeCache) InvalidateUserMeCache(ctx context.Context, userID string) {
@@ -90,6 +109,13 @@ func (v *instructorProfileMediaValidator) ValidateProfilePayload(ctx context.Con
 			return err
 		}
 	}
+	for _, cert := range p.Certificates {
+		if id := strings.TrimSpace(cert.CertificateFileID); id != "" {
+			if err := v.validatePDF(ctx, id); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -101,11 +127,10 @@ func (v *instructorProfileMediaValidator) validatePDF(ctx context.Context, fileI
 	if f.Status != constants.FileStatusReady {
 		return apperrors.ErrInvalidProfileMediaFile
 	}
-	mt := strings.ToLower(f.MimeType)
-	if strings.Contains(mt, "pdf") || strings.HasSuffix(strings.ToLower(f.Filename), ".pdf") {
-		return nil
+	if strings.TrimSpace(strings.ToLower(f.MimeType)) != "application/pdf" {
+		return apperrors.ErrInvalidProfileMediaFile
 	}
-	return apperrors.ErrInvalidProfileMediaFile
+	return nil
 }
 
 func (v *instructorProfileMediaValidator) validateVideo(ctx context.Context, fileID string) error {
@@ -145,12 +170,39 @@ func (h *instructorAvatarHydrator) ResolveAvatarURLs(ctx context.Context, fileID
 	return mediaquery.HydrateAvatarURLs(ctx, h.resolver, fileIDs)
 }
 
+type instructorMediaHydrator struct {
+	repo mediadomain.FileRepository
+}
+
+func (h *instructorMediaHydrator) ResolveMediaFiles(ctx context.Context, fileIDs []string) (map[string]domain.MediaFileReadModel, error) {
+	out := make(map[string]domain.MediaFileReadModel, len(fileIDs))
+	if h.repo == nil {
+		return out, nil
+	}
+	for _, id := range fileIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		f, err := h.repo.GetByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		out[id] = domain.MediaFileReadModel{
+			ID: id, URL: f.URL, Filename: f.Filename, MimeType: f.MimeType,
+		}
+	}
+	return out, nil
+}
+
 // compile-time interface checks
 var (
 	_ instapp.UserLookup            = (*instructorUserLookup)(nil)
 	_ instapp.InstructorRoleManager = (*instructorRoleManager)(nil)
+	_ instapp.PermissionChecker     = (*instructorPermissionChecker)(nil)
 	_ instapp.MeCacheInvalidator    = (*instructorMeCache)(nil)
 	_ instapp.ProfileMediaValidator = (*instructorProfileMediaValidator)(nil)
 	_ instapp.AvatarHydrator        = (*instructorAvatarHydrator)(nil)
+	_ instapp.MediaHydrator         = (*instructorMediaHydrator)(nil)
 	_ mediaquery.FileURLResolver    = (*mediaFileURLResolver)(nil)
 )

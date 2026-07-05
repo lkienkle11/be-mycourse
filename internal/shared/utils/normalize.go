@@ -71,3 +71,11 @@ func NormalizeJSON(v, fallback string) string {
 	}
 	return v
 }
+
+// NormalizeDedupeKey lowercases, trims, and collapses internal whitespace runs
+// to a single space so that "AWS", "aws", and "AWS  Certified" compare equal
+// when used as a composite dedup key. Whitespace is split via strings.Fields,
+// which treats tabs/newlines/unicode spaces as separators.
+func NormalizeDedupeKey(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(value), " "))
+}

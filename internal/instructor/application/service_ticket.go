@@ -8,11 +8,23 @@ import (
 )
 
 func (s *InstructorService) ListTickets(ctx context.Context, f domain.TicketFilter) ([]domain.Ticket, int64, error) {
-	return s.repo.ListTickets(ctx, f)
+	return listWithIdentity(
+		s,
+		ctx,
+		func() ([]domain.Ticket, int64, error) { return s.repo.ListTickets(ctx, f) },
+		ticketAvatarFileID,
+		setTicketAvatarURL,
+	)
 }
 
 func (s *InstructorService) GetTicket(ctx context.Context, id string) (*domain.Ticket, error) {
-	return s.repo.GetTicketByID(ctx, id)
+	return loadOneWithIdentity(
+		s,
+		ctx,
+		func() (*domain.Ticket, error) { return s.repo.GetTicketByID(ctx, id) },
+		ticketAvatarFileID,
+		setTicketAvatarURL,
+	)
 }
 
 func (s *InstructorService) CreateTicket(ctx context.Context, userID string, subject string) (*domain.Ticket, error) {
@@ -21,7 +33,7 @@ func (s *InstructorService) CreateTicket(ctx context.Context, userID string, sub
 }
 
 func (s *InstructorService) CloseTicket(ctx context.Context, id string) (*domain.Ticket, error) {
-	t, err := s.repo.GetTicketByID(ctx, id)
+	t, err := s.GetTicket(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +43,7 @@ func (s *InstructorService) CloseTicket(ctx context.Context, id string) (*domain
 	if err := s.repo.CloseTicket(ctx, id); err != nil {
 		return nil, err
 	}
-	return s.repo.GetTicketByID(ctx, id)
+	return s.GetTicket(ctx, id)
 }
 
 func (s *InstructorService) ListTicketMessages(ctx context.Context, ticketID string) ([]domain.TicketMessage, error) {
@@ -47,7 +59,11 @@ func (s *InstructorService) AddTicketMessage(ctx context.Context, ticketID strin
 		return nil, domain.ErrTicketClosed
 	}
 	body = strings.TrimSpace(body)
-	return s.repo.AddMessage(ctx, ticketID, authorUserID, body)
+	msg, err := s.repo.AddMessage(ctx, ticketID, authorUserID, body)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.GetMessageByID(ctx, msg.ID)
 }
 
 // ComingSoon is a placeholder for assignments / activity log APIs.

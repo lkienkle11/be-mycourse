@@ -49,8 +49,8 @@ func (StorageGateway) ResolveUploadProvider(kind string, kindInferred bool) stri
 	return ResolveUploadProvider(kind, kindInferred)
 }
 
-func (StorageGateway) ResolveMediaUploadObjectKey(reqObjectKey, filename, provider string) string {
-	return ResolveMediaUploadObjectKey(reqObjectKey, filename, provider)
+func (StorageGateway) ResolveMediaUploadObjectKey(reqObjectKey, userCode, filename, provider string) string {
+	return ResolveMediaUploadObjectKey(reqObjectKey, userCode, filename, provider)
 }
 
 func (StorageGateway) IsImageMIMEOrExt(mime, filename string) bool {

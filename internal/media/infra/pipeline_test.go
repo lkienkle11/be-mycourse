@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/uuid"
+
 	mediadelivery "mycourse-io-be/internal/media/delivery"
 	mediadomain "mycourse-io-be/internal/media/domain"
 	mediainfra "mycourse-io-be/internal/media/infra"
@@ -68,8 +70,15 @@ func TestBuildPublicURL_R2_publicURLPlusKey(t *testing.T) {
 }
 
 func TestResolveMediaUploadObjectKey_R2UsesEightDigitPrefix(t *testing.T) {
-	if g := mediainfra.ResolveMediaUploadObjectKey("", "a.webp", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
+	if g := mediainfra.ResolveMediaUploadObjectKey("", "", "a.webp", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
 		t.Fatalf("R2 default key should start with 8 digits, got %q", g)
+	}
+}
+
+func TestResolveMediaUploadObjectKey_R2UsesUserCodePrefix(t *testing.T) {
+	got := mediainfra.ResolveMediaUploadObjectKey("", "UCODE123", "a.webp", constants.FileProviderR2)
+	if !regexp.MustCompile(`^UCODE123/\d{8}-`).MatchString(got) {
+		t.Fatalf("R2 scoped key should be user_code/8digits-name, got %q", got)
 	}
 }
 
@@ -84,10 +93,10 @@ func TestBuildObjectStorageKey_eightDigitsAndSanitizedName(t *testing.T) {
 }
 
 func TestResolveMediaUploadObjectKey_byProvider(t *testing.T) {
-	if g := mediainfra.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderBunny); g != "" {
+	if g := mediainfra.ResolveMediaUploadObjectKey("", "", "a.mp4", constants.FileProviderBunny); g != "" {
 		t.Fatalf("Bunny default key should be empty before GUID, got %q", g)
 	}
-	if g := mediainfra.ResolveMediaUploadObjectKey("", "a.mp4", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
+	if g := mediainfra.ResolveMediaUploadObjectKey("", "", "a.mp4", constants.FileProviderR2); !regexp.MustCompile(`^\d{8}-`).MatchString(g) {
 		t.Fatalf("R2 default key should start with 8 digits, got %q", g)
 	}
 }
@@ -138,6 +147,56 @@ func TestBuildMediaFileEntityFromUpload_persistsTypedMetadataKeys(t *testing.T) 
 	}
 	if got := raw["fps"]; got != 23.976 {
 		t.Fatalf("expected metadata_json.fps=23.976, got %#v in %s", got, entity.MetadataJSON)
+	}
+}
+
+func TestBuildMediaFileEntityFromUpload_assignsUUIDv7ForNewCreate(t *testing.T) {
+	entity := mediainfra.BuildMediaFileEntityFromUpload(mediadomain.MediaUploadEntityInput{
+		Kind:          constants.FileKindFile,
+		Provider:      constants.FileProviderR2,
+		Filename:      "photo.png",
+		ContentType:   "image/png",
+		SizeBytes:     42,
+		GenerateNewID: true,
+		Uploaded: mediadomain.ProviderUploadResult{
+			URL:       "https://cdn.example/photo.png",
+			OriginURL: "https://cdn.example/photo.png",
+			ObjectKey: "01USER/12345678-photo.png",
+		},
+		CreatedAt: timex.NowUnix(),
+		UpdatedAt: timex.NowUnix(),
+	})
+	if entity.ID == "" {
+		t.Fatal("expected non-empty id for new create")
+	}
+	parsed, err := uuid.Parse(entity.ID)
+	if err != nil {
+		t.Fatalf("parse id: %v", err)
+	}
+	if parsed.Version() != 7 {
+		t.Fatalf("expected UUID v7, got version %d (%s)", parsed.Version(), entity.ID)
+	}
+}
+
+func TestBuildMediaFileEntityFromUpload_preservesExistingIDOnUpdate(t *testing.T) {
+	const existing = "0195f8ac-214f-7e08-b180-6114ea8f09d6"
+	entity := mediainfra.BuildMediaFileEntityFromUpload(mediadomain.MediaUploadEntityInput{
+		Kind:        constants.FileKindFile,
+		Provider:    constants.FileProviderR2,
+		Filename:    "photo.png",
+		ContentType: "image/png",
+		SizeBytes:   42,
+		PreserveID:  existing,
+		Uploaded: mediadomain.ProviderUploadResult{
+			URL:       "https://cdn.example/photo.png",
+			OriginURL: "https://cdn.example/photo.png",
+			ObjectKey: "01USER/12345678-photo.png",
+		},
+		CreatedAt: timex.NowUnix(),
+		UpdatedAt: timex.NowUnix(),
+	})
+	if entity.ID != existing {
+		t.Fatalf("expected preserved id %q, got %q", existing, entity.ID)
 	}
 }
 

@@ -25,6 +25,16 @@ type PermissionReader interface {
 	PermissionCodesForUser(userID string) (map[string]struct{}, error)
 }
 
+// LearnerRoleEnsurer assigns the baseline learner role when absent.
+type LearnerRoleEnsurer interface {
+	EnsureLearnerRole(userID string) error
+}
+
+// EmailConfirmer atomically persists email-confirm fields and assigns the learner role.
+type EmailConfirmer interface {
+	ConfirmEmailWithLearnerRole(ctx context.Context, user *domain.User) error
+}
+
 // MediaFileValidator checks if a file ID references a valid, READY non-video raster image.
 type MediaFileValidator interface {
 	ValidateProfileImageFile(fileID string) error
@@ -37,12 +47,14 @@ type OrphanCleanupEnqueuer interface {
 
 // AuthService implements the auth domain use-cases with injected dependencies.
 type AuthService struct {
-	userRepo       domain.UserRepository
-	sessionRepo    sessionRepo // extended infra methods
-	permReader     PermissionReader
-	mediaValidator MediaFileValidator
-	orphanEnqueuer OrphanCleanupEnqueuer
-	redis          *redis.Client
+	userRepo           domain.UserRepository
+	sessionRepo        sessionRepo // extended infra methods
+	permReader         PermissionReader
+	learnerRoleEnsurer LearnerRoleEnsurer
+	emailConfirmer     EmailConfirmer
+	mediaValidator     MediaFileValidator
+	orphanEnqueuer     OrphanCleanupEnqueuer
+	redis              *redis.Client
 }
 
 // sessionRepo embeds the extended repository methods needed by application layer
@@ -58,17 +70,21 @@ func NewAuthService(
 	userRepo domain.UserRepository,
 	sess sessionRepo,
 	perm PermissionReader,
+	learner LearnerRoleEnsurer,
+	emailConfirmer EmailConfirmer,
 	media MediaFileValidator,
 	orphan OrphanCleanupEnqueuer,
 	rdb *redis.Client,
 ) *AuthService {
 	return &AuthService{
-		userRepo:       userRepo,
-		sessionRepo:    sess,
-		permReader:     perm,
-		mediaValidator: media,
-		orphanEnqueuer: orphan,
-		redis:          rdb,
+		userRepo:           userRepo,
+		sessionRepo:        sess,
+		permReader:         perm,
+		learnerRoleEnsurer: learner,
+		emailConfirmer:     emailConfirmer,
+		mediaValidator:     media,
+		orphanEnqueuer:     orphan,
+		redis:              rdb,
 	}
 }
 
@@ -238,13 +254,16 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, confirmToken string) (do
 	user.EmailConfirmed = true
 	user.ConfirmationToken = nil
 	user.RegistrationEmailSendTotal = 0
-	if err := s.userRepo.Save(ctx, user); err != nil {
+	if s.emailConfirmer == nil {
+		return domain.TokenPairResult{}, errors.New("email confirmer not configured")
+	}
+	if err := s.emailConfirmer.ConfirmEmailWithLearnerRole(ctx, user); err != nil {
 		return domain.TokenPairResult{}, err
 	}
-	// Clear caches
 	norm := normalizeEmail(user.Email)
 	s.delRegisterWindowKey(ctx, user.ID)
 	s.delLoginUserByEmail(ctx, norm)
+	s.delCachedMe(ctx, user.ID)
 
 	return s.issueTokenPair(ctx, user, false, domain.RefreshTokenTTL)
 }
@@ -254,13 +273,20 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, confirmToken string) (do
 // GetMe returns the cached or freshly loaded MeProfile for a user.
 func (s *AuthService) GetMe(ctx context.Context, userID string) (*domain.MeProfile, error) {
 	if me, ok := s.getCachedMe(ctx, userID); ok {
-		return me, nil
+		if !needsLearnerRoleHeal(me) {
+			return me, nil
+		}
+		s.delCachedMe(ctx, userID)
 	}
 	user, err := s.loadAccessibleUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	perms, err := s.permissionSlice(user.ID)
+	if err != nil {
+		return nil, err
+	}
+	perms, err = s.healConfirmedEmptyPermissions(user, perms)
 	if err != nil {
 		return nil, err
 	}
@@ -365,6 +391,27 @@ func (s *AuthService) permissionSlice(userID string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+func needsLearnerRoleHeal(me *domain.MeProfile) bool {
+	return me != nil && me.EmailConfirmed && len(me.Permissions) == 0
+}
+
+func (s *AuthService) ensureLearnerRole(userID string) error {
+	if s.learnerRoleEnsurer == nil {
+		return nil
+	}
+	return s.learnerRoleEnsurer.EnsureLearnerRole(userID)
+}
+
+func (s *AuthService) healConfirmedEmptyPermissions(user *domain.User, perms []string) ([]string, error) {
+	if user == nil || !user.EmailConfirmed || len(perms) > 0 {
+		return perms, nil
+	}
+	if err := s.ensureLearnerRole(user.ID); err != nil {
+		return nil, err
+	}
+	return s.permissionSlice(user.ID)
 }
 
 func (s *AuthService) loadUserForLogin(ctx context.Context, email, normEmail string) (*domain.User, error) {

@@ -10,9 +10,17 @@ import (
 )
 
 func firstActiveMediaFile(ctx context.Context, db *gorm.DB, query string, args ...any) (*domain.File, error) {
-	var row mediaFileRow
-	if err := gormx.FirstWhere(ctx, gormx.ScopeActiveOnly(db), &row, query, args...); err != nil {
+	var row mediaFileListRow
+	base := gormx.ScopeActiveOnly(db).Model(&mediaFileRow{})
+	if err := gormx.FirstWhere(
+		ctx,
+		base.Joins(mediaOwnerJoinSQL).Select(mediaOwnerSelectSQL),
+		&row,
+		query,
+		args...,
+	); err != nil {
 		return nil, err
 	}
-	return rowToFile(&row), nil
+	mapped := fileFromMediaListRow(&row)
+	return &mapped, nil
 }

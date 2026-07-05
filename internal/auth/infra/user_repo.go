@@ -69,10 +69,15 @@ func (r *GormUserRepository) Create(ctx context.Context, u *domain.User) error {
 }
 
 func (r *GormUserRepository) Save(ctx context.Context, u *domain.User) error {
+	return r.SaveWithDB(ctx, r.db, u)
+}
+
+// SaveWithDB persists user fields using the given DB handle (supports transactions).
+func (r *GormUserRepository) SaveWithDB(ctx context.Context, db *gorm.DB, u *domain.User) error {
 	row := toUserRow(u)
 	gormx.TouchUpdated(&row.UpdatedAt)
 	u.UpdatedAt = row.UpdatedAt
-	return r.db.WithContext(ctx).Save(row).Error
+	return db.WithContext(ctx).Save(row).Error
 }
 
 func (r *GormUserRepository) UpdateDisplayName(ctx context.Context, userID string, displayName string) error {

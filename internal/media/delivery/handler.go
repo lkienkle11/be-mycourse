@@ -1,7 +1,6 @@
 package delivery
 
 import (
-	"context"
 	stderrors "errors"
 	"net/http"
 	"strings"
@@ -12,8 +11,8 @@ import (
 	"mycourse-io-be/internal/media/domain"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
-	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
+	"mycourse-io-be/internal/shared/utils"
 )
 
 // Handler holds the media HTTP handlers with injected dependencies.
@@ -32,14 +31,22 @@ func (h *Handler) optionsMedia(c *gin.Context) {
 }
 
 func (h *Handler) listFiles(c *gin.Context) {
-	httpx.ListPaginated(c,
-		func(q *FileFilterRequest) error { return c.ShouldBindQuery(q) },
-		func(ctx context.Context, q FileFilterRequest) ([]domain.File, int64, error) {
-			return h.svc.ListFiles(ctx, toFilterDomain(q))
-		},
-		func(q FileFilterRequest) (int, int) { return q.GetPage(), q.GetPerPage() },
-		toUploadFileResponses,
-	)
+	var q FileFilterRequest
+	if err := c.ShouldBindQuery(&q); err != nil {
+		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
+		return
+	}
+	filter := toFilterDomain(q)
+	filter.ViewerUserID, _ = mediaActorFromContext(c)
+	rows, total, err := h.svc.ListFiles(c.Request.Context(), filter)
+	if err != nil {
+		if respondMediaAccessError(c, err) {
+			return
+		}
+		response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
+		return
+	}
+	response.OKPaginated(c, "ok", toUploadFileResponses(rows), utils.BuildPage(q.GetPage(), q.GetPerPage(), total))
 }
 
 func (h *Handler) getFile(c *gin.Context) {
@@ -49,8 +56,20 @@ func (h *Handler) getFile(c *gin.Context) {
 		return
 	}
 	kind := strings.TrimSpace(c.Query("kind"))
-	row, err := h.svc.GetFile(c.Request.Context(), objectKey, kind)
+	viewerUserID, _ := mediaActorFromContext(c)
+	row, err := h.svc.GetFile(c.Request.Context(), objectKey, kind, viewerUserID)
 	if err != nil {
+		if respondMediaAccessError(c, err) {
+			return
+		}
+		if stderrors.Is(err, apperrors.ErrMediaFileNotFoundForObjectKey) {
+			response.Fail(c, http.StatusNotFound, apperrors.NotFound, apperrors.DefaultMessage(apperrors.NotFound), nil)
+			return
+		}
+		if stderrors.Is(err, apperrors.ErrMediaObjectKeyRequired) {
+			response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
@@ -98,6 +117,7 @@ func (h *Handler) createFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
+	applyMediaActorToCreateInput(c, &req)
 	rows, err := h.svc.CreateFiles(c.Request.Context(), req, parts)
 	if err != nil {
 		if respondMediaMutationError(c, err, true) {
@@ -106,6 +126,7 @@ func (h *Handler) createFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
+	enrichUploaderIdentityFromActor(c, rows)
 	response.Created(c, "created", toUploadFileResponsesFromPointers(rows))
 }
 
@@ -127,14 +148,20 @@ func (h *Handler) updateFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
-	rows, err := h.svc.UpdateFileBundle(c.Request.Context(), objectKey, updateReq, createReq, parts)
+	applyMediaActorToCreateInput(c, &createReq)
+	viewerUserID, _ := mediaActorFromContext(c)
+	rows, err := h.svc.UpdateFileBundle(c.Request.Context(), objectKey, updateReq, createReq, parts, viewerUserID)
 	if err != nil {
+		if respondMediaAccessError(c, err) {
+			return
+		}
 		if respondMediaMutationError(c, err, false) {
 			return
 		}
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
+	enrichUploaderIdentityFromActor(c, rows)
 	response.OK(c, "updated", toUploadFileResponsesFromPointers(rows))
 }
 
@@ -153,7 +180,11 @@ func (h *Handler) batchDeleteMediaFiles(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.MediaBatchDeleteTooManyIDs, apperrors.DefaultMessage(apperrors.MediaBatchDeleteTooManyIDs), nil)
 		return
 	}
-	if err := h.svc.DeleteFilesByObjectKeys(c.Request.Context(), keys); err != nil {
+	viewerUserID, _ := mediaActorFromContext(c)
+	if err := h.svc.DeleteFilesByObjectKeys(c.Request.Context(), keys, viewerUserID); err != nil {
+		if respondMediaAccessError(c, err) {
+			return
+		}
 		if respondBatchDeleteError(c, err) {
 			return
 		}
@@ -174,7 +205,11 @@ func (h *Handler) deleteFile(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
-	if err := h.svc.DeleteFile(c.Request.Context(), objectKey, meta); err != nil {
+	viewerUserID, _ := mediaActorFromContext(c)
+	if err := h.svc.DeleteFile(c.Request.Context(), objectKey, meta, viewerUserID); err != nil {
+		if respondMediaAccessError(c, err) {
+			return
+		}
 		if stderrors.Is(err, apperrors.ErrDependencyNotConfigured) {
 			response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
 			return

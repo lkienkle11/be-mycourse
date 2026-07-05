@@ -11,6 +11,7 @@ import (
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
+	"mycourse-io-be/internal/shared/useraccess"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -26,15 +27,7 @@ func mapInstructorError(c *gin.Context, err error) bool {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return true
 	}
-	if stderrors.Is(err, domain.ErrApplicationNotPending) {
-		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
-		return true
-	}
-	if stderrors.Is(err, domain.ErrTicketClosed) {
-		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
-		return true
-	}
-	if stderrors.Is(err, domain.ErrRosterPlatformStaffUser) {
+	if isInstructorBadRequest(err) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return true
 	}
@@ -42,8 +35,29 @@ func mapInstructorError(c *gin.Context, err error) bool {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return true
 	}
+	if stderrors.Is(err, domain.ErrDuplicateCertificate) {
+		response.Fail(c, http.StatusBadRequest, apperrors.DuplicateCertificate, err.Error(), nil)
+		return true
+	}
 	response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
 	return true
+}
+
+func isInstructorBadRequest(err error) bool {
+	return stderrors.Is(err, domain.ErrApplicationNotPending) ||
+		stderrors.Is(err, domain.ErrApplicationNotResubmittable) ||
+		stderrors.Is(err, domain.ErrApplicationAlreadyExists) ||
+		stderrors.Is(err, domain.ErrApplicationSubmitBlocked) ||
+		stderrors.Is(err, domain.ErrApplicationRejectQuota) ||
+		stderrors.Is(err, domain.ErrApplicationAlreadyInstructor) ||
+		stderrors.Is(err, domain.ErrApplicationContactNotAllowed) ||
+		stderrors.Is(err, domain.ErrInvalidApplicationPayload) ||
+		stderrors.Is(err, domain.ErrTicketClosed) ||
+		stderrors.Is(err, domain.ErrRosterPlatformStaffUser) ||
+		stderrors.Is(err, useraccess.ErrUserNotFound) ||
+		stderrors.Is(err, useraccess.ErrUserDisabled) ||
+		stderrors.Is(err, useraccess.ErrUserBanned) ||
+		stderrors.Is(err, useraccess.ErrEmailNotConfirmed)
 }
 
 func parseIDParam(c *gin.Context) (string, bool) {

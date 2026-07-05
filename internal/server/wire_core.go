@@ -71,6 +71,8 @@ func wireCore(db *gorm.DB, rdb *redis.Client) *coreWiring {
 		userRepo,
 		sessRepo,
 		&rbacPermissionReader{svc: rbacSvc},
+		&rbacLearnerRoleEnsurer{svc: rbacSvc},
+		newAuthEmailConfirmer(db, userRepo, userRoleRepo, roleRepo),
 		&mediaProfileImageValidator{svc: mediaSvc},
 		&authOrphanEnqueuer{e: orphanEnqueuer},
 		rdb,

@@ -163,6 +163,18 @@ func (s *RBACService) AssignRoleToUser(ctx context.Context, userID string, roleI
 	return s.userRoleRepo.AssignRole(ctx, userID, roleID)
 }
 
+// EnsureLearnerRole assigns the baseline learner role when absent (idempotent FirstOrCreate).
+func (s *RBACService) EnsureLearnerRole(ctx context.Context, userID string) error {
+	if userID == "" {
+		return apperrors.ErrRBACInvalidUserID
+	}
+	role, err := s.roleRepo.GetByName(ctx, "learner")
+	if err != nil {
+		return err
+	}
+	return s.userRoleRepo.AssignRole(ctx, userID, role.ID)
+}
+
 func (s *RBACService) RemoveRoleFromUser(ctx context.Context, userID string, roleID uint) error {
 	return s.userRoleRepo.RemoveRole(ctx, userID, roleID)
 }

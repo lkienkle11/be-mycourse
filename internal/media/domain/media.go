@@ -57,6 +57,9 @@ type VideoProviderStatus struct {
 // File is the full service-layer representation of a media file.
 type File struct {
 	ID                  string
+	UserID              string
+	DisplayName         string // uploader display_name (read projection; not persisted)
+	Visibility          string
 	Kind                string
 	Provider            string
 	Filename            string
@@ -118,6 +121,8 @@ type ProviderUploadResult struct {
 
 // MediaUploadEntityInput carries all fields needed to create/update a MediaFile after upload.
 type MediaUploadEntityInput struct {
+	UserID        string
+	Visibility    string
 	Kind          string
 	Provider      string
 	Filename      string

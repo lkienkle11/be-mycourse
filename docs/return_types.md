@@ -860,22 +860,36 @@ Media endpoints are implemented and return the standard envelope. Public payload
 
 `dto.UploadFileResponse`:
 
-Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** (`omitempty` when empty). Full behaviour: **`docs/modules/media.md`**.
+Public JSON fields are intentionally limited to:
+`id`, `user_id`, `display_name`, `visibility`, `kind`, `filename`, `mime_type`,
+`size_bytes`, `status`, `url`, `object_key`, `video_id`, `thumbnail_url`,
+`embeded_html`, `duration`, typed `metadata`, `row_version`, `created_at`,
+and `updated_at`.
 
-**Sub 12:** Public media responses **do not include** `origin_url` (`dto.UploadFileResponse` has no such field). Canonical storage URL exists only server-side (`media_files.origin_url`, `entities.File.OriginURL` with `json:"-"`).
+**Sub 12:** Public media responses **do not include** `origin_url` or internal
+provider/storage fields. Canonical storage URL exists only server-side
+(`media_files.origin_url`, `entities.File.OriginURL`).
 
 ```json
 {
+  "id": "019fxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "user_id": "019f1111-2222-3333-4444-555555555555",
+  "display_name": "Uploader Name",
+  "visibility": "private",
+  "kind": "VIDEO",
+  "filename": "sample.mp4",
+  "mime_type": "video/mp4",
+  "size_bytes": 12345,
+  "status": "READY",
   "url": "https://...",
   "object_key": "path/to/object",
-  "bunny_video_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-  "bunny_library_id": "123456",
   "video_id": "987654321",
   "thumbnail_url": "https://...",
-  "direct_play_url": "https://player.mediadelivery.net/play/123456/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-  "hls_playlist_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/playlist.m3u8",
-  "preview_animation_url": "https://vz-xxxxxxxx-xxxx.b-cdn.net/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/preview.webp",
   "embeded_html": "<iframe src=\"https://iframe.mediadelivery.net/embed/123456/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\" ...></iframe>",
+  "duration": 158,
+  "row_version": 5,
+  "created_at": 1780000001,
+  "updated_at": 1780001001,
   "metadata": {
     "size_bytes": 12345,
     "width_bytes": 1920,
@@ -895,6 +909,12 @@ Bunny Stream responses may include **`video_id`**, **`thumbnail_url`**, **`embed
   }
 }
 ```
+
+Internal backend-only fields are present on the Go struct for service/test
+flows but are hidden from JSON via `json:"-"`: `r2_bucket_name`,
+`bunny_video_id`, `bunny_library_id`, `direct_play_url`,
+`hls_playlist_url`, `preview_animation_url`, `video_provider`,
+`content_fingerprint`.
 
 Media metadata is inferred in backend and returned with typed contract `UploadFileMetadata` (not `any`), with zero-value defaults when a field cannot be extracted.
 

@@ -46,12 +46,14 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 		Where("ia.deleted_at IS NULL")
 	if s := strings.TrimSpace(f.ReviewStatus); s != "" {
 		q = q.Where("ia.review_status = ?", s)
+	} else {
+		q = q.Where("ia.review_status <> ?", domain.ReviewStatusApproved)
 	}
 	if f.HasProfile != nil {
 		if *f.HasProfile {
-			q = q.Where("ia.headline <> '' AND ia.cv_file_id <> ''")
+			q = q.Where("ia.cv_file_id <> ''")
 		} else {
-			q = q.Where("ia.headline = '' OR ia.cv_file_id = ''")
+			q = q.Where("ia.cv_file_id = ''")
 		}
 	}
 	var total int64
@@ -59,15 +61,23 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
+	now := timex.NowUnix()
+	tier := userpicker.EligibilitySortTierExpr("u", now)
 	type applicationWithUserRow struct {
-		applicationRow
-		FullName     string `gorm:"column:full_name"`
-		AvatarFileID string `gorm:"column:avatar_file_id"`
+		Row            applicationRow `gorm:"embedded"`
+		FullName       string         `gorm:"column:full_name"`
+		Email          string         `gorm:"column:email"`
+		Phone          string         `gorm:"column:phone"`
+		AvatarFileID   string         `gorm:"column:avatar_file_id"`
+		IsDisabled     bool           `gorm:"column:is_disabled"`
+		EmailConfirmed bool           `gorm:"column:email_confirmed"`
+		BannedUntil    *int64         `gorm:"column:banned_until"`
+		IsBanned       bool           `gorm:"column:is_banned"`
 	}
 	var rows []applicationWithUserRow
 	if err := q.
-		Select("ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
-		Order("ia.id DESC").
+		Select(fmt.Sprintf(`ia.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.phone, '') AS phone, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed, u.banned_until AS banned_until, (u.banned_until IS NOT NULL AND u.banned_until > %d) AS is_banned`, now)).
+		Order(fmt.Sprintf("(%s) ASC, ia.submitted_at DESC, ia.id DESC", tier)).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Scan(&rows).Error; err != nil {
@@ -75,9 +85,16 @@ func (r *GormRepository) ListApplications(ctx context.Context, f domain.Applicat
 	}
 	out := make([]domain.Application, len(rows))
 	for i := range rows {
-		out[i] = appRowToDomain(&rows[i].applicationRow)
-		out[i].FullName = rows[i].FullName
-		out[i].AvatarFileID = rows[i].AvatarFileID
+		out[i] = mapApplicationWithIdentity(&rows[i].Row, identityProjection{
+			FullName:       rows[i].FullName,
+			Email:          rows[i].Email,
+			Phone:          rows[i].Phone,
+			AvatarFileID:   rows[i].AvatarFileID,
+			IsDisabled:     rows[i].IsDisabled,
+			EmailConfirmed: rows[i].EmailConfirmed,
+			BannedUntil:    rows[i].BannedUntil,
+			IsBanned:       rows[i].IsBanned,
+		})
 	}
 	return out, total, nil
 }
@@ -88,36 +105,6 @@ func (r *GormRepository) GetApplicationByID(ctx context.Context, id string) (*do
 
 func (r *GormRepository) GetActiveApplicationByUserID(ctx context.Context, userID string) (*domain.Application, error) {
 	return loadApplicationRow(ctx, r.db, "ia.user_id = ?", userID)
-}
-
-func (r *GormRepository) UpsertPendingApplication(ctx context.Context, userID string, p domain.ProfilePayload) (*domain.Application, error) {
-	var existing applicationRow
-	err := activeScope(r.db.WithContext(ctx)).Where("user_id = ?", userID).First(&existing).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
-		return nil, err
-	}
-	row := &applicationRow{UserID: userID, ReviewStatus: domain.ReviewStatusPending}
-	if err == nil {
-		if existing.ReviewStatus != domain.ReviewStatusPending {
-			return nil, fmt.Errorf("application not pending")
-		}
-		row = &existing
-	}
-	if e := applyPayloadToAppRow(row, p); e != nil {
-		return nil, e
-	}
-	row.RejectionReason = ""
-	gormx.TouchUpdated(&row.UpdatedAt)
-	if row.ID == "" {
-		gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-		if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
-			return nil, err
-		}
-	} else if err := r.db.WithContext(ctx).Save(row).Error; err != nil {
-		return nil, err
-	}
-	a := appRowToDomain(row)
-	return &a, nil
 }
 
 func (r *GormRepository) SetApplicationReview(ctx context.Context, id string, status, rejectionReason string) error {
@@ -144,15 +131,20 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
+	now := timex.NowUnix()
+	tier := userpicker.EligibilitySortTierExpr("u", now)
 	type profileWithUserRow struct {
-		profileRow
-		FullName     string `gorm:"column:full_name"`
-		AvatarFileID string `gorm:"column:avatar_file_id"`
+		Row            profileRow `gorm:"embedded"`
+		FullName       string     `gorm:"column:full_name"`
+		Email          string     `gorm:"column:email"`
+		AvatarFileID   string     `gorm:"column:avatar_file_id"`
+		IsDisabled     bool       `gorm:"column:is_disabled"`
+		EmailConfirmed bool       `gorm:"column:email_confirmed"`
 	}
 	var rows []profileWithUserRow
 	if err := q.
-		Select("ip.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
-		Order("ip.id DESC").
+		Select(`ip.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id, COALESCE(u.is_disable, FALSE) AS is_disabled, COALESCE(u.email_confirmed, FALSE) AS email_confirmed`).
+		Order(fmt.Sprintf("(%s) ASC, ip.updated_at DESC, ip.id DESC", tier)).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Scan(&rows).Error; err != nil {
@@ -160,9 +152,13 @@ func (r *GormRepository) ListProfiles(ctx context.Context, f domain.ProfileFilte
 	}
 	out := make([]domain.Profile, len(rows))
 	for i := range rows {
-		out[i] = profileRowToDomain(&rows[i].profileRow)
-		out[i].FullName = rows[i].FullName
-		out[i].AvatarFileID = rows[i].AvatarFileID
+		out[i] = mapProfileWithIdentity(&rows[i].Row, identityProjection{
+			FullName:       rows[i].FullName,
+			Email:          rows[i].Email,
+			AvatarFileID:   rows[i].AvatarFileID,
+			IsDisabled:     rows[i].IsDisabled,
+			EmailConfirmed: rows[i].EmailConfirmed,
+		})
 	}
 	return out, total, nil
 }
@@ -198,87 +194,6 @@ func (r *GormRepository) UpsertProfile(ctx context.Context, in domain.UpsertProf
 
 func (r *GormRepository) DeleteProfileByUserID(ctx context.Context, userID string) error {
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &profileRow{}, "user_id = ?", userID)
-}
-
-// --- Roster -----------------------------------------------------------------
-
-func sqlUserWithoutPlatformStaffRoles(userIDColumn string) string {
-	return fmt.Sprintf(`
-  AND NOT EXISTS (
-      SELECT 1
-      FROM %s ur_staff
-      INNER JOIN %s ro_staff ON ro_staff.id = ur_staff.role_id AND ro_staff.name IN ('%s', '%s')
-      WHERE ur_staff.user_id = %s
-  )`, constants.TableRBACUserRoles, constants.TableRBACRoles, domain.RoleNameSysadmin, domain.RoleNameAdmin, userIDColumn)
-}
-
-func sqlUserWithoutRosterBlockingRoles(userIDColumn string) string {
-	return fmt.Sprintf(`
-  AND NOT EXISTS (
-      SELECT 1
-      FROM %s ur
-      INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name IN ('%s', '%s', '%s')
-      WHERE ur.user_id = %s
-  )`, constants.TableRBACUserRoles, constants.TableRBACRoles, domain.RoleNameInstructor, domain.RoleNameSysadmin, domain.RoleNameAdmin, userIDColumn)
-}
-
-func (r *GormRepository) ListRoster(ctx context.Context, f domain.RosterFilter) ([]domain.RosterMember, int64, error) {
-	base := fmt.Sprintf(`
-SELECT u.id, u.display_name, u.email, COALESCE(u.phone, '') AS phone,
-       COALESCE(u.avatar_file_id::text, '') AS avatar_file_id
-FROM %s u
-INNER JOIN %s ur ON ur.user_id = u.id
-INNER JOIN %s ro ON ro.id = ur.role_id AND ro.name = ?
-WHERE u.deleted_at IS NULL%s`, constants.TableAppUsers, constants.TableRBACUserRoles, constants.TableRBACRoles, sqlUserWithoutPlatformStaffRoles("u.id"))
-	q := r.db.WithContext(ctx).Table("(?) AS roster", r.db.Raw(base, domain.RoleNameInstructor))
-	if s := strings.TrimSpace(f.Search); s != "" {
-		like := "%" + s + "%"
-		q = q.Where("display_name ILIKE ? OR email ILIKE ?", like, like)
-	}
-	var total int64
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	page, pageSize := instrPageParams(f.Page, f.PageSize)
-	type scanRow struct {
-		ID           string
-		DisplayName  string
-		Email        string
-		Phone        string
-		AvatarFileID string
-	}
-	var rows []scanRow
-	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.RosterMember, len(rows))
-	for i, row := range rows {
-		out[i] = domain.RosterMember{
-			UserID: row.ID, FullName: row.DisplayName, Email: row.Email,
-			Phone: row.Phone, AvatarFileID: row.AvatarFileID,
-		}
-	}
-	return out, total, nil
-}
-
-func rosterCandidatesBaseSQL() string {
-	return userpicker.UserPickerSelectSQL(constants.TableAppUsers) + fmt.Sprintf(`
-WHERE u.deleted_at IS NULL%s`, sqlUserWithoutRosterBlockingRoles("u.id"))
-}
-
-func (r *GormRepository) ListRosterCandidates(ctx context.Context, f domain.RosterCandidateFilter) ([]domain.RosterCandidate, int64, error) {
-	rows, total, err := userpicker.ListRows(ctx, r.db, rosterCandidatesBaseSQL(), map[string]any{}, userpicker.ListFilter{Page: f.Page, PerPage: f.PageSize, Search: f.Search})
-	if err != nil {
-		return nil, 0, err
-	}
-	out := make([]domain.RosterCandidate, len(rows))
-	for i, row := range rows {
-		out[i] = domain.RosterCandidate{
-			UserID: row.UserID, DisplayName: row.DisplayName, Email: row.Email,
-			AvatarFileID: row.AvatarFileID, AvatarURL: row.AvatarURL,
-		}
-	}
-	return out, total, nil
 }
 
 // --- Expertise --------------------------------------------------------------
@@ -470,35 +385,69 @@ func touchAndCreate(ctx context.Context, db *gorm.DB, created, updated *int64, r
 // --- Tickets ----------------------------------------------------------------
 
 func (r *GormRepository) ListTickets(ctx context.Context, f domain.TicketFilter) ([]domain.Ticket, int64, error) {
-	q := activeScope(r.db.WithContext(ctx).Model(&ticketRow{}))
+	q := r.db.WithContext(ctx).Table(constants.TableInstructorTickets + " t").
+		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = t.user_id AND u.deleted_at IS NULL").
+		Where("t.deleted_at IS NULL")
 	if f.UserID != "" {
-		q = q.Where("user_id = ?", f.UserID)
+		q = q.Where("t.user_id = ?", f.UserID)
 	}
 	if s := strings.TrimSpace(f.Status); s != "" {
-		q = q.Where("status = ?", s)
+		q = q.Where("t.status = ?", s)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	page, pageSize := instrPageParams(f.Page, f.PageSize)
-	var rows []ticketRow
-	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
+	type ticketWithUserRow struct {
+		ticketRow
+		FullName     string `gorm:"column:full_name"`
+		Email        string `gorm:"column:email"`
+		AvatarFileID string `gorm:"column:avatar_file_id"`
+	}
+	var rows []ticketWithUserRow
+	if err := q.
+		Select("t.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Order("t.id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.Ticket, len(rows))
 	for i, row := range rows {
-		out[i] = domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		out[i] = ticketRowToDomain(&row.ticketRow, row.FullName, row.Email, row.AvatarFileID)
 	}
 	return out, total, nil
 }
 
+func ticketRowToDomain(row *ticketRow, fullName, email, avatarFileID string) domain.Ticket {
+	return domain.Ticket{
+		ID: row.ID, UserID: row.UserID, DisplayName: fullName, Email: email,
+		AvatarFileID: avatarFileID, Subject: row.Subject, Status: row.Status,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
 func (r *GormRepository) GetTicketByID(ctx context.Context, id string) (*domain.Ticket, error) {
-	var row ticketRow
-	if err := activeScope(r.db.WithContext(ctx)).First(&row, "id = ?", id).Error; err != nil {
+	type ticketWithUserRow struct {
+		ticketRow
+		FullName     string `gorm:"column:full_name"`
+		Email        string `gorm:"column:email"`
+		AvatarFileID string `gorm:"column:avatar_file_id"`
+	}
+	var row ticketWithUserRow
+	if err := r.db.WithContext(ctx).Table(constants.TableInstructorTickets+" t").
+		Select("t.*, COALESCE(u.display_name, '') AS full_name, COALESCE(u.email, '') AS email, COALESCE(u.avatar_file_id::text, '') AS avatar_file_id").
+		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = t.user_id AND u.deleted_at IS NULL").
+		Where("t.id = ? AND t.deleted_at IS NULL", id).
+		Scan(&row).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
-	t := domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	if row.ID == "" {
+		return nil, mapNotFound(gorm.ErrRecordNotFound)
+	}
+	t := ticketRowToDomain(&row.ticketRow, row.FullName, row.Email, row.AvatarFileID)
 	return &t, nil
 }
 
@@ -507,8 +456,28 @@ func (r *GormRepository) CreateTicket(ctx context.Context, userID string, subjec
 	if err := touchAndCreate(ctx, r.db, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
 		return nil, err
 	}
-	t := domain.Ticket{ID: row.ID, UserID: row.UserID, Subject: row.Subject, Status: row.Status, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	t := ticketRowToDomain(row, "", "", "")
 	return &t, nil
+}
+
+func (r *GormRepository) CreateTicketWithFirstMessage(ctx context.Context, userID, subject, body string) (*domain.Ticket, error) {
+	var ticket domain.Ticket
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		row := &ticketRow{UserID: userID, Subject: subject, Status: domain.TicketStatusOpen}
+		if err := touchAndCreate(ctx, tx, &row.CreatedAt, &row.UpdatedAt, row); err != nil {
+			return err
+		}
+		msg := &ticketMessageRow{TicketID: row.ID, AuthorUserID: userID, Body: body}
+		if err := touchAndCreate(ctx, tx, &msg.CreatedAt, &msg.UpdatedAt, msg); err != nil {
+			return err
+		}
+		ticket = ticketRowToDomain(row, "", "", "")
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &ticket, nil
 }
 
 func (r *GormRepository) CloseTicket(ctx context.Context, id string) error {
@@ -522,19 +491,55 @@ func (r *GormRepository) DeleteTicketsByUserID(ctx context.Context, userID strin
 	return gormx.SoftDeleteWithAudit(ctx, r.db, &ticketRow{}, "user_id = ?", userID)
 }
 
+func mapTicketMessageRow(row ticketMessageRow, authorFullName, authorEmail string) domain.TicketMessage {
+	return domain.TicketMessage{
+		ID: row.ID, TicketID: row.TicketID, AuthorUserID: row.AuthorUserID,
+		AuthorFullName: authorFullName, AuthorEmail: authorEmail,
+		Body: row.Body, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
 func (r *GormRepository) ListMessages(ctx context.Context, ticketID string) ([]domain.TicketMessage, error) {
-	var rows []ticketMessageRow
-	if err := activeScope(r.db.WithContext(ctx)).Where("ticket_id = ?", ticketID).Order("id ASC").Find(&rows).Error; err != nil {
+	type messageWithAuthorRow struct {
+		ticketMessageRow
+		AuthorFullName string `gorm:"column:author_full_name"`
+		AuthorEmail    string `gorm:"column:author_email"`
+	}
+	var rows []messageWithAuthorRow
+	if err := activeScopeAlias(r.db.WithContext(ctx), "tm").Table(constants.TableInstructorTicketMessages+" tm").
+		Select("tm.*, COALESCE(u.display_name, '') AS author_full_name, COALESCE(u.email, '') AS author_email").
+		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = tm.author_user_id AND u.deleted_at IS NULL").
+		Where("tm.ticket_id = ?", ticketID).
+		Order("tm.id ASC").
+		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]domain.TicketMessage, len(rows))
 	for i, row := range rows {
-		out[i] = domain.TicketMessage{
-			ID: row.ID, TicketID: row.TicketID, AuthorUserID: row.AuthorUserID,
-			Body: row.Body, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		}
+		out[i] = mapTicketMessageRow(row.ticketMessageRow, row.AuthorFullName, row.AuthorEmail)
 	}
 	return out, nil
+}
+
+func (r *GormRepository) GetMessageByID(ctx context.Context, id string) (*domain.TicketMessage, error) {
+	type messageWithAuthorRow struct {
+		ticketMessageRow
+		AuthorFullName string `gorm:"column:author_full_name"`
+		AuthorEmail    string `gorm:"column:author_email"`
+	}
+	var row messageWithAuthorRow
+	if err := activeScopeAlias(r.db.WithContext(ctx), "tm").Table(constants.TableInstructorTicketMessages+" tm").
+		Select("tm.*, COALESCE(u.display_name, '') AS author_full_name, COALESCE(u.email, '') AS author_email").
+		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = tm.author_user_id AND u.deleted_at IS NULL").
+		Where("tm.id = ? AND tm.deleted_at IS NULL", id).
+		Scan(&row).Error; err != nil {
+		return nil, mapNotFound(err)
+	}
+	if row.ID == "" {
+		return nil, mapNotFound(gorm.ErrRecordNotFound)
+	}
+	msg := mapTicketMessageRow(row.ticketMessageRow, row.AuthorFullName, row.AuthorEmail)
+	return &msg, nil
 }
 
 func (r *GormRepository) AddMessage(ctx context.Context, ticketID string, authorUserID string, body string) (*domain.TicketMessage, error) {

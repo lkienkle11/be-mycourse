@@ -9,6 +9,8 @@ import (
 	"mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/timex"
+	"mycourse-io-be/internal/shared/useraccess"
 )
 
 const rosterBulkInsertBatchSize = 100
@@ -83,8 +85,10 @@ type bulkRosterWriteState struct {
 func planBulkRosterWrites(
 	userIDs []string,
 	usersByID map[string]rosterUserRow,
+	eligibilityByID map[string]useraccess.AssignmentSnapshot,
 	staffSet map[string]struct{},
 	existingInstructorSet map[string]struct{},
+	now int64,
 ) bulkRosterWriteState {
 	state := bulkRosterWriteState{
 		failed:           make([]domain.RosterBulkFailure, 0),
@@ -95,6 +99,19 @@ func planBulkRosterWrites(
 		if _, ok := usersByID[userID]; !ok {
 			state.failed = append(state.failed, domain.RosterBulkFailure{
 				UserID: userID, Message: "user not found",
+			})
+			continue
+		}
+		snap, ok := eligibilityByID[userID]
+		if !ok {
+			state.failed = append(state.failed, domain.RosterBulkFailure{
+				UserID: userID, Message: useraccess.ErrUserNotFound.Error(),
+			})
+			continue
+		}
+		if err := useraccess.CheckEligibleForAssignment(&snap, now); err != nil {
+			state.failed = append(state.failed, domain.RosterBulkFailure{
+				UserID: userID, Message: useraccess.AssignmentFailureMessage(err),
 			})
 			continue
 		}
@@ -176,7 +193,12 @@ func (r *GormRepository) AddRosterBulk(
 		if err != nil {
 			return err
 		}
-		writeState := planBulkRosterWrites(userIDs, usersByID, staffSet, existingSet)
+		eligibilityByID, err := gormx.LoadAssignmentSnapshotsByIDs(ctx, tx, userIDs)
+		if err != nil {
+			return err
+		}
+		now := timex.NowUnix()
+		writeState := planBulkRosterWrites(userIDs, usersByID, eligibilityByID, staffSet, existingSet, now)
 		result.Failed = writeState.failed
 		if len(writeState.insertUserIDs) > 0 {
 			if err := applyBulkRosterWrites(ctx, tx, writeState.insertUserIDs, instructorRoleID); err != nil {

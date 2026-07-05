@@ -16,6 +16,7 @@ type PermissionRepository interface {
 type RoleRepository interface {
 	List(ctx context.Context, filter RoleFilter) ([]Role, int64, error)
 	GetByID(ctx context.Context, id uint, withPermissions bool) (*Role, error)
+	GetByName(ctx context.Context, name string) (*Role, error)
 	Create(ctx context.Context, r *Role) error
 	Save(ctx context.Context, r *Role) error
 	Delete(ctx context.Context, id uint) error

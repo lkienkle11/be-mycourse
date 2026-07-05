@@ -96,6 +96,14 @@ const (
 // (taxonomy category image_file_id, PATCH /me avatar_file_id — READY non-video raster image).
 const MsgInvalidProfileMediaFile = "invalid profile or taxonomy image media file"
 
+// MsgDuplicateCertificate is the single canonical text for the duplicate-certificate
+// rejection. Used by:
+//   - pkg/errcode defaultMessages[DuplicateCertificate] (JSON envelope message for code 2010),
+//   - internal/instructor/domain.ErrDuplicateCertificate (errors.New / errors.Is sentinel).
+//
+// Do not copy this literal into messages.go or instructor/domain/errors.go — import constants.MsgDuplicateCertificate.
+const MsgDuplicateCertificate = "duplicate certificate is not allowed"
+
 // --- pkg/errors sentinels (single source for message text; do not duplicate in errors.New) ---
 
 // MsgNotFound is the sentinel text for pkg/errors.ErrNotFound (maps from gorm.ErrRecordNotFound).
@@ -161,6 +169,7 @@ const (
 	MsgMediaVideoGUIDRequired              = "video guid is required"
 	MsgMediaObjectKeyRequired              = "object key is required"
 	MsgMediaFileNotFoundForObjectKey       = "media file not found for object_key"
+	MsgMediaAccessDenied                   = "media file access denied"
 	MsgBunnyStreamResponseMissingVideoGUID = "bunny stream did not return video guid"
 	MsgBunnyGetVideoHTTP                   = "bunny get video: HTTP %d"
 	MsgInvalidMetadataJSON                 = "invalid metadata json: %w"

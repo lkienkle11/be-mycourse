@@ -13,6 +13,8 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/timex"
+	"mycourse-io-be/internal/shared/useraccess"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -230,6 +232,15 @@ func (r *GormRoleRepository) GetByID(ctx context.Context, id uint, withPermissio
 	return &role, nil
 }
 
+func (r *GormRoleRepository) GetByName(ctx context.Context, name string) (*domain.Role, error) {
+	var row roleRow
+	if err := r.db.WithContext(ctx).Where("name = ?", strings.TrimSpace(name)).First(&row).Error; err != nil {
+		return nil, mapNotFound(err)
+	}
+	role := rowToRole(&row, nil)
+	return &role, nil
+}
+
 func (r *GormRoleRepository) Create(ctx context.Context, role *domain.Role) error {
 	row := &roleRow{Name: role.Name, Description: role.Description}
 	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
@@ -312,8 +323,23 @@ func (r *GormUserRoleRepository) ListRolesForUser(ctx context.Context, userID st
 }
 
 func (r *GormUserRoleRepository) AssignRole(ctx context.Context, userID string, roleID uint) error {
+	return r.AssignRoleWithDB(ctx, r.db, userID, roleID)
+}
+
+// AssignRoleWithDB assigns a role using the given DB handle (supports transactions).
+func (r *GormUserRoleRepository) AssignRoleWithDB(ctx context.Context, db *gorm.DB, userID string, roleID uint) error {
+	snap, err := gormx.LoadAssignmentSnapshotByID(ctx, db, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return useraccess.ErrUserNotFound
+		}
+		return err
+	}
+	if err := useraccess.CheckEligibleForAssignment(&snap, timex.NowUnix()); err != nil {
+		return err
+	}
 	row := userRoleRow{UserID: userID, RoleID: roleID}
-	return r.db.WithContext(ctx).FirstOrCreate(&row, userRoleRow{UserID: userID, RoleID: roleID}).Error
+	return db.WithContext(ctx).FirstOrCreate(&row, userRoleRow{UserID: userID, RoleID: roleID}).Error
 }
 
 func (r *GormUserRoleRepository) RemoveRole(ctx context.Context, userID string, roleID uint) error {

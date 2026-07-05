@@ -34,10 +34,12 @@
 | `000026_course_approval_note` | Adds `course_versions.approval_note` for admin review feedback. |
 | `000027_course_collaborator_candidate_permission` | Seeds **P67** `course_collaborator_candidate:read` + sysadmin/admin/instructor grants (picker `GET …/instructor-candidates`). |
 | `000028_admin_collaborator_candidate_permission` | Backfills P67 grant for **admin** when `000027` ran without admin. |
+| `000029_instructor_application_feature` | Application state machine, company snapshot, application expertise junctions, P68, `years_of_experience` enum codes, **backfill `submitted_at`/`review_due_at` for legacy pending rows**. See **`docs/modules/instructor.md`**. |
+| `000030_media_owner_visibility` | Adds **`media_files.user_id`** (FK → `users.id`, nullable for legacy rows) and **`media_files.visibility`** (`private` default, `public` optional). Indexes on `(user_id)` and `(visibility)` for list filtering. See **`docs/modules/media.md`**. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 
-**Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P67** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/database.md`**.
+**Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P68** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/database.md`**.
 
 **COMMENT / SQL strings with `golang-migrate`:** the runner splits files by **every** `;` (no SQL parser). Therefore, do **not** place `;` inside strings (`'...'`), inside **`$$...$$`**, etc. Use `;` only to terminate statements. In this repo, avoid `DO $$ ... $$` blocks entirely (see `000015` rewrite) and prefer plain DDL/DML statements. In `COMMENT ON ... IS '...'`, avoid `;` in comment text (use punctuation like commas or periods), e.g. `000007_registration_email_limits.up.sql`.
 

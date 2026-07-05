@@ -18,12 +18,32 @@ func (s *InstructorService) ListProfiles(ctx context.Context, f domain.ProfileFi
 }
 
 func (s *InstructorService) GetProfileByUserID(ctx context.Context, userID string) (*domain.Profile, error) {
-	return loadOneWithIdentity(
+	row, err := loadOneWithIdentity(
 		s,
 		ctx,
 		func() (*domain.Profile, error) { return s.repo.GetProfileByUserID(ctx, userID) },
 		profileAvatarFileID,
 		setProfileAvatarURL,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.hydrateProfileMedia(ctx, row); err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
+func (s *InstructorService) hydrateProfileMedia(ctx context.Context, profile *domain.Profile) error {
+	if profile == nil {
+		return nil
+	}
+	return hydrateProfilePayloadMedia(
+		ctx,
+		s.mediaHydr,
+		&profile.ProfilePayload,
+		func(f *domain.MediaFileReadModel) { profile.CVFile = f },
+		func(f *domain.MediaFileReadModel) { profile.IntroVideoFile = f },
 	)
 }
 
@@ -39,6 +59,9 @@ func normalizeProfileFilter(f domain.ProfileFilter) domain.ProfileFilter {
 
 func (s *InstructorService) UpsertProfile(ctx context.Context, in domain.UpsertProfileInput) (*domain.Profile, error) {
 	if err := s.validateProfile(ctx, in.ProfilePayload); err != nil {
+		return nil, err
+	}
+	if err := validateCertificatePayload(in.Certificates); err != nil {
 		return nil, err
 	}
 	return s.repo.UpsertProfile(ctx, in)

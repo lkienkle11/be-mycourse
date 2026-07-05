@@ -4,6 +4,7 @@ package infra
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -17,36 +18,65 @@ import (
 
 // mediaFileRow is the GORM model for the media_files table.
 type mediaFileRow struct {
-	ID                  string `gorm:"column:id;type:uuid;primaryKey"`
-	ObjectKey           string `gorm:"column:object_key;type:varchar(512);uniqueIndex;not null"`
-	Kind                string `gorm:"column:kind;type:varchar(16);not null"`
-	Provider            string `gorm:"column:provider;type:varchar(16);not null"`
-	Filename            string `gorm:"column:filename;type:varchar(512);not null"`
-	MimeType            string `gorm:"column:mime_type;type:varchar(255);not null;default:''"`
-	SizeBytes           int64  `gorm:"column:size_bytes;not null;default:0"`
-	URL                 string `gorm:"column:url;type:text;not null"`
-	OriginURL           string `gorm:"column:origin_url;type:text;not null"`
-	Status              string `gorm:"column:status;type:varchar(16);not null"`
-	R2BucketName        string `gorm:"column:r2_bucket_name;type:varchar(255);not null;default:''"`
-	BunnyVideoID        string `gorm:"column:bunny_video_id;type:varchar(255)"`
-	BunnyLibraryID      string `gorm:"column:bunny_library_id;type:varchar(255)"`
-	VideoID             string `gorm:"column:video_id;type:varchar(255);not null;default:''"`
-	ThumbnailURL        string `gorm:"column:thumbnail_url;type:text;not null;default:''"`
-	EmbededHTML         string `gorm:"column:embeded_html;type:text;not null;default:''"`
-	DirectPlayURL       string `gorm:"column:direct_play_url;type:text;not null;default:''"`
-	HLSPlaylistURL      string `gorm:"column:hls_playlist_url;type:text;not null;default:''"`
-	PreviewAnimationURL string `gorm:"column:preview_animation_url;type:text;not null;default:''"`
-	Duration            int64  `gorm:"column:duration;not null;default:0"`
-	VideoProvider       string `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
-	RowVersion          int64  `gorm:"column:row_version;not null;default:1"`
-	ContentFingerprint  string `gorm:"column:content_fingerprint;type:varchar(128);not null;default:''"`
-	MetadataJSON        []byte `gorm:"column:metadata_json;type:jsonb;not null;default:'{}'::jsonb"`
-	CreatedAt           int64  `gorm:"column:created_at;not null"`
-	UpdatedAt           int64  `gorm:"column:updated_at;not null"`
-	DeletedAt           *int64 `gorm:"column:deleted_at"`
+	ID                  string  `gorm:"column:id;type:uuid;primaryKey"`
+	UserID              *string `gorm:"column:user_id;type:uuid"`
+	Visibility          string  `gorm:"column:visibility;type:varchar(16);not null;default:private"`
+	ObjectKey           string  `gorm:"column:object_key;type:varchar(512);uniqueIndex;not null"`
+	Kind                string  `gorm:"column:kind;type:varchar(16);not null"`
+	Provider            string  `gorm:"column:provider;type:varchar(16);not null"`
+	Filename            string  `gorm:"column:filename;type:varchar(512);not null"`
+	MimeType            string  `gorm:"column:mime_type;type:varchar(255);not null;default:''"`
+	SizeBytes           int64   `gorm:"column:size_bytes;not null;default:0"`
+	URL                 string  `gorm:"column:url;type:text;not null"`
+	OriginURL           string  `gorm:"column:origin_url;type:text;not null"`
+	Status              string  `gorm:"column:status;type:varchar(16);not null"`
+	R2BucketName        string  `gorm:"column:r2_bucket_name;type:varchar(255);not null;default:''"`
+	BunnyVideoID        string  `gorm:"column:bunny_video_id;type:varchar(255)"`
+	BunnyLibraryID      string  `gorm:"column:bunny_library_id;type:varchar(255)"`
+	VideoID             string  `gorm:"column:video_id;type:varchar(255);not null;default:''"`
+	ThumbnailURL        string  `gorm:"column:thumbnail_url;type:text;not null;default:''"`
+	EmbededHTML         string  `gorm:"column:embeded_html;type:text;not null;default:''"`
+	DirectPlayURL       string  `gorm:"column:direct_play_url;type:text;not null;default:''"`
+	HLSPlaylistURL      string  `gorm:"column:hls_playlist_url;type:text;not null;default:''"`
+	PreviewAnimationURL string  `gorm:"column:preview_animation_url;type:text;not null;default:''"`
+	Duration            int64   `gorm:"column:duration;not null;default:0"`
+	VideoProvider       string  `gorm:"column:video_provider;type:varchar(64);not null;default:''"`
+	RowVersion          int64   `gorm:"column:row_version;not null;default:1"`
+	ContentFingerprint  string  `gorm:"column:content_fingerprint;type:varchar(128);not null;default:''"`
+	MetadataJSON        []byte  `gorm:"column:metadata_json;type:jsonb;not null;default:'{}'::jsonb"`
+	CreatedAt           int64   `gorm:"column:created_at;not null"`
+	UpdatedAt           int64   `gorm:"column:updated_at;not null"`
+	DeletedAt           *int64  `gorm:"column:deleted_at"`
 }
 
 func (mediaFileRow) TableName() string { return constants.TableMediaFiles }
+
+const (
+	mediaOwnerJoinSQL   = "LEFT JOIN " + constants.TableAppUsers + " u ON u.id = " + constants.TableMediaFiles + ".user_id AND u.deleted_at IS NULL"
+	mediaOwnerSelectSQL = constants.TableMediaFiles + ".*, COALESCE(u.display_name, '') AS owner_display_name"
+)
+
+type mediaFileOwnerProjection struct {
+	OwnerDisplayName string `gorm:"column:owner_display_name"`
+}
+
+type mediaFileListRow struct {
+	File  mediaFileRow             `gorm:"embedded"`
+	Owner mediaFileOwnerProjection `gorm:"embedded"`
+}
+
+func applyMediaOwnerIdentity(f *domain.File, owner mediaFileOwnerProjection) {
+	if f == nil {
+		return
+	}
+	f.DisplayName = strings.TrimSpace(owner.OwnerDisplayName)
+}
+
+func fileFromMediaListRow(row *mediaFileListRow) domain.File {
+	f := rowToFile(&row.File)
+	applyMediaOwnerIdentity(f, row.Owner)
+	return *f
+}
 
 // pendingCleanupRow is the GORM model for media_pending_cloud_cleanup.
 type pendingCleanupRow struct {
@@ -69,7 +99,8 @@ func (pendingCleanupRow) TableName() string { return constants.TableMediaPending
 func rowToFile(r *mediaFileRow) *domain.File {
 	f := &domain.File{
 		ID: r.ID, ObjectKey: r.ObjectKey, Kind: r.Kind, Provider: r.Provider,
-		Filename: r.Filename, MimeType: r.MimeType, SizeBytes: r.SizeBytes,
+		Visibility: normalizeStoredVisibility(r.Visibility),
+		Filename:   r.Filename, MimeType: r.MimeType, SizeBytes: r.SizeBytes,
 		URL: r.URL, OriginURL: r.OriginURL, Status: r.Status,
 		R2BucketName: r.R2BucketName, BunnyVideoID: r.BunnyVideoID, BunnyLibraryID: r.BunnyLibraryID,
 		VideoID: r.VideoID, ThumbnailURL: SanitizeMetadataURL(r.ThumbnailURL), EmbededHTML: r.EmbededHTML,
@@ -78,6 +109,9 @@ func rowToFile(r *mediaFileRow) *domain.File {
 		Duration:            r.Duration, VideoProvider: r.VideoProvider, RowVersion: r.RowVersion,
 		ContentFingerprint: r.ContentFingerprint, MetadataJSON: string(r.MetadataJSON),
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
+	if r.UserID != nil {
+		f.UserID = strings.TrimSpace(*r.UserID)
 	}
 	// Re-derive the typed Metadata struct from the stored JSONB blob so that
 	// reads (List / GetByID / GetByObjectKey / GetByBunnyVideoID) return the
@@ -99,8 +133,13 @@ func fileToRow(f *domain.File) *mediaFileRow {
 	if len(metaJSON) == 0 {
 		metaJSON = []byte("{}")
 	}
+	var userID *string
+	if uid := strings.TrimSpace(f.UserID); uid != "" {
+		userID = &uid
+	}
 	return &mediaFileRow{
 		ID: f.ID, ObjectKey: f.ObjectKey, Kind: f.Kind, Provider: f.Provider,
+		UserID: userID, Visibility: normalizeStoredVisibility(f.Visibility),
 		Filename: f.Filename, MimeType: f.MimeType, SizeBytes: f.SizeBytes,
 		URL: f.URL, OriginURL: f.OriginURL, Status: f.Status,
 		R2BucketName: f.R2BucketName, BunnyVideoID: f.BunnyVideoID, BunnyLibraryID: f.BunnyLibraryID,
@@ -138,27 +177,28 @@ func (r *GormFileRepository) List(ctx context.Context, filter domain.FileFilter)
 		pageSize = 20
 	}
 	orderClause := mediaListOrderClause(filter.SortBy, filter.SortOrder)
-	var rows []mediaFileRow
-	if err := q.Offset((page - 1) * pageSize).Limit(pageSize).Order(orderClause).Find(&rows).Error; err != nil {
+	var rows []mediaFileListRow
+	findQ := q.Joins(mediaOwnerJoinSQL).Select(mediaOwnerSelectSQL)
+	if err := findQ.Offset((page - 1) * pageSize).Limit(pageSize).Order(orderClause).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]domain.File, len(rows))
 	for i := range rows {
-		out[i] = *rowToFile(&rows[i])
+		out[i] = fileFromMediaListRow(&rows[i])
 	}
 	return out, total, nil
 }
 
 func (r *GormFileRepository) GetByID(ctx context.Context, id string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "id = ?", id)
+	return firstActiveMediaFile(ctx, r.db, constants.TableMediaFiles+".id = ?", id)
 }
 
 func (r *GormFileRepository) GetByObjectKey(ctx context.Context, objectKey string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "object_key = ?", objectKey)
+	return firstActiveMediaFile(ctx, r.db, constants.TableMediaFiles+".object_key = ?", objectKey)
 }
 
 func (r *GormFileRepository) GetByBunnyVideoID(ctx context.Context, videoGUID string) (*domain.File, error) {
-	return firstActiveMediaFile(ctx, r.db, "bunny_video_id = ?", videoGUID)
+	return firstActiveMediaFile(ctx, r.db, constants.TableMediaFiles+".bunny_video_id = ?", videoGUID)
 }
 
 func (r *GormFileRepository) ListBunnyVideoGUIDsWithMissingDuration(ctx context.Context, limit int) ([]string, error) {
@@ -184,6 +224,9 @@ func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.Fi
 		First(&existing).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if err := gormx.EnsureStringID(&row.ID); err != nil {
+				return err
+			}
 			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
 			return db.Create(row).Error
 		}
@@ -214,6 +257,8 @@ func (r *GormFileRepository) UpsertByObjectKey(ctx context.Context, f *domain.Fi
 // guarantee is what fixes the "duration stays at 0 after Bunny webhook" bug.
 func buildUpsertUpdateColumns(row *mediaFileRow) map[string]any {
 	return map[string]any{
+		"user_id":               row.UserID,
+		"visibility":            row.Visibility,
 		"kind":                  row.Kind,
 		"provider":              row.Provider,
 		"filename":              row.Filename,

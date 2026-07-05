@@ -25,6 +25,9 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 	instructors.DELETE("/:id/expertise/skills/:skillRowId", utils.RoutePermission(pc, constants.AllPermissions.InstructorExpertiseDelete), h.deleteExpertiseSkillByRow)
 
 	apps := rg.Group("/instructor-applications")
+	apps.GET("/me", utils.RoutePermission(pc, constants.AllPermissions.InstructorApplicationCreate), h.getMyApplication)
+	apps.PUT("/me", utils.RoutePermission(pc, constants.AllPermissions.InstructorApplicationCreate), h.resubmitMyApplication)
+	apps.POST("/contact-admin", utils.RoutePermission(pc, constants.AllPermissions.InstructorApplicationCreate), h.contactAdmin)
 	apps.GET("", utils.RoutePermission(pc, constants.AllPermissions.InstructorApplicationRead), h.listApplications)
 	apps.POST("", utils.RoutePermission(pc, constants.AllPermissions.InstructorApplicationCreate), h.submitApplication)
 	apps.GET("/:id", utils.RoutePermission(pc, constants.AllPermissions.InstructorApplicationRead), h.getApplication)

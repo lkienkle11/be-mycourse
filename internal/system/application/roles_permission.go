@@ -138,30 +138,31 @@ var RolePermissions = struct {
 	Admin_CourseTrashDelete               string `role:"admin" perm_id:"P66"`
 	Admin_CourseCollaboratorCandidateRead string `role:"admin" perm_id:"P67"`
 	// instructor
-	Instructor_ProfileRead                     string `role:"instructor" perm_id:"P1"`
-	Instructor_CourseRead                      string `role:"instructor" perm_id:"P5"`
-	Instructor_CourseUpdate                    string `role:"instructor" perm_id:"P6"`
-	Instructor_CourseDelete                    string `role:"instructor" perm_id:"P7"`
-	Instructor_CourseInstructorRead            string `role:"instructor" perm_id:"P9"`
-	Instructor_UserRead                        string `role:"instructor" perm_id:"P10"`
-	Instructor_CourseLevelRead                 string `role:"instructor" perm_id:"P14"`
-	Instructor_TopicRead                       string `role:"instructor" perm_id:"P18"`
-	Instructor_CourseOutcomeRead               string `role:"instructor" perm_id:"P30"`
-	Instructor_CourseSkillRead                 string `role:"instructor" perm_id:"P34"`
-	Instructor_TagRead                         string `role:"instructor" perm_id:"P22"`
-	Instructor_MediaFileRead                   string `role:"instructor" perm_id:"P26"`
-	Instructor_MediaFileCreate                 string `role:"instructor" perm_id:"P27"`
-	Instructor_MediaFileUpdate                 string `role:"instructor" perm_id:"P28"`
-	Instructor_MediaFileDelete                 string `role:"instructor" perm_id:"P29"`
-	Instructor_InstructorModify                string `role:"instructor" perm_id:"P40"`
-	Instructor_InstructorApplicationCreate     string `role:"instructor" perm_id:"P45"`
-	Instructor_InstructorApplicationDelete     string `role:"instructor" perm_id:"P47"`
-	Instructor_InstructorApplicationReject     string `role:"instructor" perm_id:"P49"`
-	Instructor_InstructorExpertiseCreate       string `role:"instructor" perm_id:"P55"`
-	Instructor_InstructorExpertiseUpdate       string `role:"instructor" perm_id:"P56"`
-	Instructor_InstructorExpertiseDelete       string `role:"instructor" perm_id:"P57"`
-	Instructor_InstructorTicketClose           string `role:"instructor" perm_id:"P58"`
-	Instructor_CourseCollaboratorCandidateRead string `role:"instructor" perm_id:"P67"`
+	Instructor_ProfileRead                        string `role:"instructor" perm_id:"P1"`
+	Instructor_CourseRead                         string `role:"instructor" perm_id:"P5"`
+	Instructor_CourseUpdate                       string `role:"instructor" perm_id:"P6"`
+	Instructor_CourseDelete                       string `role:"instructor" perm_id:"P7"`
+	Instructor_CourseInstructorRead               string `role:"instructor" perm_id:"P9"`
+	Instructor_UserRead                           string `role:"instructor" perm_id:"P10"`
+	Instructor_CourseLevelRead                    string `role:"instructor" perm_id:"P14"`
+	Instructor_TopicRead                          string `role:"instructor" perm_id:"P18"`
+	Instructor_CourseOutcomeRead                  string `role:"instructor" perm_id:"P30"`
+	Instructor_CourseSkillRead                    string `role:"instructor" perm_id:"P34"`
+	Instructor_TagRead                            string `role:"instructor" perm_id:"P22"`
+	Instructor_MediaFileRead                      string `role:"instructor" perm_id:"P26"`
+	Instructor_MediaFileCreate                    string `role:"instructor" perm_id:"P27"`
+	Instructor_MediaFileUpdate                    string `role:"instructor" perm_id:"P28"`
+	Instructor_MediaFileDelete                    string `role:"instructor" perm_id:"P29"`
+	Instructor_InstructorModify                   string `role:"instructor" perm_id:"P40"`
+	Instructor_InstructorApplicationCreate        string `role:"instructor" perm_id:"P45"`
+	Instructor_InstructorApplicationDelete        string `role:"instructor" perm_id:"P47"`
+	Instructor_InstructorApplicationReject        string `role:"instructor" perm_id:"P49"`
+	Instructor_InstructorExpertiseCreate          string `role:"instructor" perm_id:"P55"`
+	Instructor_InstructorExpertiseUpdate          string `role:"instructor" perm_id:"P56"`
+	Instructor_InstructorExpertiseDelete          string `role:"instructor" perm_id:"P57"`
+	Instructor_InstructorTicketClose              string `role:"instructor" perm_id:"P58"`
+	Instructor_CourseCollaboratorCandidateRead    string `role:"instructor" perm_id:"P67"`
+	Instructor_InstructorApplicationSubmitBlocked string `role:"instructor" perm_id:"P68"`
 	// learner
 	Learner_ProfileRead                 string `role:"learner" perm_id:"P1"`
 	Learner_CourseRead                  string `role:"learner" perm_id:"P5"`
@@ -172,5 +173,8 @@ var RolePermissions = struct {
 	Learner_CourseSkillRead             string `role:"learner" perm_id:"P34"`
 	Learner_TagRead                     string `role:"learner" perm_id:"P22"`
 	Learner_MediaFileRead               string `role:"learner" perm_id:"P26"`
+	Learner_MediaFileCreate             string `role:"learner" perm_id:"P27"`
+	Learner_MediaFileUpdate             string `role:"learner" perm_id:"P28"`
+	Learner_MediaFileDelete             string `role:"learner" perm_id:"P29"`
 	Learner_InstructorApplicationCreate string `role:"learner" perm_id:"P45"`
 }{}

@@ -48,6 +48,22 @@ POST /api/v1/auth/login
             └─ Return JSON body with tokens (access_token, refresh_token, session_id)
 ```
 
+### Auth Confirm Email
+
+```
+POST /api/v1/auth/confirm
+  └─ internal/auth/delivery/handler.go (ConfirmEmail)
+       └─ AuthService.ConfirmEmail
+            ├─ Find user by confirmation_token (active rows only)
+            ├─ BEGIN TRANSACTION
+            ├─ Set email_confirmed=true, clear confirmation_token, reset registration_email_send_total=0, persist user
+            ├─ EnsureLearnerRole(user_id) — idempotent FirstOrCreate on user_roles for role name `learner`
+            ├─ COMMIT (rolls back both steps on any failure — token remains valid for retry)
+            ├─ Invalidate Redis /me cache for that user
+            ├─ Clear Redis register confirmation window + login email→user cache
+            └─ Issue token pair (access + refresh + session) with permissions loaded from RBAC
+```
+
 ### Auth Token Refresh
 
 ```
@@ -84,9 +100,12 @@ GET /api/v1/me (JWT required)
   └─ internal/auth/delivery/handler.go (GetMe)
        └─ AuthService.GetMe
             ├─ Check Redis cache (mycourse:user:me:{user_id}) — up to 1 minute stale
-            ├─ On miss: loadAccessibleUser → checkUserAccessible → permissions from DB
+            │   └─ Cache bypass when cached payload has email_confirmed=true and permissions=[] (legacy confirmed users missing learner role)
+            ├─ On miss: loadAccessibleUser → checkUserAccessible
+            ├─ Load permissions via RBAC PermissionCodesForUser
+            ├─ Self-heal: when email_confirmed=true and permissions empty → EnsureLearnerRole → reload permissions
             ├─ Cache result
-            └─ Return MeResponse DTO
+            └─ Return MeResponse DTO (includes sorted permission_name strings)
 ```
 
 ### DELETE /me (soft) and DELETE /me/hard

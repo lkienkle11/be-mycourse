@@ -101,7 +101,7 @@ func (f *fakeMediaGateway) ResolveUploadProvider(_ string, _ bool) string {
 	return constants.FileProviderR2
 }
 
-func (f *fakeMediaGateway) ResolveMediaUploadObjectKey(_, _, _ string) string { return "" }
+func (f *fakeMediaGateway) ResolveMediaUploadObjectKey(_, _, _, _ string) string { return "" }
 
 func (f *fakeMediaGateway) IsImageMIMEOrExt(_, _ string) bool { return false }
 
@@ -192,6 +192,7 @@ func TestDeleteFile_UsesPersistedProviderForFileEvenWhenMetadataContainsBunnyID(
 		rows: map[string]*domain.File{
 			"img.webp": {
 				ObjectKey: "img.webp",
+				UserID:    "user-1",
 				Kind:      constants.FileKindFile,
 				Provider:  constants.FileProviderB2,
 			},
@@ -206,7 +207,7 @@ func TestDeleteFile_UsesPersistedProviderForFileEvenWhenMetadataContainsBunnyID(
 	svc := mediaapp.NewMediaService(repo, nil, nil, nil, gw)
 	meta := domain.RawMetadata{domain.MediaMetaKeyBunnyVideoID: "query-guid"}
 
-	if err := svc.DeleteFile(context.Background(), "img.webp", meta); err != nil {
+	if err := svc.DeleteFile(context.Background(), "img.webp", meta, "user-1"); err != nil {
 		t.Fatalf("DeleteFile returned error: %v", err)
 	}
 	if len(gw.deleteCalls) != 1 {
@@ -228,6 +229,7 @@ func TestDeleteFile_UsesPersistedVideoProviderAndBunnyIDWhenMetadataEmpty(t *tes
 		rows: map[string]*domain.File{
 			"video-obj": {
 				ObjectKey:    "video-obj",
+				UserID:       "user-1",
 				Kind:         constants.FileKindVideo,
 				Provider:     constants.FileProviderBunny,
 				BunnyVideoID: "row-guid",
@@ -242,7 +244,7 @@ func TestDeleteFile_UsesPersistedVideoProviderAndBunnyIDWhenMetadataEmpty(t *tes
 	}
 	svc := mediaapp.NewMediaService(repo, nil, nil, nil, gw)
 
-	if err := svc.DeleteFile(context.Background(), "video-obj", domain.RawMetadata{}); err != nil {
+	if err := svc.DeleteFile(context.Background(), "video-obj", domain.RawMetadata{}, "user-1"); err != nil {
 		t.Fatalf("DeleteFile returned error: %v", err)
 	}
 	if len(gw.deleteCalls) != 1 {
@@ -267,7 +269,7 @@ func TestDeleteFile_FallbackWhenRowMissing_PreservesLegacyInference(t *testing.T
 		}
 		svc := mediaapp.NewMediaService(repo, nil, nil, nil, gw)
 
-		if err := svc.DeleteFile(context.Background(), "missing-file", domain.RawMetadata{}); err != nil {
+		if err := svc.DeleteFile(context.Background(), "missing-file", domain.RawMetadata{}, ""); err != nil {
 			t.Fatalf("DeleteFile returned error: %v", err)
 		}
 		if len(gw.deleteCalls) != 1 {
@@ -292,7 +294,7 @@ func TestDeleteFile_FallbackWhenRowMissing_PreservesLegacyInference(t *testing.T
 		svc := mediaapp.NewMediaService(repo, nil, nil, nil, gw)
 		meta := domain.RawMetadata{domain.MediaMetaKeyVideoGUID: "meta-guid"}
 
-		if err := svc.DeleteFile(context.Background(), "missing-video", meta); err != nil {
+		if err := svc.DeleteFile(context.Background(), "missing-video", meta, ""); err != nil {
 			t.Fatalf("DeleteFile returned error: %v", err)
 		}
 		if len(gw.deleteCalls) != 1 {
@@ -317,7 +319,7 @@ func TestDeleteFile_ReturnsRepoErrorWhenLookupFailsUnexpectedly(t *testing.T) {
 	}
 	svc := mediaapp.NewMediaService(repo, nil, nil, nil, gw)
 
-	err := svc.DeleteFile(context.Background(), "k", domain.RawMetadata{})
+	err := svc.DeleteFile(context.Background(), "k", domain.RawMetadata{}, "")
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("error = %v, want %v", err, wantErr)
 	}

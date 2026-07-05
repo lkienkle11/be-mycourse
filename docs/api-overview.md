@@ -65,13 +65,15 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - Note: multipart text fields `kind` and `metadata` are accepted for backward-compat parsing only and ignored in create/update business flow (server-owned policy).
 - Public webhook (registered before auth middleware):
   - `POST /webhook/bunny`
-- Instructor management (see **`docs/modules/instructor.md`**):
-  - `GET/DELETE /instructors` — roster list/remove; `POST /instructors/bulk` — add
-  - `GET/POST /instructor-applications`, `POST …/approve`, `POST …/reject`, `DELETE …/:id`
-  - `GET/POST/PATCH/DELETE /instructor-profiles`, `GET …/me`
+- Instructor management (see **`docs/modules/instructor.md`**, migration **`000029`**):
+  - `GET /instructors`, `DELETE /instructors/:id`, `POST /instructors/bulk` — roster
+  - `GET /instructor-applications/me`, `PUT /instructor-applications/me` — resolve state, prefill, resubmit (P45)
+  - `GET /instructor-applications`, `POST /instructor-applications`, `GET /instructor-applications/:id`, `POST …/:id/approve`, `POST …/:id/reject`, `DELETE …/:id` — list filter includes `returned`
+  - `GET /instructor-profiles`, `GET /instructor-profiles/me`, `POST /instructor-profiles`, `PATCH /instructor-profiles/:id`, `DELETE /instructor-profiles/:id`
   - `GET/POST/DELETE /instructors/:id/expertise/topics|skills`
   - `GET/POST /instructor-tickets`, `POST …/close`, `GET/POST …/messages`
   - `GET /instructor-stubs/assignments|activity-log` — stubs
+  - P68 `instructor_application:submit_blocked` on `GET /me/permissions` (resolver step 4, after G/H)
 - Course management (see **`docs/modules/course.md`**):
   - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId` (query `include_outline=false` skips outline tree — info/collaborators tabs), `PATCH /courses/:courseId/basic-info`, paginated `GET …/collaborators`, picker `GET …/instructor-candidates` (P67), `POST …/collaborators/bulk` + `DELETE …/collaborators/:userId`, outline CRUD/reorder, lease acquire/heartbeat/release
   - Review: `POST /courses/:courseId/draft/prepare`, `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft` (**owner-only** in repo — `EDITOR` may edit draft/outline but not these three), `GET /course-reviews/pending` (`[]CourseListItem` + `owner_display_name`), `POST /course-reviews/:courseId/approve|reject`
@@ -89,7 +91,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `kind` is inferred server-side from MIME/extension.
   - if kind cannot be inferred and no configured provider exists, provider fallback is `Local`.
   - response `metadata` uses typed contract `UploadFileMetadata` (not `any`) with zero-value defaults for unavailable fields.
-  - Bunny videos: success `data` may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** on `UploadFileResponse` (`docs/modules/media.md`, `docs/return_types.md`, `docs/api_swagger.yaml`).
+  - Bunny/media responses: public `UploadFileResponse` includes FE-facing fields (`id`, `user_id`, `display_name`, `visibility`, `kind`, `filename`, `mime_type`, `size_bytes`, `status`, `url`, `object_key`, `video_id`, `thumbnail_url`, `embeded_html`, `duration`, typed `metadata`, `row_version`, `created_at`, `updated_at`). Provider-internal delivery fields (`bunny_video_id`, `bunny_library_id`, `direct_play_url`, `hls_playlist_url`, `preview_animation_url`, `video_provider`, `content_fingerprint`, `r2_bucket_name`) are backend-only and hidden from JSON (`docs/modules/media.md`, `docs/return_types.md`, `docs/api_swagger.yaml`).
   - **No `origin_url`** on `UploadFileResponse` (Sub 12 — canonical R2 origin URL is server-only; not in public JSON — `docs/modules/media.md`).
 - **Sub 11 upload policies:**
   - Image uploads are **converted to WebP** (bimg/libvips, `CGO_ENABLED=1`) before cloud upload. Concurrency gate: `constants.MaxConcurrentImageEncode` (4). Build requires **libvips** dev packages (CI also installs **libhdf5-dev** for **matio**/HDF5 **pkg-config** on Ubuntu). Encode failure → HTTP **503** + code **9017** (`ImageEncodeBusy`).

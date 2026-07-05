@@ -9,17 +9,19 @@ import (
 )
 
 type certificateJSON struct {
-	Title         string `json:"title"`
-	Issuer        string `json:"issuer"`
-	IssuedYear    int    `json:"issued_year"`
-	CredentialURL string `json:"credential_url,omitempty"`
+	Title             string `json:"title"`
+	Issuer            string `json:"issuer"`
+	IssuedYear        int    `json:"issued_year"`
+	CredentialURL     string `json:"credential_url,omitempty"`
+	CertificateFileID string `json:"certificate_file_id,omitempty"`
 }
 
 func certificatesToJSON(certs []domain.Certificate) ([]certificateJSON, error) {
 	out := make([]certificateJSON, len(certs))
 	for i, c := range certs {
 		out[i] = certificateJSON{
-			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear, CredentialURL: c.CredentialURL,
+			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear,
+			CredentialURL: c.CredentialURL, CertificateFileID: c.CertificateFileID,
 		}
 	}
 	return out, nil
@@ -29,7 +31,8 @@ func certificatesFromJSON(raw []certificateJSON) []domain.Certificate {
 	out := make([]domain.Certificate, len(raw))
 	for i, c := range raw {
 		out[i] = domain.Certificate{
-			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear, CredentialURL: c.CredentialURL,
+			Title: c.Title, Issuer: c.Issuer, IssuedYear: c.IssuedYear,
+			CredentialURL: c.CredentialURL, CertificateFileID: c.CertificateFileID,
 		}
 	}
 	return out
@@ -63,6 +66,32 @@ func (c *CertificatesJSON) Scan(value any) error {
 	return scanJSONValue(value, c, "CertificatesJSON")
 }
 
+type rejectionHistoryJSON struct {
+	RejectedAt          int64  `json:"rejected_at"`
+	RejectedByUserID    string `json:"rejected_by_user_id"`
+	ReviewerDisplayName string `json:"reviewer_display_name"`
+	Reason              string `json:"reason"`
+}
+
+// RejectionHistoryJSON stores []domain.RejectionRecord in JSONB.
+type RejectionHistoryJSON []rejectionHistoryJSON
+
+func (r RejectionHistoryJSON) Value() (driver.Value, error) {
+	if r == nil {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(r)
+}
+
+func emptyRejectionHistoryPtr() *RejectionHistoryJSON {
+	h := RejectionHistoryJSON{}
+	return &h
+}
+
+func (r *RejectionHistoryJSON) Scan(value any) error {
+	return scanJSONValue(value, r, "RejectionHistoryJSON")
+}
+
 func scanJSONValue(value any, dest any, label string) error {
 	if value == nil {
 		switch d := dest.(type) {
@@ -70,6 +99,8 @@ func scanJSONValue(value any, dest any, label string) error {
 			*d = []string{}
 		case *CertificatesJSON:
 			*d = []certificateJSON{}
+		case *RejectionHistoryJSON:
+			*d = RejectionHistoryJSON{}
 		}
 		return nil
 	}

@@ -2,9 +2,12 @@ package application
 
 // CreateFileInput carries request parameters for single/batch create.
 type CreateFileInput struct {
-	Kind      string
-	ObjectKey string
-	Metadata  map[string]any
+	Kind       string
+	ObjectKey  string
+	Metadata   map[string]any
+	UserID     string
+	UserCode   string
+	Visibility string
 }
 
 // UpdateFileInput carries request parameters for single/bundle update.

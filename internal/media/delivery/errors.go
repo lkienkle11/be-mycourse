@@ -118,3 +118,11 @@ func respondBatchDeleteError(c *gin.Context, err error) bool {
 	}
 	return false
 }
+
+func respondMediaAccessError(c *gin.Context, err error) bool {
+	if stderrors.Is(err, apperrors.ErrMediaAccessDenied) {
+		response.Fail(c, http.StatusForbidden, apperrors.Forbidden, err.Error(), nil)
+		return true
+	}
+	return false
+}

@@ -470,6 +470,10 @@ func buildDocumentCategorySQL() string {
 }
 
 func applyMediaListFilters(q *gorm.DB, filter domain.FileFilter) *gorm.DB {
+	viewerUserID := strings.TrimSpace(filter.ViewerUserID)
+	if viewerUserID != "" {
+		q = q.Where("(user_id = ? OR visibility = ?)", viewerUserID, constants.MediaVisibilityPublic)
+	}
 	if term, ok := mediaFilenameSearchValue(filter.Search); ok {
 		q = q.Where("filename ILIKE ?", term)
 	}

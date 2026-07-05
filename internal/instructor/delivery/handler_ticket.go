@@ -23,7 +23,7 @@ func (h *Handler) listTickets(c *gin.Context) {
 	if mapInstructorError(c, err) {
 		return
 	}
-	response.OKPaginated(c, "ok", rows, utils.BuildPage(q.getPage(), q.getPerPage(), total))
+	response.OKPaginated(c, "ok", toTicketResponses(rows), utils.BuildPage(q.getPage(), q.getPerPage(), total))
 }
 
 func (h *Handler) createTicket(c *gin.Context) {
@@ -36,18 +36,26 @@ func (h *Handler) createTicket(c *gin.Context) {
 	if mapInstructorError(c, err) {
 		return
 	}
-	response.OK(c, "ok", row)
+	response.OK(c, "ok", toTicketResponse(*row))
 }
 
 func (h *Handler) closeTicket(c *gin.Context) {
 	h.withTicketID(c, func(id string) (any, error) {
-		return h.svc.CloseTicket(c.Request.Context(), id)
+		row, err := h.svc.CloseTicket(c.Request.Context(), id)
+		if err != nil {
+			return nil, err
+		}
+		return toTicketResponse(*row), nil
 	})
 }
 
 func (h *Handler) listTicketMessages(c *gin.Context) {
 	h.withTicketID(c, func(id string) (any, error) {
-		return h.svc.ListTicketMessages(c.Request.Context(), id)
+		rows, err := h.svc.ListTicketMessages(c.Request.Context(), id)
+		if err != nil {
+			return nil, err
+		}
+		return toTicketMessageResponses(rows), nil
 	})
 }
 
@@ -71,6 +79,10 @@ func (h *Handler) addTicketMessage(c *gin.Context) {
 		return
 	}
 	h.withTicketID(c, func(id string) (any, error) {
-		return h.svc.AddTicketMessage(c.Request.Context(), id, utils.CurrentUserID(c), req.Body)
+		row, err := h.svc.AddTicketMessage(c.Request.Context(), id, utils.CurrentUserID(c), req.Body)
+		if err != nil {
+			return nil, err
+		}
+		return toTicketMessageResponse(*row), nil
 	})
 }

@@ -4,14 +4,15 @@ import "context"
 
 // FileFilter defines query parameters for listing media files.
 type FileFilter struct {
-	Page      int
-	PageSize  int
-	Search    string
-	Provider  *string
-	Kind      *string
-	SortBy    string
-	SortOrder string
-	Category  *string
+	Page         int
+	PageSize     int
+	Search       string
+	Provider     *string
+	Kind         *string
+	SortBy       string
+	SortOrder    string
+	Category     *string
+	ViewerUserID string
 }
 
 // FileRepository defines persistence operations for the File aggregate.

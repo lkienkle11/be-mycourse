@@ -15,7 +15,7 @@ type MediaGateway interface {
 	DecodeLocalURLToken(token string) (string, error)
 	ResolveMediaKindFromServer(mime, filename string) (kind string, kindInferred bool)
 	ResolveUploadProvider(kind string, kindInferred bool) string
-	ResolveMediaUploadObjectKey(reqObjectKey, filename, provider string) string
+	ResolveMediaUploadObjectKey(reqObjectKey, userCode, filename, provider string) string
 	IsImageMIMEOrExt(mime, filename string) bool
 	MIMEForUploadRouting(payload []byte, filename, clientMIME string) string
 	CanonicalStorageMIME(payload []byte, filename, clientMIME, kind string) string

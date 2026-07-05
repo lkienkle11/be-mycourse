@@ -43,33 +43,35 @@ type MediaCleanupMetricsResponse struct {
 // callers see a stable shape regardless of which provider wrote the row.
 // The raw provider blob is kept server-side only and is not returned.
 type UploadFileResponse struct {
-	ID                  string             `json:"id,omitempty"`
-	UserID              string             `json:"user_id,omitempty"`
-	DisplayName         string             `json:"display_name,omitempty"`
-	Visibility          string             `json:"visibility,omitempty"`
-	Kind                string             `json:"kind,omitempty"`
-	Filename            string             `json:"filename,omitempty"`
-	MimeType            string             `json:"mime_type,omitempty"`
-	SizeBytes           int64              `json:"size_bytes,omitempty"`
-	Status              string             `json:"status,omitempty"`
-	R2BucketName        string             `json:"r2_bucket_name,omitempty"`
-	URL                 string             `json:"url"`
-	ObjectKey           string             `json:"object_key"`
-	BunnyVideoID        string             `json:"bunny_video_id,omitempty"`
-	BunnyLibraryID      string             `json:"bunny_library_id,omitempty"`
-	VideoID             string             `json:"video_id,omitempty"`
-	ThumbnailURL        string             `json:"thumbnail_url,omitempty"`
-	EmbededHTML         string             `json:"embeded_html,omitempty"`
-	DirectPlayURL       string             `json:"direct_play_url,omitempty"`
-	HLSPlaylistURL      string             `json:"hls_playlist_url,omitempty"`
-	PreviewAnimationURL string             `json:"preview_animation_url,omitempty"`
-	Duration            int64              `json:"duration,omitempty"`
-	VideoProvider       string             `json:"video_provider,omitempty"`
-	Metadata            UploadFileMetadata `json:"metadata"`
-	RowVersion          int64              `json:"row_version,omitempty"`
-	ContentFingerprint  string             `json:"content_fingerprint,omitempty"`
-	CreatedAt           int64              `json:"created_at,omitempty"`
-	UpdatedAt           int64              `json:"updated_at,omitempty"`
+	ID           string             `json:"id,omitempty"`
+	DisplayName  string             `json:"display_name,omitempty"`
+	Visibility   string             `json:"visibility,omitempty"`
+	Kind         string             `json:"kind,omitempty"`
+	Filename     string             `json:"filename,omitempty"`
+	MimeType     string             `json:"mime_type,omitempty"`
+	SizeBytes    int64              `json:"size_bytes,omitempty"`
+	Status       string             `json:"status,omitempty"`
+	URL          string             `json:"url"`
+	ObjectKey    string             `json:"object_key"`
+	VideoID      string             `json:"video_id,omitempty"`
+	ThumbnailURL string             `json:"thumbnail_url,omitempty"`
+	EmbededHTML  string             `json:"embeded_html,omitempty"`
+	Duration     int64              `json:"duration,omitempty"`
+	Metadata     UploadFileMetadata `json:"metadata"`
+	RowVersion   int64              `json:"row_version,omitempty"`
+	CreatedAt    int64              `json:"created_at,omitempty"`
+	UpdatedAt    int64              `json:"updated_at,omitempty"`
+
+	// Public contract keeps FE-facing ownership/version fields only.
+	UserID              string `json:"user_id,omitempty"`
+	R2BucketName        string `json:"-"`
+	BunnyVideoID        string `json:"-"`
+	BunnyLibraryID      string `json:"-"`
+	DirectPlayURL       string `json:"-"`
+	HLSPlaylistURL      string `json:"-"`
+	PreviewAnimationURL string `json:"-"`
+	VideoProvider       string `json:"-"`
+	ContentFingerprint  string `json:"-"`
 }
 
 // UploadFileMetadata is the metadata sub-object in UploadFileResponse.

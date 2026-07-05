@@ -20,7 +20,6 @@ func firstActiveMediaFile(ctx context.Context, db *gorm.DB, query string, args .
 	); err != nil {
 		return nil, err
 	}
-	f := rowToFile(&row.mediaFileRow)
-	applyMediaOwnerIdentity(f, row.mediaFileOwnerProjection)
-	return f, nil
+	mapped := fileFromMediaListRow(&row)
+	return &mapped, nil
 }

@@ -61,8 +61,8 @@ type mediaFileOwnerProjection struct {
 }
 
 type mediaFileListRow struct {
-	mediaFileRow
-	mediaFileOwnerProjection
+	File  mediaFileRow             `gorm:"embedded"`
+	Owner mediaFileOwnerProjection `gorm:"embedded"`
 }
 
 func applyMediaOwnerIdentity(f *domain.File, owner mediaFileOwnerProjection) {
@@ -73,8 +73,8 @@ func applyMediaOwnerIdentity(f *domain.File, owner mediaFileOwnerProjection) {
 }
 
 func fileFromMediaListRow(row *mediaFileListRow) domain.File {
-	f := rowToFile(&row.mediaFileRow)
-	applyMediaOwnerIdentity(f, row.mediaFileOwnerProjection)
+	f := rowToFile(&row.File)
+	applyMediaOwnerIdentity(f, row.Owner)
 	return *f
 }
 

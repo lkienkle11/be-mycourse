@@ -29,6 +29,7 @@ var defaultMessages = map[int]string{
 	MediaFilesRequired:              constants.MsgMediaFilesRequired,
 	MediaBatchDeleteTooManyIDs:      constants.MsgMediaBatchDeleteTooManyIDs,
 	MediaDuplicateKeysInBatchDelete: constants.MsgMediaDuplicateObjectKeysInBatchDelete,
+	DuplicateCertificate:            constants.MsgDuplicateCertificate,
 
 	BadRequest:      "Bad request",
 	Unauthorized:    "Unauthorized",

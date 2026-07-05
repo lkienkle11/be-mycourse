@@ -35,6 +35,10 @@ func mapInstructorError(c *gin.Context, err error) bool {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return true
 	}
+	if stderrors.Is(err, domain.ErrDuplicateCertificate) {
+		response.Fail(c, http.StatusBadRequest, apperrors.DuplicateCertificate, err.Error(), nil)
+		return true
+	}
 	response.Fail(c, http.StatusInternalServerError, apperrors.InternalError, apperrors.DefaultMessage(apperrors.InternalError), nil)
 	return true
 }

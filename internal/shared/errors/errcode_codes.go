@@ -25,6 +25,7 @@ const (
 	MediaFilesRequired              = 2007 // zero file parts on create/update
 	MediaBatchDeleteTooManyIDs      = 2008 // batch delete lists more than MaxMediaBatchDelete keys
 	MediaDuplicateKeysInBatchDelete = 2009 // duplicate object keys in batch delete JSON body
+	DuplicateCertificate            = 2010 // duplicate certificate row in one instructor application/profile payload
 
 	// Client / HTTP-shaped (3xxx) — align loosely with HTTP family
 	BadRequest      = 3001

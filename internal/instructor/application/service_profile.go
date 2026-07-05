@@ -61,6 +61,9 @@ func (s *InstructorService) UpsertProfile(ctx context.Context, in domain.UpsertP
 	if err := s.validateProfile(ctx, in.ProfilePayload); err != nil {
 		return nil, err
 	}
+	if err := validateCertificatePayload(in.Certificates); err != nil {
+		return nil, err
+	}
 	return s.repo.UpsertProfile(ctx, in)
 }
 

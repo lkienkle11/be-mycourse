@@ -140,18 +140,12 @@ func (s *InstructorService) RejectApplication(ctx context.Context, in domain.Rej
 }
 
 func (s *InstructorService) assertApplicantEligibleForReview(ctx context.Context, userID string) error {
-	if s.users == nil {
+	if s.assignmentSnapshots == nil {
 		return nil
 	}
-	u, err := s.users.FindByID(ctx, userID)
+	snap, err := s.assignmentSnapshots.LoadAssignmentSnapshot(ctx, userID)
 	if err != nil {
 		return err
-	}
-	snap := useraccess.AssignmentSnapshot{
-		Snapshot: useraccess.Snapshot{
-			DeletedAt: u.DeletedAt, IsDisabled: u.IsDisable, BannedUntil: u.BannedUntil,
-		},
-		EmailConfirmed: u.EmailConfirmed,
 	}
 	return useraccess.CheckEligibleForAssignment(&snap, timex.NowUnix())
 }

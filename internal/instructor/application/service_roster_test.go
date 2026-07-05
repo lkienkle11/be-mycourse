@@ -149,13 +149,10 @@ func TestAddRosterBulkInvalidatesCacheOnlyForInsertedUserIDs(t *testing.T) {
 			},
 			InsertedUserIDs: []string{"new"},
 		}},
-		nil,
-		rosterBulkTestRoleMgr{},
-		rosterBulkTestPerms{},
-		meCache,
-		nil,
-		rosterBulkTestHydrator{},
-		nil,
+		InstructorServiceDeps{
+			Roles: rosterBulkTestRoleMgr{}, Perms: rosterBulkTestPerms{}, MeCache: meCache,
+			Hydrator: rosterBulkTestHydrator{},
+		},
 	)
 
 	_, err := svc.AddRosterBulk(t.Context(), []string{"existing", "new"})
@@ -176,13 +173,10 @@ func TestAddRosterBulkNoCacheInvalidationWhenIdempotent(t *testing.T) {
 			Added:           []domain.RosterMember{{UserID: "existing"}},
 			InsertedUserIDs: nil,
 		}},
-		nil,
-		rosterBulkTestRoleMgr{},
-		rosterBulkTestPerms{},
-		meCache,
-		nil,
-		rosterBulkTestHydrator{},
-		nil,
+		InstructorServiceDeps{
+			Roles: rosterBulkTestRoleMgr{}, Perms: rosterBulkTestPerms{}, MeCache: meCache,
+			Hydrator: rosterBulkTestHydrator{},
+		},
 	)
 
 	_, err := svc.AddRosterBulk(t.Context(), []string{"existing"})

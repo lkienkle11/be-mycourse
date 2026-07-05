@@ -154,7 +154,9 @@ func validSubmitInput() domain.SubmitApplicationInput {
 }
 
 func newAppTestService(repo domain.Repository, perms PermissionChecker, roles InstructorRoleManager) *InstructorService {
-	return NewInstructorService(repo, nil, roles, perms, nil, nil, rosterBulkTestHydrator{}, nil)
+	return NewInstructorService(repo, InstructorServiceDeps{
+		Roles: roles, Perms: perms, Hydrator: rosterBulkTestHydrator{},
+	})
 }
 
 func TestSubmitApplicationBlockedByP68(t *testing.T) {

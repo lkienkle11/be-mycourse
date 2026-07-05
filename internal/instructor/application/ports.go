@@ -5,6 +5,7 @@ import (
 
 	authdomain "mycourse-io-be/internal/auth/domain"
 	"mycourse-io-be/internal/instructor/domain"
+	"mycourse-io-be/internal/shared/useraccess"
 )
 
 // UserLookup resolves application users by email or id.
@@ -39,6 +40,11 @@ type ProfileMediaValidator interface {
 // AvatarHydrator maps media file IDs to public URLs.
 type AvatarHydrator interface {
 	ResolveAvatarURLs(ctx context.Context, fileIDs []string) (map[string]string, error)
+}
+
+// AssignmentSnapshotLoader loads shared eligibility snapshots for review guards.
+type AssignmentSnapshotLoader interface {
+	LoadAssignmentSnapshot(ctx context.Context, userID string) (useraccess.AssignmentSnapshot, error)
 }
 
 // MediaHydrator resolves full media read models for CV and intro video.

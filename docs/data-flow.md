@@ -55,9 +55,10 @@ POST /api/v1/auth/confirm
   └─ internal/auth/delivery/handler.go (ConfirmEmail)
        └─ AuthService.ConfirmEmail
             ├─ Find user by confirmation_token (active rows only)
-            ├─ Set email_confirmed=true, clear confirmation_token, reset registration_email_send_total=0
-            ├─ Persist user via UserRepository.Save
-            ├─ EnsureLearnerRole(user_id) — idempotent FirstOrCreate on user_roles for role name `learner` (via RBACService)
+            ├─ BEGIN TRANSACTION
+            ├─ Set email_confirmed=true, clear confirmation_token, reset registration_email_send_total=0, persist user
+            ├─ EnsureLearnerRole(user_id) — idempotent FirstOrCreate on user_roles for role name `learner`
+            ├─ COMMIT (rolls back both steps on any failure — token remains valid for retry)
             ├─ Invalidate Redis /me cache for that user
             ├─ Clear Redis register confirmation window + login email→user cache
             └─ Issue token pair (access + refresh + session) with permissions loaded from RBAC

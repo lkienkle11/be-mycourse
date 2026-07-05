@@ -194,7 +194,7 @@ Cookie `Max-Age` on `refresh_token` / `session_id` is `259200` (3 days) when `re
 
 ### `POST /api/v1/auth/confirm`
 
-Confirms email from a token sent by FE in request body, assigns the `learner` role (idempotent `user_roles` FirstOrCreate via `RBACService.EnsureLearnerRole`), and immediately issues a token set. Resets `registration_email_send_total` to 0, invalidates the Redis `/me` cache for that user, and clears Redis register window + email→user cache.
+Confirms email from a token sent by FE in request body, assigns the `learner` role (idempotent `user_roles` FirstOrCreate via `RBACService.EnsureLearnerRole`), and immediately issues a token set — **inside one PostgreSQL transaction** (user confirm fields + learner role; rolls back together on failure). Resets `registration_email_send_total` to 0, invalidates the Redis `/me` cache for that user, and clears Redis register window + email→user cache **only after** the transaction commits.
 
 **Request:**
 ```json

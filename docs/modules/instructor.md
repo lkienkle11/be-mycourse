@@ -222,7 +222,7 @@ SQL helper: `userpicker.EligibilitySortTierExpr("u", nowUnix)` → `0` = eligibl
 
 Responses **also** include `is_disabled`, `email_confirmed`, `banned_until` (Unix seconds, nullable), and `is_banned` (computed at query time from `banned_until > now`) from the joined `users` row so FE can render the **user account status** column on audit lists and hide review actions for ineligible applicants without client-side clock checks.
 
-**Admin review mutations (approve / reject):** Both `POST /instructor-applications/:id/approve` and `POST /instructor-applications/:id/reject` call `useraccess.CheckEligibleForAssignment` on the applicant **before** any state change. Ineligible applicants (disabled, actively banned, or email unconfirmed) return HTTP **400** with the same domain errors as roster bulk (`ErrUserDisabled`, `ErrUserBanned`, `ErrEmailNotConfirmed`). FE must not show Approve / Reject in the row ⋮ menu when the list row indicates the applicant fails #2 or #3.
+**Admin review mutations (approve / reject):** Both `POST /instructor-applications/:id/approve` and `POST /instructor-applications/:id/reject` call `useraccess.CheckEligibleForAssignment` on the applicant **before** any state change. Eligibility snapshot is loaded via shared `gormx.LoadAssignmentSnapshotByID` (same helper as roster/RBAC assignment paths). Ineligible applicants (disabled, actively banned, or email unconfirmed) return HTTP **400** with the same domain errors as roster bulk (`ErrUserDisabled`, `ErrUserBanned`, `ErrEmailNotConfirmed`). FE must not show Approve / Reject in the row ⋮ menu when the list row indicates the applicant fails #2 or #3.
 
 | Action | RBAC / behaviour |
 |--------|------------------|

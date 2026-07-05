@@ -797,40 +797,29 @@ components:
       type: object
       properties:
         id: { type: string }
+        user_id: { type: string, format: uuid }
+        display_name: { type: string }
+        visibility: { type: string, enum: [private, public] }
         kind: { type: string, enum: [FILE, VIDEO] }
         filename: { type: string }
         mime_type: { type: string }
         size_bytes: { type: integer, format: int64 }
         status: { type: string }
-        r2_bucket_name: { type: string }
         url: { type: string }
         object_key: { type: string }
-        bunny_video_id: { type: string }
-        bunny_library_id: { type: string }
         video_id:
           type: string
-          description: Bunny Stream numeric id when API returns it; else guid (see docs/modules/media.md)
+          description: Provider video identifier (Bunny numeric id or GUID fallback)
         thumbnail_url:
           type: string
           description: CDN thumbnail built from MEDIA_BUNNY_STREAM_CDN_HOSTNAME + guid + thumbnailFileName (defaults to thumbnail.jpg)
         embeded_html:
           type: string
           description: Escaped iframe HTML; JSON key spelling matches dto (embeded_html)
-        direct_play_url:
-          type: string
-          description: Bunny direct play page (player.mediadelivery.net/play/{libraryId}/{guid})
-        hls_playlist_url:
-          type: string
-          description: HLS master playlist on the Bunny Stream CDN pull zone
-        preview_animation_url:
-          type: string
-          description: Animated preview WebP on the Bunny Stream CDN pull zone
         duration: { type: integer, format: int64 }
-        video_provider: { type: string }
         metadata:
           $ref: "#/components/schemas/UploadFileMetadata"
         row_version: { type: integer, format: int64 }
-        content_fingerprint: { type: string }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
 

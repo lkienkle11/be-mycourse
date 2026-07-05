@@ -1286,7 +1286,7 @@ curl -X GET "{{BASE_URL}}/api/v1/media/files/cleanup-metrics" \
 
 Form fields: **`files`** (repeat **1–5** parts per request; legacy single **`file`** still works), optional `kind` (`FILE`/`VIDEO`), `object_key`, `metadata` (JSON string). Per-part max **2 GiB**, combined parts max **2 GiB** total — see `constants.MaxMediaUploadFileBytes`, `MaxMediaMultipartTotalBytes` (`docs/modules/media.md`).
 
-Success envelope `data` = **array** of **`dto.UploadFileResponse`** (one per part; no **`origin_url`** — Sub 12). Bunny Stream uploads may include **`video_id`**, **`thumbnail_url`**, **`embeded_html`**, **`direct_play_url`**, **`hls_playlist_url`**, **`preview_animation_url`** when the backend populated them (`docs/modules/media.md`, `docs/return_types.md`).
+Success envelope `data` = **array** of **`dto.UploadFileResponse`** (one per part; no **`origin_url`** — Sub 12). Public response includes `id`, `user_id`, `video_id`, `row_version`, `created_at`, `updated_at`, plus media display fields (`display_name`, `visibility`, `kind`, `filename`, `mime_type`, `size_bytes`, `status`, `url`, `object_key`, `thumbnail_url`, `embeded_html`, `duration`, typed `metadata`). Internal provider/storage fields remain hidden from JSON (`json:"-"`) (`docs/modules/media.md`, `docs/return_types.md`).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/media/files \

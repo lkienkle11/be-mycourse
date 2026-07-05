@@ -391,23 +391,18 @@ Public fields returned in API responses:
 | `url` | Public distribution URL |
 | `object_key` | Storage object key (`{user_code}/…` for new R2 uploads) |
 | `user_id` | Uploader UUID (omitted when empty) |
+| `video_id` | Provider video identifier (for Bunny: numeric id or GUID fallback) |
 | `display_name` | Uploader display name from `users.display_name` (omitted when empty; populated on list/get via JOIN; on upload responses enriched from JWT for the current uploader). **Email is not exposed** on media list/get responses. |
 | `visibility` | `private` or `public` |
 | `metadata` | **Typed** sub-object (`UploadFileMetadata`). Normalised shape for image / video / document. See "Typed `metadata` shape" below. **This is the only metadata sub-object exposed to clients.** |
-| `bunny_video_id` | Bunny video GUID |
-| `bunny_library_id` | Bunny library ID |
-| `video_id` | Numeric Bunny ID or GUID |
 | `thumbnail_url` | Built from `BunnyStreamCDNHostname` + `guid` + `thumbnailFileName` (defaults to `thumbnail.jpg` when Bunny omits the filename); falls back to `thumbnailUrl` / `defaultThumbnailUrl` if Bunny ever populates them |
 | `embeded_html` | Escaped `<iframe ...>` embed HTML |
-| `direct_play_url` | Bunny direct play page: `https://player.mediadelivery.net/play/{libraryId}/{guid}` |
-| `hls_playlist_url` | HLS master playlist on CDN: `https://{cdn}/{guid}/playlist.m3u8` |
-| `preview_animation_url` | Animated preview WebP on CDN: `https://{cdn}/{guid}/preview.webp` |
 | `duration` | Video duration in seconds (persisted on `media_files.duration`; sourced from Bunny webhook / backfill, not resolved at course read time) |
+| `row_version` | Optimistic concurrency version |
+| `created_at` | Unix timestamp (seconds) |
+| `updated_at` | Unix timestamp (seconds) |
 
 **Video duration backfill:** When Bunny encoding finishes but `duration` was still `0`, `applyBunnyWebhookFinishedStatus` persists Bunny `length` into `media_files.duration`. A **delayed** one-shot job (`StartVideoDurationBackfillJob`, ~2 min after process start) backfills stale rows without blocking HTTP startup. `ListFiles` / `GetFile` may enqueue the same sync **asynchronously** (deduped by `bunny_video_id`); responses are never blocked on Bunny. Course outline reads only the DB row.
-
-| `row_version` | Optimistic concurrency version (Sub 06) |
-| `content_fingerprint` | SHA-256 hex of file bytes (Sub 06) |
 
 **`origin_url` and the full raw metadata blob are NOT in the public API response.**
 The DB column `metadata_json` is populated with rich provider data (Bunny
@@ -415,6 +410,12 @@ telemetry, thumbnail blurhash, encode progress, available resolutions, …)
 for server-side use only — it backs the typed `metadata` field above and is
 queryable via SQL for analytics and orphan cleanup, but the untyped map is
 never serialised onto the response.
+
+The following fields are intentionally hidden from API JSON (`json:"-"`) and
+must never be exposed to FE clients: `r2_bucket_name`,
+`bunny_video_id`, `bunny_library_id`, `direct_play_url`,
+`hls_playlist_url`, `preview_animation_url`, `video_provider`,
+`content_fingerprint`.
 
 ### Typed `metadata` shape
 

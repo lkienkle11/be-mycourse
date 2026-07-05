@@ -194,7 +194,7 @@ Cookie `Max-Age` on `refresh_token` / `session_id` is `259200` (3 days) when `re
 
 ### `POST /api/v1/auth/confirm`
 
-Confirms email from a token sent by FE in request body, assigns the `learner` role, and immediately issues a token set. Resets `registration_email_send_total` to 0 and clears Redis window + email→user cache.
+Confirms email from a token sent by FE in request body, assigns the `learner` role (idempotent `user_roles` FirstOrCreate via `RBACService.EnsureLearnerRole`), and immediately issues a token set. Resets `registration_email_send_total` to 0, invalidates the Redis `/me` cache for that user, and clears Redis register window + email→user cache.
 
 **Request:**
 ```json
@@ -255,9 +255,11 @@ X-Session-Id:    <128-char-hex>
 
 ### `GET /api/v1/me` (JWT required)
 
-Returns the current user's profile and effective permission names. Redis cache-first; DB fallback with up to **1 minute** staleness.
+Returns the current user's profile and effective permission names (sorted `permission_name` strings from RBAC). Redis cache-first; DB fallback with up to **1 minute** staleness.
 
 **Access check:** `loadAccessibleUser` → **`checkUserAccessible`** in `application/service_access.go`. Rejects soft-deleted users (**404**), permanently disabled users (**403**, `4005`), and actively banned users (**403**, `4012` — `banned_until > now()`).
+
+**Legacy self-heal:** When a confirmed user has zero effective permissions (for example, email was confirmed before learner-role assignment was wired), `GetMe` calls `EnsureLearnerRole`, reloads permissions, and bypasses a stale cached payload that still shows `permissions: []`.
 
 ---
 

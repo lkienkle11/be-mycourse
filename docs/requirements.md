@@ -164,10 +164,11 @@
 
 #### FR-2.1 Get My Profile (`GET /api/v1/me`)
 
-- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), and `permissions` (sorted `permission_name` strings).
+- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), and `permissions` (sorted `permission_name` strings from RBAC union of role + direct grants).
 - Sensitive fields (`hash_password`, `confirmation_token`, `confirmation_sent_at`, `refresh_token_session`) **MUST NOT** be returned.
-- The system **SHOULD** serve the response from Redis cache (`mycourse:user:me:{user_id}`, TTL 1 min) on cache hit.
+- The system **SHOULD** serve the response from Redis cache (`mycourse:user:me:{user_id}`, TTL 1 min) on cache hit, except when the cached payload has `email_confirmed=true` and `permissions=[]` (stale legacy state) — then the system **MUST** bypass cache and rebuild.
 - On a cache miss the system **MUST** load the user via active-only lookup and run **`checkUserAccessible`** (`internal/auth/application/service_access.go`) before building the response.
+- When `email_confirmed=true` and effective permissions are empty after RBAC lookup, the system **MUST** call **`EnsureLearnerRole`** (same idempotent path as FR-1.2), reload permissions, and include the result in the response.
 - Requires `Authorization: Bearer <access_token>`.
 
 **Error cases:**

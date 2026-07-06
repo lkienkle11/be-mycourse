@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-07-05 — duplicate-certificate rejection (`ErrDuplicateCertificate`, dedicated API code `2010` `DuplicateCertificate`) on application submit/resubmit and admin profile upsert; `validateCertificatePayload` enforces intra-array uniqueness on `certificate_file_id` (trim), `credential_url` (trim), and the normalized (case-insensitive, internal-whitespace-collapsed) `title | issuer | issued_year` composite; FE `.superRefine` mirrors the same rule and flags both colliding rows._
+_Last audited: 2026-07-06 — Admin application list always excludes approved; `status=approved` returns HTTP 400; use instructor profiles for approved instructors._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / resubmit / approve / reject / return), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -205,12 +205,17 @@ AND u.email_confirmed = TRUE
 
 **Application list review-status filter (`GET /instructor-applications`):**
 
+Approved applications are **never** returned by this endpoint. After approve, the snapshot lives in **`instructor_profiles`** and is listed via **`GET /instructor-profiles`** (FE **Profiles / Hồ sơ** menu).
+
 | Query `status` | Result |
 |----------------|--------|
-| *(omitted — default)* | `pending`, `returned`, and `rejected` only — **`approved` excluded** so the default admin view focuses on actionable rows |
-| `pending` / `returned` / `rejected` / `approved` | Exactly that `review_status` |
+| *(omitted — default)* | `pending`, `returned`, and `rejected` only |
+| `pending` / `returned` / `rejected` | Exactly that `review_status` (still within the non-approved set) |
+| `approved` | **HTTP 400** — invalid filter; use instructor profiles list instead |
 
-FE approvals dropdown **All statuses** maps to omitting `status`; **Approved** maps to `status=approved`.
+`ListApplications` always applies `review_status <> 'approved'` before optional status narrowing.
+
+FE approvals dropdown **All statuses** maps to omitting `status`; options are **Pending**, **Returned**, **Rejected** only (no Approved).
 
 **Sort policy (Nhóm B):**
 
@@ -256,7 +261,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 |--------|------|------------|-------|
 | GET | `/instructor-applications/me` | `instructor_application:create` (P45) | Resolve state A–H; prefill + `rejection_history` inline |
 | PUT | `/instructor-applications/me` | `instructor_application:create` (P45) | Resubmit from `returned` / `rejected` — self-service applicant endpoint; **not** `instructor_application:update` (P46) |
-| GET | `/instructor-applications` | `instructor_application:read` | Query `status` (`pending`, `approved`, `rejected`, **`returned`**), `has_profile`, `page`, `per_page`. **Default (no `status`):** excludes `approved`; pass `status=approved` to list approved applications only |
+| GET | `/instructor-applications` | `instructor_application:read` | Query `status` (`pending`, `rejected`, **`returned`** only — `approved` rejected with HTTP 400), `has_profile`, `page`, `per_page`. **Always excludes `approved`**; approved instructors are listed via `GET /instructor-profiles` |
 | POST | `/instructor-applications` | `instructor_application:create` | **First submit only** → `pending` |
 | GET | `/instructor-applications/:id` | `instructor_application:read` | Detail with identity + snapshot + hydrated media |
 | POST | `/instructor-applications/:id/approve` | `instructor_application:approve` | |

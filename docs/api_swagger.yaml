@@ -2850,8 +2850,8 @@ paths:
         - $ref: "#/components/parameters/PerPage"
         - name: status
           in: query
-          description: Filter by review status. When omitted, returns pending, returned, and rejected only (excludes approved). Pass approved to list approved applications.
-          schema: { type: string, enum: [pending, approved, rejected, returned] }
+          description: Filter by review status. Always excludes approved applications. Valid values pending, returned, rejected. Pass approved returns HTTP 400 — use GET /instructor-profiles for approved instructors.
+          schema: { type: string, enum: [pending, rejected, returned] }
         - name: has_profile
           in: query
           schema: { type: boolean }

@@ -68,7 +68,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - Instructor management (see **`docs/modules/instructor.md`**, migration **`000029`**):
   - `GET /instructors`, `DELETE /instructors/:id`, `POST /instructors/bulk` — roster
   - `GET /instructor-applications/me`, `PUT /instructor-applications/me` — resolve state, prefill, resubmit (P45)
-  - `GET /instructor-applications`, `POST /instructor-applications`, `GET /instructor-applications/:id`, `POST …/:id/approve`, `POST …/:id/reject`, `DELETE …/:id` — list filter includes `returned`
+  - `GET /instructor-applications`, `POST /instructor-applications`, `GET /instructor-applications/:id`, `POST …/:id/approve`, `POST …/:id/reject`, `DELETE …/:id` — list always excludes `approved`; filter `status` accepts `pending`, `returned`, `rejected` only (`status=approved` → HTTP 400); approved instructors via `GET /instructor-profiles`
   - `GET /instructor-profiles`, `GET /instructor-profiles/me`, `POST /instructor-profiles`, `PATCH /instructor-profiles/:id`, `DELETE /instructor-profiles/:id`
   - `GET/POST/DELETE /instructors/:id/expertise/topics|skills`
   - `GET/POST /instructor-tickets`, `POST …/close`, `GET/POST …/messages`

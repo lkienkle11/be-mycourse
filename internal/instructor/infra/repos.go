@@ -41,13 +41,12 @@ func activeScopeAlias(db *gorm.DB, alias string) *gorm.DB {
 // --- Applications -----------------------------------------------------------
 
 func (r *GormRepository) ListApplications(ctx context.Context, f domain.ApplicationFilter) ([]domain.Application, int64, error) {
-	q := r.db.WithContext(ctx).Table(constants.TableInstructorApplications + " ia").
-		Joins("LEFT JOIN " + constants.TableAppUsers + " u ON u.id = ia.user_id AND u.deleted_at IS NULL").
-		Where("ia.deleted_at IS NULL")
+	q := r.db.WithContext(ctx).Table(constants.TableInstructorApplications+" ia").
+		Joins("LEFT JOIN "+constants.TableAppUsers+" u ON u.id = ia.user_id AND u.deleted_at IS NULL").
+		Where("ia.deleted_at IS NULL").
+		Where("ia.review_status <> ?", domain.ReviewStatusApproved)
 	if s := strings.TrimSpace(f.ReviewStatus); s != "" {
 		q = q.Where("ia.review_status = ?", s)
-	} else {
-		q = q.Where("ia.review_status <> ?", domain.ReviewStatusApproved)
 	}
 	if f.HasProfile != nil {
 		if *f.HasProfile {

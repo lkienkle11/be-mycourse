@@ -35,7 +35,12 @@ func (h *Handler) deleteRoster(c *gin.Context) {
 
 func (h *Handler) listApplications(c *gin.Context) {
 	httpx.ListPaginated(c,
-		func(q *listQuery) error { return c.ShouldBindQuery(q) },
+		func(q *listQuery) error {
+			if err := c.ShouldBindQuery(q); err != nil {
+				return err
+			}
+			return q.validateApplicationListStatus()
+		},
 		func(ctx context.Context, q listQuery) ([]domain.Application, int64, error) {
 			return h.svc.ListApplications(ctx, domain.ApplicationFilter{
 				Page: q.getPage(), PageSize: q.getPerPage(), HasProfile: q.HasProfile, ReviewStatus: q.Status,

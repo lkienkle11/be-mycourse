@@ -1,6 +1,9 @@
 package delivery
 
 import (
+	"fmt"
+	"strings"
+
 	"mycourse-io-be/internal/instructor/domain"
 )
 
@@ -32,6 +35,22 @@ func (q listQuery) getRosterPerPage() int {
 		return 100
 	}
 	return perPage
+}
+
+func (q listQuery) validateApplicationListStatus() error {
+	status := strings.TrimSpace(q.Status)
+	if status == "" {
+		return nil
+	}
+	if status == domain.ReviewStatusApproved {
+		return fmt.Errorf("status=approved is not supported; use GET /instructor-profiles")
+	}
+	switch status {
+	case domain.ReviewStatusPending, domain.ReviewStatusRejected, domain.ReviewStatusReturned:
+		return nil
+	default:
+		return fmt.Errorf("invalid status filter: %s", status)
+	}
 }
 
 type addRosterBulkRequest struct {

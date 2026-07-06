@@ -204,7 +204,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | DELETE | `/api/v1/instructors/:id/expertise/skills/:skillRowId` | `instructor_expertise:delete` | Delete expertise skill row |
 | GET | `/api/v1/instructor-applications/me` | `instructor_application:create` | Current user's application — state resolve + prefill + `rejection_history` |
 | PUT | `/api/v1/instructor-applications/me` | `instructor_application:create` | Resubmit after `returned` or `rejected` (self-service; same permission as first submit) |
-| GET | `/api/v1/instructor-applications` | `instructor_application:read` | List applications; query `status` (`pending`, `approved`, `rejected`, `returned`), `has_profile`, `page`, `per_page`. Default (no `status`) excludes `approved` |
+| GET | `/api/v1/instructor-applications` | `instructor_application:read` | List applications; query `status` (`pending`, `rejected`, `returned` only — `approved` returns HTTP 400), `has_profile`, `page`, `per_page`. Always excludes `approved`; use `GET /instructor-profiles` for approved instructors |
 | POST | `/api/v1/instructor-applications` | `instructor_application:create` | First submit → `pending` |
 | GET | `/api/v1/instructor-applications/:id` | `instructor_application:read` | Application detail (identity + snapshot + media hydrate) |
 | POST | `/api/v1/instructor-applications/:id/approve` | `instructor_application:approve` | Approve application |

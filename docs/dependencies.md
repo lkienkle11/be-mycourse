@@ -32,6 +32,8 @@
 | `github.com/supabase-community/supabase-go` | v0.0.4 | Supabase auth client |
 | `github.com/joho/godotenv` | v1.5.1 | `.env` file loading |
 | `github.com/google/uuid` | v1.6.0 | UUID generation (session IDs) |
+| `golang.org/x/oauth2` | v0.36.0 | OAuth2 authorization-code exchange (Google popup sign-in) |
+| `google.golang.org/api` | v0.287.1 | Google ID token verification (`idtoken.NewValidator` + `option.WithHTTPClient` for One Tap / mobile / popup) |
 
 ## HTTP Middleware
 

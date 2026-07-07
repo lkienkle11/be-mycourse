@@ -53,6 +53,7 @@ All PostgreSQL relation names are defined once in **`internal/shared/constants/d
 |----------|-------|
 | `PostgresSchemaDefault` | PostgreSQL schema name when `SCHEMA_NAME_APP` is unset (`public`) |
 | `TableAppUsers` | `users` |
+| `TableUserOAuthIdentities` | `user_oauth_identities` |
 | `TableRBACPermissions` | `permissions` |
 | `TableRBACRoles` | `roles` |
 | `TableRBACRolePermissions` | `role_permissions` |
@@ -84,6 +85,7 @@ GORM row models live under each bounded context’s `infra` package (for example
   - [Default role ↔ permission matrix](#default-role--permission-matrix)
 - [Application users](#application-users)
   - [`users`](#users)
+  - [`user_oauth_identities`](#user_oauth_identities)
 - [Taxonomy](#taxonomy)
   - [`course_levels`](#course_levels)
   - [`course_topics`](#course_topics)
@@ -111,6 +113,7 @@ erDiagram
     permissions ||--o{ role_permissions : included
     users ||--o{ user_permissions : direct_grant
     permissions ||--o{ user_permissions : granted
+    users ||--o{ user_oauth_identities : oauth_link
     users ||--o| media_files : avatar_file_id
     course_topics ||--o| media_files : image_file_id
     course_outcomes ||--o| media_files : image_file_id
@@ -124,6 +127,7 @@ erDiagram
 - **RBAC junction tables** use `users.id` (`UUID`), not `user_code`.
 - **JWT / middleware** use `permissions.permission_name` strings (`resource:action`).
 - **`media_files`** is referenced by `users.avatar_file_id`, `course_topics.image_file_id`, and `course_outcomes.image_file_id` (`ON DELETE SET NULL`).
+- **`user_oauth_identities`** links external providers (Google, X) to `users.id` (`ON DELETE CASCADE`); one user can hold multiple identities, and `(provider, provider_sub)` is globally unique.
 
 ---
 
@@ -345,7 +349,8 @@ Application accounts. Passwords are bcrypt-hashed.
 | `id` | `UUID` | PK | Internal joins (RBAC, taxonomy `created_by`) |
 | `user_code` | `CHAR(26)` | UNIQUE NOT NULL | External id in JWT; app generates **ULID** on register (`uuidx.NewULID()`) |
 | `email` | `VARCHAR(255)` | UNIQUE NOT NULL | Login email |
-| `hash_password` | `VARCHAR(255)` | NOT NULL | bcrypt hash |
+| `hash_password` | `VARCHAR(255)` | NOT NULL | bcrypt hash. **OAuth-only** users store a bcrypt hash of a random internal secret so the column stays `NOT NULL`; a hash never implies a usable local password |
+| `password_set_at` | `TIMESTAMPTZ` | nullable | When the user last set a local MyCourse password; `NULL` = OAuth-only or pending register. Source of truth for `HasLocalPassword()` / email-login gate (migration **`000031`**) |
 | `display_name` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | |
 | `avatar_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Profile image; API exposes nested `avatar` object, not a raw URL column |
 | `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Permanent admin disable (separate from time-limited ban) |
@@ -388,6 +393,35 @@ Each key is a **128-character hex session string**; each value:
 | Rotate same session in place | `GormRefreshSessionRepository.SaveSession` — `jsonb_set` update |
 
 Domain types: `internal/auth/domain/user.go` (`RefreshSessionEntry`, `RefreshTokenSessionMap`).
+
+---
+
+### `user_oauth_identities`
+
+External OAuth/OIDC identities (Google, X, future providers) linked to app users. Created in migration **`000031`**. All time columns are **`BIGINT` Unix epoch seconds** to align with the `users` table (no `DEFAULT NOW()`; app sets values via `timex.NowUnix()` / `gormx.Touch*`).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `UUID` | PK | App-generated UUID v7 |
+| `user_id` | `UUID` | NOT NULL, FK → `users(id)` ON DELETE CASCADE | Owning MyCourse user |
+| `provider` | `VARCHAR(32)` | NOT NULL | Stable lowercase slug: `google`, `x`, or a future provider slug |
+| `provider_sub` | `VARCHAR(255)` | NOT NULL | Provider stable subject (Google OIDC `sub`, X user id) — the identity key |
+| `provider_email` | `VARCHAR(255)` | nullable | Non-authoritative email snapshot from the provider |
+| `linked_at` | `BIGINT` | NOT NULL | Unix epoch seconds when the provider was first linked |
+| `last_login_at` | `BIGINT` | nullable | Unix epoch seconds of the last successful OAuth login |
+| `metadata` | `JSONB` | NOT NULL DEFAULT `'{}'` | Non-authoritative snapshot: `channel`, `name`, `picture` (see `newOAuthIdentity` in `service_oauth.go`) |
+| `created_at` | `BIGINT` | NOT NULL | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL | Unix epoch seconds |
+
+**Constraints & indexes:**
+- `uix_oauth_provider_sub` — UNIQUE `(provider, provider_sub)` (one identity per provider subject).
+- `idx_oauth_identities_user_id` on `user_id`.
+- `idx_oauth_identities_provider_email` — partial index on `(provider, lower(provider_email))` where `provider_email IS NOT NULL`.
+
+**GORM model:** `internal/auth/infra/oauth_identity_model.go` (`oauthIdentityRow`).  
+**Domain type:** `internal/auth/domain/oauth_identity.go` (`UserOAuthIdentity`, `OAuthProvider`, OAuth login channels).
+
+Merge/login semantics and `password_set_at` behavior: **`docs/modules/auth.md`** (Social sign-in).
 
 ---
 
@@ -669,6 +703,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000027 | `course_collaborator_candidate_permission` | Seed P67 `course_collaborator_candidate:read` + sysadmin/admin/instructor grants |
 | 000028 | `admin_collaborator_candidate_permission` | Backfill P67 grant for **admin** when `000027` ran without admin |
 | 000029 | `instructor_application_feature` | Application state machine columns, company snapshot columns, `years_of_experience` enum codes, application expertise junction tables, seed P68 + instructor grant |
+| 000031 | `user_oauth_identities` | `users.password_set_at` (`TIMESTAMPTZ NULL`) + backfill (`password_set_at = to_timestamp(created_at)` where `email_confirmed` and `hash_password IS NOT NULL`); table `user_oauth_identities` (BIGINT-epoch time columns) with `uix_oauth_provider_sub`, `idx_oauth_identities_user_id`, partial `idx_oauth_identities_provider_email` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -799,6 +834,7 @@ Use only on **dev** databases. Drop children before parents (FK order). `schema_
 ```sql
 DROP TABLE IF EXISTS public.schema_migrations;
 DROP TABLE IF EXISTS public.media_pending_cloud_cleanup;
+DROP TABLE IF EXISTS public.user_oauth_identities;
 DROP TABLE IF EXISTS public.user_permissions;
 DROP TABLE IF EXISTS public.user_roles;
 DROP TABLE IF EXISTS public.role_permissions;

@@ -36,6 +36,7 @@
 | `000028_admin_collaborator_candidate_permission` | Backfills P67 grant for **admin** when `000027` ran without admin. |
 | `000029_instructor_application_feature` | Application state machine, company snapshot, application expertise junctions, P68, `years_of_experience` enum codes, **backfill `submitted_at`/`review_due_at` for legacy pending rows**. See **`docs/modules/instructor.md`**. |
 | `000030_media_owner_visibility` | Adds **`media_files.user_id`** (FK → `users.id`, nullable for legacy rows) and **`media_files.visibility`** (`private` default, `public` optional). Indexes on `(user_id)` and `(visibility)` for list filtering. See **`docs/modules/media.md`**. |
+| `000031_user_oauth_identities` | Adds **`users.password_set_at`** and table **`user_oauth_identities`** for Google/X external identities. See **`docs/database.md`**. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

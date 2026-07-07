@@ -18,6 +18,9 @@
    - [Login](#22-login)
    - [Confirm Email](#23-confirm-email)
    - [Refresh Token](#24-refresh-token)
+   - [Logout](#25-logout)
+   - [Google sign-in](#26-google-sign-in)
+   - [X sign-in](#27-x-sign-in)
 3. [User Profile (`/api/v1/me`)](#3-user-profile-apiv1me)
    - [Get My Profile](#31-get-my-profile)
    - [Get My Permissions](#32-get-my-permissions)
@@ -420,6 +423,103 @@ Response `Set-Cookie` clears `access_token`, `refresh_token`, and `session_id` (
 ```
 
 After logout, `POST /api/v1/auth/refresh` with the same tokens must return **401**.
+
+---
+
+### 2.6 Google sign-in
+
+Public endpoints (no CSRF/JWT). All three verify the artifact with Google, then issue the same token set + cookies as login. The client only relays the raw artifact from the Google SDK — never a self-typed email/profile. Replace the placeholder tokens with real values from the Google Identity Services client.
+
+**`POST /api/v1/auth/google`** — popup (authorization code):
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/auth/google \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{
+    "code":        "GSI_AUTHORIZATION_CODE_HERE",
+    "remember_me": false
+  }'
+```
+
+**`POST /api/v1/auth/google/onetap`** — One Tap (credential ID token; always 3-day TTL):
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/auth/google/onetap \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{ "credential": "GOOGLE_ID_TOKEN_HERE" }'
+```
+
+**`POST /api/v1/auth/google/mobile`** — native mobile (ID token; always 3-day TTL):
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/auth/google/mobile \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{ "id_token": "GOOGLE_ID_TOKEN_HERE" }'
+```
+
+**Success (200):** same body + cookies as login (message `google_login_success` / `google_onetap_success` / `google_mobile_success`).
+
+```json
+{
+  "code": 0,
+  "message": "google_login_success",
+  "data": { "access_token": "eyJ...", "refresh_token": "eyJ...", "session_id": "a1b2c3..." }
+}
+```
+
+**Error examples:**
+```json
+// 401 — invalid/expired Google code or ID token
+{ "code": 4013, "message": "Invalid or expired Google authorization code", "data": null }
+
+// 400 — Google email not verified
+{ "code": 4014, "message": "Google account email is not verified", "data": null }
+
+// 409 — identity link retries exhausted
+{ "code": 4015, "message": "Could not link this social account, please try again", "data": null }
+
+// 403 — disabled / banned account (reused codes)
+{ "code": 4005, "message": "Account has been disabled", "data": null }
+```
+
+---
+
+### 2.7 X sign-in
+
+**`POST /api/v1/auth/x`** — OAuth 2.0 Authorization Code + PKCE. The FE runs the popup/callback and `state`/`code_verifier` flow, then posts the `code` + `code_verifier`. `X_CALLBACK_URL` (BE) must exact-match the absolute callback URL the FE built.
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/auth/x \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{
+    "code":          "X_AUTHORIZATION_CODE_HERE",
+    "code_verifier": "PKCE_CODE_VERIFIER_HERE",
+    "remember_me":   false,
+    "entrypoint":    "login"
+  }'
+```
+
+`entrypoint` is `login` (default) or `signup`; `signup` forces `remember_me=false`.
+
+**Success (200):** same body + cookies as login (message `x_login_success`).
+
+**Error examples:**
+```json
+// 401 — invalid/expired X code, verifier, or profile fetch failure
+{ "code": 4016, "message": "Invalid or expired X authorization code", "data": null }
+
+// 400 — X returned no usable email
+{ "code": 4017, "message": "X account has no email available for sign-in", "data": null }
+
+// 409 — email already exists locally but is not linked to X
+{ "code": 4019, "message": "An account with this email already exists, please sign in with email first", "data": null }
+```
+
+> `4018 InvalidOAuthState` (state/cookie mismatch) is raised by the FE server action **before** calling this endpoint — it is never returned by the backend.
 
 ---
 
@@ -1884,9 +1984,17 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 | 400 | 4006 | `InvalidConfirmToken` | Invalid or already-used confirmation token |
 | 401 | 4007 | `InvalidSession` | Session ID not found or refresh token UUID mismatch |
 | 401 | 4008 | `RefreshTokenExpired` | DB-stored `refresh_token_expired` has passed |
+| 401 | 4013 | `InvalidGoogleCode` | Google code exchange / ID token verification failed |
+| 400 | 4014 | `GoogleEmailNotVerified` | Google account email is not verified |
+| 409 | 4015 | `OAuthIdentityConflict` | Identity link retries exhausted (unique-constraint races) |
+| 401 | 4016 | `InvalidXCode` | X code exchange / profile fetch failed |
+| 400 | 4017 | `XEmailUnavailable` | X returned no usable email for sign-in |
+| 409 | 4019 | `XAccountLinkRequired` | Email exists locally but is not linked to X |
 | 500 | 9001 | `InternalError` | Internal server error |
 | 500 | 9998 | `Panic` | Unhandled panic caught by recovery middleware |
 | 500 | 9999 | `Unknown` | Unknown error |
+
+> `4018 InvalidOAuthState` is **FE-local only** (X `state`/cookie mismatch, raised in the FE server action). It is intentionally absent from the Go error catalog and Swagger.
 
 ### Special Response Headers
 

@@ -19,28 +19,36 @@ All three are issued as **HttpOnly** cookies (`SameSite=Lax`, `Secure` in produc
 ```
 internal/auth/
 ├── domain/
-│   ├── user.go                  # User + RefreshTokenSessionMap (pure structs, no GORM/json tags)
+│   ├── user.go                  # User (+ PasswordSetAt, HasLocalPassword) + RefreshTokenSessionMap (pure structs, no GORM/json tags)
 │   ├── repository.go            # UserRepository + RefreshSessionRepository interfaces
-│   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, etc.)
+│   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, ErrInvalidGoogleCode, ErrInvalidXCode, ...)
+│   ├── oauth_identity.go        # OAuthProvider, OAuth login channels, UserOAuthIdentity, OAuthIdentityRepository
 │   └── token_ttl.go             # AccessTokenTTL, RefreshTokenTTL, RememberMeRefreshTTL
 ├── application/
-│   ├── service.go               # AuthService: Register, Login, ConfirmEmail, GetMe, UpdateMe, SoftDeleteUser, HardDeleteUser
+│   ├── service.go               # AuthService: Register, Login (HasLocalPassword gate), ConfirmEmail, GetMe, UpdateMe, SoftDeleteUser, HardDeleteUser
 │   ├── service_access.go          # checkUserAccessible, isUserBanned (login / refresh / /me guards)
 │   ├── service_session.go       # RefreshSession, Logout, issueTokenPair, rotateSession
+│   ├── service_oauth.go         # AttachOAuth, GoogleLogin*/XLoginFromCode, LoginOrCreateFromExternal (generic core)
+│   ├── service_oauth_types.go   # ExternalIdentityInput, ProviderPolicy, GoogleOAuthPolicy, XOAuthPolicy, client interfaces
+│   ├── oauth_google.go          # GoogleOAuthVerifier: ExchangeCodeAndVerify, VerifyIDToken (golang.org/x/oauth2 + idtoken)
+│   ├── oauth_x.go               # XOAuthVerifier: ExchangeCodeAndLoadIdentity (X token + /users/me)
 │   ├── service_cache.go         # Redis cache helpers for /me and login
 │   ├── cache_keys.go            # Redis key patterns
 │   └── email_limits.go          # Confirmation email limits
 ├── infra/
-│   ├── user_model.go            # userRow (GORM model) + toUserDomain / toUserRow
+│   ├── user_model.go            # userRow (GORM model, + password_set_at) + toUserDomain / toUserRow
 │   ├── gormjsonb.go             # RefreshTokenSessionMap JSONB Valuer/Scanner (Postgres)
 │   ├── user_repo.go             # GormUserRepository + GormRefreshSessionRepository
+│   ├── oauth_identity_repo.go   # GormOAuthIdentityRepository (FindByProviderSub, Create, UpdateLastLogin)
+│   ├── oauth_identity_model.go  # oauthIdentityRow (GORM model) → user_oauth_identities
 │   ├── user_query.go            # findActiveUserWhere (via shared/gormx)
 │   ├── crypto.go                # Password hashing (bcrypt)
 │   └── session_limits.go        # MaxActiveSessions constant
 └── delivery/
     ├── handler.go               # HTTP handlers: Register, Login, ConfirmEmail, RefreshToken, Logout, GetMe, PatchMe, DeleteMe, HardDeleteMe, GetMyPermissions
+    ├── handler_oauth.go         # OAuth handlers: GoogleLogin, GoogleOneTap, GoogleMobile, XLogin + writeOAuthError
     ├── routes.go                # Route registration
-    ├── dto.go                   # Request/response DTOs
+    ├── dto.go                   # Request/response DTOs (incl. Google*/XLoginRequest)
     └── mapping.go               # Domain → DTO mapping
 ```
 
@@ -50,6 +58,8 @@ internal/auth/
 - **`infra.userRow`** mirrors the `users` table (GORM column tags). Soft delete is **manual** via `gormx.SoftDeleteWithAudit` — not GORM's built-in soft-delete plugin.
 - **`application/service_access.go`** owns **`checkUserAccessible`**: rejects soft-deleted (`deleted_at`), permanently disabled (`is_disable`), and actively banned (`banned_until > now()`) users. Returns domain errors `ErrUserNotFound`, `ErrUserDisabled`, `ErrUserBanned`.
 - **`infra/gormjsonb.go`** implements JSONB persistence for `refresh_token_session`; the domain map type stays a plain `map[string]RefreshSessionEntry`.
+- **`domain.User.PasswordSetAt`** (`*time.Time`, column `password_set_at`) is the single source of truth for "user has a local MyCourse password". `HasLocalPassword()` returns `PasswordSetAt != nil`. `hash_password` stays **`NOT NULL`**; OAuth-only users get a bcrypt hash of a random internal secret, so the presence of a hash never implies a usable local password.
+- **`domain.UserOAuthIdentity`** (`domain/oauth_identity.go`) is a separate aggregate persisted by **`infra.GormOAuthIdentityRepository`**; its time columns (`linked_at`, `last_login_at`, `created_at`, `updated_at`) are **`int64` / `*int64` Unix epoch seconds** to align with the `users` table. OAuth user/identity mutations run through the transactional **`OAuthAccountWriter`** in **`internal/server/wire_auth_oauth.go`** (`CreateUserWithIdentityAndLearnerRole`, `LinkIdentityAndUpdateUser`). Learner-role assignment for email confirm and OAuth shares **`assignLearnerRoleWithDB`** in **`internal/server/wire_auth_learner_role.go`**.
 - Do **not** add `internal/auth/entity/` or move scanners into `domain/`.
 
 ---
@@ -253,6 +263,95 @@ X-Session-Id:    <128-char-hex>
 
 ---
 
+## Social sign-in (OAuth / OIDC)
+
+Google and X sign-in reuse the same session model as email login: every success runs through **`issueTokenPair`** (max 5 device sessions, same TTL rules, same three HttpOnly cookies + JSON body). No new token or cookie type is introduced. All four endpoints are **public** (mounted on the `notAuthen` group, no CSRF/JWT).
+
+**Generic core:** `application/service_oauth.go` → **`LoginOrCreateFromExternal(ctx, ExternalIdentityInput, ProviderPolicy)`** resolves or creates a user from a verified external identity. Provider-specific verification lives in `oauth_google.go` / `oauth_x.go` and normalizes into `ExternalIdentityInput`; provider-specific merge rules live in `ProviderPolicy` (`GoogleOAuthPolicy`, `XOAuthPolicy`). Identity resolution order: **`FindByProviderSub`** first, then **`FindByEmail`** — `provider_sub` wins on conflict. On a unique-constraint race the core retries up to **3** times, then returns `ErrOAuthIdentityConflict` (`4015`).
+
+### `POST /api/v1/auth/google`
+
+Popup web sign-in from a GSI **authorization code**. BE exchanges the code (`oauth2.Config.Exchange` with hardcoded `RedirectURL: "postmessage"`), verifies the returned `id_token` via an `idtoken.NewValidator` (`google.golang.org/api/idtoken`), and applies `GoogleOAuthPolicy`. Both the token exchange and the ID-token validator run through the verifier's shared `http.Client` (15s timeout), injected via `oauth2.HTTPClient` on the exchange context and `option.WithHTTPClient` on the validator.
+
+**Request:**
+```json
+{ "code": "<gsi-authorization-code>", "remember_me": false }
+```
+
+`remember_me` is honored only for popups opened from the login modal; the signup popup, One Tap, and mobile always fall back to the standard 3-day refresh TTL.
+
+**Success:** `200 OK` — `message: "google_login_success"`, same body + cookies as login.
+
+### `POST /api/v1/auth/google/onetap`
+
+Google One Tap. Verifies the `credential` (ID token JWT) directly. Always `remember_me=false` (3-day refresh TTL).
+
+**Request:**
+```json
+{ "credential": "<google-id-token>" }
+```
+
+**Success:** `200 OK` — `message: "google_onetap_success"`.
+
+### `POST /api/v1/auth/google/mobile`
+
+Native mobile (Flutter) sign-in. Verifies the `id_token` (audience = Web Client ID). Always `remember_me=false`.
+
+**Request:**
+```json
+{ "id_token": "<google-id-token>" }
+```
+
+**Success:** `200 OK` — `message: "google_mobile_success"`.
+
+### `POST /api/v1/auth/x`
+
+X (Twitter) OAuth 2.0 Authorization Code + PKCE. FE runs the popup/callback + `state`/`code_verifier` dance and posts the resulting `code` + `code_verifier`. BE exchanges the code at `https://api.x.com/2/oauth2/token` (Basic auth with `X_CLIENT_ID`/`X_CLIENT_SECRET`, `redirect_uri = X_CALLBACK_URL`), then loads the profile from `GET /2/users/me`. Applies `XOAuthPolicy`.
+
+**Request:**
+```json
+{ "code": "<x-auth-code>", "code_verifier": "<pkce-verifier>", "remember_me": false, "entrypoint": "login" }
+```
+
+`entrypoint` is `"login"` (default) or `"signup"`; `"signup"` forces `remember_me=false`. **`X_CALLBACK_URL` (BE) and `NEXT_PUBLIC_X_CALLBACK_URL` (FE) must be identical** — the FE must not derive `redirect_uri` from request headers. There is **no** `state` validation in Go — `state`/`x_oauth_*` cookie checks happen in the FE server action (FE-local error `4018 InvalidOAuthState`, not a Go error code).
+
+**Success:** `200 OK` — `message: "x_login_success"`.
+
+### Merge policy (Google vs X)
+
+Behavior is driven by `ProviderPolicy` (`application/service_oauth_types.go`):
+
+| Rule | `GoogleOAuthPolicy` | `XOAuthPolicy` |
+|------|---------------------|----------------|
+| `RequiresVerifiedEmail` | `true` — reject unverified Google email (`4014`) | `false` |
+| `RejectWhenEmailEmpty` | `false` | `true` — X with no usable email → `4017` |
+| `AllowMergeExistingEmail` | `true` — link to an existing `users.email` | `false` — existing email → `4019` (link-required) |
+| `AllowPendingRegisterMerge` | `true` — see below | `false` |
+| `SetEmailConfirmedOnCreate` | `true` — new Google users are confirmed | `false` — new X users stay `email_confirmed=false` |
+
+Resolution branches (all run **`checkUserAccessible`** before any mutation, so disabled/banned accounts get `4005`/`4012` and never trigger a link):
+
+1. **Existing identity** (`provider_sub` match) → log in the linked user.
+2. **Existing email + Google** → link identity to the existing user. If that user is a **pending register** (`email_confirmed=false`), Google verification also confirms the email: sets `email_confirmed=true`, `password_set_at=NOW()`, clears the confirmation token, and resets `registration_email_send_total` — so the user can immediately log in with email/password too.
+3. **Existing email + X** → **no auto-merge** → `4019 XAccountLinkRequired`.
+4. **No existing user** → create user + identity + learner role in one transaction. Google: `email_confirmed=true`, `password_set_at=NULL`. X: `email_confirmed=false`, `password_set_at=NULL`. Both get a bcrypt hash of a random internal secret in `hash_password`.
+
+Soft-deleted accounts surface as email-not-found; the resulting UNIQUE-email path returns `4002` without revealing account state.
+
+### `password_set_at` behavior
+
+| Flow | `password_set_at` |
+|------|-------------------|
+| Register (pending) | `NULL` (has a bcrypt hash, but not yet a usable local password) |
+| `ConfirmEmail` success | `NOW()` (set inside the confirm+learner-role transaction) |
+| Pending register merged via Google | `NOW()` |
+| OAuth-created user (Google or X) | `NULL` |
+| OAuth merge into an existing user | **unchanged** |
+
+`Login` rejects with `4002` (invalid credentials) when `HasLocalPassword()` is false — an OAuth-only user cannot sign in with email/password until a password is set. The backfill in migration `000031` sets `password_set_at = created_at` for pre-existing confirmed users that already have a hash.
+
+---
+
 ### `GET /api/v1/me` (JWT required)
 
 Returns the current user's profile and effective permission names (sorted `permission_name` strings from RBAC). Redis cache-first; DB fallback with up to **1 minute** staleness.
@@ -339,6 +438,14 @@ Session state lives in `users.refresh_token_session` — a JSONB column mapping 
 | `4009` | `RegistrationAbandoned` | Lifetime email cap reached — pending user deleted |
 | `4010` | `RegistrationEmailRateLimited` | Redis sliding window exceeded |
 | `4011` | `ConfirmationEmailSendFailed` | Brevo send failure |
+| `4013` | `InvalidGoogleCode` | Google code exchange / ID token verification failed (**401**) |
+| `4014` | `GoogleEmailNotVerified` | Google account email is not verified (**400**) |
+| `4015` | `OAuthIdentityConflict` | Identity link retries exhausted (>3 unique-constraint races) (**409**) |
+| `4016` | `InvalidXCode` | X code exchange / profile fetch failed (**401**) |
+| `4017` | `XEmailUnavailable` | X returned no usable email for sign-in (**400**) |
+| `4019` | `XAccountLinkRequired` | Email already exists locally but is not linked to X (**409**) |
+
+> `4018 InvalidOAuthState` is **FE-local only** (state/cookie mismatch in the X server action). It is **not** a Go error code and never appears in a backend response or Swagger.
 
 ---
 
@@ -347,7 +454,22 @@ Session state lives in `users.refresh_token_session` — a JSONB column mapping 
 | Concern | Location |
 |---------|----------|
 | JWT sign/parse | `internal/shared/token/` |
-| AuthService use-cases | `internal/auth/application/auth_service.go` |
+| AuthService use-cases | `internal/auth/application/service.go` |
+| OAuth generic core + policies | `internal/auth/application/service_oauth.go`, `service_oauth_types.go` |
+| Google / X verifiers | `internal/auth/application/oauth_google.go`, `oauth_x.go` |
+| OAuth identity persistence | `internal/auth/infra/oauth_identity_repo.go`, `oauth_identity_model.go` |
+| OAuth HTTP handlers | `internal/auth/delivery/handler_oauth.go` |
+| OAuth wiring / config | `internal/server/wire_auth_oauth.go`, `config/app.yaml` (`oauth:` section) |
+
+**OAuth environment variables** (read via `config/app.yaml` `oauth:` section, declared in every `.env*.example`):
+
+| Env var | Purpose |
+|---------|---------|
+| `GOOGLE_CLIENT_ID` | Google OAuth client id — enables `/auth/google*` when non-empty |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret (code exchange) |
+| `X_CLIENT_ID` | X OAuth2 client id — enables `/auth/x` when non-empty |
+| `X_CLIENT_SECRET` | X OAuth2 client secret (Basic-auth token exchange) |
+| `X_CALLBACK_URL` | Absolute X redirect URL; **must match FE `NEXT_PUBLIC_X_CALLBACK_URL` byte-for-byte** |
 | GORM user repository | `internal/auth/infra/gorm_user_repo.go` |
 | GORM session repository | `internal/auth/infra/gorm_session_repo.go` |
 | HTTP handlers | `internal/auth/delivery/handler.go` |

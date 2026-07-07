@@ -20,7 +20,8 @@ type User struct {
 	ID                         string
 	UserCode                   string
 	Email                      string
-	HashPassword               string
+	HashPassword               string     // always stored; OAuth-only users hold bcrypt(random internal secret)
+	PasswordSetAt              *time.Time // set on email confirmation or explicit password set; nil = OAuth-only / pending
 	DisplayName                string
 	AvatarFileID               *string
 	IsDisable                  bool
@@ -33,6 +34,12 @@ type User struct {
 	UpdatedAt                  int64
 	DeletedAt                  *int64
 	BannedUntil                *int64 // Unix seconds when a time-limited ban lifts; nil = not banned
+}
+
+// HasLocalPassword reports whether the user has ever set a local MyCourse password.
+// It is the sole source of truth for email/password login eligibility (never inferred from hash_password).
+func (u *User) HasLocalPassword() bool {
+	return u.PasswordSetAt != nil
 }
 
 // MeProfile is the /me projection used for Redis cache and service layer responses.

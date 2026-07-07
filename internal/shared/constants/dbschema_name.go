@@ -44,6 +44,10 @@ const (
 
 const TableAppUsers = "users"
 
+// --- OAuth / external identities ---
+
+const TableUserOAuthIdentities = "user_oauth_identities"
+
 // --- Instructor ---
 
 const (

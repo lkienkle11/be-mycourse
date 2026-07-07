@@ -26,6 +26,10 @@ func RegisterRoutes(
 		authGroup.POST("/confirm", h.ConfirmEmail)
 		authGroup.POST("/refresh", h.RefreshToken)
 		authGroup.POST("/logout", h.Logout)
+		authGroup.POST("/google", h.GoogleLogin)
+		authGroup.POST("/google/onetap", h.GoogleOneTap)
+		authGroup.POST("/google/mobile", h.GoogleMobile)
+		authGroup.POST("/x", h.XLogin)
 	}
 
 	if authen != nil {

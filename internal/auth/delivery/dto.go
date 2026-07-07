@@ -33,6 +33,36 @@ type LoginSessionTokensResponse struct {
 	SessionID    string `json:"session_id"`
 }
 
+// GoogleLoginRequest is the body for POST /api/v1/auth/google.
+type GoogleLoginRequest struct {
+	Code       string `json:"code" binding:"required"`
+	RememberMe bool   `json:"remember_me"`
+}
+
+// GoogleOneTapRequest is the body for POST /api/v1/auth/google/onetap.
+type GoogleOneTapRequest struct {
+	Credential string `json:"credential" binding:"required"`
+}
+
+// TokenValue returns the Google ID token for One Tap sign-in.
+func (r GoogleOneTapRequest) TokenValue() string { return r.Credential }
+
+// GoogleMobileRequest is the body for POST /api/v1/auth/google/mobile.
+type GoogleMobileRequest struct {
+	IDToken string `json:"id_token" binding:"required"`
+}
+
+// TokenValue returns the Google ID token for native mobile sign-in.
+func (r GoogleMobileRequest) TokenValue() string { return r.IDToken }
+
+// XLoginRequest is the body for POST /api/v1/auth/x.
+type XLoginRequest struct {
+	Code         string `json:"code" binding:"required"`
+	CodeVerifier string `json:"code_verifier" binding:"required"`
+	RememberMe   bool   `json:"remember_me"`
+	EntryPoint   string `json:"entrypoint"`
+}
+
 // UpdateMeRequest is the body for PATCH /api/v1/me.
 type UpdateMeRequest struct {
 	AvatarFileID *string `json:"avatar_file_id" validate:"omitempty,uuid"`

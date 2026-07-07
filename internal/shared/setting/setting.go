@@ -134,6 +134,15 @@ type Media struct {
 	LocalFileURLSecret        string
 }
 
+// OAuth holds external identity provider credentials (env-expanded from config/app.yaml).
+type OAuth struct {
+	GoogleClientID     string
+	GoogleClientSecret string
+	XClientID          string
+	XClientSecret      string
+	XCallbackURL       string
+}
+
 var (
 	AppSetting        = &App{}
 	ServerSetting     = &Server{}
@@ -143,6 +152,7 @@ var (
 	SupabaseSetting   = &Supabase{}
 	BrevoSetting      = &Brevo{}
 	MediaSetting      = &Media{}
+	OAuthSetting      = &OAuth{}
 	LogSetting        = &Logging{}
 	ResilienceSetting = &Resilience{}
 )
@@ -156,6 +166,7 @@ type yamlConfig struct {
 	Supabase   yamlSupabase   `yaml:"supabase"`
 	Brevo      yamlBrevo      `yaml:"brevo"`
 	Media      yamlMedia      `yaml:"media"`
+	OAuth      yamlOAuth      `yaml:"oauth"`
 	Logging    yamlLogging    `yaml:"logging"`
 	Resilience yamlResilience `yaml:"resilience"`
 }
@@ -266,6 +277,14 @@ type yamlMedia struct {
 	BunnyStorageEndpoint      string `yaml:"bunny_storage_endpoint"`
 	BunnyStoragePassword      string `yaml:"bunny_storage_password"`
 	LocalFileURLSecret        string `yaml:"local_file_url_secret"`
+}
+
+type yamlOAuth struct {
+	GoogleClientID     string `yaml:"google_client_id"`
+	GoogleClientSecret string `yaml:"google_client_secret"`
+	XClientID          string `yaml:"x_client_id"`
+	XClientSecret      string `yaml:"x_client_secret"`
+	XCallbackURL       string `yaml:"x_callback_url"`
 }
 
 // Setup reads .env then .env.<STAGE> into an in-memory map (no godotenv.Load),

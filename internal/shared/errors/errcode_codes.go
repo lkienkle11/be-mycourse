@@ -49,6 +49,13 @@ const (
 	RegistrationEmailRateLimited = 4010
 	ConfirmationEmailSendFailed  = 4011
 
+	InvalidGoogleCode      = 4013
+	GoogleEmailNotVerified = 4014
+	OAuthIdentityConflict  = 4015
+	InvalidXCode           = 4016
+	XEmailUnavailable      = 4017
+	XAccountLinkRequired   = 4019
+
 	// Server (9xxx)
 	InternalError = 9001
 	Panic         = 9998

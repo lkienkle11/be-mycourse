@@ -9,16 +9,17 @@ import (
 
 // userRow is the GORM model for the users table.
 type userRow struct {
-	ID                         string  `gorm:"type:uuid;primaryKey"`
-	UserCode                   string  `gorm:"type:char(26);uniqueIndex;not null"`
-	Email                      string  `gorm:"size:255;uniqueIndex;not null"`
-	HashPassword               string  `gorm:"size:255;not null"`
-	DisplayName                string  `gorm:"size:255;not null;default:''"`
-	AvatarFileID               *string `gorm:"column:avatar_file_id;type:uuid"`
-	IsDisable                  bool    `gorm:"not null;default:false"`
-	BannedUntil                *int64  `gorm:"column:banned_until"`
-	EmailConfirmed             bool    `gorm:"not null;default:false"`
-	ConfirmationToken          *string `gorm:"size:128"`
+	ID                         string     `gorm:"type:uuid;primaryKey"`
+	UserCode                   string     `gorm:"type:char(26);uniqueIndex;not null"`
+	Email                      string     `gorm:"size:255;uniqueIndex;not null"`
+	HashPassword               string     `gorm:"size:255;not null"`
+	PasswordSetAt              *time.Time `gorm:"column:password_set_at"`
+	DisplayName                string     `gorm:"size:255;not null;default:''"`
+	AvatarFileID               *string    `gorm:"column:avatar_file_id;type:uuid"`
+	IsDisable                  bool       `gorm:"not null;default:false"`
+	BannedUntil                *int64     `gorm:"column:banned_until"`
+	EmailConfirmed             bool       `gorm:"not null;default:false"`
+	ConfirmationToken          *string    `gorm:"size:128"`
 	ConfirmationSentAt         *time.Time
 	RegistrationEmailSendTotal int                    `gorm:"column:registration_email_send_total;not null;default:0"`
 	RefreshTokenSession        RefreshTokenSessionMap `gorm:"type:jsonb;not null;default:'{}'"`
@@ -35,6 +36,7 @@ func toUserDomain(r *userRow) *domain.User {
 		UserCode:                   r.UserCode,
 		Email:                      r.Email,
 		HashPassword:               r.HashPassword,
+		PasswordSetAt:              r.PasswordSetAt,
 		DisplayName:                r.DisplayName,
 		AvatarFileID:               r.AvatarFileID,
 		IsDisable:                  r.IsDisable,
@@ -56,6 +58,7 @@ func toUserRow(u *domain.User) *userRow {
 		UserCode:                   u.UserCode,
 		Email:                      u.Email,
 		HashPassword:               u.HashPassword,
+		PasswordSetAt:              u.PasswordSetAt,
 		DisplayName:                u.DisplayName,
 		AvatarFileID:               u.AvatarFileID,
 		IsDisable:                  u.IsDisable,

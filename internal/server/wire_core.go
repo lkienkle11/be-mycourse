@@ -77,6 +77,7 @@ func wireCore(db *gorm.DB, rdb *redis.Client) *coreWiring {
 		&authOrphanEnqueuer{e: orphanEnqueuer},
 		rdb,
 	)
+	wireAuthOAuth(db, authSvc, userRepo, userRoleRepo, roleRepo)
 
 	return &coreWiring{
 		RBAC: rbacSvc, System: sysSvc, Media: mediaSvc, Taxonomy: taxSvc,

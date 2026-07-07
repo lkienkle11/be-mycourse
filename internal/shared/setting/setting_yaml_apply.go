@@ -21,6 +21,7 @@ func expandYAMLConfig(c *yamlConfig, dotEnv map[string]string) {
 	expandYAMLServerDBApp(c, expand)
 	expandYAMLIntegrations(c, expand)
 	expandYAMLMediaSection(c, expand)
+	expandYAMLOAuthSection(c, expand)
 	expandYAMLLoggingSection(c, expand)
 }
 
@@ -101,12 +102,21 @@ func expandYAMLMediaSection(c *yamlConfig, expand func(string) string) {
 	c.Media.LocalFileURLSecret = expand(c.Media.LocalFileURLSecret)
 }
 
+func expandYAMLOAuthSection(c *yamlConfig, expand func(string) string) {
+	c.OAuth.GoogleClientID = expand(c.OAuth.GoogleClientID)
+	c.OAuth.GoogleClientSecret = expand(c.OAuth.GoogleClientSecret)
+	c.OAuth.XClientID = expand(c.OAuth.XClientID)
+	c.OAuth.XClientSecret = expand(c.OAuth.XClientSecret)
+	c.OAuth.XCallbackURL = expand(c.OAuth.XCallbackURL)
+}
+
 func applyYAMLToGlobals(c *yamlConfig) {
 	applyYAMLServerGlobals(c)
 	applyYAMLDatabaseGlobals(c)
 	applyYAMLAppBrevoGlobals(c)
 	applyYAMLRedisLavinMQSupabaseGlobals(c)
 	applyYAMLMediaGlobals(c)
+	applyYAMLOAuthGlobals(c)
 	applyYAMLLoggingGlobals(c)
 	applyYAMLResilienceGlobals(c)
 }
@@ -331,6 +341,14 @@ func applyYAMLMediaGlobals(c *yamlConfig) {
 	MediaSetting.BunnyStorageEndpoint = c.Media.BunnyStorageEndpoint
 	MediaSetting.BunnyStoragePassword = c.Media.BunnyStoragePassword
 	MediaSetting.LocalFileURLSecret = c.Media.LocalFileURLSecret
+}
+
+func applyYAMLOAuthGlobals(c *yamlConfig) {
+	OAuthSetting.GoogleClientID = strings.TrimSpace(c.OAuth.GoogleClientID)
+	OAuthSetting.GoogleClientSecret = strings.TrimSpace(c.OAuth.GoogleClientSecret)
+	OAuthSetting.XClientID = strings.TrimSpace(c.OAuth.XClientID)
+	OAuthSetting.XClientSecret = strings.TrimSpace(c.OAuth.XClientSecret)
+	OAuthSetting.XCallbackURL = strings.TrimSpace(c.OAuth.XCallbackURL)
 }
 
 func applyYAMLResilienceGlobals(c *yamlConfig) {

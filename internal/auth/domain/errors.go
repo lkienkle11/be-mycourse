@@ -19,6 +19,16 @@ var (
 	ErrRefreshTokenExpired         = stderrors.New("refresh token expired")
 	ErrRegistrationAbandoned       = stderrors.New("registration was abandoned because confirmation email limits were exceeded")
 	ErrConfirmationEmailSendFailed = stderrors.New("confirmation email could not be sent; please try again later")
+
+	// OAuth — Google (mapped to 4013/4014/4015 in delivery).
+	ErrInvalidGoogleCode      = stderrors.New("invalid google authorization code")
+	ErrGoogleEmailNotVerified = stderrors.New("google email not verified")
+	ErrOAuthIdentityConflict  = stderrors.New("oauth identity conflict")
+
+	// OAuth — X (mapped to 4016/4017/4019 in delivery). 4018 is FE-local only.
+	ErrInvalidXCode         = stderrors.New("invalid x authorization code")
+	ErrXEmailUnavailable    = stderrors.New("x account has no usable email")
+	ErrXAccountLinkRequired = stderrors.New("x account requires linking to an existing email account")
 )
 
 // RegistrationEmailRateLimitedError is returned when the Redis sliding window for

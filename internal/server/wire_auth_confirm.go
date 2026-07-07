@@ -35,10 +35,6 @@ func (c *authEmailConfirmer) ConfirmEmailWithLearnerRole(ctx context.Context, us
 		if err := c.userRepo.SaveWithDB(ctx, tx, user); err != nil {
 			return err
 		}
-		role, err := c.roleRepo.GetByName(ctx, "learner")
-		if err != nil {
-			return err
-		}
-		return c.userRoleRepo.AssignRoleWithDB(ctx, tx, user.ID, role.ID)
+		return assignLearnerRoleWithDB(ctx, tx, c.userRoleRepo, c.roleRepo, user.ID)
 	})
 }

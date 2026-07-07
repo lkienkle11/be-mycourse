@@ -31,6 +31,10 @@ type AuthUseCase interface {
 	UpdateMe(ctx context.Context, userID string, avatarFileID *string) (*domain.MeProfile, error)
 	SoftDeleteUser(ctx context.Context, userID string) error
 	HardDeleteUser(ctx context.Context, userID string) error
+	GoogleLoginFromCode(ctx context.Context, code string, rememberMe bool) (domain.TokenPairResult, error)
+	GoogleLoginFromCredential(ctx context.Context, credential string) (domain.TokenPairResult, error)
+	GoogleLoginFromIDToken(ctx context.Context, idToken string) (domain.TokenPairResult, error)
+	XLoginFromCode(ctx context.Context, code, codeVerifier, entrypoint string, rememberMe bool) (domain.TokenPairResult, error)
 }
 
 // PermissionUseCase provides a user's permissions set (used by /me/permissions).

@@ -21,6 +21,7 @@
    - [Logout](#25-logout)
    - [Google sign-in](#26-google-sign-in)
    - [X sign-in](#27-x-sign-in)
+   - [Discord sign-in](#28-discord-sign-in)
 3. [User Profile (`/api/v1/me`)](#3-user-profile-apiv1me)
    - [Get My Profile](#31-get-my-profile)
    - [Get My Permissions](#32-get-my-permissions)
@@ -517,6 +518,41 @@ curl -X POST {{BASE_URL}}/api/v1/auth/x \
 
 // 409 — email already exists locally but is not linked to X
 { "code": 4019, "message": "An account with this email already exists, please sign in with email first", "data": null }
+```
+
+> `4018 InvalidOAuthState` (state/cookie mismatch) is raised by the FE server action **before** calling this endpoint — it is never returned by the backend.
+
+---
+
+### 2.8 Discord sign-in
+
+**`POST /api/v1/auth/discord`** — OAuth 2.0 Authorization Code (no PKCE). The FE runs the popup/callback and `state` flow, then posts the `code`. `DISCORD_CALLBACK_URL` (BE) must exact-match the absolute callback URL the FE built (`NEXT_PUBLIC_DISCORD_CALLBACK_URL`).
+
+```bash
+curl -X POST {{BASE_URL}}/api/v1/auth/discord \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{
+    "code":       "DISCORD_AUTHORIZATION_CODE_HERE",
+    "remember_me": false,
+    "entrypoint": "login"
+  }'
+```
+
+`entrypoint` is `login` (default) or `signup`; `signup` forces `remember_me=false`.
+
+**Success (200):** same body + cookies as login (message `discord_login_success`).
+
+**Error examples:**
+```json
+// 401 — invalid/expired Discord code or profile fetch failure
+{ "code": 4023, "message": "Invalid or expired Discord authorization code", "data": null }
+
+// 400 — Discord email not verified
+{ "code": 4024, "message": "Discord account email is not verified", "data": null }
+
+// 400 — Discord returned no usable email
+{ "code": 4025, "message": "Discord account has no email available for sign-in", "data": null }
 ```
 
 > `4018 InvalidOAuthState` (state/cookie mismatch) is raised by the FE server action **before** calling this endpoint — it is never returned by the backend.
@@ -1990,11 +2026,14 @@ curl -X POST {{BASE_URL}}/api/v1/webhook/bunny \
 | 401 | 4016 | `InvalidXCode` | X code exchange / profile fetch failed |
 | 400 | 4017 | `XEmailUnavailable` | X returned no usable email for sign-in |
 | 409 | 4019 | `XAccountLinkRequired` | Email exists locally but is not linked to X |
+| 401 | 4023 | `InvalidDiscordCode` | Discord code exchange / profile fetch failed |
+| 400 | 4024 | `DiscordEmailNotVerified` | Discord account email is not verified |
+| 400 | 4025 | `DiscordEmailUnavailable` | Discord returned no usable email for sign-in |
 | 500 | 9001 | `InternalError` | Internal server error |
 | 500 | 9998 | `Panic` | Unhandled panic caught by recovery middleware |
 | 500 | 9999 | `Unknown` | Unknown error |
 
-> `4018 InvalidOAuthState` is **FE-local only** (X `state`/cookie mismatch, raised in the FE server action). It is intentionally absent from the Go error catalog and Swagger.
+> `4018 InvalidOAuthState` is **FE-local only** (X or Discord `state`/cookie mismatch, raised in the FE server action). It is intentionally absent from the Go error catalog and Swagger.
 
 ### Special Response Headers
 

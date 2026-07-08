@@ -48,18 +48,20 @@ POST /api/v1/auth/login
             └─ Return JSON body with tokens (access_token, refresh_token, session_id)
 ```
 
-### Auth Social Sign-in (Google / X)
+### Auth Social Sign-in (Google / X / Discord)
 
 ```
-POST /api/v1/auth/google | /google/onetap | /google/mobile | /x   (public)
-  └─ internal/auth/delivery/handler_oauth.go (GoogleLogin | GoogleOneTap | GoogleMobile | XLogin)
+POST /api/v1/auth/google | /google/onetap | /google/mobile | /x | /discord   (public)
+  └─ internal/auth/delivery/handler_oauth.go (GoogleLogin | GoogleOneTap | GoogleMobile | XLogin | DiscordLogin)
        ├─ Google: oauth_google.go verifies artifact (Exchange code → idtoken validator, or validate credential/id_token)
        ├─ X: oauth_x.go exchanges code at api.x.com/2/oauth2/token → GET /2/users/me
+       ├─ Discord: oauth_discord.go exchanges code at discord.com/api/oauth2/token → GET /users/@me
        └─ AuthService.LoginOrCreateFromExternal(ExternalIdentityInput, ProviderPolicy)   [service_oauth.go]
             ├─ FindByProviderSub (identity wins) → else FindByEmail → else create
             ├─ checkUserAccessible BEFORE any link/merge (disabled/banned → 4005/4012)
-            ├─ Google: verified-email merge; pending register → confirm + password_set_at=NOW()
+            ├─ Google/Discord: verified-email merge; pending register → confirm + password_set_at=NOW()
             ├─ X: no auto-merge on existing email → 4019; no email → 4017
+            ├─ Discord: no email → 4025; unverified email → 4024
             ├─ New user: OAuthAccountWriter.CreateUserWithIdentityAndLearnerRole (bcrypt random hash, password_set_at=NULL)
             ├─ Retry ≤3 on unique (provider, provider_sub) race → else 4015
             └─ issueTokenPair (same session/cookies as login; remember_me per channel)

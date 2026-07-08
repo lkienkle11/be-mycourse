@@ -21,17 +21,18 @@ internal/auth/
 ├── domain/
 │   ├── user.go                  # User (+ PasswordSetAt, HasLocalPassword) + RefreshTokenSessionMap (pure structs, no GORM/json tags)
 │   ├── repository.go            # UserRepository + RefreshSessionRepository interfaces
-│   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, ErrInvalidGoogleCode, ErrInvalidXCode, ...)
+│   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, ErrInvalidGoogleCode, ErrInvalidXCode, ErrInvalidDiscordCode, ...)
 │   ├── oauth_identity.go        # OAuthProvider, OAuth login channels, UserOAuthIdentity, OAuthIdentityRepository
 │   └── token_ttl.go             # AccessTokenTTL, RefreshTokenTTL, RememberMeRefreshTTL
 ├── application/
 │   ├── service.go               # AuthService: Register, Login (HasLocalPassword gate), ConfirmEmail, GetMe, UpdateMe, SoftDeleteUser, HardDeleteUser
 │   ├── service_access.go          # checkUserAccessible, isUserBanned (login / refresh / /me guards)
 │   ├── service_session.go       # RefreshSession, Logout, issueTokenPair, rotateSession
-│   ├── service_oauth.go         # AttachOAuth, GoogleLogin*/XLoginFromCode, LoginOrCreateFromExternal (generic core)
-│   ├── service_oauth_types.go   # ExternalIdentityInput, ProviderPolicy, GoogleOAuthPolicy, XOAuthPolicy, client interfaces
+│   ├── service_oauth.go         # AttachOAuth, GoogleLogin*/XLoginFromCode/DiscordLoginFromCode, LoginOrCreateFromExternal (generic core)
+│   ├── service_oauth_types.go   # ExternalIdentityInput, ProviderPolicy, GoogleOAuthPolicy, XOAuthPolicy, DiscordOAuthPolicy, client interfaces
 │   ├── oauth_google.go          # GoogleOAuthVerifier: ExchangeCodeAndVerify, VerifyIDToken (golang.org/x/oauth2 + idtoken)
 │   ├── oauth_x.go               # XOAuthVerifier: ExchangeCodeAndLoadIdentity (X token + /users/me)
+│   ├── oauth_discord.go         # DiscordOAuthVerifier: ExchangeCodeAndLoadIdentity (Discord token + /users/@me)
 │   ├── service_cache.go         # Redis cache helpers for /me and login
 │   ├── cache_keys.go            # Redis key patterns
 │   └── email_limits.go          # Confirmation email limits
@@ -46,9 +47,9 @@ internal/auth/
 │   └── session_limits.go        # MaxActiveSessions constant
 └── delivery/
     ├── handler.go               # HTTP handlers: Register, Login, ConfirmEmail, RefreshToken, Logout, GetMe, PatchMe, DeleteMe, HardDeleteMe, GetMyPermissions
-    ├── handler_oauth.go         # OAuth handlers: GoogleLogin, GoogleOneTap, GoogleMobile, XLogin + writeOAuthError
+    ├── handler_oauth.go         # OAuth handlers: GoogleLogin, GoogleOneTap, GoogleMobile, XLogin, DiscordLogin + writeOAuthError
     ├── routes.go                # Route registration
-    ├── dto.go                   # Request/response DTOs (incl. Google*/XLoginRequest)
+    ├── dto.go                   # Request/response DTOs (incl. Google*/XLoginRequest/DiscordLoginRequest)
     └── mapping.go               # Domain → DTO mapping
 ```
 
@@ -265,9 +266,11 @@ X-Session-Id:    <128-char-hex>
 
 ## Social sign-in (OAuth / OIDC)
 
-Google and X sign-in reuse the same session model as email login: every success runs through **`issueTokenPair`** (max 5 device sessions, same TTL rules, same three HttpOnly cookies + JSON body). No new token or cookie type is introduced. All four endpoints are **public** (mounted on the `notAuthen` group, no CSRF/JWT).
+Google, X, and Discord sign-in reuse the same session model as email login: every success runs through **`issueTokenPair`** (max 5 device sessions, same TTL rules, same three HttpOnly cookies + JSON body). No new token or cookie type is introduced. All OAuth endpoints are **public** (mounted on the `notAuthen` group, no CSRF/JWT).
 
-**Generic core:** `application/service_oauth.go` → **`LoginOrCreateFromExternal(ctx, ExternalIdentityInput, ProviderPolicy)`** resolves or creates a user from a verified external identity. Provider-specific verification lives in `oauth_google.go` / `oauth_x.go` and normalizes into `ExternalIdentityInput`; provider-specific merge rules live in `ProviderPolicy` (`GoogleOAuthPolicy`, `XOAuthPolicy`). Identity resolution order: **`FindByProviderSub`** first, then **`FindByEmail`** — `provider_sub` wins on conflict. On a unique-constraint race the core retries up to **3** times, then returns `ErrOAuthIdentityConflict` (`4015`).
+> **FE popup note:** The login/signup modal shows **Discord + Google** buttons only. The X (`/auth/x`) API, verifier, and FE actions/hooks remain in the codebase but are **not** wired to the popup.
+
+**Generic core:** `application/service_oauth.go` → **`LoginOrCreateFromExternal(ctx, ExternalIdentityInput, ProviderPolicy)`** resolves or creates a user from a verified external identity. Provider-specific verification lives in `oauth_google.go` / `oauth_x.go` / `oauth_discord.go` and normalizes into `ExternalIdentityInput`; provider-specific merge rules live in `ProviderPolicy` (`GoogleOAuthPolicy`, `XOAuthPolicy`, `DiscordOAuthPolicy`). Identity resolution order: **`FindByProviderSub`** first, then **`FindByEmail`** — `provider_sub` wins on conflict. On a unique-constraint race the core retries up to **3** times, then returns `ErrOAuthIdentityConflict` (`4015`).
 
 ### `POST /api/v1/auth/google`
 
@@ -317,24 +320,37 @@ X (Twitter) OAuth 2.0 Authorization Code + PKCE. FE runs the popup/callback + `s
 
 **Success:** `200 OK` — `message: "x_login_success"`.
 
-### Merge policy (Google vs X)
+### `POST /api/v1/auth/discord`
+
+Discord OAuth 2.0 Authorization Code. FE runs the popup/callback + `state` dance and posts the resulting `code`. BE exchanges the code at `https://discord.com/api/oauth2/token` (Basic auth with `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`, `redirect_uri = DISCORD_CALLBACK_URL`), then loads the profile from `GET https://discord.com/api/v10/users/@me` (scope `identify email`). Applies `DiscordOAuthPolicy` (merge semantics like Google).
+
+**Request:**
+```json
+{ "code": "<discord-auth-code>", "remember_me": false, "entrypoint": "login" }
+```
+
+`entrypoint` is `"login"` (default) or `"signup"`; `"signup"` forces `remember_me=false`. **`DISCORD_CALLBACK_URL` (BE) and `NEXT_PUBLIC_DISCORD_CALLBACK_URL` (FE) must be identical** — the FE must not derive `redirect_uri` from request headers. There is **no** `state` validation in Go — `state`/`discord_oauth_*` cookie checks happen in the FE server action (FE-local error `4018 InvalidOAuthState`, not a Go error code). Discord does **not** use PKCE.
+
+**Success:** `200 OK` — `message: "discord_login_success"`.
+
+### Merge policy (Google vs X vs Discord)
 
 Behavior is driven by `ProviderPolicy` (`application/service_oauth_types.go`):
 
-| Rule | `GoogleOAuthPolicy` | `XOAuthPolicy` |
-|------|---------------------|----------------|
-| `RequiresVerifiedEmail` | `true` — reject unverified Google email (`4014`) | `false` |
-| `RejectWhenEmailEmpty` | `false` | `true` — X with no usable email → `4017` |
-| `AllowMergeExistingEmail` | `true` — link to an existing `users.email` | `false` — existing email → `4019` (link-required) |
-| `AllowPendingRegisterMerge` | `true` — see below | `false` |
-| `SetEmailConfirmedOnCreate` | `true` — new Google users are confirmed | `false` — new X users stay `email_confirmed=false` |
+| Rule | `GoogleOAuthPolicy` | `DiscordOAuthPolicy` | `XOAuthPolicy` |
+|------|---------------------|----------------------|----------------|
+| `RequiresVerifiedEmail` | `true` — reject unverified Google email (`4014`) | `true` — reject unverified Discord email (`4024`) | `false` |
+| `RejectWhenEmailEmpty` | `false` | `true` — Discord with no usable email → `4025` | `true` — X with no usable email → `4017` |
+| `AllowMergeExistingEmail` | `true` — link to an existing `users.email` | `true` — link to an existing `users.email` | `false` — existing email → `4019` (link-required) |
+| `AllowPendingRegisterMerge` | `true` — see below | `true` — see below | `false` |
+| `SetEmailConfirmedOnCreate` | `true` — new Google users are confirmed | `true` — new Discord users are confirmed | `false` — new X users stay `email_confirmed=false` |
 
 Resolution branches (all run **`checkUserAccessible`** before any mutation, so disabled/banned accounts get `4005`/`4012` and never trigger a link):
 
 1. **Existing identity** (`provider_sub` match) → log in the linked user.
-2. **Existing email + Google** → link identity to the existing user. If that user is a **pending register** (`email_confirmed=false`), Google verification also confirms the email: sets `email_confirmed=true`, `password_set_at=NOW()`, clears the confirmation token, and resets `registration_email_send_total` — so the user can immediately log in with email/password too.
+2. **Existing email + Google or Discord** → link identity to the existing user. If that user is a **pending register** (`email_confirmed=false`), provider verification also confirms the email: sets `email_confirmed=true`, `password_set_at=NOW()`, clears the confirmation token, and resets `registration_email_send_total` — so the user can immediately log in with email/password too.
 3. **Existing email + X** → **no auto-merge** → `4019 XAccountLinkRequired`.
-4. **No existing user** → create user + identity + learner role in one transaction. Google: `email_confirmed=true`, `password_set_at=NULL`. X: `email_confirmed=false`, `password_set_at=NULL`. Both get a bcrypt hash of a random internal secret in `hash_password`.
+4. **No existing user** → create user + identity + learner role in one transaction. Google/Discord: `email_confirmed=true`, `password_set_at=NULL`. X: `email_confirmed=false`, `password_set_at=NULL`. All get a bcrypt hash of a random internal secret in `hash_password`.
 
 Soft-deleted accounts surface as email-not-found; the resulting UNIQUE-email path returns `4002` without revealing account state.
 
@@ -345,7 +361,7 @@ Soft-deleted accounts surface as email-not-found; the resulting UNIQUE-email pat
 | Register (pending) | `NULL` (has a bcrypt hash, but not yet a usable local password) |
 | `ConfirmEmail` success | `NOW()` (set inside the confirm+learner-role transaction) |
 | Pending register merged via Google | `NOW()` |
-| OAuth-created user (Google or X) | `NULL` |
+| OAuth-created user (Google, Discord, or X) | `NULL` (Google/Discord confirmed; X unconfirmed) |
 | OAuth merge into an existing user | **unchanged** |
 
 `Login` rejects with `4002` (invalid credentials) when `HasLocalPassword()` is false — an OAuth-only user cannot sign in with email/password until a password is set. The backfill in migration `000031` sets `password_set_at = created_at` for pre-existing confirmed users that already have a hash.
@@ -444,8 +460,11 @@ Session state lives in `users.refresh_token_session` — a JSONB column mapping 
 | `4016` | `InvalidXCode` | X code exchange / profile fetch failed (**401**) |
 | `4017` | `XEmailUnavailable` | X returned no usable email for sign-in (**400**) |
 | `4019` | `XAccountLinkRequired` | Email already exists locally but is not linked to X (**409**) |
+| `4023` | `InvalidDiscordCode` | Discord code exchange / profile fetch failed (**401**) |
+| `4024` | `DiscordEmailNotVerified` | Discord account email is not verified (**400**) |
+| `4025` | `DiscordEmailUnavailable` | Discord returned no usable email for sign-in (**400**) |
 
-> `4018 InvalidOAuthState` is **FE-local only** (state/cookie mismatch in the X server action). It is **not** a Go error code and never appears in a backend response or Swagger.
+> `4018 InvalidOAuthState` is **FE-local only** (state/cookie mismatch in the X or Discord server action). It is **not** a Go error code and never appears in a backend response or Swagger.
 
 ---
 
@@ -456,20 +475,27 @@ Session state lives in `users.refresh_token_session` — a JSONB column mapping 
 | JWT sign/parse | `internal/shared/token/` |
 | AuthService use-cases | `internal/auth/application/service.go` |
 | OAuth generic core + policies | `internal/auth/application/service_oauth.go`, `service_oauth_types.go` |
-| Google / X verifiers | `internal/auth/application/oauth_google.go`, `oauth_x.go` |
+| Google / X / Discord verifiers | `internal/auth/application/oauth_google.go`, `oauth_x.go`, `oauth_discord.go`, `oauth_http_exchange.go` |
 | OAuth identity persistence | `internal/auth/infra/oauth_identity_repo.go`, `oauth_identity_model.go` |
 | OAuth HTTP handlers | `internal/auth/delivery/handler_oauth.go` |
-| OAuth wiring / config | `internal/server/wire_auth_oauth.go`, `config/app.yaml` (`oauth:` section) |
+| OAuth wiring / config | `internal/server/wire_auth_oauth.go`, `config/app.yaml` and **`config/app-<stage>.yaml`** (`oauth:` section) |
 
-**OAuth environment variables** (read via `config/app.yaml` `oauth:` section, declared in every `.env*.example`):
+**Stage YAML:** When `STAGE` is set, the loader reads `config/app-<stage>.yaml` (not only `app.yaml`). Every stage file must declare the same `oauth:` block so Google/X/Discord env expansion works in dev/staging/prod/test/local.
+
+**Provider enable guards:** `wire_auth_oauth.go` attaches a verifier only when **all** required vars for that provider are non-empty (`client_id` + `client_secret` for Google; `client_id` + `client_secret` + `callback_url` for X and Discord). `routes.go` registers `POST /auth/google*` / `POST /auth/x` / `POST /auth/discord` only when the matching `OAuthGoogleConfigured()` / `OAuthXConfigured()` / `OAuthDiscordConfigured()` guard passes — partial config does not expose a half-wired route.
+
+**OAuth environment variables** (read via `oauth:` in stage YAML, declared in every `.env*.example`):
 
 | Env var | Purpose |
 |---------|---------|
-| `GOOGLE_CLIENT_ID` | Google OAuth client id — enables `/auth/google*` when non-empty |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret (code exchange) |
-| `X_CLIENT_ID` | X OAuth2 client id — enables `/auth/x` when non-empty |
+| `GOOGLE_CLIENT_ID` | Google OAuth client id — part of `/auth/google*` enable guard (`client_id` + `client_secret` required) |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret (code exchange / ID-token validation) |
+| `X_CLIENT_ID` | X OAuth2 client id — part of `/auth/x` enable guard (all three X vars required) |
 | `X_CLIENT_SECRET` | X OAuth2 client secret (Basic-auth token exchange) |
 | `X_CALLBACK_URL` | Absolute X redirect URL; **must match FE `NEXT_PUBLIC_X_CALLBACK_URL` byte-for-byte** |
+| `DISCORD_CLIENT_ID` | Discord OAuth2 client id — part of `/auth/discord` enable guard (all three Discord vars required) |
+| `DISCORD_CLIENT_SECRET` | Discord OAuth2 client secret (Basic-auth token exchange) |
+| `DISCORD_CALLBACK_URL` | Absolute Discord redirect URL; **must match FE `NEXT_PUBLIC_DISCORD_CALLBACK_URL` byte-for-byte** |
 | GORM user repository | `internal/auth/infra/gorm_user_repo.go` |
 | GORM session repository | `internal/auth/infra/gorm_session_repo.go` |
 | HTTP handlers | `internal/auth/delivery/handler.go` |

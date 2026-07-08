@@ -127,7 +127,7 @@ erDiagram
 - **RBAC junction tables** use `users.id` (`UUID`), not `user_code`.
 - **JWT / middleware** use `permissions.permission_name` strings (`resource:action`).
 - **`media_files`** is referenced by `users.avatar_file_id`, `course_topics.image_file_id`, and `course_outcomes.image_file_id` (`ON DELETE SET NULL`).
-- **`user_oauth_identities`** links external providers (Google, X) to `users.id` (`ON DELETE CASCADE`); one user can hold multiple identities, and `(provider, provider_sub)` is globally unique.
+- **`user_oauth_identities`** links external providers (Google, X, Discord) to `users.id` (`ON DELETE CASCADE`); one user can hold multiple identities, and `(provider, provider_sub)` is globally unique.
 
 ---
 
@@ -398,14 +398,14 @@ Domain types: `internal/auth/domain/user.go` (`RefreshSessionEntry`, `RefreshTok
 
 ### `user_oauth_identities`
 
-External OAuth/OIDC identities (Google, X, future providers) linked to app users. Created in migration **`000031`**. All time columns are **`BIGINT` Unix epoch seconds** to align with the `users` table (no `DEFAULT NOW()`; app sets values via `timex.NowUnix()` / `gormx.Touch*`).
+External OAuth/OIDC identities (Google, X, Discord) linked to app users. Created in migration **`000031`**. All time columns are **`BIGINT` Unix epoch seconds** to align with the `users` table (no `DEFAULT NOW()`; app sets values via `timex.NowUnix()` / `gormx.Touch*`).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | App-generated UUID v7 |
 | `user_id` | `UUID` | NOT NULL, FK → `users(id)` ON DELETE CASCADE | Owning MyCourse user |
-| `provider` | `VARCHAR(32)` | NOT NULL | Stable lowercase slug: `google`, `x`, or a future provider slug |
-| `provider_sub` | `VARCHAR(255)` | NOT NULL | Provider stable subject (Google OIDC `sub`, X user id) — the identity key |
+| `provider` | `VARCHAR(32)` | NOT NULL | Stable lowercase slug: `google`, `x`, `discord`, or a future provider slug |
+| `provider_sub` | `VARCHAR(255)` | NOT NULL | Provider stable subject (Google OIDC `sub`, X user id, Discord snowflake id) — the identity key |
 | `provider_email` | `VARCHAR(255)` | nullable | Non-authoritative email snapshot from the provider |
 | `linked_at` | `BIGINT` | NOT NULL | Unix epoch seconds when the provider was first linked |
 | `last_login_at` | `BIGINT` | nullable | Unix epoch seconds of the last successful OAuth login |

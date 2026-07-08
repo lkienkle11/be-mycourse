@@ -21,11 +21,13 @@ func (s *AuthService) AttachOAuth(
 	accountWriter OAuthAccountWriter,
 	google GoogleOAuthClient,
 	xClient XOAuthClient,
+	discord DiscordOAuthClient,
 ) {
 	s.oauthIdentityRepo = identityRepo
 	s.oauthAccountWriter = accountWriter
 	s.googleOAuth = google
 	s.xOAuth = xClient
+	s.discordOAuth = discord
 }
 
 // GoogleLoginFromCode completes popup Google sign-in from an authorization code.
@@ -66,6 +68,24 @@ func (s *AuthService) googleLoginFromVerifiedIDToken(
 	input.Channel = channel
 	input.RememberMe = false
 	return s.LoginOrCreateFromExternal(ctx, input, GoogleOAuthPolicy)
+}
+
+// DiscordLoginFromCode completes Discord OAuth2 sign-in.
+func (s *AuthService) DiscordLoginFromCode(ctx context.Context, code, entrypoint string, rememberMe bool) (domain.TokenPairResult, error) {
+	if s.discordOAuth == nil {
+		return domain.TokenPairResult{}, errors.New("discord oauth not configured")
+	}
+	channel := domain.OAuthChannelWebPopupLogin
+	if entrypoint == "signup" {
+		channel = domain.OAuthChannelWebPopupSignup
+		rememberMe = false
+	}
+	input, err := s.discordOAuth.ExchangeCodeAndLoadIdentity(ctx, code, channel)
+	if err != nil {
+		return domain.TokenPairResult{}, err
+	}
+	input.RememberMe = rememberMe
+	return s.LoginOrCreateFromExternal(ctx, input, DiscordOAuthPolicy)
 }
 
 // XLoginFromCode completes X OAuth2 PKCE sign-in.
@@ -133,17 +153,34 @@ func (s *AuthService) LoginOrCreateFromExternal(
 
 func validateExternalIdentityInput(input ExternalIdentityInput, policy ProviderPolicy) error {
 	if strings.TrimSpace(input.ProviderSub) == "" {
-		if input.Provider == domain.OAuthProviderX {
+		switch input.Provider {
+		case domain.OAuthProviderX:
 			return domain.ErrInvalidXCode
+		case domain.OAuthProviderDiscord:
+			return domain.ErrInvalidDiscordCode
+		default:
+			return domain.ErrInvalidGoogleCode
 		}
-		return domain.ErrInvalidGoogleCode
 	}
 	email := strings.TrimSpace(input.Email)
 	if policy.RejectWhenEmailEmpty && email == "" {
-		return domain.ErrXEmailUnavailable
+		switch input.Provider {
+		case domain.OAuthProviderX:
+			return domain.ErrXEmailUnavailable
+		case domain.OAuthProviderDiscord:
+			return domain.ErrDiscordEmailUnavailable
+		}
 	}
 	if policy.RequiresVerifiedEmail && (email == "" || !input.EmailVerified) {
-		return domain.ErrGoogleEmailNotVerified
+		switch input.Provider {
+		case domain.OAuthProviderDiscord:
+			if email == "" {
+				return domain.ErrDiscordEmailUnavailable
+			}
+			return domain.ErrDiscordEmailNotVerified
+		default:
+			return domain.ErrGoogleEmailNotVerified
+		}
 	}
 	return nil
 }

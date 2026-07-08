@@ -29,6 +29,11 @@ var (
 	ErrInvalidXCode         = stderrors.New("invalid x authorization code")
 	ErrXEmailUnavailable    = stderrors.New("x account has no usable email")
 	ErrXAccountLinkRequired = stderrors.New("x account requires linking to an existing email account")
+
+	// OAuth — Discord (mapped to 4023/4024/4025 in delivery).
+	ErrInvalidDiscordCode      = stderrors.New("invalid discord authorization code")
+	ErrDiscordEmailNotVerified = stderrors.New("discord email not verified")
+	ErrDiscordEmailUnavailable = stderrors.New("discord account has no usable email")
 )
 
 // RegistrationEmailRateLimitedError is returned when the Redis sliding window for

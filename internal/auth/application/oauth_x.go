@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -47,36 +46,17 @@ func (x *XOAuthVerifier) ExchangeCodeAndLoadIdentity(
 }
 
 func (x *XOAuthVerifier) exchangeCode(ctx context.Context, code, codeVerifier string) (string, error) {
-	form := url.Values{}
-	form.Set("code", code)
-	form.Set("grant_type", "authorization_code")
-	form.Set("redirect_uri", x.callbackURL)
-	form.Set("code_verifier", codeVerifier)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, xTokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", domain.ErrInvalidXCode
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	basic := base64.StdEncoding.EncodeToString([]byte(x.clientID + ":" + x.clientSecret))
-	req.Header.Set("Authorization", "Basic "+basic)
-
-	resp, err := x.httpClient.Do(req)
-	if err != nil {
-		return "", domain.ErrInvalidXCode
-	}
-	defer func() { _ = resp.Body.Close() }()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 {
-		return "", domain.ErrInvalidXCode
-	}
-	var parsed struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(body, &parsed); err != nil || parsed.AccessToken == "" {
-		return "", domain.ErrInvalidXCode
-	}
-	return parsed.AccessToken, nil
+	extra := url.Values{}
+	extra.Set("code_verifier", codeVerifier)
+	return exchangeOAuthAuthorizationCode(ctx, x.httpClient, oauthCodeExchangeInput{
+		tokenURL:       xTokenURL,
+		clientID:       x.clientID,
+		clientSecret:   x.clientSecret,
+		callbackURL:    x.callbackURL,
+		code:           code,
+		extraForm:      extra,
+		invalidCodeErr: domain.ErrInvalidXCode,
+	})
 }
 
 func (x *XOAuthVerifier) fetchIdentity(ctx context.Context, accessToken, channel string) (ExternalIdentityInput, error) {

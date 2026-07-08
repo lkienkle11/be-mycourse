@@ -31,6 +31,12 @@ func (h *Handler) writeOAuthError(c *gin.Context, err error) {
 		response.Fail(c, http.StatusBadRequest, apperrors.XEmailUnavailable, apperrors.DefaultMessage(apperrors.XEmailUnavailable), nil)
 	case errors.Is(err, domain.ErrXAccountLinkRequired):
 		response.Fail(c, http.StatusConflict, apperrors.XAccountLinkRequired, apperrors.DefaultMessage(apperrors.XAccountLinkRequired), nil)
+	case errors.Is(err, domain.ErrInvalidDiscordCode):
+		response.Fail(c, http.StatusUnauthorized, apperrors.InvalidDiscordCode, apperrors.DefaultMessage(apperrors.InvalidDiscordCode), nil)
+	case errors.Is(err, domain.ErrDiscordEmailNotVerified):
+		response.Fail(c, http.StatusBadRequest, apperrors.DiscordEmailNotVerified, apperrors.DefaultMessage(apperrors.DiscordEmailNotVerified), nil)
+	case errors.Is(err, domain.ErrDiscordEmailUnavailable):
+		response.Fail(c, http.StatusBadRequest, apperrors.DiscordEmailUnavailable, apperrors.DefaultMessage(apperrors.DiscordEmailUnavailable), nil)
 	case errors.Is(err, domain.ErrInvalidCredentials):
 		response.Fail(c, http.StatusUnauthorized, apperrors.InvalidCredentials, apperrors.DefaultMessage(apperrors.InvalidCredentials), nil)
 	case errors.Is(err, domain.ErrUserDisabled):
@@ -125,4 +131,23 @@ func (h *Handler) XLogin(c *gin.Context) {
 		return
 	}
 	h.writeOAuthTokenSuccess(c, result, "x_login_success")
+}
+
+// DiscordLogin — POST /api/v1/auth/discord
+func (h *Handler) DiscordLogin(c *gin.Context) {
+	var req DiscordLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
+		return
+	}
+	entrypoint := req.EntryPoint
+	if entrypoint == "" {
+		entrypoint = "login"
+	}
+	result, err := h.auth.DiscordLoginFromCode(c.Request.Context(), req.Code, entrypoint, req.RememberMe)
+	if err != nil {
+		h.writeOAuthError(c, err)
+		return
+	}
+	h.writeOAuthTokenSuccess(c, result, "discord_login_success")
 }

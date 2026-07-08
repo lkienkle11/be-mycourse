@@ -22,21 +22,29 @@ func wireAuthOAuth(
 	oauthIdentityRepo := authinfra.NewGormOAuthIdentityRepository(db)
 	oauthWriter := newAuthOAuthAccountWriter(db, userRepo, oauthIdentityRepo, userRoleRepo, roleRepo)
 	var googleOAuth authapp.GoogleOAuthClient
-	if setting.OAuthSetting.GoogleClientID != "" {
+	if setting.OAuthGoogleConfigured() {
 		googleOAuth = authapp.NewGoogleOAuthVerifier(
 			setting.OAuthSetting.GoogleClientID,
 			setting.OAuthSetting.GoogleClientSecret,
 		)
 	}
 	var xOAuth authapp.XOAuthClient
-	if setting.OAuthSetting.XClientID != "" {
+	if setting.OAuthXConfigured() {
 		xOAuth = authapp.NewXOAuthVerifier(
 			setting.OAuthSetting.XClientID,
 			setting.OAuthSetting.XClientSecret,
 			setting.OAuthSetting.XCallbackURL,
 		)
 	}
-	authSvc.AttachOAuth(oauthIdentityRepo, oauthWriter, googleOAuth, xOAuth)
+	var discordOAuth authapp.DiscordOAuthClient
+	if setting.OAuthDiscordConfigured() {
+		discordOAuth = authapp.NewDiscordOAuthVerifier(
+			setting.OAuthSetting.DiscordClientID,
+			setting.OAuthSetting.DiscordClientSecret,
+			setting.OAuthSetting.DiscordCallbackURL,
+		)
+	}
+	authSvc.AttachOAuth(oauthIdentityRepo, oauthWriter, googleOAuth, xOAuth, discordOAuth)
 }
 
 type authOAuthAccountWriter struct {

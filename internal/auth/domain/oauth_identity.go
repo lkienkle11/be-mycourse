@@ -6,8 +6,9 @@ import "context"
 type OAuthProvider string
 
 const (
-	OAuthProviderGoogle OAuthProvider = "google"
-	OAuthProviderX      OAuthProvider = "x"
+	OAuthProviderGoogle  OAuthProvider = "google"
+	OAuthProviderX       OAuthProvider = "x"
+	OAuthProviderDiscord OAuthProvider = "discord"
 )
 
 // OAuth login channels — recorded in identity metadata and used for TTL/session semantics.

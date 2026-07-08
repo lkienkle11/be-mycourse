@@ -35,6 +35,7 @@ type AuthUseCase interface {
 	GoogleLoginFromCredential(ctx context.Context, credential string) (domain.TokenPairResult, error)
 	GoogleLoginFromIDToken(ctx context.Context, idToken string) (domain.TokenPairResult, error)
 	XLoginFromCode(ctx context.Context, code, codeVerifier, entrypoint string, rememberMe bool) (domain.TokenPairResult, error)
+	DiscordLoginFromCode(ctx context.Context, code, entrypoint string, rememberMe bool) (domain.TokenPairResult, error)
 }
 
 // PermissionUseCase provides a user's permissions set (used by /me/permissions).

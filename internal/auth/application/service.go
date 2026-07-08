@@ -59,6 +59,7 @@ type AuthService struct {
 	oauthAccountWriter OAuthAccountWriter
 	googleOAuth        GoogleOAuthClient
 	xOAuth             XOAuthClient
+	discordOAuth       DiscordOAuthClient
 }
 
 // sessionRepo embeds the extended repository methods needed by application layer

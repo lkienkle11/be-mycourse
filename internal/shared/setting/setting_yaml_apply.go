@@ -108,6 +108,9 @@ func expandYAMLOAuthSection(c *yamlConfig, expand func(string) string) {
 	c.OAuth.XClientID = expand(c.OAuth.XClientID)
 	c.OAuth.XClientSecret = expand(c.OAuth.XClientSecret)
 	c.OAuth.XCallbackURL = expand(c.OAuth.XCallbackURL)
+	c.OAuth.DiscordClientID = expand(c.OAuth.DiscordClientID)
+	c.OAuth.DiscordClientSecret = expand(c.OAuth.DiscordClientSecret)
+	c.OAuth.DiscordCallbackURL = expand(c.OAuth.DiscordCallbackURL)
 }
 
 func applyYAMLToGlobals(c *yamlConfig) {
@@ -349,6 +352,9 @@ func applyYAMLOAuthGlobals(c *yamlConfig) {
 	OAuthSetting.XClientID = strings.TrimSpace(c.OAuth.XClientID)
 	OAuthSetting.XClientSecret = strings.TrimSpace(c.OAuth.XClientSecret)
 	OAuthSetting.XCallbackURL = strings.TrimSpace(c.OAuth.XCallbackURL)
+	OAuthSetting.DiscordClientID = strings.TrimSpace(c.OAuth.DiscordClientID)
+	OAuthSetting.DiscordClientSecret = strings.TrimSpace(c.OAuth.DiscordClientSecret)
+	OAuthSetting.DiscordCallbackURL = strings.TrimSpace(c.OAuth.DiscordCallbackURL)
 }
 
 func applyYAMLResilienceGlobals(c *yamlConfig) {

@@ -136,11 +136,14 @@ type Media struct {
 
 // OAuth holds external identity provider credentials (env-expanded from config/app.yaml).
 type OAuth struct {
-	GoogleClientID     string
-	GoogleClientSecret string
-	XClientID          string
-	XClientSecret      string
-	XCallbackURL       string
+	GoogleClientID      string
+	GoogleClientSecret  string
+	XClientID           string
+	XClientSecret       string
+	XCallbackURL        string
+	DiscordClientID     string
+	DiscordClientSecret string
+	DiscordCallbackURL  string
 }
 
 var (
@@ -280,11 +283,14 @@ type yamlMedia struct {
 }
 
 type yamlOAuth struct {
-	GoogleClientID     string `yaml:"google_client_id"`
-	GoogleClientSecret string `yaml:"google_client_secret"`
-	XClientID          string `yaml:"x_client_id"`
-	XClientSecret      string `yaml:"x_client_secret"`
-	XCallbackURL       string `yaml:"x_callback_url"`
+	GoogleClientID      string `yaml:"google_client_id"`
+	GoogleClientSecret  string `yaml:"google_client_secret"`
+	XClientID           string `yaml:"x_client_id"`
+	XClientSecret       string `yaml:"x_client_secret"`
+	XCallbackURL        string `yaml:"x_callback_url"`
+	DiscordClientID     string `yaml:"discord_client_id"`
+	DiscordClientSecret string `yaml:"discord_client_secret"`
+	DiscordCallbackURL  string `yaml:"discord_callback_url"`
 }
 
 // Setup reads .env then .env.<STAGE> into an in-memory map (no godotenv.Load),
@@ -415,4 +421,27 @@ func (d *Database) EnsureAppSchemaName() (string, error) {
 		return "", fmt.Errorf("invalid database schema name %q (SCHEMA_NAME_APP)", schema)
 	}
 	return schema, nil
+}
+
+// OAuthGoogleConfigured reports whether Google OAuth env vars are set.
+func OAuthGoogleConfigured() bool {
+	o := OAuthSetting
+	return strings.TrimSpace(o.GoogleClientID) != "" &&
+		strings.TrimSpace(o.GoogleClientSecret) != ""
+}
+
+// OAuthXConfigured reports whether all X OAuth env vars are set.
+func OAuthXConfigured() bool {
+	o := OAuthSetting
+	return strings.TrimSpace(o.XClientID) != "" &&
+		strings.TrimSpace(o.XClientSecret) != "" &&
+		strings.TrimSpace(o.XCallbackURL) != ""
+}
+
+// OAuthDiscordConfigured reports whether all Discord OAuth env vars are set.
+func OAuthDiscordConfigured() bool {
+	o := OAuthSetting
+	return strings.TrimSpace(o.DiscordClientID) != "" &&
+		strings.TrimSpace(o.DiscordClientSecret) != "" &&
+		strings.TrimSpace(o.DiscordCallbackURL) != ""
 }

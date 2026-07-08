@@ -173,7 +173,7 @@ type TokenPairResult struct {
 }
 ```
 
-JSON body (`LoginSessionTokensResponse`) exposes only `access_token`, `refresh_token`, and `session_id`. The FE BFF persists remember-me via its own HttpOnly `auth_remember_me` cookie.
+JSON body (`LoginSessionTokensResponse`) exposes only `access_token`, `refresh_token`, and `session_id`. `remember_me` is a **request-body field only** (on `POST /auth/login` and the OAuth sign-in endpoints); it is **not** returned in JSON and there is **no** `auth_remember_me` cookie. The backend persists the remember-me flag inside the `users.refresh_token_session` JSONB entry (`remember_me`), which drives the refresh/session cookie `Max-Age` (3d standard / 30d remember-me) on each rotation.
 
 ```go
 // internal/auth/delivery/dto.go

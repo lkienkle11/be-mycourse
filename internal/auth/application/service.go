@@ -55,6 +55,10 @@ type AuthService struct {
 	mediaValidator     MediaFileValidator
 	orphanEnqueuer     OrphanCleanupEnqueuer
 	redis              *redis.Client
+	oauthIdentityRepo  domain.OAuthIdentityRepository
+	oauthAccountWriter OAuthAccountWriter
+	googleOAuth        GoogleOAuthClient
+	xOAuth             XOAuthClient
 }
 
 // sessionRepo embeds the extended repository methods needed by application layer
@@ -114,6 +118,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string, remembe
 	}
 	if !user.EmailConfirmed {
 		return domain.TokenPairResult{}, domain.ErrEmailNotConfirmed
+	}
+	if !user.HasLocalPassword() {
+		return domain.TokenPairResult{}, domain.ErrInvalidCredentials
 	}
 	if !checkPasswordHash(password, user.HashPassword) {
 		return domain.TokenPairResult{}, domain.ErrInvalidCredentials
@@ -254,6 +261,8 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, confirmToken string) (do
 	user.EmailConfirmed = true
 	user.ConfirmationToken = nil
 	user.RegistrationEmailSendTotal = 0
+	now := time.Now()
+	user.PasswordSetAt = &now
 	if s.emailConfirmer == nil {
 		return domain.TokenPairResult{}, errors.New("email confirmer not configured")
 	}

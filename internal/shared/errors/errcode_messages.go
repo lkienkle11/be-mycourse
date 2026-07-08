@@ -52,6 +52,13 @@ var defaultMessages = map[int]string{
 	RegistrationEmailRateLimited: constants.MsgAuthRegistrationEmailRateLimited,
 	ConfirmationEmailSendFailed:  constants.MsgAuthConfirmationEmailSendFailed,
 
+	InvalidGoogleCode:      "Invalid or expired Google authorization code",
+	GoogleEmailNotVerified: "Google account email is not verified",
+	OAuthIdentityConflict:  "Could not link this social account, please try again",
+	InvalidXCode:           "Invalid or expired X authorization code",
+	XEmailUnavailable:      "X account has no email available for sign-in",
+	XAccountLinkRequired:   "An account with this email already exists, please sign in with email first",
+
 	InternalError: "Internal server error",
 	Panic:         "Internal server error",
 

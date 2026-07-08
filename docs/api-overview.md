@@ -39,6 +39,12 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - `POST /auth/confirm` — FE submits confirmation token in request body; backend confirms email, issues tokens.
 - `POST /auth/refresh`
 - `POST /auth/logout` — revoke refresh session; clears auth cookies
+- Social sign-in (OAuth/OIDC — same session/cookies as login via `LoginOrCreateFromExternal` + `issueTokenPair`; see **`docs/modules/auth.md`**):
+  - `POST /auth/google` — Google popup (authorization code); optional `remember_me`
+  - `POST /auth/google/onetap` — Google One Tap (`credential` ID token; 3-day TTL)
+  - `POST /auth/google/mobile` — Google native mobile (`id_token`; 3-day TTL)
+  - `POST /auth/x` — X OAuth2 PKCE (`code` + `code_verifier`, optional `remember_me`, `entrypoint`)
+  - Error codes: `4013`–`4017`, `4019` (BE). `4018 InvalidOAuthState` is **FE-local only** (not in Go/Swagger). Config: `oauth:` section in `config/app.yaml` (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `X_CLIENT_ID`/`X_CLIENT_SECRET`, `X_CALLBACK_URL`).
 
 ### `/api/v1` (auth subgroup)
 - `GET /me`

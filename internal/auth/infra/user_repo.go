@@ -63,9 +63,14 @@ func (r *GormUserRepository) FindByConfirmationToken(ctx context.Context, token 
 }
 
 func (r *GormUserRepository) Create(ctx context.Context, u *domain.User) error {
+	return r.CreateWithDB(ctx, r.db, u)
+}
+
+// CreateWithDB persists a new user using the given DB handle (supports transactions).
+func (r *GormUserRepository) CreateWithDB(ctx context.Context, db *gorm.DB, u *domain.User) error {
 	row := toUserRow(u)
 	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-	return gormx.CreateAndThen(ctx, r.db, row, func() { syncUserRowTimestamps(u, row) })
+	return gormx.CreateAndThen(ctx, db, row, func() { syncUserRowTimestamps(u, row) })
 }
 
 func (r *GormUserRepository) Save(ctx context.Context, u *domain.User) error {

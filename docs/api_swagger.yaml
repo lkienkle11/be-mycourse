@@ -527,6 +527,30 @@ components:
         email: { type: string, format: email }
         password: { type: string }
         remember_me: { type: boolean, default: false }
+    GoogleLoginRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+        remember_me: { type: boolean, default: false }
+    GoogleOneTapRequest:
+      type: object
+      required: [credential]
+      properties:
+        credential: { type: string }
+    GoogleMobileRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token: { type: string }
+    XLoginRequest:
+      type: object
+      required: [code, code_verifier]
+      properties:
+        code: { type: string }
+        code_verifier: { type: string }
+        remember_me: { type: boolean, default: false }
+        entrypoint: { type: string, enum: [login, signup] }
     TokenPair:
       type: object
       example:
@@ -903,6 +927,90 @@ paths:
       responses:
         "200":
           description: Tokens in body + Set-Cookie (access_token, refresh_token, session_id)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
+
+  /api/v1/auth/google:
+    post:
+      tags: [Auth]
+      summary: Google sign-in (popup authorization code)
+      security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleLoginRequest"
+      responses:
+        "200":
+          description: Tokens in body + Set-Cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
+
+  /api/v1/auth/google/onetap:
+    post:
+      tags: [Auth]
+      summary: Google One Tap sign-in
+      security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleOneTapRequest"
+      responses:
+        "200":
+          description: Tokens in body + Set-Cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
+
+  /api/v1/auth/google/mobile:
+    post:
+      tags: [Auth]
+      summary: Google mobile native sign-in (ID token)
+      security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleMobileRequest"
+      responses:
+        "200":
+          description: Tokens in body + Set-Cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
+
+  /api/v1/auth/x:
+    post:
+      tags: [Auth]
+      summary: X sign-in (OAuth2 PKCE authorization code)
+      security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/XLoginRequest"
+      responses:
+        "200":
+          description: Tokens in body + Set-Cookie
           content:
             application/json:
               schema:

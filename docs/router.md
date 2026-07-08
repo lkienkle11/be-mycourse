@@ -70,6 +70,10 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req / 1 min)
 | POST | `/api/v1/auth/confirm` | Confirm email from FE-submitted token (issues tokens on success) |
 | POST | `/api/v1/auth/refresh` | Rotate token pair via `X-Refresh-Token` / `X-Session-Id` headers |
 | POST | `/api/v1/auth/logout` | Revoke session + clear auth cookies (`X-Refresh-Token` / `X-Session-Id`) |
+| POST | `/api/v1/auth/google` | Google popup sign-in (authorization code) — issues tokens |
+| POST | `/api/v1/auth/google/onetap` | Google One Tap sign-in (ID token credential) |
+| POST | `/api/v1/auth/google/mobile` | Google native mobile sign-in (ID token) |
+| POST | `/api/v1/auth/x` | X OAuth2 PKCE sign-in (code + code_verifier) |
 
 ---
 

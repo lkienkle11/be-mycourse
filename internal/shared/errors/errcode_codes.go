@@ -49,12 +49,15 @@ const (
 	RegistrationEmailRateLimited = 4010
 	ConfirmationEmailSendFailed  = 4011
 
-	InvalidGoogleCode      = 4013
-	GoogleEmailNotVerified = 4014
-	OAuthIdentityConflict  = 4015
-	InvalidXCode           = 4016
-	XEmailUnavailable      = 4017
-	XAccountLinkRequired   = 4019
+	InvalidGoogleCode       = 4013
+	GoogleEmailNotVerified  = 4014
+	OAuthIdentityConflict   = 4015
+	InvalidXCode            = 4016
+	XEmailUnavailable       = 4017
+	XAccountLinkRequired    = 4019
+	InvalidDiscordCode      = 4023
+	DiscordEmailNotVerified = 4024
+	DiscordEmailUnavailable = 4025
 
 	// Server (9xxx)
 	InternalError = 9001

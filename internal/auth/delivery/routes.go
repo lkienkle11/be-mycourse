@@ -5,6 +5,7 @@ import (
 
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/middleware"
+	"mycourse-io-be/internal/shared/setting"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -26,10 +27,17 @@ func RegisterRoutes(
 		authGroup.POST("/confirm", h.ConfirmEmail)
 		authGroup.POST("/refresh", h.RefreshToken)
 		authGroup.POST("/logout", h.Logout)
-		authGroup.POST("/google", h.GoogleLogin)
-		authGroup.POST("/google/onetap", h.GoogleOneTap)
-		authGroup.POST("/google/mobile", h.GoogleMobile)
-		authGroup.POST("/x", h.XLogin)
+		if setting.OAuthGoogleConfigured() {
+			authGroup.POST("/google", h.GoogleLogin)
+			authGroup.POST("/google/onetap", h.GoogleOneTap)
+			authGroup.POST("/google/mobile", h.GoogleMobile)
+		}
+		if setting.OAuthXConfigured() {
+			authGroup.POST("/x", h.XLogin)
+		}
+		if setting.OAuthDiscordConfigured() {
+			authGroup.POST("/discord", h.DiscordLogin)
+		}
 	}
 
 	if authen != nil {

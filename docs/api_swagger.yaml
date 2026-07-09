@@ -551,6 +551,13 @@ components:
         code_verifier: { type: string }
         remember_me: { type: boolean, default: false }
         entrypoint: { type: string, enum: [login, signup] }
+    DiscordLoginRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+        remember_me: { type: boolean, default: false }
+        entrypoint: { type: string, enum: [login, signup] }
     TokenPair:
       type: object
       example:
@@ -1007,7 +1014,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/XLoginRequest"
+                $ref: "#/components/schemas/XLoginRequest"
+      responses:
+        "200":
+          description: Tokens in body + Set-Cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginSessionTokensResponse"
+
+  /api/v1/auth/discord:
+    post:
+      tags: [Auth]
+      summary: Discord sign-in (OAuth2 authorization code)
+      security: []
+      x-mycourse-post-response: saveUserTokens
+      x-postman-event: *postmanSaveUserTokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiscordLoginRequest"
       responses:
         "200":
           description: Tokens in body + Set-Cookie

@@ -44,7 +44,8 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `POST /auth/google/onetap` — Google One Tap (`credential` ID token; 3-day TTL)
   - `POST /auth/google/mobile` — Google native mobile (`id_token`; 3-day TTL)
   - `POST /auth/x` — X OAuth2 PKCE (`code` + `code_verifier`, optional `remember_me`, `entrypoint`)
-  - Error codes: `4013`–`4017`, `4019` (BE). `4018 InvalidOAuthState` is **FE-local only** (not in Go/Swagger). Config: `oauth:` section in `config/app.yaml` (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `X_CLIENT_ID`/`X_CLIENT_SECRET`, `X_CALLBACK_URL`).
+  - `POST /auth/discord` — Discord OAuth2 (`code`, optional `remember_me`, `entrypoint`)
+  - Error codes: `4013`–`4017`, `4019`, `4023`–`4025` (BE). `4018 InvalidOAuthState` is **FE-local only** (not in Go/Swagger). Config: `oauth:` section in **`config/app.yaml` and every `config/app-<stage>.yaml`**. Routes `/auth/google*`, `/auth/x`, and `/auth/discord` register only when `OAuthGoogleConfigured()`, `OAuthXConfigured()`, or `OAuthDiscordConfigured()` passes (Google: `client_id` + `client_secret`; X/Discord: all three vars including `callback_url`).
 
 ### `/api/v1` (auth subgroup)
 - `GET /me`

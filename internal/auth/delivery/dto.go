@@ -63,6 +63,13 @@ type XLoginRequest struct {
 	EntryPoint   string `json:"entrypoint"`
 }
 
+// DiscordLoginRequest is the body for POST /api/v1/auth/discord.
+type DiscordLoginRequest struct {
+	Code       string `json:"code" binding:"required"`
+	RememberMe bool   `json:"remember_me"`
+	EntryPoint string `json:"entrypoint"`
+}
+
 // UpdateMeRequest is the body for PATCH /api/v1/me.
 type UpdateMeRequest struct {
 	AvatarFileID *string `json:"avatar_file_id" validate:"omitempty,uuid"`

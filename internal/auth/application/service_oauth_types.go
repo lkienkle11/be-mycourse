@@ -45,6 +45,15 @@ var XOAuthPolicy = ProviderPolicy{
 	RejectWhenEmailEmpty:      true,
 }
 
+// DiscordOAuthPolicy is the locked merge policy for Discord sign-in (merge semantics like Google).
+var DiscordOAuthPolicy = ProviderPolicy{
+	RequiresVerifiedEmail:     true,
+	AllowMergeExistingEmail:   true,
+	AllowPendingRegisterMerge: true,
+	SetEmailConfirmedOnCreate: true,
+	RejectWhenEmailEmpty:      true,
+}
+
 // OAuthAccountWriter persists OAuth user/identity mutations atomically (implemented in server wiring).
 type OAuthAccountWriter interface {
 	CreateUserWithIdentityAndLearnerRole(ctx context.Context, user *domain.User, identity *domain.UserOAuthIdentity) error
@@ -60,4 +69,9 @@ type GoogleOAuthClient interface {
 // XOAuthClient exchanges X authorization codes and loads the current user profile.
 type XOAuthClient interface {
 	ExchangeCodeAndLoadIdentity(ctx context.Context, code, codeVerifier, channel string) (ExternalIdentityInput, error)
+}
+
+// DiscordOAuthClient exchanges Discord authorization codes and loads the current user profile.
+type DiscordOAuthClient interface {
+	ExchangeCodeAndLoadIdentity(ctx context.Context, code, channel string) (ExternalIdentityInput, error)
 }

@@ -139,106 +139,106 @@ WHERE NOT EXISTS (
 
 -- ---------------------------------------------------------------------------
 -- JSONB tree: ensure translations.en.name (fail on invalid/empty nodes)
+-- NOTE: golang-migrate splits on every semicolon — do NOT use plpgsql or DO blocks
+-- with internal semicolons. Use LANGUAGE sql + $fn$ with zero semicolons inside the body.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION taxonomy_ensure_tree_en_translations(nodes jsonb, path text DEFAULT '$')
+
+-- Fail fast on corrupt non-array trees (no DO block).
+-- THEN branch must be non-constant so Postgres does not eagerly type-check a literal CAST.
+SELECT CASE
+    WHEN COUNT(*) > 0 THEN (
+        ('migration 000032 course_topics non-array child_topics n=' || COUNT(*)::text)::integer
+    )
+    ELSE 0
+END
+FROM course_topics
+WHERE child_topics IS NOT NULL
+  AND jsonb_typeof(child_topics) <> 'array';
+
+SELECT CASE
+    WHEN COUNT(*) > 0 THEN (
+        ('migration 000032 course_skills non-array children n=' || COUNT(*)::text)::integer
+    )
+    ELSE 0
+END
+FROM course_skills
+WHERE children IS NOT NULL
+  AND jsonb_typeof(children) <> 'array';
+
+DROP FUNCTION IF EXISTS taxonomy_ensure_tree_en_translations(jsonb, text);
+DROP FUNCTION IF EXISTS taxonomy_ensure_tree_en_translations(jsonb);
+
+CREATE OR REPLACE FUNCTION taxonomy_ensure_tree_en_translations(nodes jsonb)
 RETURNS jsonb
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    result jsonb := '[]'::jsonb;
-    elem jsonb;
-    i int;
-    node_id text;
-    node_name text;
-    translations jsonb;
-    en_name text;
-    children jsonb;
-    child_path text;
-BEGIN
-    IF nodes IS NULL THEN
-        RETURN '[]'::jsonb;
-    END IF;
-    IF jsonb_typeof(nodes) <> 'array' THEN
-        RAISE EXCEPTION 'taxonomy tree at % must be a JSON array, got %', path, jsonb_typeof(nodes);
-    END IF;
-
-    FOR i IN 0 .. COALESCE(jsonb_array_length(nodes), 0) - 1 LOOP
-        elem := nodes -> i;
-        child_path := path || '[' || i || ']';
-
-        IF jsonb_typeof(elem) <> 'object' THEN
-            RAISE EXCEPTION 'taxonomy tree node at % must be an object', child_path;
-        END IF;
-
-        node_id := elem ->> 'id';
-        IF node_id IS NULL OR btrim(node_id) = '' THEN
-            RAISE EXCEPTION 'taxonomy tree node at % missing id', child_path;
-        END IF;
-
-        node_name := elem ->> 'name';
-        IF node_name IS NULL OR btrim(node_name) = '' THEN
-            RAISE EXCEPTION 'taxonomy tree node at % has empty name', child_path;
-        END IF;
-
-        translations := elem -> 'translations';
-        IF translations IS NULL OR jsonb_typeof(translations) <> 'object' THEN
-            translations := '{}'::jsonb;
-        END IF;
-
-        en_name := translations #>> '{en,name}';
-        IF en_name IS NULL OR btrim(en_name) = '' THEN
-            translations := jsonb_set(translations, '{en}', jsonb_build_object('name', node_name), true);
-        END IF;
-
-        children := elem -> 'children';
-        IF children IS NULL THEN
-            children := '[]'::jsonb;
-        END IF;
-        children := taxonomy_ensure_tree_en_translations(children, child_path || '.children');
-
-        elem := elem || jsonb_build_object('translations', translations, 'children', children);
-        result := result || jsonb_build_array(elem);
-    END LOOP;
-
-    RETURN result;
-END;
-$$;
-
--- Fail fast on corrupt non-array trees before rewriting (do not silently skip).
-DO $$
-DECLARE
-    bad RECORD;
-BEGIN
-    FOR bad IN
-        SELECT id, jsonb_typeof(child_topics) AS kind
-        FROM course_topics
-        WHERE child_topics IS NOT NULL
-          AND jsonb_typeof(child_topics) <> 'array'
-    LOOP
-        RAISE EXCEPTION
-            'course_topics.id=% has non-array child_topics (jsonb_typeof=%)',
-            bad.id, bad.kind;
-    END LOOP;
-
-    FOR bad IN
-        SELECT id, jsonb_typeof(children) AS kind
-        FROM course_skills
-        WHERE children IS NOT NULL
-          AND jsonb_typeof(children) <> 'array'
-    LOOP
-        RAISE EXCEPTION
-            'course_skills.id=% has non-array children (jsonb_typeof=%)',
-            bad.id, bad.kind;
-    END LOOP;
-END;
-$$;
+LANGUAGE sql
+IMMUTABLE
+AS $fn$
+SELECT CASE
+  WHEN nodes IS NULL THEN '[]'::jsonb
+  WHEN jsonb_typeof(nodes) <> 'array' THEN (
+    ('migration 000032 taxonomy tree must be a JSON array got ' || jsonb_typeof(nodes))::jsonb
+  )
+  ELSE (
+    SELECT COALESCE(jsonb_agg(patched.elem ORDER BY patched.ord), '[]'::jsonb)
+    FROM (
+      SELECT
+        t.ord,
+        CASE
+          WHEN jsonb_typeof(t.elem) <> 'object' THEN (
+            ('migration 000032 taxonomy tree node must be an object got ' || jsonb_typeof(t.elem) || ' ord=' || t.ord::text)::jsonb
+          )
+          WHEN NULLIF(btrim(COALESCE(t.elem ->> 'id', '')), '') IS NULL THEN (
+            ('migration 000032 taxonomy tree node missing id ord=' || t.ord::text)::jsonb
+          )
+          WHEN NULLIF(btrim(COALESCE(t.elem ->> 'name', '')), '') IS NULL THEN (
+            ('migration 000032 taxonomy tree node has empty name ord=' || t.ord::text)::jsonb
+          )
+          ELSE (
+            t.elem || jsonb_build_object(
+              'translations',
+              CASE
+                WHEN (t.elem -> 'translations') IS NULL
+                  OR jsonb_typeof(t.elem -> 'translations') <> 'object'
+                THEN jsonb_build_object(
+                  'en', jsonb_build_object('name', t.elem ->> 'name')
+                )
+                WHEN NULLIF(
+                  btrim(COALESCE(t.elem #>> '{translations,en,name}', '')),
+                  ''
+                ) IS NULL
+                THEN jsonb_set(
+                  t.elem -> 'translations',
+                  '{en}',
+                  jsonb_build_object('name', t.elem ->> 'name'),
+                  true
+                )
+                ELSE t.elem -> 'translations'
+              END,
+              'children',
+              taxonomy_ensure_tree_en_translations(
+                CASE
+                  WHEN (t.elem -> 'children') IS NULL THEN '[]'::jsonb
+                  WHEN jsonb_typeof(t.elem -> 'children') <> 'array' THEN (
+                    ('migration 000032 taxonomy tree children must be a JSON array got ' || jsonb_typeof(t.elem -> 'children') || ' ord=' || t.ord::text)::jsonb
+                  )
+                  ELSE t.elem -> 'children'
+                END
+              )
+            )
+          )
+        END AS elem
+      FROM jsonb_array_elements(nodes) WITH ORDINALITY AS t(elem, ord)
+    ) AS patched
+  )
+END
+$fn$;
 
 UPDATE course_topics
-SET child_topics = taxonomy_ensure_tree_en_translations(child_topics, 'course_topics.child_topics')
+SET child_topics = taxonomy_ensure_tree_en_translations(child_topics)
 WHERE child_topics IS NOT NULL;
 
 UPDATE course_skills
-SET children = taxonomy_ensure_tree_en_translations(children, 'course_skills.children')
+SET children = taxonomy_ensure_tree_en_translations(children)
 WHERE children IS NOT NULL;
 
-DROP FUNCTION IF EXISTS taxonomy_ensure_tree_en_translations(jsonb, text);
+DROP FUNCTION IF EXISTS taxonomy_ensure_tree_en_translations(jsonb);

@@ -289,6 +289,7 @@ Set at least:
 | **500** on login; log `converting driver.Value type time.Time ... to a int64` | Go models use `int64` audit fields; DB columns still `timestamptz` | Run migrations on the **same** `DATABASE_URL` as PM2 (see below) |
 | Log `relation "media_files" does not exist` (or other tables) right after startup | DB role `search_path` empty; tables exist under `public` | Ensure binary includes `search_path` fix in `shareddb.Setup()`; optional `SCHEMA_NAME_APP=public` in `.env`. Verify with `psql`: `SELECT to_regclass('public.users');` |
 | `schema_migrations.version >= 11` but `users.created_at` is still `timestamp with time zone` | Version bumped without `000011` SQL applied (dirty/partial migrate) | Re-apply `migrations/000011_audit_timestamps_bigint.up.sql` with `psql`, then verify column types |
+| `Dirty database version 32` / migrate FATAL `unterminated dollar-quoted string` on `000032` | Old `000032` used `plpgsql`/`DO $$` with `;` inside; golang-migrate splits on every `;` and left `schema_migrations` dirty | Pull fixed `000032` (`LANGUAGE sql` + `$fn$` with **zero** `;` in the body). Then: `UPDATE schema_migrations SET version = 31, dirty = false;` → `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000032_taxonomy_translations_row_version.up.sql` → `UPDATE schema_migrations SET version = 32, dirty = false;` (or `MIGRATE=1` after force to 31). Verify `version=32`, `dirty=f`, and five `*_translations` tables exist |
 
 **Verify (use the app’s `[database]` DSN):**
 

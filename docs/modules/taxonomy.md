@@ -258,6 +258,6 @@ Skill body: canonical `name` and/or translations; optional `children` tree; stat
 | `000006` | `categories.image_file_id` FK |
 | `000009` | Rename `categories` → `course_topics`, add `child_topics`, tables `course_outcomes` / `course_skills`, permissions P18–P37 |
 | `000012` | Soft delete + partial unique slug indexes |
-| `000032` | Five `*_translations` tables + `en` backfill; JSONB tree `translations.en` patch (**fail-fast** if non-null tree is not a JSON array / invalid nodes); `row_version` on five taxonomy roots (mirror `000020`). **Shipped in source**; apply on deploy before enabling localized reads/writes. |
+| `000032` | Five `*_translations` tables + `en` backfill; JSONB tree `translations.en` patch (**fail-fast** if non-null tree is not a JSON array / invalid nodes; implemented as `LANGUAGE sql` recursive function compatible with golang-migrate `;` splitting); `row_version` on five taxonomy roots (mirror `000020`). **Shipped in source**; apply on deploy before enabling localized reads/writes. |
 
 See `docs/database.md` § Taxonomy for full schema.

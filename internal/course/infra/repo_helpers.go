@@ -126,19 +126,7 @@ func loadActiveRows[T any](ctx context.Context, db *gorm.DB, query string, args 
 }
 
 func optimisticUpdate(ctx context.Context, tx *gorm.DB, model any, rowID string, expectedRowVersion int64, updates map[string]any) error {
-	updates["updated_at"] = timex.NowUnix()
-	updates["row_version"] = gorm.Expr("row_version + 1")
-	result := tx.WithContext(ctx).
-		Model(model).
-		Where("id = ? AND row_version = ? AND deleted_at IS NULL", rowID, expectedRowVersion).
-		Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return domain.ErrCourseOptimisticLock
-	}
-	return nil
+	return gormx.OptimisticUpdate(ctx, tx, model, rowID, expectedRowVersion, updates, domain.ErrCourseOptimisticLock)
 }
 
 func updateDraftEntity[T any, D any](

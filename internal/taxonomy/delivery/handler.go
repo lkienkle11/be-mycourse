@@ -34,6 +34,10 @@ func (h *Handler) listTopicsFull(c *gin.Context) {
 	listTaxonomyItemsWithDeleted(c, h.svc.ListTopicsFull, toCourseTopicResponses, true)
 }
 
+func (h *Handler) getTopic(c *gin.Context) {
+	getTaxonomyByID(c, h.svc.GetTopic, toCourseTopicResponse)
+}
+
 func (h *Handler) createTopic(c *gin.Context) {
 	var req CreateCourseTopicRequest
 	if err := validate.BindJSON(c, &req); err != nil {
@@ -43,6 +47,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 	in := domain.CreateCourseTopicInput{
 		ActorID: utils.CurrentUserID(c), Name: req.Name,
 		Status: req.Status, ImageFileID: req.ImageFileID, ChildTopics: req.ChildTopics,
+		Translations: req.Translations,
 	}
 	row, err := h.svc.CreateTopic(c.Request.Context(), in)
 	if err := mapTaxonomyMutationError(c, err, true); err != nil {
@@ -65,6 +70,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 	in := domain.UpdateCourseTopicInput{
 		Name: req.Name, Status: req.Status,
 		ImageFileID: req.ImageFileID, ChildTopics: req.ChildTopics,
+		Translations: req.Translations, ExpectedRowVersion: req.ExpectedRowVersion,
 	}
 	row, err := h.svc.UpdateTopic(c.Request.Context(), id, in)
 	if err := mapTaxonomyMutationError(c, err, true); err != nil {
@@ -89,6 +95,10 @@ func (h *Handler) listCourseOutcomes(c *gin.Context) {
 
 func (h *Handler) listCourseOutcomesFull(c *gin.Context) {
 	listTaxonomyItemsWithDeleted(c, h.svc.ListCourseOutcomesFull, toCourseOutcomeResponses, true)
+}
+
+func (h *Handler) getCourseOutcome(c *gin.Context) {
+	getTaxonomyByID(c, h.svc.GetCourseOutcome, toCourseOutcomeResponse)
 }
 
 func (h *Handler) createCourseOutcome(c *gin.Context) {
@@ -117,6 +127,10 @@ func (h *Handler) listCourseSkillsFull(c *gin.Context) {
 	listTaxonomyItemsWithDeleted(c, h.svc.ListCourseSkillsFull, toCourseSkillResponses, true)
 }
 
+func (h *Handler) getCourseSkill(c *gin.Context) {
+	getTaxonomyByID(c, h.svc.GetCourseSkill, toCourseSkillResponse)
+}
+
 func (h *Handler) createCourseSkill(c *gin.Context) {
 	createTaxonomyMutation(c, h.svc.CreateCourseSkill, courseSkillInputFromCreate, toCourseSkillResponse, false)
 }
@@ -143,6 +157,10 @@ func (h *Handler) listTagsFull(c *gin.Context) {
 	listTaxonomyItemsWithDeleted(c, h.svc.ListTagsFull, toTagResponses, true)
 }
 
+func (h *Handler) getTag(c *gin.Context) {
+	getTaxonomyByID(c, h.svc.GetTag, slugStatusResponseFromTag)
+}
+
 func (h *Handler) createTag(c *gin.Context) {
 	createTaxonomyMutation(c, h.svc.CreateTag, slugStatusInputFromCreate, slugStatusResponseFromTag, false)
 }
@@ -167,6 +185,10 @@ func (h *Handler) listCourseLevels(c *gin.Context) {
 
 func (h *Handler) listCourseLevelsFull(c *gin.Context) {
 	listTaxonomyItemsWithDeleted(c, h.svc.ListCourseLevelsFull, toCourseLevelResponses, true)
+}
+
+func (h *Handler) getCourseLevel(c *gin.Context) {
+	getTaxonomyByID(c, h.svc.GetCourseLevel, slugStatusResponseFromCourseLevel)
 }
 
 func (h *Handler) createCourseLevel(c *gin.Context) {
@@ -198,6 +220,7 @@ func toFilter(q TaxonomyBaseFilter, includeDeleted bool) domain.TaxonomyFilter {
 		SortBy: q.SortBy, SortDesc: q.SortDesc,
 		IncludeDeleted: includeDeleted,
 		IncludeImages:  includeImages,
+		Locale:         q.Locale,
 	}
 }
 
@@ -213,9 +236,9 @@ func toCourseTopicResponse(t domain.CourseTopic) CourseTopicResponse {
 	return CourseTopicResponse{
 		ID: t.ID, Name: t.Name, Slug: t.Slug, Status: t.Status,
 		ImageFileID: fid, ImageFileURL: t.ImageFileURL, ChildTopics: child,
-		CreatedBy: t.CreatedBy,
-		CreatedAt: t.CreatedAt,
-		UpdatedAt: t.UpdatedAt,
+		ResolvedLocale: t.ResolvedLocale, AvailableLocales: t.AvailableLocales,
+		Translations: t.Translations, RowVersion: editRowVersion(t.Translations != nil || len(t.AvailableLocales) > 0, t.RowVersion),
+		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }
 
@@ -235,7 +258,10 @@ func toCourseOutcomeResponse(o domain.CourseOutcome) CourseOutcomeResponse {
 	return CourseOutcomeResponse{
 		ID: o.ID, ShortDescription: o.ShortDescription, Description: desc,
 		ImageFileID: fid, ImageFileURL: o.ImageFileURL, Status: o.Status, CreatedBy: o.CreatedBy,
-		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
+		ResolvedLocale: o.ResolvedLocale, AvailableLocales: o.AvailableLocales,
+		Translations: outcomeTranslationsToDTO(o.Translations),
+		RowVersion:   editRowVersion(o.Translations != nil || len(o.AvailableLocales) > 0, o.RowVersion),
+		CreatedAt:    o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 }
 
@@ -250,7 +276,10 @@ func toCourseSkillResponse(s domain.CourseSkill) CourseSkillResponse {
 	}
 	return CourseSkillResponse{
 		ID: s.ID, Name: s.Name, Slug: s.Slug, Children: child, Status: s.Status, CreatedBy: s.CreatedBy,
-		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		ResolvedLocale: s.ResolvedLocale, AvailableLocales: s.AvailableLocales,
+		Translations: s.Translations,
+		RowVersion:   editRowVersion(s.Translations != nil || len(s.AvailableLocales) > 0, s.RowVersion),
+		CreatedAt:    s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }
 
@@ -259,7 +288,7 @@ func toCourseSkillResponses(rows []domain.CourseSkill) []CourseSkillResponse {
 }
 
 func toSlugStatusResponse(t domain.Tag) SlugStatusResponse {
-	return slugStatusResponse(t.ID, t.Name, t.Slug, t.Status, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
+	return slugStatusResponseFromTag(t)
 }
 
 func toTagResponses(rows []domain.Tag) []TagResponse {
@@ -267,7 +296,5 @@ func toTagResponses(rows []domain.Tag) []TagResponse {
 }
 
 func toCourseLevelResponses(rows []domain.CourseLevel) []CourseLevelResponse {
-	return mapRowsToResponses(rows, func(cl domain.CourseLevel) SlugStatusResponse {
-		return slugStatusResponse(cl.ID, cl.Name, cl.Slug, cl.Status, cl.CreatedBy, cl.CreatedAt, cl.UpdatedAt)
-	})
+	return mapRowsToResponses(rows, slugStatusResponseFromCourseLevel)
 }

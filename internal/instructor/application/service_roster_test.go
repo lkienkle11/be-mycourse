@@ -43,10 +43,10 @@ func (r rosterBulkTestRepo) ListApplicationTopicIDs(context.Context, string) ([]
 func (r rosterBulkTestRepo) ListApplicationSkillIDs(context.Context, string) ([]string, error) {
 	return nil, nil
 }
-func (r rosterBulkTestRepo) ListApplicationTopics(context.Context, string) ([]domain.ApplicationTaxonomyChip, error) {
+func (r rosterBulkTestRepo) ListApplicationTopics(context.Context, string, string) ([]domain.ApplicationTaxonomyChip, error) {
 	return nil, nil
 }
-func (r rosterBulkTestRepo) ListApplicationSkills(context.Context, string) ([]domain.ApplicationTaxonomyChip, error) {
+func (r rosterBulkTestRepo) ListApplicationSkills(context.Context, string, string) ([]domain.ApplicationTaxonomyChip, error) {
 	return nil, nil
 }
 func (r rosterBulkTestRepo) UpsertPendingApplication(context.Context, string, domain.ProfilePayload) (*domain.Application, error) {
@@ -72,7 +72,7 @@ func (r rosterBulkTestRepo) ListRoster(context.Context, domain.RosterFilter) ([]
 func (r rosterBulkTestRepo) ListRosterCandidates(context.Context, domain.RosterCandidateFilter) ([]domain.RosterCandidate, int64, error) {
 	return nil, 0, nil
 }
-func (r rosterBulkTestRepo) ListExpertise(context.Context, string, bool) (any, error) {
+func (r rosterBulkTestRepo) ListExpertise(context.Context, string, bool, string) (any, error) {
 	return nil, nil
 }
 func (r rosterBulkTestRepo) InsertExpertise(context.Context, string, string, bool) (any, error) {

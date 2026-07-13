@@ -64,10 +64,10 @@ func (r *appTestRepo) ListApplicationTopicIDs(context.Context, string) ([]string
 func (r *appTestRepo) ListApplicationSkillIDs(context.Context, string) ([]string, error) {
 	return []string{"skill-1"}, nil
 }
-func (r *appTestRepo) ListApplicationTopics(context.Context, string) ([]domain.ApplicationTaxonomyChip, error) {
+func (r *appTestRepo) ListApplicationTopics(context.Context, string, string) ([]domain.ApplicationTaxonomyChip, error) {
 	return nil, nil
 }
-func (r *appTestRepo) ListApplicationSkills(context.Context, string) ([]domain.ApplicationTaxonomyChip, error) {
+func (r *appTestRepo) ListApplicationSkills(context.Context, string, string) ([]domain.ApplicationTaxonomyChip, error) {
 	return nil, nil
 }
 func (r *appTestRepo) DeleteApplicationsByUserID(context.Context, string) error { return nil }
@@ -90,7 +90,9 @@ func (r *appTestRepo) ListRosterCandidates(context.Context, domain.RosterCandida
 func (r *appTestRepo) AddRosterBulk(context.Context, []string, uint) (domain.RosterBulkResult, error) {
 	return domain.RosterBulkResult{}, nil
 }
-func (r *appTestRepo) ListExpertise(context.Context, string, bool) (any, error) { return nil, nil }
+func (r *appTestRepo) ListExpertise(context.Context, string, bool, string) (any, error) {
+	return nil, nil
+}
 func (r *appTestRepo) InsertExpertise(context.Context, string, string, bool) (any, error) {
 	return nil, nil
 }
@@ -162,7 +164,7 @@ func newAppTestService(repo domain.Repository, perms PermissionChecker, roles In
 func TestSubmitApplicationBlockedByP68(t *testing.T) {
 	t.Parallel()
 	svc := newAppTestService(&appTestRepo{}, appTestPerms{blocked: true}, appTestRoles{})
-	_, err := svc.SubmitApplication(context.Background(), validSubmitInput())
+	_, err := svc.SubmitApplication(context.Background(), validSubmitInput(), "")
 	if !errors.Is(err, domain.ErrApplicationSubmitBlocked) {
 		t.Fatalf("expected submit blocked, got %v", err)
 	}
@@ -172,7 +174,7 @@ func TestSubmitApplicationFirstSuccess(t *testing.T) {
 	t.Parallel()
 	repo := &appTestRepo{}
 	svc := newAppTestService(repo, appTestPerms{}, appTestRoles{})
-	row, err := svc.SubmitApplication(context.Background(), validSubmitInput())
+	row, err := svc.SubmitApplication(context.Background(), validSubmitInput(), "vi")
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
@@ -187,7 +189,7 @@ func TestResubmitFromReturned(t *testing.T) {
 		ID: "app-1", UserID: "user-1", ReviewStatus: domain.ReviewStatusReturned,
 	}}
 	svc := newAppTestService(repo, appTestPerms{}, appTestRoles{})
-	row, err := svc.ResubmitMyApplication(context.Background(), validSubmitInput())
+	row, err := svc.ResubmitMyApplication(context.Background(), validSubmitInput(), "vi")
 	if err != nil {
 		t.Fatalf("resubmit: %v", err)
 	}

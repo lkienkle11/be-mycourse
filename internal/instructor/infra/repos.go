@@ -197,61 +197,80 @@ func (r *GormRepository) DeleteProfileByUserID(ctx context.Context, userID strin
 
 // --- Expertise --------------------------------------------------------------
 
-func (r *GormRepository) ListExpertise(ctx context.Context, userID string, isTopic bool) (any, error) {
+func (r *GormRepository) ListExpertise(ctx context.Context, userID string, isTopic bool, locale string) (any, error) {
+	exact, base := taxonomyLocaleJoinArgs(locale)
 	if isTopic {
-		type expertiseTopicWithTaxonomyRow struct {
-			ID        string `gorm:"column:id"`
-			UserID    string `gorm:"column:user_id"`
-			TopicID   string `gorm:"column:topic_id"`
-			CreatedAt int64  `gorm:"column:created_at"`
-			UpdatedAt int64  `gorm:"column:updated_at"`
-			Name      string `gorm:"column:name"`
-			Slug      string `gorm:"column:slug"`
-		}
-		var rows []expertiseTopicWithTaxonomyRow
-		q := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseTopics+" iet").
-			Joins("LEFT JOIN "+constants.TableTaxonomyCourseTopics+" ct ON ct.id = iet.topic_id AND ct.deleted_at IS NULL").
-			Where("iet.deleted_at IS NULL AND iet.user_id = ?", userID)
-		if err := q.
-			Select("iet.id, iet.user_id, iet.topic_id, iet.created_at, iet.updated_at, COALESCE(ct.name, '') AS name, COALESCE(ct.slug, '') AS slug").
-			Order("iet.id ASC").
-			Scan(&rows).Error; err != nil {
-			return nil, err
-		}
-		out := make([]domain.ExpertiseTopic, len(rows))
-		for i := range rows {
-			out[i] = expertiseTopicRowToDomain(&expertiseTopicRow{
-				ID: rows[i].ID, UserID: rows[i].UserID, TopicID: rows[i].TopicID,
-				CreatedAt: rows[i].CreatedAt, UpdatedAt: rows[i].UpdatedAt,
-			}, rows[i].Name, rows[i].Slug)
-		}
-		return out, nil
+		return r.listExpertiseTopics(ctx, userID, exact, base)
 	}
-	type expertiseSkillWithTaxonomyRow struct {
-		ID        string `gorm:"column:id"`
-		UserID    string `gorm:"column:user_id"`
-		SkillID   string `gorm:"column:skill_id"`
-		CreatedAt int64  `gorm:"column:created_at"`
-		UpdatedAt int64  `gorm:"column:updated_at"`
-		Name      string `gorm:"column:name"`
-		Slug      string `gorm:"column:slug"`
-	}
-	var rows []expertiseSkillWithTaxonomyRow
-	q := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseSkills+" ies").
-		Joins("LEFT JOIN "+constants.TableTaxonomyCourseSkills+" cs ON cs.id = ies.skill_id AND cs.deleted_at IS NULL").
-		Where("ies.deleted_at IS NULL AND ies.user_id = ?", userID)
+	return r.listExpertiseSkills(ctx, userID, exact, base)
+}
+
+type expertiseTopicWithTaxonomyRow struct {
+	ID             string `gorm:"column:id"`
+	UserID         string `gorm:"column:user_id"`
+	TopicID        string `gorm:"column:topic_id"`
+	CreatedAt      int64  `gorm:"column:created_at"`
+	UpdatedAt      int64  `gorm:"column:updated_at"`
+	Name           string `gorm:"column:name"`
+	Slug           string `gorm:"column:slug"`
+	ResolvedLocale string `gorm:"column:resolved_locale"`
+}
+
+func (r *GormRepository) listExpertiseTopics(ctx context.Context, userID, exact, base string) ([]domain.ExpertiseTopic, error) {
+	var rows []expertiseTopicWithTaxonomyRow
+	baseJoin := "LEFT JOIN " + constants.TableTaxonomyCourseTopics + " ct ON ct.id = iet.topic_id AND ct.deleted_at IS NULL"
+	q := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseTopics+" iet").
+		Joins(joinLocalizedTopicName(baseJoin), exact, base).
+		Where("iet.deleted_at IS NULL AND iet.user_id = ?", userID)
 	if err := q.
-		Select("ies.id, ies.user_id, ies.skill_id, ies.created_at, ies.updated_at, COALESCE(cs.name, '') AS name, COALESCE(cs.slug, '') AS slug").
-		Order("ies.id ASC").
+		Select("iet.id, iet.user_id, iet.topic_id, iet.created_at, iet.updated_at, " + localizedNameSelect("ct") + ", COALESCE(ct.slug, '') AS slug, " + localizedResolvedLocaleSelect(exact, base)).
+		Order("iet.id ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]domain.ExpertiseSkill, len(rows))
-	for i := range rows {
-		out[i] = expertiseSkillRowToDomain(&expertiseSkillRow{
-			ID: rows[i].ID, UserID: rows[i].UserID, SkillID: rows[i].SkillID,
-			CreatedAt: rows[i].CreatedAt, UpdatedAt: rows[i].UpdatedAt,
-		}, rows[i].Name, rows[i].Slug)
+	out := make([]domain.ExpertiseTopic, len(rows))
+	for i, row := range rows {
+		item := expertiseTopicRowToDomain(&expertiseTopicRow{
+			ID: row.ID, UserID: row.UserID, TopicID: row.TopicID,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		}, row.Name, row.Slug)
+		item.ResolvedLocale = row.ResolvedLocale
+		out[i] = item
+	}
+	return out, nil
+}
+
+type expertiseSkillWithTaxonomyRow struct {
+	ID             string `gorm:"column:id"`
+	UserID         string `gorm:"column:user_id"`
+	SkillID        string `gorm:"column:skill_id"`
+	CreatedAt      int64  `gorm:"column:created_at"`
+	UpdatedAt      int64  `gorm:"column:updated_at"`
+	Name           string `gorm:"column:name"`
+	Slug           string `gorm:"column:slug"`
+	ResolvedLocale string `gorm:"column:resolved_locale"`
+}
+
+func (r *GormRepository) listExpertiseSkills(ctx context.Context, userID, exact, base string) ([]domain.ExpertiseSkill, error) {
+	var rows []expertiseSkillWithTaxonomyRow
+	baseJoin := "LEFT JOIN " + constants.TableTaxonomyCourseSkills + " cs ON cs.id = ies.skill_id AND cs.deleted_at IS NULL"
+	err := r.db.WithContext(ctx).Table(constants.TableInstructorExpertiseSkills+" ies").
+		Joins(joinLocalizedSkillName(baseJoin), exact, base).
+		Where("ies.deleted_at IS NULL AND ies.user_id = ?", userID).
+		Select("ies.id, ies.user_id, ies.skill_id, ies.created_at, ies.updated_at, " + localizedNameSelect("cs") + ", COALESCE(cs.slug, '') AS slug, " + localizedResolvedLocaleSelect(exact, base)).
+		Order("ies.id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.ExpertiseSkill, 0, len(rows))
+	for _, row := range rows {
+		item := expertiseSkillRowToDomain(&expertiseSkillRow{
+			ID: row.ID, UserID: row.UserID, SkillID: row.SkillID,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		}, row.Name, row.Slug)
+		item.ResolvedLocale = row.ResolvedLocale
+		out = append(out, item)
 	}
 	return out, nil
 }
@@ -269,7 +288,7 @@ func (r *GormRepository) DeleteAllTopicsForUser(ctx context.Context, userID stri
 }
 
 func (r *GormRepository) ListSkills(ctx context.Context, userID string) ([]domain.ExpertiseSkill, error) {
-	v, err := r.ListExpertise(ctx, userID, false)
+	v, err := r.ListExpertise(ctx, userID, false, "")
 	if err != nil {
 		return nil, err
 	}

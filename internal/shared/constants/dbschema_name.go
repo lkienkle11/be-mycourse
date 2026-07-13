@@ -31,6 +31,12 @@ const (
 	TableTaxonomyCourseOutcomes = "course_outcomes"
 	TableTaxonomyCourseSkills   = "course_skills"
 	TableTaxonomyCourseLevels   = "course_levels"
+
+	TableTaxonomyTagTranslations           = "tag_translations"
+	TableTaxonomyCourseTopicTranslations   = "course_topic_translations"
+	TableTaxonomyCourseOutcomeTranslations = "course_outcome_translations"
+	TableTaxonomyCourseSkillTranslations   = "course_skill_translations"
+	TableTaxonomyCourseLevelTranslations   = "course_level_translations"
 )
 
 // --- System (singleton / operators) ---

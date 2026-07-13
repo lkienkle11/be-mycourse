@@ -24,8 +24,8 @@ type ApplicationRepository interface {
 	ApproveApplicationCopySnapshot(ctx context.Context, appID, userID string) error
 	ListApplicationTopicIDs(ctx context.Context, appID string) ([]string, error)
 	ListApplicationSkillIDs(ctx context.Context, appID string) ([]string, error)
-	ListApplicationTopics(ctx context.Context, appID string) ([]ApplicationTaxonomyChip, error)
-	ListApplicationSkills(ctx context.Context, appID string) ([]ApplicationTaxonomyChip, error)
+	ListApplicationTopics(ctx context.Context, appID string, locale string) ([]ApplicationTaxonomyChip, error)
+	ListApplicationSkills(ctx context.Context, appID string, locale string) ([]ApplicationTaxonomyChip, error)
 	DeleteApplicationsByUserID(ctx context.Context, userID string) error
 }
 
@@ -43,7 +43,7 @@ type RosterRepository interface {
 }
 
 type ExpertiseRepository interface {
-	ListExpertise(ctx context.Context, userID string, isTopic bool) (any, error)
+	ListExpertise(ctx context.Context, userID string, isTopic bool, locale string) (any, error)
 	InsertExpertise(ctx context.Context, userID string, refID string, isTopic bool) (any, error)
 	DeleteTopic(ctx context.Context, id string) error
 	DeleteAllTopicsForUser(ctx context.Context, userID string) error

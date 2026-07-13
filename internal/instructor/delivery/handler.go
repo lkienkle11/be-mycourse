@@ -59,7 +59,7 @@ func (h *Handler) listApplications(c *gin.Context) {
 
 func (h *Handler) getMyApplication(c *gin.Context) {
 	userID := utils.CurrentUserID(c)
-	row, err := h.svc.GetMyApplication(c.Request.Context(), userID)
+	row, err := h.svc.GetMyApplication(c.Request.Context(), userID, c.Query("locale"))
 	if mapInstructorError(c, err) {
 		return
 	}
@@ -76,13 +76,13 @@ func (h *Handler) submitApplication(c *gin.Context) {
 	h.handleApplicationSubmit(c, h.svc.SubmitApplication)
 }
 
-func (h *Handler) handleApplicationSubmit(c *gin.Context, submit func(context.Context, domain.SubmitApplicationInput) (*domain.Application, error)) {
+func (h *Handler) handleApplicationSubmit(c *gin.Context, submit func(context.Context, domain.SubmitApplicationInput, string) (*domain.Application, error)) {
 	var req submitApplicationBody
 	if err := validate.BindJSON(c, &req); err != nil {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	row, err := submit(c.Request.Context(), req.toInput(utils.CurrentUserID(c)))
+	row, err := submit(c.Request.Context(), req.toInput(utils.CurrentUserID(c)), c.Query("locale"))
 	if mapInstructorError(c, err) {
 		return
 	}
@@ -95,7 +95,7 @@ func (h *Handler) approveApplication(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, "invalid id", nil)
 		return
 	}
-	row, err := h.svc.ApproveApplication(c.Request.Context(), id)
+	row, err := h.svc.ApproveApplication(c.Request.Context(), id, c.Query("locale"))
 	if mapInstructorError(c, err) {
 		return
 	}
@@ -116,7 +116,7 @@ func (h *Handler) rejectApplication(c *gin.Context) {
 	row, err := h.svc.RejectApplication(c.Request.Context(), domain.RejectApplicationInput{
 		ApplicationID: id, RejectionReason: req.RejectionReason,
 		ReviewerUserID: utils.CurrentUserID(c),
-	})
+	}, c.Query("locale"))
 	if mapInstructorError(c, err) {
 		return
 	}

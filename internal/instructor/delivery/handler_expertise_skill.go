@@ -16,7 +16,8 @@ func (h *Handler) listExpertiseSkills(c *gin.Context) {
 	if !ok {
 		return
 	}
-	rows, err := h.svc.ListExpertiseSkills(c.Request.Context(), userID)
+	locale := c.Query("locale")
+	rows, err := h.svc.ListExpertiseSkills(c.Request.Context(), userID, locale)
 	if mapInstructorError(c, err) {
 		return
 	}

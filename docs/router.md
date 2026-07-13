@@ -96,38 +96,51 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 
 #### Taxonomy
 
+List/full support query `locale` (content locale; missing → `en`).
+
+**GET `/:id`** supports `locale` and `view=edit` (admin editable DTO with full translations + `row_version`).
+
+PATCH/POST accept canonical fields and/or `translations`; PATCH requires `expected_row_version` (stale → 409 / app code 3005). Search/sort remain on canonical fields. Details: `docs/modules/taxonomy.md`.
+
 | Method | Path | Permission | Description |
 |--------|------|-----------|-------------|
-| GET | `/api/v1/taxonomy/levels` | `course_level:read` | List active course levels |
+| GET | `/api/v1/taxonomy/levels` | `course_level:read` | List active course levels (`locale`) |
 | GET | `/api/v1/taxonomy/levels/full` | `course_level:read` | List course levels including soft-deleted |
+| GET | `/api/v1/taxonomy/levels/:id` | `course_level:read` | Get by id (`locale`, optional `view=edit`) |
 | POST | `/api/v1/taxonomy/levels` | `course_level:create` | Create course level |
-| PATCH | `/api/v1/taxonomy/levels/:id` | `course_level:update` | Update course level |
+| PATCH | `/api/v1/taxonomy/levels/:id` | `course_level:update` | Update course level (`expected_row_version`) |
 | DELETE | `/api/v1/taxonomy/levels/:id` | `course_level:delete` | Soft-delete course level |
 | DELETE | `/api/v1/taxonomy/levels/:id/hard` | `course_level:delete` | Hard-delete course level |
-| GET | `/api/v1/taxonomy/topics` | `topic:read` | List active course topics |
+| GET | `/api/v1/taxonomy/topics` | `topic:read` | List active course topics (`locale`) |
 | GET | `/api/v1/taxonomy/topics/full` | `topic:read` | List topics including soft-deleted |
+| GET | `/api/v1/taxonomy/topics/:id` | `topic:read` | Get by id (`locale`, optional `view=edit`) |
 | POST | `/api/v1/taxonomy/topics` | `topic:create` | Create course topic |
-| PATCH | `/api/v1/taxonomy/topics/:id` | `topic:update` | Update course topic |
+| PATCH | `/api/v1/taxonomy/topics/:id` | `topic:update` | Update course topic (`expected_row_version`) |
 | DELETE | `/api/v1/taxonomy/topics/:id` | `topic:delete` | Soft-delete course topic |
 | DELETE | `/api/v1/taxonomy/topics/:id/hard` | `topic:delete` | Hard-delete course topic (orphan image cleanup) |
-| GET | `/api/v1/taxonomy/outcomes` | `course_outcome:read` | List active course outcomes |
+| GET | `/api/v1/taxonomy/outcomes` | `course_outcome:read` | List active course outcomes (`locale`) |
 | GET | `/api/v1/taxonomy/outcomes/full` | `course_outcome:read` | List outcomes including soft-deleted |
+| GET | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:read` | Get by id (`locale`, optional `view=edit`) |
 | POST | `/api/v1/taxonomy/outcomes` | `course_outcome:create` | Create course outcome |
-| PATCH | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:update` | Update course outcome |
+| PATCH | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:update` | Update course outcome (`expected_row_version`) |
 | DELETE | `/api/v1/taxonomy/outcomes/:id` | `course_outcome:delete` | Soft-delete course outcome |
 | DELETE | `/api/v1/taxonomy/outcomes/:id/hard` | `course_outcome:delete` | Hard-delete course outcome (orphan image cleanup) |
-| GET | `/api/v1/taxonomy/skills` | `course_skill:read` | List active course skills |
+| GET | `/api/v1/taxonomy/skills` | `course_skill:read` | List active course skills (`locale`) |
 | GET | `/api/v1/taxonomy/skills/full` | `course_skill:read` | List skills including soft-deleted |
+| GET | `/api/v1/taxonomy/skills/:id` | `course_skill:read` | Get by id (`locale`, optional `view=edit`) |
 | POST | `/api/v1/taxonomy/skills` | `course_skill:create` | Create course skill |
-| PATCH | `/api/v1/taxonomy/skills/:id` | `course_skill:update` | Update course skill |
+| PATCH | `/api/v1/taxonomy/skills/:id` | `course_skill:update` | Update course skill (`expected_row_version`) |
 | DELETE | `/api/v1/taxonomy/skills/:id` | `course_skill:delete` | Soft-delete course skill |
 | DELETE | `/api/v1/taxonomy/skills/:id/hard` | `course_skill:delete` | Hard-delete course skill |
-| GET | `/api/v1/taxonomy/tags` | `tag:read` | List active tags |
+| GET | `/api/v1/taxonomy/tags` | `tag:read` | List active tags (`locale`) |
 | GET | `/api/v1/taxonomy/tags/full` | `tag:read` | List tags including soft-deleted |
+| GET | `/api/v1/taxonomy/tags/:id` | `tag:read` | Get by id (`locale`, optional `view=edit`) |
 | POST | `/api/v1/taxonomy/tags` | `tag:create` | Create tag |
-| PATCH | `/api/v1/taxonomy/tags/:id` | `tag:update` | Update tag |
+| PATCH | `/api/v1/taxonomy/tags/:id` | `tag:update` | Update tag (`expected_row_version`) |
 | DELETE | `/api/v1/taxonomy/tags/:id` | `tag:delete` | Soft-delete tag |
 | DELETE | `/api/v1/taxonomy/tags/:id/hard` | `tag:delete` | Hard-delete tag |
+
+Instructor expertise/application/profile chip endpoints accept optional `locale` so joined taxonomy `name` resolves via translation fallback (FKs unchanged).
 
 #### Media Files
 
@@ -207,13 +220,13 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | GET | `/api/v1/instructors/:id/expertise/skills` | `instructor_expertise:read` | List expertise skills |
 | POST | `/api/v1/instructors/:id/expertise/skills` | `instructor_expertise:create` | Add expertise skill |
 | DELETE | `/api/v1/instructors/:id/expertise/skills/:skillRowId` | `instructor_expertise:delete` | Delete expertise skill row |
-| GET | `/api/v1/instructor-applications/me` | `instructor_application:create` | Current user's application — state resolve + prefill + `rejection_history` |
-| PUT | `/api/v1/instructor-applications/me` | `instructor_application:create` | Resubmit after `returned` or `rejected` (self-service; same permission as first submit) |
+| GET | `/api/v1/instructor-applications/me` | `instructor_application:create` | Current user's application — state resolve + prefill + `rejection_history`; optional query **`locale`** for localized topic/skill chip names |
+| PUT | `/api/v1/instructor-applications/me` | `instructor_application:create` | Resubmit after `returned` or `rejected` (self-service); optional **`locale`** so response chips hydrate for the UI language |
 | GET | `/api/v1/instructor-applications` | `instructor_application:read` | List applications; query `status` (`pending`, `rejected`, `returned` only — `approved` returns HTTP 400), `has_profile`, `page`, `per_page`. Always excludes `approved`; use `GET /instructor-profiles` for approved instructors |
-| POST | `/api/v1/instructor-applications` | `instructor_application:create` | First submit → `pending` |
-| GET | `/api/v1/instructor-applications/:id` | `instructor_application:read` | Application detail (identity + snapshot + media hydrate) |
-| POST | `/api/v1/instructor-applications/:id/approve` | `instructor_application:approve` | Approve application |
-| POST | `/api/v1/instructor-applications/:id/reject` | `instructor_application:reject` | Reject application |
+| POST | `/api/v1/instructor-applications` | `instructor_application:create` | First submit → `pending`; optional **`locale`** on response chip hydrate |
+| GET | `/api/v1/instructor-applications/:id` | `instructor_application:read` | Application detail (identity + snapshot + media hydrate); optional **`locale`** |
+| POST | `/api/v1/instructor-applications/:id/approve` | `instructor_application:approve` | Approve application; optional **`locale`** on response chip hydrate |
+| POST | `/api/v1/instructor-applications/:id/reject` | `instructor_application:reject` | Reject application; optional **`locale`** on response chip hydrate |
 | DELETE | `/api/v1/instructor-applications/:id` | `instructor_application:delete` | Delete application |
 | GET | `/api/v1/instructor-profiles` | `instructor_profile:read` | List profiles |
 | GET | `/api/v1/instructor-profiles/me` | `instructor_profile:read` | Get own profile |

@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "9391f9ce3ee320fb061b89",
+    "_postman_id": "9b1b0c418db630e91aeaae",
     "name": "MyCourse Backend API",
     "description": "REST API for **be-mycourse** (Gin). Responses use envelope `{ \"code\", \"message\", \"data\" }` with `code: 0` for success.\nHealth check uses `{ \"code\", \"message\", \"status\" }`.\nCSRF protection logic uses double-submit cookie: cookie `csrf_token` + header `X-CSRF-Token` for unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`).\nTemporary rollout note: router-level CSRF enforcement is currently disabled.\n\n**Audit timestamps:** `created_at`, `updated_at`, and soft-delete `deleted_at` (where present) are **Unix epoch seconds** (`integer` / `int64` in JSON), not ISO-8601 strings. DB columns are PostgreSQL `BIGINT` (migration `000011`).\n\n**Apidog / Postman — auto-save tokens:** After **Login**, **Confirm email**, or **Refresh**, post-processors in `x-postman-event` set `ACCESS_TOKEN`, `REFRESH_TOKEN`, `SESSION_ID` (from JSON `data` or cookies). Select an **Environment** with those variables before other requests. **Bearer** auth uses `{{ACCESS_TOKEN}}`. **System token:** obtain via `CLI_SYSTEM_LOGIN=1 go run .` (stdout only) and set `SYSTEM_TOKEN` manually in your environment.\n\n\nRegenerate this file: `ruby scripts/generate-apidog-postman.rb` (token scripts + examples from `docs/api_swagger.yaml` only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -833,7 +833,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&sort_desc=false&status=ACTIVE",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&sort_desc=false&status=ACTIVE&locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -878,6 +878,11 @@
                   "key": "status",
                   "value": "ACTIVE",
                   "disabled": false
+                },
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
                 }
               ]
             }
@@ -913,7 +918,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Beginner\",\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"Beginner\",\n  \"status\": \"ACTIVE\",\n  \"translations\": {\n    \"en\": {\n      \"name\": \"Beginner\"\n    },\n    \"vi\": {\n      \"name\": \"Người mới\"\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -934,7 +939,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/levels/full",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/levels/full?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -944,6 +949,51 @@
                 "taxonomy",
                 "levels",
                 "full"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get level by id (localized or view=edit)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/levels/{{id}}?locale=vi&view=edit",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "levels",
+                "{{id}}"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                },
+                {
+                  "key": "view",
+                  "value": "edit",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -1053,7 +1103,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics?page=1&per_page=20&sort_desc=false&status=ACTIVE",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics?page=1&per_page=20&sort_desc=false&status=ACTIVE&locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1098,6 +1148,11 @@
                   "key": "status",
                   "value": "ACTIVE",
                   "disabled": false
+                },
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
                 }
               ]
             }
@@ -1133,7 +1188,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Mathematics\",\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"child_topics\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Algebra\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"Mathematics\",\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"translations\": {\n    \"en\": {\n      \"name\": \"Mathematics\"\n    },\n    \"vi\": {\n      \"name\": \"Toán học\"\n    }\n  },\n  \"child_topics\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Algebra\",\n      \"translations\": {\n        \"en\": {\n          \"name\": \"Algebra\"\n        }\n      },\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1154,7 +1209,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics/full",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics/full?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1164,6 +1219,51 @@
                 "taxonomy",
                 "topics",
                 "full"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get topic by id (localized or view=edit)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/topics/{{id}}?locale=vi&view=edit",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "topics",
+                "{{id}}"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                },
+                {
+                  "key": "view",
+                  "value": "edit",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -1199,7 +1299,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Mathematics (updated)\",\n  \"child_topics\": [\n\n  ]\n}",
+              "raw": "{\n  \"name\": \"Mathematics (updated)\",\n  \"expected_row_version\": 1,\n  \"child_topics\": [\n\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1273,7 +1373,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes?page=1&per_page=20&sort_desc=false&status=ACTIVE",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes?page=1&per_page=20&sort_desc=false&status=ACTIVE&locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1318,6 +1418,11 @@
                   "key": "status",
                   "value": "ACTIVE",
                   "disabled": false
+                },
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
                 }
               ]
             }
@@ -1353,7 +1458,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"short_description\": \"Understand linear equations\",\n  \"description\": [\n    \"Solve one-variable equations\",\n    \"Graph on a number line\"\n  ],\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"short_description\": \"Understand linear equations\",\n  \"description\": [\n    \"Solve one-variable equations\",\n    \"Graph on a number line\"\n  ],\n  \"translations\": {\n    \"en\": {\n      \"short_description\": \"Understand linear equations\",\n      \"description\": [\n        \"Solve one-variable equations\"\n      ]\n    },\n    \"vi\": {\n      \"short_description\": \"Hiểu phương trình tuyến tính\",\n      \"description\": [\n        \"Giải phương trình một ẩn\"\n      ]\n    }\n  },\n  \"image_file_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1374,7 +1479,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes/full",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes/full?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1384,6 +1489,51 @@
                 "taxonomy",
                 "outcomes",
                 "full"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get outcome by id (localized or view=edit)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/outcomes/{{id}}?locale=vi&view=edit",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "outcomes",
+                "{{id}}"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                },
+                {
+                  "key": "view",
+                  "value": "edit",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -1419,7 +1569,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"short_description\": \"Understand linear equations (updated)\"\n}",
+              "raw": "{\n  \"short_description\": \"Understand linear equations (updated)\",\n  \"expected_row_version\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1493,7 +1643,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills?page=1&per_page=20&sort_desc=false&status=ACTIVE",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills?page=1&per_page=20&sort_desc=false&status=ACTIVE&locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1538,6 +1688,11 @@
                   "key": "status",
                   "value": "ACTIVE",
                   "disabled": false
+                },
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
                 }
               ]
             }
@@ -1573,7 +1728,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Problem solving\",\n  \"children\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Critical thinking\",\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"Problem solving\",\n  \"translations\": {\n    \"en\": {\n      \"name\": \"Problem solving\"\n    },\n    \"vi\": {\n      \"name\": \"Giải quyết vấn đề\"\n    }\n  },\n  \"children\": [\n    {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n      \"name\": \"Critical thinking\",\n      \"translations\": {\n        \"en\": {\n          \"name\": \"Critical thinking\"\n        }\n      },\n      \"children\": [\n\n      ]\n    }\n  ],\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1594,7 +1749,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills/full",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills/full?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1604,6 +1759,51 @@
                 "taxonomy",
                 "skills",
                 "full"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get skill by id (localized or view=edit)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/skills/{{id}}?locale=vi&view=edit",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "skills",
+                "{{id}}"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                },
+                {
+                  "key": "view",
+                  "value": "edit",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -1639,7 +1839,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Problem solving (advanced)\"\n}",
+              "raw": "{\n  \"name\": \"Problem solving (advanced)\",\n  \"expected_row_version\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1713,7 +1913,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/tags?page=1&per_page=20&sort_desc=false&status=ACTIVE",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/tags?page=1&per_page=20&sort_desc=false&status=ACTIVE&locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1758,6 +1958,11 @@
                   "key": "status",
                   "value": "ACTIVE",
                   "disabled": false
+                },
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
                 }
               ]
             }
@@ -1793,7 +1998,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"React\",\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"name\": \"React\",\n  \"status\": \"ACTIVE\",\n  \"translations\": {\n    \"en\": {\n      \"name\": \"React\"\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1814,7 +2019,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/taxonomy/tags/full",
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/tags/full?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -1824,6 +2029,51 @@
                 "taxonomy",
                 "tags",
                 "full"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get tag by id (localized or view=edit)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/v1/taxonomy/tags/{{id}}?locale=vi&view=edit",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "taxonomy",
+                "tags",
+                "{{id}}"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                },
+                {
+                  "key": "view",
+                  "value": "edit",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -3781,7 +4031,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructors/{{id}}/expertise/topics",
+              "raw": "{{BASE_URL}}/api/v1/instructors/{{id}}/expertise/topics?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -3792,6 +4042,13 @@
                 "{{id}}",
                 "expertise",
                 "topics"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -3877,7 +4134,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructors/{{id}}/expertise/skills",
+              "raw": "{{BASE_URL}}/api/v1/instructors/{{id}}/expertise/skills?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -3888,6 +4145,13 @@
                 "{{id}}",
                 "expertise",
                 "skills"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -3973,7 +4237,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructor-applications/me",
+              "raw": "{{BASE_URL}}/api/v1/instructor-applications/me?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -3982,6 +4246,13 @@
                 "v1",
                 "instructor-applications",
                 "me"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -4003,7 +4274,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructor-applications/me",
+              "raw": "{{BASE_URL}}/api/v1/instructor-applications/me?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -4012,6 +4283,13 @@
                 "v1",
                 "instructor-applications",
                 "me"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             },
             "body": {
@@ -4127,7 +4405,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructor-applications",
+              "raw": "{{BASE_URL}}/api/v1/instructor-applications?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -4135,6 +4413,13 @@
                 "api",
                 "v1",
                 "instructor-applications"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             },
             "body": {
@@ -4160,7 +4445,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructor-applications/{{id}}",
+              "raw": "{{BASE_URL}}/api/v1/instructor-applications/{{id}}?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -4169,6 +4454,13 @@
                 "v1",
                 "instructor-applications",
                 "{{id}}"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -4210,7 +4502,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructor-applications/{{id}}/approve",
+              "raw": "{{BASE_URL}}/api/v1/instructor-applications/{{id}}/approve?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -4220,6 +4512,13 @@
                 "instructor-applications",
                 "{{id}}",
                 "approve"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             }
           }
@@ -4241,7 +4540,7 @@
               }
             ],
             "url": {
-              "raw": "{{BASE_URL}}/api/v1/instructor-applications/{{id}}/reject",
+              "raw": "{{BASE_URL}}/api/v1/instructor-applications/{{id}}/reject?locale=vi",
               "host": [
                 "{{BASE_URL}}"
               ],
@@ -4251,6 +4550,13 @@
                 "instructor-applications",
                 "{{id}}",
                 "reject"
+              ],
+              "query": [
+                {
+                  "key": "locale",
+                  "value": "vi",
+                  "disabled": false
+                }
               ]
             },
             "body": {

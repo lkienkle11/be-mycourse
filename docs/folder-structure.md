@@ -70,7 +70,8 @@ be-mycourse/
 │   │   ├── cryptox/                # Credential HMAC, system JWT helpers
 │   │   ├── httpx/                  # Paginated list handler helper
 │   │   ├── token/                  # JWT generation and validation
-│   │   ├── taxonomy/               # TreeNode + tree/description validators (taxonomy JSONB)
+│   │   ├── taxonomy/               # TreeNode (+ translations map) + tree/description validators (taxonomy JSONB)
+│   │   ├── i18n/                   # Content locale: CanonicalizeLocale / NegotiateReadLocale / ResolveText (NOT email mailtmpl)
 │   │   ├── httperr/                # Gin error middleware + panic recovery
 │   │   ├── parsebool/              # Loose bool parsing (env, YAML, forms)
 │   │   ├── machineidentity/        # Enrollment file + OS fingerprint → hybrid binding material
@@ -178,7 +179,8 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `response/` | `response.OK`, `response.Created`, `response.WriteByStatus`, `response.OKPaginated`, `response.Fail`, `response.AbortFail`, `response.Health` |
 | `token/` | JWT sign/parse for access and refresh tokens |
 | `validate/` | Validator setup, error flattening for Gin binding |
-| `taxonomy/` | `TreeNode`, `ValidateTree`, `ValidateDescriptionParagraphs` |
+| `taxonomy/` | `TreeNode` (incl. per-node `translations`), `ValidateTree`, `ValidateDescriptionParagraphs` |
+| `i18n/` | Content-locale helpers (`CanonicalizeLocale`, `NegotiateReadLocale`, `ResolveText`) — separate from `mailtmpl` email locale |
 | `httperr/` | `Middleware`, `Recovery`, `HTTPError`, `Abort` |
 | `parsebool/` | `Loose`, `EnvEnabled` — env/YAML boolean strings |
 | `machineidentity/` | `LoadOrCreateMachineIdentityMaterial`, `LoadMachineIdentityMaterial`, `BuildHybridMachineBindingMaterial`, `IdentityFilePath`; platform files `fingerprint_{linux,darwin,windows,other}.go` |

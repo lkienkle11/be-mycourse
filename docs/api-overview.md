@@ -20,7 +20,7 @@
 
 ## Implemented Endpoint Inventory
 
-For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/course.md`](modules/course.md)** — versioned authoring, review, learner progress; **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, **`internal/shared/taxonomy`** (tree + description validators); **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise, tickets (migration **`000013`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/course.md`](modules/course.md)** — versioned authoring, review, learner progress; **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, multilingual hybrid (`locale` / `view=edit`), **`internal/shared/taxonomy`** + **`internal/shared/i18n`**; **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise (taxonomy chips + `locale`), tickets (migration **`000029`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
 
 ### `/api/system`
 - System token: obtain via CLI (`CLI_SYSTEM_LOGIN=1 go run .` — JWT on stdout); set `SYSTEM_TOKEN` for HTTP calls.
@@ -53,9 +53,10 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - `DELETE /me` — soft delete account
 - `DELETE /me/hard` — permanent account removal
 - `GET /me/permissions` (currently guarded with `RequirePermission(user:read)`).
-- Taxonomy (admin CRUD; soft delete — see **`docs/patterns.md`**):
-  - Each resource: `GET /taxonomy/{resource}`, `GET /taxonomy/{resource}/full`, `POST`, `PATCH /:id`, `DELETE /:id` (soft), `DELETE /:id/hard`
+- Taxonomy (admin CRUD; soft delete — see **`docs/patterns.md`**; multilingual — see **`docs/modules/taxonomy.md`**):
+  - Each resource: `GET /taxonomy/{resource}`, `GET /taxonomy/{resource}/full`, `GET /:id`, `POST`, `PATCH /:id`, `DELETE /:id` (soft), `DELETE /:id/hard`
   - Resources: `levels`, `topics`, `outcomes`, `skills`, `tags`
+  - **Locale / dual response:** list and `GET /:id` accept optional `locale` (localized/public: resolved labels; missing → `en`). `GET /:id?view=edit` returns admin editable DTO (canonical + full `translations` + tree translations + `row_version`). PATCH/POST accept canonical and/or `translations`; PATCH requires `expected_row_version` (stale → 409 / **3005**).
 - Media upload/files:
   - `OPTIONS /media/files`
   - `GET /media/files`
@@ -77,8 +78,9 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `GET /instructor-applications/me`, `PUT /instructor-applications/me` — resolve state, prefill, resubmit (P45)
   - `GET /instructor-applications`, `POST /instructor-applications`, `GET /instructor-applications/:id`, `POST …/:id/approve`, `POST …/:id/reject`, `DELETE …/:id` — list always excludes `approved`; filter `status` accepts `pending`, `returned`, `rejected` only (`status=approved` → HTTP 400); approved instructors via `GET /instructor-profiles`
   - `GET /instructor-profiles`, `GET /instructor-profiles/me`, `POST /instructor-profiles`, `PATCH /instructor-profiles/:id`, `DELETE /instructor-profiles/:id`
-  - `GET/POST/DELETE /instructors/:id/expertise/topics|skills`
+  - `GET/POST/DELETE /instructors/:id/expertise/topics|skills` — optional `locale` for localized chip names
   - `GET/POST /instructor-tickets`, `POST …/close`, `GET/POST …/messages`
+  - Application/profile detail chips also accept optional `locale` (translation join; see `docs/modules/instructor.md`)
   - `GET /instructor-stubs/assignments|activity-log` — stubs
   - P68 `instructor_application:submit_blocked` on `GET /me/permissions` (resolver step 4, after G/H)
 - Course management (see **`docs/modules/course.md`**):

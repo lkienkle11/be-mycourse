@@ -277,18 +277,19 @@ All routes require `Authorization: Bearer <token>` unless noted.
 - `rejection_history[]` — `{ rejected_at, rejected_by_user_id, reviewer_display_name, reason }`
 - Hydrated read models: `cv_file`, `intro_video_file` when IDs present — includes `id`, `url`, `filename`, `mime_type` when media repo has metadata
 
-**List/detail admin DTO** adds `display_name`, `email`, `avatar`; company snapshot fields; topic/skill chips (joined taxonomy names); rejection history on detail.
+**List/detail admin DTO** adds `display_name`, `email`, `avatar`; company snapshot fields; topic/skill chips; rejection history on detail.
+
+**Taxonomy chips (applications + expertise):** chip `name` is **localized** via `*_translations` joins and the same read fallback as taxonomy (`exact` → base language → `en` → canonical). HTTP delivery **must** thread optional query **`locale`** through service into repository chip loaders (`ListApplicationTopics/Skills(…, locale)`, expertise list). That includes **learner** `GET/PUT /instructor-applications/me`, first **POST** submit, and admin **approve/reject** response hydrate — do not hard-code `locale=""` on mutation responses when the client sent `locale`. Missing/invalid read locale → `en`. FKs stay ID-only. Optional `resolved_locale` must report the **locale that actually produced the display name** after fallback (not always the requested exact locale). Managed **profile** DTOs currently expose identity + snapshot fields; they do **not** hydrate separate named topic/skill chip arrays (application detail and expertise endpoints do). See `docs/modules/taxonomy.md` § Multilingual contract and `docs/router.md` instructor note.
 
 **Managed profiles list** (`GET /instructor-profiles`) returns each row with identity (`display_name`, `email`, `avatar`) plus `latest_submission.profile` (not a top-level `profile` field). FE must read `latest_submission.profile` for headline/detail.
 
 ### Profiles (`instructor_profile:*`)
 
-Unchanged from prior contract; profile rows include company snapshot columns after **`000029`**.
+Unchanged from prior contract; profile rows include company snapshot columns after **`000029`**. Localized taxonomy **name chips** for an applicant’s topics/skills come from application detail (`GET …/instructor-applications/:id?locale=`) or expertise list endpoints, not from a separate profile-chip hydrate path.
 
 ### Expertise (`instructor_expertise:*`)
 
-Under `/instructors/:id/…` — live instructor expertise (post-approve). Application expertise snapshot uses junction tables on the application row.
-
+Under `/instructors/:id/…` — live instructor expertise (post-approve). Application expertise snapshot uses junction tables on the application row. `GET …/expertise/topics|skills` returns localized `name` via translation join + optional `locale` query (same contract as application chips). FE list callers must include `locale` in the request **and** in SWR/cache keys so a route-locale change revalidates assigned chips.
 ### Tickets
 
 | Method | Path | Permission |

@@ -219,6 +219,25 @@ Register **static** paths (`/full`, `/:id/hard`) **before** generic `/:id` route
 
 Partial unique index `WHERE deleted_at IS NULL` (migration **`000012`**) so slugs can be re-created after soft delete.
 
+#### Optimistic lock + translation sync (taxonomy)
+
+Mirror the **course** pattern (`expected_row_version` on write, bump `row_version` on success):
+
+| Concern | Rule |
+|---------|------|
+| Column | `row_version` on each of the five taxonomy root tables (migration **`000032`**, same idea as course/media; shipped in source — apply on deploy) |
+| Write body | `expected_row_version` (same field name as course) — **not** `expected_updated_at` |
+| Stale | Domain sentinel → HTTP **409** + app code **`Conflict` (3005)** via `mapTaxonomyMutationError` |
+| Bump | Every successful write, including translation-only updates, increments `row_version` + `updated_at` |
+| Canonical ↔ `en` | If both present and differ → **4xx** (no silent preference); only canonical → mirror to `en`; only `translations.en` → mirror to canonical; other locales write translation only |
+| Tree omit on PATCH | Status-only / root-translation-only updates still run existing JSONB tree through `prepareTreeWrite` **and** `ValidateTree` (UUID / duplicate id-slug / depth / node count / translation name lengths); historical `name` vs `translations.en` mismatch → **4xx** |
+| Locale key collision | Two raw keys that canonicalize to the same BCP47 tag with **different** translation payloads → **4xx**; do not overwrite nondeterministically |
+| Non-`en` translation content | After canonicalize, every kept name/short/description must meet the same length/paragraph limits as canonical; fail → **4xx** taxonomy validation (not DB) |
+| Locale length | Canonicalized locale must be ≤ **16** chars (schema `VARCHAR(16)`) → **4xx** before DB |
+| Slug | Regenerate only from **canonical `name`** when that name changes |
+
+Details: `docs/modules/taxonomy.md` § Multilingual contract.
+
 #### Exceptions
 
 | Area | Behavior |

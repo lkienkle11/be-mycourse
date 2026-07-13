@@ -59,7 +59,7 @@ server/wire    → all layers
 | **instructor** | `internal/instructor/` | Instructor roster, applications, profiles, expertise, support tickets |
 | **media** | `internal/media/` | File/video upload, R2/Bunny storage, orphan cleanup, webhooks |
 | **rbac** | `internal/rbac/` | Roles, permissions, user-role/user-permission bindings |
-| **taxonomy** | `internal/taxonomy/` | Course topics, outcomes, skills, tags, levels |
+| **taxonomy** | `internal/taxonomy/` | Course topics, outcomes, skills, tags, levels — **canonical identity + localized presentation** (translation tables / JSONB `translations`; see `docs/modules/taxonomy.md`) |
 | **system** | `internal/system/` | Privileged operations, RBAC sync, scheduler control |
 
 ---
@@ -88,7 +88,8 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/timex/` | Unix epoch second helpers for audit columns (`NowUnix`, `PtrUnix`) |
 | `internal/shared/cryptox/` | Shared HMAC/JWT helpers (used by auth/system infra) |
 | `internal/shared/httpx/` | Shared HTTP handler helpers (`ListPaginated`) |
-| `internal/shared/taxonomy/` | Taxonomy JSONB tree nodes and validators (used by `internal/taxonomy`) |
+| `internal/shared/taxonomy/` | Taxonomy JSONB tree nodes (`translations` map) and validators (used by `internal/taxonomy`) |
+| `internal/shared/i18n/` | Content locale canonicalize / negotiate / resolve (taxonomy + chip reads; not email `mailtmpl`) |
 | `internal/shared/httperr/` | Global Gin error middleware, panic recovery, `HTTPError` helpers |
 | `internal/shared/parsebool/` | Loose boolean parsing for env vars and YAML flags |
 | `internal/shared/machineidentity/` | Hybrid machine binding: enrollment file (`~/.config/mycourse/machine_identity`), OS fingerprint (machine-id / hardware UUID, hostname, platform), canonical binding material |

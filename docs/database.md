@@ -66,6 +66,11 @@ All PostgreSQL relation names are defined once in **`internal/shared/constants/d
 | `TableTaxonomyCourseOutcomes` | `course_outcomes` |
 | `TableTaxonomyCourseSkills` | `course_skills` |
 | `TableTaxonomyTags` | `tags` |
+| `TableTaxonomyCourseLevelTranslations` | `course_level_translations` |
+| `TableTaxonomyCourseTopicTranslations` | `course_topic_translations` |
+| `TableTaxonomyCourseOutcomeTranslations` | `course_outcome_translations` |
+| `TableTaxonomyCourseSkillTranslations` | `course_skill_translations` |
+| `TableTaxonomyTagTranslations` | `tag_translations` |
 | `TableSystemAppConfig` | `system_app_config` |
 | `TableSystemPrivilegedUsers` | `system_privileged_users` |
 
@@ -87,11 +92,13 @@ GORM row models live under each bounded context’s `infra` package (for example
   - [`users`](#users)
   - [`user_oauth_identities`](#user_oauth_identities)
 - [Taxonomy](#taxonomy)
+  - [Locale rules (BCP47)](#locale-rules-bcp47)
   - [`course_levels`](#course_levels)
   - [`course_topics`](#course_topics)
   - [`course_outcomes`](#course_outcomes)
   - [`course_skills`](#course_skills)
   - [`tags`](#tags)
+  - [Translation tables](#translation-tables)
 - [Media](#media)
   - [`media_files`](#media_files)
   - [`media_pending_cloud_cleanup`](#media_pending_cloud_cleanup)
@@ -427,20 +434,50 @@ Merge/login semantics and `password_set_at` behavior: **`docs/modules/auth.md`**
 
 ## Taxonomy
 
-Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_user_media_refs`**. Soft delete added in **`000012_soft_delete_taxonomy_users_ban`**.
+Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_user_media_refs`**. Soft delete added in **`000012_soft_delete_taxonomy_users_ban`**. Multilingual hybrid + optimistic lock in **`000032_taxonomy_translations_row_version`** (five `*_translations` tables, JSONB tree `translations` backfill with fail-fast on invalid tree shapes, `row_version` on roots). **Shipped in source**; pending until migration is applied on each environment.
 
-**GORM models:** `internal/taxonomy/infra/repos.go` (`courseTopicRow`, `courseOutcomeRow`, `courseSkillRow`, `tagRow`, `courseLevelRow`).
+**GORM models:** `internal/taxonomy/infra/repos.go` (`courseTopicRow`, `courseOutcomeRow`, `courseSkillRow`, `tagRow`, `courseLevelRow` + translation rows).
 
 **Soft delete:** default list/get exclude rows where `deleted_at IS NOT NULL`. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE .../:id/hard` permanently removes the row. Slug columns use partial unique indexes (`uix_*_slug_active`) so slugs can be reused after soft delete.
+
+**Hybrid localization:**
+
+- Root display text → translation tables (`UNIQUE (parent_id, locale)`).
+- Tree node display text → inline `translations` map in JSONB (`child_topics` / `children`).
+- Canonical columns (`name` / `short_description` / `description`) **kept** on root rows for slug, search/sort phase 1, and last-resort fallback.
+- Default / backfill locale: **`en`**.
+- Course/instructor FK tables stay ID-only (no schema change).
+
+API contract: **`docs/modules/taxonomy.md`**.
+
+### Locale rules (BCP47)
+
+Store `locale` as `VARCHAR(16)`. Canonicalize before upsert:
+
+- language lowercase (`en`, `vi`, `ja`)
+- region uppercase when present (`en-US`, `pt-BR`)
+- script titlecase if supported later (`zh-Hant`)
+- **do not strip region** on persist (`ja-JP` stays `ja-JP`)
+- reject empty/invalid on **write** with 4xx; no language whitelist for storage
+- `pt-br` and `pt-BR` must hit the **same** unique row after canonicalize
+
+Read fallback (separate from write canonicalize):
+
+```text
+exact locale → base language → default en → canonical root/node field
+```
+
+Helpers live in `internal/shared/i18n` (`CanonicalizeLocale` for write; `NegotiateReadLocale` / `ResolveText` for read). Do **not** use `mailtmpl.NormalizeLanguageCode` (email en/vi only).
 
 ### `course_levels`
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
-| `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | NOT NULL | URL-safe identifier; unique among active rows (`uix_course_levels_slug_active`) |
+| `name` | `VARCHAR(255)` | NOT NULL | Canonical name (SoT for slug / search phase 1) |
+| `slug` | `VARCHAR(255)` | NOT NULL | URL-safe identifier; unique among active rows (`uix_course_levels_slug_active`); **not** localized |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock (mirror course/media); bumped on every successful write |
 | `created_by` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
@@ -457,17 +494,35 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
-| `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_topics_slug_active`) |
+| `name` | `VARCHAR(255)` | NOT NULL | Canonical name |
+| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_topics_slug_active`); **not** localized |
 | `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Topic image |
-| `child_topics` | `JSONB` | NOT NULL DEFAULT `'[]'` | Nested tree: `{ id, name, slug, children[] }` |
+| `child_topics` | `JSONB` | NOT NULL DEFAULT `'[]'` | Nested tree: `{ id, name, slug, translations?, children[] }` |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock |
 | `created_by` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
 **Indexes:** `idx_course_topics_created_by`, `idx_course_topics_image_file_id`, `idx_course_topics_deleted_at`, `uix_course_topics_slug_active`.
+
+**Tree node JSON shape:**
+
+```json
+{
+  "id": "uuid",
+  "name": "Data Science",
+  "slug": "data-science",
+  "translations": {
+    "en": { "name": "Data Science" },
+    "vi": { "name": "Khoa học dữ liệu" }
+  },
+  "children": []
+}
+```
+
+Migration backfill: for each node with non-empty `name`, ensure `translations.en.name = name` when missing (idempotent; do not overwrite existing `translations.en.name`). Parser/validator must tolerate unknown `translations` key.
 
 **Removed columns:** `image_url` (dropped in `000006`).
 
@@ -478,10 +533,11 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
-| `short_description` | `VARCHAR(100)` | NOT NULL | |
-| `description` | `JSONB` | NOT NULL DEFAULT `'[]'` | Array of strings (max 8 × 120 chars enforced in app) |
+| `short_description` | `VARCHAR(100)` | NOT NULL | Canonical short description |
+| `description` | `JSONB` | NOT NULL DEFAULT `'[]'` | Canonical array of strings (max 8 × 120 chars enforced in app) |
 | `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock |
 | `created_by` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
@@ -496,10 +552,11 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
-| `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_skills_slug_active`) |
-| `children` | `JSONB` | NOT NULL DEFAULT `'[]'` | Skill tree (same node shape as `child_topics`) |
+| `name` | `VARCHAR(255)` | NOT NULL | Canonical name |
+| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_skills_slug_active`); **not** localized |
+| `children` | `JSONB` | NOT NULL DEFAULT `'[]'` | Skill tree (same node shape as `child_topics`, including `translations`) |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock |
 | `created_by` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
@@ -514,15 +571,83 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
-| `name` | `VARCHAR(255)` | NOT NULL | |
-| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_tags_slug_active`) |
+| `name` | `VARCHAR(255)` | NOT NULL | Canonical name |
+| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_tags_slug_active`); **not** localized |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
+| `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock |
 | `created_by` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | |
 | `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
 
 **Indexes:** `idx_tags_created_by`, `idx_tags_deleted_at`, `uix_tags_slug_active`.
+
+### Translation tables
+
+Created in **`000032`** (shipped in source; apply on deploy). Common rules: `id UUID PK`, parent FK `ON DELETE CASCADE`, `locale VARCHAR(16) NOT NULL` (write path rejects canonicalized locale longer than 16), audit `created_at`/`updated_at` BIGINT, **`UNIQUE (parent_id, locale)`**, index on `locale`. Backfill one `locale='en'` row per active/historical root from canonical columns.
+
+#### `course_level_translations`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `UUID` | PK |
+| `course_level_id` | `UUID` | NOT NULL, FK → `course_levels(id)` ON DELETE CASCADE |
+| `locale` | `VARCHAR(16)` | NOT NULL |
+| `name` | `VARCHAR(255)` | NOT NULL |
+| `created_at` / `updated_at` | `BIGINT` | NOT NULL |
+
+**Unique:** `(course_level_id, locale)`. **Index:** `idx_course_level_translations_locale`.
+
+#### `course_topic_translations`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `UUID` | PK |
+| `topic_id` | `UUID` | NOT NULL, FK → `course_topics(id)` ON DELETE CASCADE |
+| `locale` | `VARCHAR(16)` | NOT NULL |
+| `name` | `VARCHAR(255)` | NOT NULL |
+| `created_at` / `updated_at` | `BIGINT` | NOT NULL |
+
+**Unique:** `(topic_id, locale)`. **Index:** `idx_course_topic_translations_locale`.
+
+#### `course_outcome_translations`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `UUID` | PK |
+| `outcome_id` | `UUID` | NOT NULL, FK → `course_outcomes(id)` ON DELETE CASCADE |
+| `locale` | `VARCHAR(16)` | NOT NULL |
+| `short_description` | `VARCHAR(100)` | NOT NULL |
+| `description` | `JSONB` | NOT NULL DEFAULT `'[]'` |
+| `created_at` / `updated_at` | `BIGINT` | NOT NULL |
+
+**Unique:** `(outcome_id, locale)`. **Index:** `idx_course_outcome_translations_locale`.
+
+#### `course_skill_translations`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `UUID` | PK |
+| `skill_id` | `UUID` | NOT NULL, FK → `course_skills(id)` ON DELETE CASCADE |
+| `locale` | `VARCHAR(16)` | NOT NULL |
+| `name` | `VARCHAR(255)` | NOT NULL |
+| `created_at` / `updated_at` | `BIGINT` | NOT NULL |
+
+**Unique:** `(skill_id, locale)`. **Index:** `idx_course_skill_translations_locale`.
+
+#### `tag_translations`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `UUID` | PK |
+| `tag_id` | `UUID` | NOT NULL, FK → `tags(id)` ON DELETE CASCADE |
+| `locale` | `VARCHAR(16)` | NOT NULL |
+| `name` | `VARCHAR(255)` | NOT NULL |
+| `created_at` / `updated_at` | `BIGINT` | NOT NULL |
+
+**Unique:** `(tag_id, locale)`. **Index:** `idx_tag_translations_locale`.
+
+**Verify after migration:** root row count == `*_translations` where `locale='en'`; zero tree nodes with non-empty `name` missing `translations.en.name`; depth > 1 child order unchanged.
 
 ## Media
 
@@ -704,6 +829,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000028 | `admin_collaborator_candidate_permission` | Backfill P67 grant for **admin** when `000027` ran without admin |
 | 000029 | `instructor_application_feature` | Application state machine columns, company snapshot columns, `years_of_experience` enum codes, application expertise junction tables, seed P68 + instructor grant |
 | 000031 | `user_oauth_identities` | `users.password_set_at` (`TIMESTAMPTZ NULL`) + backfill (`password_set_at = to_timestamp(created_at)` where `email_confirmed` and `hash_password IS NOT NULL`); table `user_oauth_identities` (BIGINT-epoch time columns) with `uix_oauth_provider_sub`, `idx_oauth_identities_user_id`, partial `idx_oauth_identities_provider_email` |
+| 000032 | `taxonomy_translations_row_version` | Five `*_translations` tables + `locale='en'` backfill from canonical columns; JSONB tree patch ensuring `translations.en.name` on `child_topics`/`children` (**fail-fast** on non-array / invalid nodes); `row_version BIGINT NOT NULL DEFAULT 1` on five taxonomy roots (backfill existing = 1, mirror `000020`). Shipped in source — apply before localized taxonomy traffic. |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

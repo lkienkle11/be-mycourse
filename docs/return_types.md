@@ -1,8 +1,10 @@
 # MyCourse Backend — Return Types
 
 
-> This document catalogues **application-layer return types** (`internal/*/application`) and **JSON response shapes** from `internal/*/delivery` handlers.  
-> **Last updated:** 2026-06-07  
+> This document catalogues **application-layer return types** (`internal/*/application`) and **JSON response shapes** from `internal/*/delivery` handlers.
+
+> **Last updated:** 2026-06-07
+
 > **Audit timestamps:** `created_at`, `updated_at`, `deleted_at` (when present) are **`int64` Unix seconds** in Go and JSON numbers — see **`docs/database.md`**.
 
 ---
@@ -927,69 +929,68 @@ For multipart create/update, client-sent `kind` and `metadata` text fields are p
 
 Implemented in `internal/taxonomy/delivery`. List endpoints return paginated `result` + `page_info`. JSON field names match `delivery/dto.go`. Audit fields `created_at` and `updated_at` are **Unix epoch integers** (seconds), not ISO strings.
 
+**Dual response shapes:**
+
+| Mode | Query | Shape |
+|------|-------|-------|
+| Localized / public | `?locale=` (optional; default `en`) | Resolved `name` / outcome fields; optional `resolved_locale`; tree node `name` already resolved |
+| Admin editable | `?view=edit` on `GET /:id` | Canonical fields + full `translations` map + tree `translations` + `available_locales` + `row_version` |
+
+**Write:** canonical and/or `translations`; conflict canonical↔`en` → 4xx; PATCH includes `expected_row_version` (stale → 409 / **3005**).
+
 #### Course topic (`/topics`, permission `topic:*`)
 
-**Create / update body:** `name`, optional `image_file_id`, `child_topics` (tree input nodes: `id`, `name`, `children`), optional `status`. Slug is **not** accepted on write — computed server-side from `name` (and from each tree node name).
+**Create / update body:** canonical `name` and/or `translations`; optional `image_file_id`, `child_topics` (nodes: `id`, `name`, optional `translations`, `children`); optional `status`; update requires `expected_row_version`. Slug is **not** accepted on write — from canonical `name`.
 
-**Row shape (`data` on create/update, items in list):**
+**Localized list/detail row:**
 
 ```json
 {
-  "id": 1,
-  "name": "Mathematics",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Toán học",
   "slug": "mathematics",
+  "resolved_locale": "vi",
   "image_file_id": "550e8400-e29b-41d4-a716-446655440000",
   "image_file_url": "",
   "child_topics": [
-    { "id": "660e8400-e29b-41d4-a716-446655440001", "name": "Algebra", "slug": "algebra", "children": [] }
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "name": "Đại số",
+      "slug": "algebra",
+      "children": []
+    }
   ],
   "status": "ACTIVE",
-  "created_by": 1,
+  "created_by": "00000000-0000-0000-0000-000000000001",
   "created_at": 1747744800,
   "updated_at": 1747744800
 }
 ```
+
+**Admin editable (`view=edit`) extras:** `translations`, per-node `translations`, `available_locales`, `row_version`.
 
 #### Course outcome (`/outcomes`, permission `course_outcome:*`)
 
-```json
-{
-  "id": 1,
-  "short_description": "Solve linear equations",
-  "description": ["Use substitution", "Check solutions"],
-  "image_file_id": "",
-  "image_file_url": "",
-  "status": "ACTIVE",
-  "created_by": 1,
-  "created_at": 1747744800,
-  "updated_at": 1747744800
-}
-```
+Localized: resolved `short_description` / `description[]` from the **same** translation row (or canonical); optional `resolved_locale` names that single source — never mix vi short with en description.
 
-#### Course skill (`/skills`, permission `course_skill:*`)
+Editable: canonical fields + `translations[locale].{short_description,description}` + `row_version`.
 
-```json
-{
-  "id": 1,
-  "name": "Problem solving",
-  "slug": "problem-solving",
-  "children": [],
-  "status": "ACTIVE",
-  "created_by": 1,
-  "created_at": 1747744800,
-  "updated_at": 1747744800
-}
-```
+#### Course skill (`/skills`, permission `course_skill:*`) / levels / tags
 
-**List query params:** `page`, `per_page`, `sort_by`, `sort_desc`, `status` (`ACTIVE` | `INACTIVE`), `search_by`, `search_value`, `include_images` (optional boolean; default `true` — when `false`, topics/outcomes list skips `media_files` URL hydration).
-- Levels / Topics / Skills / Tags: `search_by` in `name | slug`
-- Outcomes: `search_by` in `short_description`
+Same localized vs editable pattern as topics (name resources). Skills include `children` tree with optional `translations` per node.
+
+**List query params:** `page`, `per_page`, `sort_by`, `sort_desc`, `status`, `search_by`, `search_value`, `include_images`, **`locale`**.
+- Levels / Topics / Skills / Tags: `search_by` in `name | slug` (canonical)
+- Outcomes: `search_by` in `short_description` (canonical)
+
+**Expertise chips** (`ExpertiseTopic` / `ExpertiseSkill`): joined `name` is localized; optional `resolved_locale`; `slug` remains canonical.
 
 ---
 
 ### System API `/api/system`
 
-**Rate limit:** 10 requests / 3 seconds per IP.  
+**Rate limit:** 10 requests / 3 seconds per IP.
+
 All routes require `Authorization: Bearer <system_token>`. Obtain token via CLI (`CLI_SYSTEM_LOGIN=1 go run .`).
 
 ---
@@ -1055,7 +1056,8 @@ All routes require `Authorization: Bearer <system_token>`. Obtain token via CLI 
 
 ### Internal API `/api/internal-v1`
 
-**Auth:** `X-API-Key: <key>` (required on all routes).  
+**Auth:** `X-API-Key: <key>` (required on all routes).
+
 **Rate limit:** 60 requests / 1 minute.
 
 ---

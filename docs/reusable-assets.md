@@ -3,7 +3,9 @@
 
 ## Architecture (current)
 
-Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,machineidentity,constants,setting,cache,mq,logger,httperr,parsebool,taxonomy,validate,utils,httpx,userpicker}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
+Bounded contexts: `internal/<domain>/{domain,application,infra,delivery}`. Shared: `internal/shared/{db,gormx,timex,response,middleware,ratelimit,resilience,machineidentity,constants,setting,cache,mq,logger,httperr,parsebool,taxonomy,i18n,validate,utils,httpx,userpicker}`. Public `pkg/` currently holds only **`pkg/supabase`**. Wire-up: `internal/server/wire.go`, routes: `internal/server/router.go` + each `delivery/routes.go`.
+
+**REUSE MAP (taxonomy multilingual):** reuse `CanonicalizeLocale` / `NegotiateReadLocale` / `ResolveText` in `internal/shared/i18n` (not `mailtmpl` email locale); reuse `TreeNode` + `translations` map in `internal/shared/taxonomy`; reuse infra `taxonomyGetByID` for `GET /:id`; reuse course optimistic lock (`expected_row_version` → HTTP 409 + app code **3005**). Do **not** invent `expected_updated_at`.
 
 **Domain types** live in `internal/<domain>/domain/` (no GORM tags). **HTTP DTOs** in `internal/<domain>/delivery/`. **GORM rows** in `internal/<domain>/infra/`. Auth refresh-session JSONB: `internal/auth/infra/gormjsonb.go`.
 
@@ -699,6 +701,21 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: All five taxonomy list repositories via shared `taxonomyList`.
 - Current Usage: `GormCourseTopicRepository.List`, outcomes/skills/tags/levels `List`.
 
+### Asset: taxonomyGetByID
+- Name: `taxonomyGetByID`
+- Type: Function (`internal/taxonomy/infra/repos_crud_helper.go`)
+- Purpose: Shared get-by-id for the five taxonomy roots (active-only by default). Powers `GET /taxonomy/{resource}/:id` with localized vs `view=edit` shaping in the service/delivery layer.
+- Scope: All five taxonomy repositories — do not add a parallel get-by-id helper.
+- Reuse: Pair with list helpers and `row_version` on update; edit loads always use get-by-id (list row is insufficient for full `translations`).
+
+### Asset: Content locale helpers (i18n)
+- Name: `CanonicalizeLocale`, `NegotiateReadLocale`, `ResolveText`
+- Type: Package (`internal/shared/i18n`)
+- Path: `internal/shared/i18n/locale.go`
+- Purpose: **Write** path: `CanonicalizeLocale` (BCP47; keep region; empty/invalid → 4xx). **Read** path: `NegotiateReadLocale` + `ResolveText` (exact → base language → default `en` → canonical field). Separate APIs — do not use one “normalize then fall back to en” function for both.
+- Scope: Taxonomy translation tables / JSONB `translations`, instructor chip joins, any future content localization.
+- Reuse: Keep `mailtmpl.NormalizeLanguageCode` for **email** en/vi only — never for taxonomy BCP47.
+
 ### Asset: PostgreSQL pool tuning
 - Name: `tunePool`
 - Type: Function (`internal/shared/db/db.go`)
@@ -737,9 +754,10 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Name: `TreeNode`, `NormalizeTreeSlugs`, `ValidateTree`, `ValidateDescriptionParagraphs`
 - Type: Package (`internal/shared/taxonomy`)
 - Path: `internal/shared/taxonomy/`
-- Purpose: Normalize tree node slugs from names, validate nested JSONB trees (`child_topics`, `children`), and outcome description arrays.
+- Purpose: JSONB tree shape `{ id, name, slug, translations?, children[] }` — per-node `translations` map for multilingual names; normalize slugs from **canonical** node `name`; validate nested trees (`child_topics`, `children`) including non-empty translation names (1–255) and outcome description arrays.
 - Scope: `internal/taxonomy` application + infra layers.
 - Current Usage: `internal/taxonomy/application/service.go`, `internal/taxonomy/infra/jsonb_types.go`, domain/DTO types embedding `TreeNode`.
+- Reuse: Do not invent a second tree node type or strip `translations` on write/read paths that need them.
 
 ### Asset: auth/infra.CheckPassword (bcrypt verify)
 - Name: `CheckPassword`

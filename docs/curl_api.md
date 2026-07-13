@@ -1,9 +1,12 @@
 # MyCourse Backend — API Reference & cURL Examples
 
 
-> **Base URL:** `http://localhost:8080` (local) / `https://api.yourdomain.com` (production)  
-> Replace `{{BASE_URL}}` with the actual base URL in all examples.  
-> **Handlers:** `internal/<domain>/delivery` (routes in `routes.go`, wired from `internal/server/wire.go`).  
+> **Base URL:** `http://localhost:8080` (local) / `https://api.yourdomain.com` (production)
+
+> Replace `{{BASE_URL}}` with the actual base URL in all examples.
+
+> **Handlers:** `internal/<domain>/delivery` (routes in `routes.go`, wired from `internal/server/wire.go`).
+
 > **Last updated:** 2026-06-07
 
 **Audit timestamps:** JSON `created_at` / `updated_at` (and soft-delete `deleted_at` where returned) are **integers** — Unix epoch **seconds**, not ISO strings. See **`docs/database.md`** and migration `000011`.
@@ -116,7 +119,8 @@ Every response is JSON in one of two shapes:
 | `/api/internal-v1` | 60 requests / 1 minute |
 | APPCLI (`CLI_SYSTEM_LOGIN`, `CLI_REGISTER_NEW_SYSTEM_USER`) | 5 operations / 3 minutes per host (file: `$XDG_CONFIG_HOME/mycourse/cli_rate_limit.json`) |
 
-Rate limit exceeded returns `HTTP 429` with `code: 3006`.  
+Rate limit exceeded returns `HTTP 429` with `code: 3006`.
+
 Circuit breaker open returns `HTTP 503` with `code: 9018`.
 
 ### Pagination Query Parameters
@@ -221,7 +225,8 @@ Confirmation email link: `{APP_CLIENT_BASE_URL}/{locale}/confirm-email?token={uu
 
 **`POST /api/v1/auth/login`**
 
-Validates credentials and issues an access token, refresh token, and session ID.  
+Validates credentials and issues an access token, refresh token, and session ID.
+
 Returns tokens in the JSON body **and** as cookies (`access_token`, `refresh_token`, `session_id`).
 
 **Request body:**
@@ -335,7 +340,8 @@ curl -X POST "{{BASE_URL}}/api/v1/auth/confirm" \
 
 **`POST /api/v1/auth/refresh`**
 
-Rotates the access + refresh token pair for an existing session.  
+Rotates the access + refresh token pair for an existing session.
+
 No request body. Tokens are supplied via custom headers.
 
 **Request headers:**
@@ -567,7 +573,8 @@ curl -X POST {{BASE_URL}}/api/v1/auth/discord \
 
 **`GET /api/v1/me`**
 
-Returns the authenticated user's profile and their current effective permission codes.  
+Returns the authenticated user's profile and their current effective permission codes.
+
 Served from Redis cache (1-minute TTL) on cache hit; Postgres on miss.
 
 ```bash
@@ -595,8 +602,10 @@ curl -X GET {{BASE_URL}}/api/v1/me \
 }
 ```
 
-> `created_at` is a Unix epoch **integer** (seconds).  
-> `permissions` is a sorted array of `permission_name` strings.  
+> `created_at` is a Unix epoch **integer** (seconds).
+
+> `permissions` is a sorted array of `permission_name` strings.
+
 > When an avatar is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** object (see `docs/return_types.md`).
 
 **Access guards:** Returns **404** if the user is soft-deleted. Returns **403** (`4005` disabled, `4012` banned) if `is_disable` is true or `banned_until > now()`. Valid JWT alone is not enough after delete/ban.
@@ -647,7 +656,8 @@ Both return **`account_deleted`** on success.
 
 **`GET /api/v1/me/permissions`**
 
-Returns the sorted list of permission codes (via roles + direct grants) for the authenticated user, wrapped as **`{ "permissions": [...] }`** in the envelope `data`.  
+Returns the sorted list of permission codes (via roles + direct grants) for the authenticated user, wrapped as **`{ "permissions": [...] }`** in the envelope `data`.
+
 Requires `user:read` (`P10`) permission.
 
 ```bash
@@ -691,7 +701,8 @@ curl -X GET {{BASE_URL}}/api/v1/health
 
 ## 5. System Admin (`/api/system`)
 
-> Rate limit: **10 requests / 3 seconds** per IP.  
+> Rate limit: **10 requests / 3 seconds** per IP.
+
 > All routes require `Authorization: Bearer <system_token>`.
 
 ### 5.0 CLI — obtain system token
@@ -826,8 +837,10 @@ curl -X POST {{BASE_URL}}/api/system/delete-role-permission-sync-job \
 
 ## 6. Internal RBAC — Permissions
 
-> **Auth:** `X-API-Key: <key>`  
-> **Rate limit:** 60 requests / 1 minute  
+> **Auth:** `X-API-Key: <key>`
+
+> **Rate limit:** 60 requests / 1 minute
+
 > **Audit timestamps:** `created_at` and `updated_at` are Unix epoch **integers** (seconds), not ISO strings.
 
 ```bash
@@ -841,8 +854,10 @@ INTERNAL_KEY="your-internal-api-key"
 
 Paginated, sortable, searchable list of all permissions.
 
-**Query parameters:** Standard `BaseFilter` params.  
-**Sortable fields:** `permission_id`, `permission_name`, `description`, `created_at`  
+**Query parameters:** Standard `BaseFilter` params.
+
+**Sortable fields:** `permission_id`, `permission_name`, `description`, `created_at`
+
 **Searchable fields:** `permission_id`, `permission_name`, `description`
 
 ```bash
@@ -1385,8 +1400,10 @@ No endpoints are currently marked as **deprecated**. When an endpoint is depreca
 
 ## 11. Media API (`/api/v1/media/*`)
 
-> **Auth:** `Authorization: Bearer <access_token>` + permissions `media_file:read` / `media_file:create` / `media_file:update` / `media_file:delete` (see `constants/permissions.go`).  
-> **Module details:** `docs/modules/media.md`  
+> **Auth:** `Authorization: Bearer <access_token>` + permissions `media_file:read` / `media_file:create` / `media_file:update` / `media_file:delete` (see `constants/permissions.go`).
+
+> **Module details:** `docs/modules/media.md`
+
 > **Size limit:** one file part per request, max **2 GiB** (`2×1024³` bytes); cap **`constants.MaxMediaUploadFileBytes`** and the default oversize **`message`** string **`constants.MsgFileTooLargeUpload`** both live in **`constants/error_msg.go`** (same literal as `pkg/errcode` `FileTooLarge` and media sentinel — see `docs/architecture.md`). Over the limit → HTTP **413**, JSON `code` **2003** (`FileTooLarge`). Nginx / edge `client_max_body_size` (or equivalent) must be **≥ 2G** on the API host. See `docs/deploy.md`.
 
 Path param `:id` on file routes is the **object key** (Gin matches one URL segment; if your key contains `/`, encode per segment or adjust routing).
@@ -1395,9 +1412,12 @@ Path param `:id` on file routes is the **object key** (Gin matches one URL segme
 
 **`GET /api/v1/media/files`**
 
-Query: `page`, `per_page`, `sort_by`, `sort_order`, optional `search` (filename contains match), `provider` (`S3|GCS|B2|R2|Bunny|Local`), `kind` (`FILE|VIDEO`), `category` (`image|document|video`).  
-Sort whitelist: `created_at`, `updated_at`, `filename`, `size_bytes` (default `created_at`, `sort_order` default `desc`).  
-`search` applies only to `filename` (`ILIKE %term%`); no ID/object-key search path is provided.  
+Query: `page`, `per_page`, `sort_by`, `sort_order`, optional `search` (filename contains match), `provider` (`S3|GCS|B2|R2|Bunny|Local`), `kind` (`FILE|VIDEO`), `category` (`image|document|video`).
+
+Sort whitelist: `created_at`, `updated_at`, `filename`, `size_bytes` (default `created_at`, `sort_order` default `desc`).
+
+`search` applies only to `filename` (`ILIKE %term%`); no ID/object-key search path is provided.
+
 `category` forces `kind` and applies MIME/extension filters for tabbed UIs (see `docs/modules/media.md`).
 
 ```bash
@@ -1522,13 +1542,24 @@ Provider is chosen by server config (`setting.MediaSetting.AppMediaProvider`), n
 All list endpoints support pagination query params as [Global Conventions](#1-global-conventions), plus taxonomy-specific:
 - `sort_by`, `sort_desc` (boolean)
 - optional `status` = `ACTIVE` | `INACTIVE`
-- typed search: `search_by` + `search_value`
+- typed search: `search_by` + `search_value` (**canonical** fields; phase 1)
+- optional **`locale`** — content locale for resolved labels (missing/invalid on read → `en`)
 
 Allowed `search_by` values:
 - Levels / Topics / Skills / Tags: `name`, `slug`
 - Outcomes: `short_description`
 
-**Soft delete (migration `000012`):** Default `GET /taxonomy/{resource}` returns only active rows (`deleted_at IS NULL`). `GET /taxonomy/{resource}/full` includes soft-deleted rows. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE /taxonomy/{resource}/:id/hard` permanently removes the row. Topics/outcomes hard-delete enqueues orphan image cleanup. See **`docs/patterns.md`** (CRUD soft delete).
+**Get by id:** `GET /taxonomy/{resource}/:id?locale=vi` (localized) or `?view=edit` (admin editable: canonical + full `translations` + tree translations + `row_version`).
+
+**Write:** body may include canonical fields and/or `translations` map; tree nodes may include `translations`. Canonical vs `translations.en` mismatch → 4xx. PATCH must send **`expected_row_version`**; stale → **409** / app code **3005**.
+
+**Full editable payload (admin `view=edit` save):** the submitted `translations` map is the **source of truth** for which locales exist. Locales present in DB but **missing** from the submitted map are **deleted** in the same write transaction (not upsert-only). Empty/cleared locale tabs must disappear from subsequent `GET ?view=edit`.
+
+**Locale key collision:** raw keys that canonicalize to the same BCP47 tag (e.g. `en-us` + `en-US`) with **different** payloads → **4xx**. Identical payloads after canonicalize may collapse to one entry.
+
+**Outcome translations:** any locale entry that has data must include non-empty `short_description`. Sending only `description[]` (or empty `short_description` with non-empty description) → **4xx** validation (no silent drop).
+
+**Soft delete (migration `000012`):** Default `GET /taxonomy/{resource}` returns only active rows (`deleted_at IS NULL`). `GET /taxonomy/{resource}/full` includes soft-deleted rows. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE /taxonomy/{resource}/:id/hard` permanently removes the row. Topics/outcomes hard-delete enqueues orphan image cleanup. See **`docs/patterns.md`** (CRUD soft delete). Multilingual schema: migration **`000032`** (shipped in source; apply on deploy) — see `docs/database.md`. Outcome localized reads resolve **whole** translation rows (no mixed-locale short/description). Write locales must canonicalize to ≤16 chars.
 
 ### 12.1 Course levels
 
@@ -1536,41 +1567,39 @@ Allowed `search_by` values:
 |--------|------|
 | GET | `/api/v1/taxonomy/levels` |
 | GET | `/api/v1/taxonomy/levels/full` |
+| GET | `/api/v1/taxonomy/levels/:id` |
 | POST | `/api/v1/taxonomy/levels` |
 | PATCH | `/api/v1/taxonomy/levels/:id` |
 | DELETE | `/api/v1/taxonomy/levels/:id` |
 | DELETE | `/api/v1/taxonomy/levels/:id/hard` |
 
-**Create body:** `{ "name", "status"? }` — `status` optional (`ACTIVE` / `INACTIVE`). Slug is computed server-side from `name`.  
-**Update body:** partial `{ "name"?, "status"? }` — when `name` changes, slug is recomputed server-side.
+**Create body:** `{ "name"?, "translations"?, "status"? }` — slug from canonical `name`.
+
+**Update body:** partial + `expected_row_version` + optional `translations`.
 
 ```bash
-# List (optional include_images=false for picker UIs — skips image URL hydration on topics/outcomes)
-curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&status=ACTIVE" \
+# List localized
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels?page=1&per_page=20&status=ACTIVE&locale=vi" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
-curl -X GET "{{BASE_URL}}/api/v1/taxonomy/topics?per_page=100&include_images=false" \
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/topics?per_page=100&include_images=false&locale=vi" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Admin editable detail
+curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels/{id}?view=edit" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # Create
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/levels \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Beginner","status":"ACTIVE"}'
+  -d '{"name":"Beginner","translations":{"en":{"name":"Beginner"},"vi":{"name":"Người mới"}},"status":"ACTIVE"}'
 
-# Update
-curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/1 \
+# Update (optimistic lock)
+curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/{id} \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Beginner (updated)"}'
-
-# Delete (soft)
-curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1 \
-  -H "Authorization: Bearer $ACCESS_TOKEN"
-
-# Hard delete
-curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1/hard \
-  -H "Authorization: Bearer $ACCESS_TOKEN"
+  -d '{"name":"Beginner","translations":{"vi":{"name":"Người mới bắt đầu"}},"expected_row_version":1}'
 ```
 
 ### 12.2 Course topics (formerly categories)
@@ -1579,13 +1608,15 @@ curl -X DELETE {{BASE_URL}}/api/v1/taxonomy/levels/1/hard \
 |--------|------|
 | GET | `/api/v1/taxonomy/topics` |
 | GET | `/api/v1/taxonomy/topics/full` |
+| GET | `/api/v1/taxonomy/topics/:id` |
 | POST | `/api/v1/taxonomy/topics` |
 | PATCH | `/api/v1/taxonomy/topics/:id` |
 | DELETE | `/api/v1/taxonomy/topics/:id` |
 | DELETE | `/api/v1/taxonomy/topics/:id/hard` |
 
-**Create body:** `{ "name", "image_file_id"?, "child_topics"?, "status"? }` — slug is server-computed from `name`. Optional **`image_file_id`** (UUID from **`POST /api/v1/media/files`**). **`child_topics`** input nodes: `{ "id", "name", "children" }` (UUID ids, max depth 12, max 100 nodes; slug derived per node on server).  
-**Update body:** partial fields including optional **`child_topics`** array.
+**Create body:** `{ "name"?, "translations"?, "image_file_id"?, "child_topics"?, "status"? }` — slug from canonical `name`. Optional **`image_file_id`**. **`child_topics`** nodes: `{ "id", "name", "translations"?, "children" }` (UUID ids, max depth 12, max 100 nodes).
+
+**Update body:** partial fields + `expected_row_version` + optional `translations` / `child_topics`.
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/topics \
@@ -1600,6 +1631,7 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/topics \
 |--------|------|
 | GET | `/api/v1/taxonomy/outcomes` |
 | GET | `/api/v1/taxonomy/outcomes/full` |
+| GET | `/api/v1/taxonomy/outcomes/:id` |
 | POST | `/api/v1/taxonomy/outcomes` |
 | PATCH | `/api/v1/taxonomy/outcomes/:id` |
 | DELETE | `/api/v1/taxonomy/outcomes/:id` |
@@ -1620,6 +1652,7 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/outcomes \
 |--------|------|
 | GET | `/api/v1/taxonomy/skills` |
 | GET | `/api/v1/taxonomy/skills/full` |
+| GET | `/api/v1/taxonomy/skills/:id` |
 | POST | `/api/v1/taxonomy/skills` |
 | PATCH | `/api/v1/taxonomy/skills/:id` |
 | DELETE | `/api/v1/taxonomy/skills/:id` |
@@ -1640,6 +1673,7 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
 |--------|------|
 | GET | `/api/v1/taxonomy/tags` |
 | GET | `/api/v1/taxonomy/tags/full` |
+| GET | `/api/v1/taxonomy/tags/:id` |
 | POST | `/api/v1/taxonomy/tags` |
 | PATCH | `/api/v1/taxonomy/tags/:id` |
 | DELETE | `/api/v1/taxonomy/tags/:id` |

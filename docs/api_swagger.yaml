@@ -147,6 +147,21 @@ components:
       name: status
       in: query
       schema: { type: string, enum: [ACTIVE, INACTIVE], example: ACTIVE }
+    TaxonomyLocale:
+      name: locale
+      in: query
+      schema: { type: string, maxLength: 16, example: vi }
+      description: >
+        Content locale for localized/public responses. Missing/empty → default `en`.
+        Invalid format on read → default `en` (not 4xx). Write path uses body locales
+        canonicalized separately (BCP47; reject invalid with 4xx).
+    TaxonomyView:
+      name: view
+      in: query
+      schema: { type: string, enum: [edit], example: edit }
+      description: >
+        When `edit`, GET by id returns admin editable DTO (canonical fields + full
+        translations map + tree translations + row_version). Omit for localized/public shape.
     SearchBy:
       name: search_by
       in: query
@@ -355,19 +370,34 @@ components:
                   slug: { type: string }
     TaxonomySlugStatus:
       type: object
-      description: Shared list/detail shape for levels, tags, and similar slug+status resources.
+      description: >
+        Shared localized list/detail shape for levels, tags, and similar slug+status resources.
+        `name` is resolved for the requested locale unless `view=edit`.
       properties:
-        id: { type: integer }
+        id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-        created_by: { type: integer, nullable: true }
+        resolved_locale: { type: string, description: Optional; locale that produced `name` }
+        available_locales:
+          type: array
+          items: { type: string }
+          description: Present on admin editable responses
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
+          description: Full map on `view=edit` only
+        row_version: { type: integer, format: int64, description: Present on editable/detail writes }
+        created_by: { type: string, format: uuid, nullable: true }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
     CourseOutcome:
       type: object
       properties:
-        id: { type: integer }
+        id: { type: string, format: uuid }
         short_description: { type: string }
         description:
           type: array
@@ -375,13 +405,28 @@ components:
         image_file_id: { type: string, format: uuid }
         image_file_url: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-        created_by: { type: integer, nullable: true }
+        resolved_locale: { type: string }
+        available_locales:
+          type: array
+          items: { type: string }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              short_description: { type: string }
+              description:
+                type: array
+                items: { type: string }
+          description: Full map on `view=edit`
+        row_version: { type: integer, format: int64 }
+        created_by: { type: string, format: uuid, nullable: true }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
     CourseTopic:
       type: object
       properties:
-        id: { type: integer }
+        id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
         image_file_id: { type: string, format: uuid }
@@ -390,20 +435,42 @@ components:
           type: array
           items: { $ref: "#/components/schemas/TreeNode" }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-        created_by: { type: integer, nullable: true }
+        resolved_locale: { type: string }
+        available_locales:
+          type: array
+          items: { type: string }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
+        row_version: { type: integer, format: int64 }
+        created_by: { type: string, format: uuid, nullable: true }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
     CourseSkill:
       type: object
       properties:
-        id: { type: integer }
+        id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
         children:
           type: array
           items: { $ref: "#/components/schemas/TreeNode" }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-        created_by: { type: integer, nullable: true }
+        resolved_locale: { type: string }
+        available_locales:
+          type: array
+          items: { type: string }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
+        row_version: { type: integer, format: int64 }
+        created_by: { type: string, format: uuid, nullable: true }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
     MeProfile:
@@ -421,13 +488,16 @@ components:
           items: { type: string }
     InstructorExpertiseTopic:
       type: object
-      description: Junction row plus joined course topic taxonomy (snake_case JSON).
+      description: >
+        Junction row plus joined course topic taxonomy (snake_case JSON).
+        `name` is localized via taxonomy translation join + `locale` query fallback.
       example:
         id: "00000000-0000-0000-0000-000000000004"
         user_id: "00000000-0000-0000-0000-000000000014"
         topic_id: "00000000-0000-0000-0000-000000000007"
         name: Business
         slug: business
+        resolved_locale: en
         created_at: 1780887061
         updated_at: 1780887061
       properties:
@@ -436,17 +506,21 @@ components:
         topic_id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
+        resolved_locale: { type: string }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
     InstructorExpertiseSkill:
       type: object
-      description: Junction row plus joined course skill taxonomy (snake_case JSON).
+      description: >
+        Junction row plus joined course skill taxonomy (snake_case JSON).
+        `name` is localized via taxonomy translation join + `locale` query fallback.
       example:
         id: "00000000-0000-0000-0000-000000000002"
         user_id: "00000000-0000-0000-0000-000000000014"
         skill_id: "00000000-0000-0000-0000-000000000003"
         name: Leadership
         slug: leadership
+        resolved_locale: en
         created_at: 1780887061
         updated_at: 1780887061
       properties:
@@ -455,6 +529,7 @@ components:
         skill_id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
+        resolved_locale: { type: string }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
     InstructorExpertiseTopicsListResponse:
@@ -639,20 +714,40 @@ components:
       description: At least one of permission_id or permission_name required.
     CreateCourseLevelRequest:
       type: object
-      required: [name]
       example:
         name: Beginner
         status: ACTIVE
+        translations:
+          en: { name: Beginner }
+          vi: { name: Người mới }
       properties:
-        name: { type: string, maxLength: 255 }
+        name: { type: string, maxLength: 255, description: Canonical name; mirrors translations.en when only one side set }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-      description: Slug is computed server-side from name (utils.SlugifyName); not accepted on write.
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string, maxLength: 255 }
+      description: >
+        Slug is computed server-side from canonical name (utils.SlugifyName); not accepted on write.
+        Canonical vs translations.en mismatch → 4xx.
     UpdateCourseLevelRequest:
       type: object
       properties:
         name: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-      description: When name changes, slug is recomputed server-side.
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
+        expected_row_version:
+          type: integer
+          format: int64
+          description: Required for optimistic lock; stale → 409 Conflict (app code 3005)
+      description: When canonical name changes, slug is recomputed server-side.
     MediaFilePublic:
       type: object
       description: Public subset of a media_files row (`internal/media/delivery` DTO)
@@ -687,6 +782,9 @@ components:
         id: "660e8400-e29b-41d4-a716-446655440001"
         name: Algebra
         slug: algebra
+        translations:
+          en: { name: Algebra }
+          vi: { name: Đại số }
         children: []
       properties:
         id:
@@ -695,56 +793,92 @@ components:
             format: uuid,
             description: Client-generated UUID per node,
           }
-        name: { type: string, maxLength: 255 }
+        name: { type: string, maxLength: 255, description: Canonical node name }
         slug:
           type: string
           maxLength: 255
-          description: Response only; computed server-side from name on write (omit in create/update body).
+          description: Response only; computed server-side from canonical name on write (omit in create/update body).
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string, maxLength: 255 }
+          description: Per-locale display names; en must sync with canonical name (conflict → 4xx).
         children:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
     CreateCourseTopicRequest:
       type: object
-      required: [name]
       example:
         name: Mathematics
         image_file_id: "550e8400-e29b-41d4-a716-446655440000"
+        translations:
+          en: { name: Mathematics }
+          vi: { name: Toán học }
         child_topics:
           - id: "660e8400-e29b-41d4-a716-446655440001"
             name: Algebra
+            translations:
+              en: { name: Algebra }
             children: []
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
         image_file_id: { type: string, format: uuid }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
         child_topics:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-      description: Slug is computed server-side from name; not accepted on write.
+      description: Slug is computed server-side from canonical name; not accepted on write.
     UpdateCourseTopicRequest:
       type: object
       example:
         name: Mathematics (updated)
+        expected_row_version: 1
         child_topics: []
       properties:
         name: { type: string }
         image_file_id: { type: string, format: uuid }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
         child_topics:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+        expected_row_version:
+          type: integer
+          format: int64
+          description: Optimistic lock; stale → 409 / app code 3005
     CreateCourseOutcomeRequest:
       type: object
-      required: [short_description]
       example:
         short_description: Understand linear equations
         description:
           - Solve one-variable equations
           - Graph on a number line
+        translations:
+          en:
+            short_description: Understand linear equations
+            description:
+              - Solve one-variable equations
+          vi:
+            short_description: Hiểu phương trình tuyến tính
+            description:
+              - Giải phương trình một ẩn
         image_file_id: "550e8400-e29b-41d4-a716-446655440000"
         status: ACTIVE
       properties:
@@ -753,64 +887,125 @@ components:
           type: array
           maxItems: 8
           items: { type: string, maxLength: 120 }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              short_description: { type: string, maxLength: 100 }
+              description:
+                type: array
+                maxItems: 8
+                items: { type: string, maxLength: 120 }
         image_file_id: { type: string, format: uuid }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+      description: Canonical vs translations.en mismatch → 4xx.
     UpdateCourseOutcomeRequest:
       type: object
       example:
         short_description: Understand linear equations (updated)
+        expected_row_version: 1
       properties:
         short_description: { type: string, maxLength: 100 }
         description:
           type: array
           maxItems: 8
           items: { type: string, maxLength: 120 }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              short_description: { type: string, maxLength: 100 }
+              description:
+                type: array
+                items: { type: string }
         image_file_id: { type: string, format: uuid }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+        expected_row_version:
+          type: integer
+          format: int64
+          description: Optimistic lock; stale → 409 / 3005
     CreateCourseSkillRequest:
       type: object
-      required: [name]
       example:
         name: Problem solving
+        translations:
+          en: { name: Problem solving }
+          vi: { name: Giải quyết vấn đề }
         children:
           - id: "660e8400-e29b-41d4-a716-446655440001"
             name: Critical thinking
+            translations:
+              en: { name: Critical thinking }
             children: []
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
         children:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-      description: Slug is computed server-side from name; not accepted on write.
+      description: Slug is computed server-side from canonical name; not accepted on write.
     UpdateCourseSkillRequest:
       type: object
       example:
         name: Problem solving (advanced)
+        expected_row_version: 1
       properties:
         name: { type: string }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
         children:
           type: array
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+        expected_row_version:
+          type: integer
+          format: int64
     CreateTagRequest:
       type: object
-      required: [name]
       example:
         name: React
         status: ACTIVE
+        translations:
+          en: { name: React }
       properties:
         name: { type: string, maxLength: 255 }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-      description: Slug is computed server-side from name; not accepted on write.
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
+      description: Slug is computed server-side from canonical name; not accepted on write.
     UpdateTagRequest:
       type: object
       properties:
         name: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+        translations:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name: { type: string }
+        expected_row_version:
+          type: integer
+          format: int64
     BunnyVideoWebhookRequest:
       type: object
       required: [VideoLibraryId, VideoGuid, Status]
@@ -1197,6 +1392,7 @@ paths:
           in: query
           schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list — `data.result[]` items are `TaxonomySlugStatus`.
@@ -1221,6 +1417,8 @@ paths:
       summary: List course levels including soft-deleted rows
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list including deleted rows
@@ -1230,7 +1428,20 @@ paths:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Taxonomy]
+      summary: Get level by id (localized or view=edit)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
+        - $ref: "#/components/parameters/TaxonomyView"
+      responses:
+        "200":
+          description: Localized detail, or admin editable DTO when view=edit
+        "404":
+          description: Not found
     patch:
       tags: [Taxonomy]
       summary: Update course level
@@ -1244,6 +1455,8 @@ paths:
       responses:
         "200":
           description: OK
+        "409":
+          description: Optimistic lock conflict (app code 3005)
     delete:
       tags: [Taxonomy]
       summary: Delete course level
@@ -1292,6 +1505,7 @@ paths:
           in: query
           schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list
@@ -1316,6 +1530,8 @@ paths:
       summary: List course topics including soft-deleted rows
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list including deleted rows
@@ -1325,7 +1541,20 @@ paths:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Taxonomy]
+      summary: Get topic by id (localized or view=edit)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
+        - $ref: "#/components/parameters/TaxonomyView"
+      responses:
+        "200":
+          description: Localized detail, or admin editable DTO when view=edit
+        "404":
+          description: Not found
     patch:
       tags: [Taxonomy]
       summary: Update course topic
@@ -1339,6 +1568,8 @@ paths:
       responses:
         "200":
           description: OK
+        "409":
+          description: Optimistic lock conflict (app code 3005)
         "404":
           description: Not found
     delete:
@@ -1389,6 +1620,7 @@ paths:
           in: query
           schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list — `data.result[]` items are `CourseOutcome` (audit fields Unix seconds).
@@ -1413,6 +1645,8 @@ paths:
       summary: List course outcomes including soft-deleted rows
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list including deleted rows
@@ -1422,7 +1656,20 @@ paths:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Taxonomy]
+      summary: Get outcome by id (localized or view=edit)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
+        - $ref: "#/components/parameters/TaxonomyView"
+      responses:
+        "200":
+          description: Localized detail, or admin editable DTO when view=edit
+        "404":
+          description: Not found
     patch:
       tags: [Taxonomy]
       summary: Update course outcome
@@ -1436,6 +1683,8 @@ paths:
       responses:
         "200":
           description: OK
+        "409":
+          description: Optimistic lock conflict (app code 3005)
         "404":
           description: Not found
     delete:
@@ -1486,6 +1735,7 @@ paths:
           in: query
           schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list
@@ -1510,6 +1760,8 @@ paths:
       summary: List course skills including soft-deleted rows
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list including deleted rows
@@ -1519,7 +1771,20 @@ paths:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Taxonomy]
+      summary: Get skill by id (localized or view=edit)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
+        - $ref: "#/components/parameters/TaxonomyView"
+      responses:
+        "200":
+          description: Localized detail, or admin editable DTO when view=edit
+        "404":
+          description: Not found
     patch:
       tags: [Taxonomy]
       summary: Update course skill
@@ -1533,6 +1798,8 @@ paths:
       responses:
         "200":
           description: OK
+        "409":
+          description: Optimistic lock conflict (app code 3005)
         "404":
           description: Not found
     delete:
@@ -1583,6 +1850,7 @@ paths:
           in: query
           schema: { type: string }
         - $ref: "#/components/parameters/TaxonomyStatus"
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list
@@ -1607,6 +1875,8 @@ paths:
       summary: List tags including soft-deleted rows
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Paginated list including deleted rows
@@ -1616,7 +1886,20 @@ paths:
       - name: id
         in: path
         required: true
-        schema: { type: integer }
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Taxonomy]
+      summary: Get tag by id (localized or view=edit)
+      security:
+        - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
+        - $ref: "#/components/parameters/TaxonomyView"
+      responses:
+        "200":
+          description: Localized detail, or admin editable DTO when view=edit
+        "404":
+          description: Not found
     patch:
       tags: [Taxonomy]
       summary: Update tag
@@ -1630,6 +1913,8 @@ paths:
       responses:
         "200":
           description: OK
+        "409":
+          description: Optimistic lock conflict (app code 3005)
     delete:
       tags: [Taxonomy]
       summary: Delete tag
@@ -2815,6 +3100,8 @@ paths:
       summary: List expertise topics by user
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: OK — envelope `data` is an array of `InstructorExpertiseTopic` (joined taxonomy `name` + `slug`).
@@ -2874,6 +3161,8 @@ paths:
       summary: List expertise skills by user
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: OK — envelope `data` is an array of `InstructorExpertiseSkill` (joined taxonomy `name` + `slug`).
@@ -2929,6 +3218,8 @@ paths:
       description: Requires permission `instructor_application:create` (P45).
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Application me response with latest_submission and rejection_history
@@ -2944,6 +3235,8 @@ paths:
       description: Requires permission `instructor_application:create` (P45). Self-service resubmit uses P45, not `instructor_application:update` (P46).
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       requestBody:
         required: true
         content:
@@ -2999,6 +3292,8 @@ paths:
       summary: Submit instructor application (first submit only)
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       requestBody:
         required: true
         content:
@@ -3020,6 +3315,8 @@ paths:
       summary: Get instructor application detail
       security:
         - bearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Application detail with identity, snapshot, media hydrate
@@ -3047,6 +3344,7 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
           description: Approved
@@ -3062,6 +3360,7 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/TaxonomyLocale"
       requestBody:
         required: true
         content:

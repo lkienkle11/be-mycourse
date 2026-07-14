@@ -164,24 +164,26 @@ type RosterMember struct {
 
 // ExpertiseTopic links an instructor user to a course topic.
 type ExpertiseTopic struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	TopicID   string `json:"topic_id"`
-	Name      string `json:"name"`
-	Slug      string `json:"slug"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
+	ID             string `json:"id"`
+	UserID         string `json:"user_id"`
+	TopicID        string `json:"topic_id"`
+	Name           string `json:"name"`
+	Slug           string `json:"slug"`
+	ResolvedLocale string `json:"resolved_locale,omitempty"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
 }
 
 // ExpertiseSkill links an instructor user to a course skill.
 type ExpertiseSkill struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	SkillID   string `json:"skill_id"`
-	Name      string `json:"name"`
-	Slug      string `json:"slug"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
+	ID             string `json:"id"`
+	UserID         string `json:"user_id"`
+	SkillID        string `json:"skill_id"`
+	Name           string `json:"name"`
+	Slug           string `json:"slug"`
+	ResolvedLocale string `json:"resolved_locale,omitempty"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
 }
 
 // Ticket is a support thread owned by an instructor user.

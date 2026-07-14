@@ -25,6 +25,7 @@ type courseTopicRow struct {
 	ImageFileID *string        `gorm:"column:image_file_id;type:uuid"`
 	ChildTopics treeNodesJSONB `gorm:"column:child_topics;type:jsonb;not null;default:'[]'"`
 	Status      string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	RowVersion  int64          `gorm:"column:row_version;not null;default:1"`
 	CreatedBy   *string        `gorm:"column:created_by;type:uuid"`
 	CreatedAt   int64
 	UpdatedAt   int64
@@ -39,6 +40,7 @@ type courseOutcomeRow struct {
 	Description      descriptionJSONB `gorm:"type:jsonb;not null;default:'[]'"`
 	ImageFileID      *string          `gorm:"column:image_file_id;type:uuid"`
 	Status           string           `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	RowVersion       int64            `gorm:"column:row_version;not null;default:1"`
 	CreatedBy        *string          `gorm:"column:created_by;type:uuid"`
 	CreatedAt        int64
 	UpdatedAt        int64
@@ -48,41 +50,44 @@ type courseOutcomeRow struct {
 func (courseOutcomeRow) TableName() string { return constants.TableTaxonomyCourseOutcomes }
 
 type courseSkillRow struct {
-	ID        string         `gorm:"column:id;primaryKey;type:uuid"`
-	Name      string         `gorm:"size:255;not null"`
-	Slug      string         `gorm:"size:255;not null;index"`
-	Children  treeNodesJSONB `gorm:"type:jsonb;not null;default:'[]'"`
-	Status    string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *string        `gorm:"column:created_by;type:uuid"`
-	CreatedAt int64
-	UpdatedAt int64
-	DeletedAt *int64 `gorm:"column:deleted_at;index"`
+	ID         string         `gorm:"column:id;primaryKey;type:uuid"`
+	Name       string         `gorm:"size:255;not null"`
+	Slug       string         `gorm:"size:255;not null;index"`
+	Children   treeNodesJSONB `gorm:"type:jsonb;not null;default:'[]'"`
+	Status     string         `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	RowVersion int64          `gorm:"column:row_version;not null;default:1"`
+	CreatedBy  *string        `gorm:"column:created_by;type:uuid"`
+	CreatedAt  int64
+	UpdatedAt  int64
+	DeletedAt  *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (courseSkillRow) TableName() string { return constants.TableTaxonomyCourseSkills }
 
 type tagRow struct {
-	ID        string  `gorm:"column:id;primaryKey;type:uuid"`
-	Name      string  `gorm:"size:255;not null"`
-	Slug      string  `gorm:"size:255;not null;index"`
-	Status    string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *string `gorm:"column:created_by;type:uuid"`
-	CreatedAt int64
-	UpdatedAt int64
-	DeletedAt *int64 `gorm:"column:deleted_at;index"`
+	ID         string  `gorm:"column:id;primaryKey;type:uuid"`
+	Name       string  `gorm:"size:255;not null"`
+	Slug       string  `gorm:"size:255;not null;index"`
+	Status     string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	RowVersion int64   `gorm:"column:row_version;not null;default:1"`
+	CreatedBy  *string `gorm:"column:created_by;type:uuid"`
+	CreatedAt  int64
+	UpdatedAt  int64
+	DeletedAt  *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (tagRow) TableName() string { return constants.TableTaxonomyTags }
 
 type courseLevelRow struct {
-	ID        string  `gorm:"column:id;primaryKey;type:uuid"`
-	Name      string  `gorm:"size:255;not null"`
-	Slug      string  `gorm:"size:255;not null;index"`
-	Status    string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
-	CreatedBy *string `gorm:"column:created_by;type:uuid"`
-	CreatedAt int64
-	UpdatedAt int64
-	DeletedAt *int64 `gorm:"column:deleted_at;index"`
+	ID         string  `gorm:"column:id;primaryKey;type:uuid"`
+	Name       string  `gorm:"size:255;not null"`
+	Slug       string  `gorm:"size:255;not null;index"`
+	Status     string  `gorm:"type:taxonomy_status;not null;default:'ACTIVE'"`
+	RowVersion int64   `gorm:"column:row_version;not null;default:1"`
+	CreatedBy  *string `gorm:"column:created_by;type:uuid"`
+	CreatedAt  int64
+	UpdatedAt  int64
+	DeletedAt  *int64 `gorm:"column:deleted_at;index"`
 }
 
 func (courseLevelRow) TableName() string { return constants.TableTaxonomyCourseLevels }
@@ -166,38 +171,51 @@ func mapCourseTopicRow(row *courseTopicRow) domain.CourseTopic {
 }
 
 func (r *GormCourseTopicRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseTopic, int64, error) {
-	return listTaxonomyWithImageURLs(
-		ctx,
-		r.db,
-		&courseTopicRow{},
-		filter,
-		applyTaxonomyFilter,
-		mapCourseTopicRow,
-		topicImageID,
-		applyTopicImageRow,
-	)
+	return listHydratedWithImages(ctx, r.db, listHydratedWithImagesArgs[courseTopicRow, domain.CourseTopic]{
+		Model: &courseTopicRow{}, Filter: filter, ApplySearch: applyTaxonomyFilter,
+		MapRow: mapCourseTopicRow, GetID: topicImageID, SetImage: applyTopicImageRow,
+		Hydrate: hydrateCourseTopicsLocale,
+	})
 }
 
 func (r *GormCourseTopicRepository) GetByID(ctx context.Context, id string) (*domain.CourseTopic, error) {
-	return taxonomyGetByIDWithImageURLs(
-		ctx,
-		r.db,
-		id,
-		mapCourseTopicRow,
-		topicImageID,
-		applyTopicImageRow,
-	)
+	return taxonomyGetByIDWithImageURLs(ctx, r.db, id, mapCourseTopicRow, topicImageID, applyTopicImageRow)
 }
 
 func (r *GormCourseTopicRepository) Create(ctx context.Context, t *domain.CourseTopic) error {
-	return createTaxonomyDomain(ctx, r.db, t, courseTopicToRow, &t.ID, &t.CreatedAt, &t.UpdatedAt, metaCourseTopicRow)
+	return createWithNameTranslations(ctx, r.db, createNameTranslationArgs[courseTopicRow, domain.CourseTopic]{
+		Entity: t, RowVersion: &t.RowVersion, ToRow: courseTopicToRow,
+		EntityID: &t.ID, CreatedAt: &t.CreatedAt, UpdatedAt: &t.UpdatedAt, Meta: metaCourseTopicRow,
+		Table: constants.TableTaxonomyCourseTopicTranslations, FKCol: "topic_id", Translations: t.Translations,
+	})
 }
 
-func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTopic) error {
-	row := courseTopicToRow(t)
-	gormx.TouchUpdated(&row.UpdatedAt)
-	t.UpdatedAt = row.UpdatedAt
-	return r.db.WithContext(ctx).Save(row).Error
+func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTopic, expectedRowVersion int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		child := t.ChildTopics
+		if child == nil {
+			child = []taxpkg.TreeNode{}
+		}
+		childVal, err := treeNodesJSONB(child).Value()
+		if err != nil {
+			return err
+		}
+		updates := map[string]any{
+			"name": t.Name, "slug": t.Slug, "status": t.Status,
+			"image_file_id": t.ImageFileID, "child_topics": childVal,
+		}
+		if err := gormx.OptimisticUpdate(ctx, tx, &courseTopicRow{}, t.ID, expectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
+			return err
+		}
+		if err := upsertNameTranslations(ctx, tx, constants.TableTaxonomyCourseTopicTranslations, "topic_id", t.ID, t.Translations); err != nil {
+			return err
+		}
+		t.RowVersion = expectedRowVersion + 1
+		if v, ok := updates["updated_at"].(int64); ok {
+			t.UpdatedAt = v
+		}
+		return nil
+	})
 }
 
 func (r *GormCourseTopicRepository) SoftDelete(ctx context.Context, id string) error {
@@ -223,38 +241,58 @@ func mapCourseOutcomeRow(row *courseOutcomeRow) domain.CourseOutcome {
 }
 
 func (r *GormCourseOutcomeRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseOutcome, int64, error) {
-	return listTaxonomyWithImageURLs(
-		ctx,
-		r.db,
-		&courseOutcomeRow{},
-		filter,
-		applyOutcomeSearch,
-		mapCourseOutcomeRow,
-		outcomeImageID,
-		applyOutcomeImageRow,
-	)
+	args := listHydratedWithImagesArgs[courseOutcomeRow, domain.CourseOutcome]{
+		Model: &courseOutcomeRow{}, Filter: filter, ApplySearch: applyOutcomeSearch,
+		MapRow: mapCourseOutcomeRow, GetID: outcomeImageID, SetImage: applyOutcomeImageRow,
+		Hydrate: hydrateCourseOutcomesLocale,
+	}
+	return listHydratedWithImages(ctx, r.db, args)
 }
 
 func (r *GormCourseOutcomeRepository) GetByID(ctx context.Context, id string) (*domain.CourseOutcome, error) {
-	return taxonomyGetByIDWithImageURLs(
-		ctx,
-		r.db,
-		id,
-		mapCourseOutcomeRow,
-		outcomeImageID,
-		applyOutcomeImageRow,
-	)
+	return taxonomyGetByIDWithImageURLs(ctx, r.db, id, mapCourseOutcomeRow, outcomeImageID, applyOutcomeImageRow)
 }
 
 func (r *GormCourseOutcomeRepository) Create(ctx context.Context, o *domain.CourseOutcome) error {
-	return createTaxonomyDomain(ctx, r.db, o, courseOutcomeToRow, &o.ID, &o.CreatedAt, &o.UpdatedAt, metaCourseOutcomeRow)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if o.RowVersion == 0 {
+			o.RowVersion = 1
+		}
+		if err := createTaxonomyDomain(ctx, tx, o, courseOutcomeToRow, &o.ID, &o.CreatedAt, &o.UpdatedAt, metaCourseOutcomeRow); err != nil {
+			return err
+		}
+		return upsertOutcomeTranslations(ctx, tx, o.ID, o.Translations)
+	})
 }
 
-func (r *GormCourseOutcomeRepository) Save(ctx context.Context, o *domain.CourseOutcome) error {
-	row := courseOutcomeToRow(o)
-	gormx.TouchUpdated(&row.UpdatedAt)
-	o.UpdatedAt = row.UpdatedAt
-	return r.db.WithContext(ctx).Save(row).Error
+func (r *GormCourseOutcomeRepository) Save(ctx context.Context, o *domain.CourseOutcome, expectedRowVersion int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		desc := o.Description
+		if desc == nil {
+			desc = []string{}
+		}
+		descVal, err := descriptionJSONB(desc).Value()
+		if err != nil {
+			return err
+		}
+		updates := map[string]any{
+			"short_description": o.ShortDescription,
+			"description":       descVal,
+			"status":            o.Status,
+			"image_file_id":     o.ImageFileID,
+		}
+		if err := gormx.OptimisticUpdate(ctx, tx, &courseOutcomeRow{}, o.ID, expectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
+			return err
+		}
+		if err := upsertOutcomeTranslations(ctx, tx, o.ID, o.Translations); err != nil {
+			return err
+		}
+		o.RowVersion = expectedRowVersion + 1
+		if v, ok := updates["updated_at"].(int64); ok {
+			o.UpdatedAt = v
+		}
+		return nil
+	})
 }
 
 func (r *GormCourseOutcomeRepository) SoftDelete(ctx context.Context, id string) error {
@@ -276,7 +314,7 @@ func NewGormCourseSkillRepository(db *gorm.DB) *GormCourseSkillRepository {
 }
 
 func (r *GormCourseSkillRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseSkill, int64, error) {
-	return taxonomyList(ctx, r.db, &courseSkillRow{}, filter, applyTaxonomyFilter, rowToCourseSkill)
+	return listHydrated(ctx, r.db, &courseSkillRow{}, filter, applyTaxonomyFilter, rowToCourseSkill, hydrateCourseSkillsLocale)
 }
 
 func (r *GormCourseSkillRepository) GetByID(ctx context.Context, id string) (*domain.CourseSkill, error) {
@@ -284,14 +322,40 @@ func (r *GormCourseSkillRepository) GetByID(ctx context.Context, id string) (*do
 }
 
 func (r *GormCourseSkillRepository) Create(ctx context.Context, s *domain.CourseSkill) error {
-	return createTaxonomyDomain(ctx, r.db, s, courseSkillToRow, &s.ID, &s.CreatedAt, &s.UpdatedAt, metaCourseSkillRow)
+	args := createNameTranslationArgs[courseSkillRow, domain.CourseSkill]{
+		Entity: s, RowVersion: &s.RowVersion, ToRow: courseSkillToRow,
+		EntityID: &s.ID, CreatedAt: &s.CreatedAt, UpdatedAt: &s.UpdatedAt, Meta: metaCourseSkillRow,
+		Table: constants.TableTaxonomyCourseSkillTranslations, FKCol: "skill_id", Translations: s.Translations,
+	}
+	return createWithNameTranslations(ctx, r.db, args)
 }
 
-func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSkill) error {
-	row := courseSkillToRow(s)
-	gormx.TouchUpdated(&row.UpdatedAt)
-	s.UpdatedAt = row.UpdatedAt
-	return r.db.WithContext(ctx).Save(row).Error
+func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSkill, expectedRowVersion int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		child := s.Children
+		if child == nil {
+			child = []taxpkg.TreeNode{}
+		}
+		childVal, err := treeNodesJSONB(child).Value()
+		if err != nil {
+			return err
+		}
+		updates := map[string]any{
+			"name": s.Name, "slug": s.Slug, "status": s.Status,
+			"children": childVal,
+		}
+		if err := gormx.OptimisticUpdate(ctx, tx, &courseSkillRow{}, s.ID, expectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
+			return err
+		}
+		if err := upsertNameTranslations(ctx, tx, constants.TableTaxonomyCourseSkillTranslations, "skill_id", s.ID, s.Translations); err != nil {
+			return err
+		}
+		s.RowVersion = expectedRowVersion + 1
+		if v, ok := updates["updated_at"].(int64); ok {
+			s.UpdatedAt = v
+		}
+		return nil
+	})
 }
 
 func (r *GormCourseSkillRepository) SoftDelete(ctx context.Context, id string) error {
@@ -313,7 +377,7 @@ func NewGormTagRepository(db *gorm.DB) *GormTagRepository {
 }
 
 func (r *GormTagRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.Tag, int64, error) {
-	return taxonomyList(ctx, r.db, &tagRow{}, filter, applyTaxonomyFilter, rowToTag)
+	return listHydrated(ctx, r.db, &tagRow{}, filter, applyTaxonomyFilter, rowToTag, hydrateTagsLocale)
 }
 
 func (r *GormTagRepository) GetByID(ctx context.Context, id string) (*domain.Tag, error) {
@@ -321,14 +385,24 @@ func (r *GormTagRepository) GetByID(ctx context.Context, id string) (*domain.Tag
 }
 
 func (r *GormTagRepository) Create(ctx context.Context, t *domain.Tag) error {
-	return createTaxonomyDomain(ctx, r.db, t, tagToRow, &t.ID, &t.CreatedAt, &t.UpdatedAt, metaTagRow)
+	args := createNameTranslationArgs[tagRow, domain.Tag]{Entity: t, RowVersion: &t.RowVersion}
+	args.ToRow = tagToRow
+	args.EntityID = &t.ID
+	args.CreatedAt = &t.CreatedAt
+	args.UpdatedAt = &t.UpdatedAt
+	args.Meta = metaTagRow
+	args.Table = constants.TableTaxonomyTagTranslations
+	args.FKCol = "tag_id"
+	args.Translations = t.Translations
+	return createWithNameTranslations(ctx, r.db, args)
 }
 
-func (r *GormTagRepository) Save(ctx context.Context, t *domain.Tag) error {
-	row := tagToRow(t)
-	gormx.TouchUpdated(&row.UpdatedAt)
-	t.UpdatedAt = row.UpdatedAt
-	return r.db.WithContext(ctx).Save(row).Error
+func (r *GormTagRepository) Save(ctx context.Context, t *domain.Tag, expectedRowVersion int64) error {
+	return saveSlugStatusEntity(ctx, r.db, slugStatusSaveArgs[tagRow]{
+		Model: &tagRow{}, ID: t.ID, Name: t.Name, Slug: t.Slug, Status: t.Status,
+		ExpectedRowVersion: expectedRowVersion, RowVersion: &t.RowVersion, UpdatedAt: &t.UpdatedAt,
+		Table: constants.TableTaxonomyTagTranslations, FKCol: "tag_id", Translations: t.Translations,
+	})
 }
 
 func (r *GormTagRepository) SoftDelete(ctx context.Context, id string) error {
@@ -350,7 +424,7 @@ func NewGormCourseLevelRepository(db *gorm.DB) *GormCourseLevelRepository {
 }
 
 func (r *GormCourseLevelRepository) List(ctx context.Context, filter domain.TaxonomyFilter) ([]domain.CourseLevel, int64, error) {
-	return taxonomyList(ctx, r.db, &courseLevelRow{}, filter, applyTaxonomyFilter, rowToCourseLevel)
+	return listHydrated(ctx, r.db, &courseLevelRow{}, filter, applyTaxonomyFilter, rowToCourseLevel, hydrateCourseLevelsLocale)
 }
 
 func (r *GormCourseLevelRepository) GetByID(ctx context.Context, id string) (*domain.CourseLevel, error) {
@@ -358,14 +432,23 @@ func (r *GormCourseLevelRepository) GetByID(ctx context.Context, id string) (*do
 }
 
 func (r *GormCourseLevelRepository) Create(ctx context.Context, cl *domain.CourseLevel) error {
-	return createTaxonomyDomain(ctx, r.db, cl, courseLevelToRow, &cl.ID, &cl.CreatedAt, &cl.UpdatedAt, metaCourseLevelRow)
+	args := createNameTranslationArgs[courseLevelRow, domain.CourseLevel]{Entity: cl}
+	args.RowVersion = &cl.RowVersion
+	args.ToRow = courseLevelToRow
+	args.EntityID, args.CreatedAt, args.UpdatedAt = &cl.ID, &cl.CreatedAt, &cl.UpdatedAt
+	args.Meta = metaCourseLevelRow
+	args.Table, args.FKCol = constants.TableTaxonomyCourseLevelTranslations, "course_level_id"
+	args.Translations = cl.Translations
+	return createWithNameTranslations(ctx, r.db, args)
 }
 
-func (r *GormCourseLevelRepository) Save(ctx context.Context, cl *domain.CourseLevel) error {
-	row := courseLevelToRow(cl)
-	gormx.TouchUpdated(&row.UpdatedAt)
-	cl.UpdatedAt = row.UpdatedAt
-	return r.db.WithContext(ctx).Save(row).Error
+func (r *GormCourseLevelRepository) Save(ctx context.Context, cl *domain.CourseLevel, expectedRowVersion int64) error {
+	args := slugStatusSaveArgs[courseLevelRow]{
+		Model: &courseLevelRow{}, ID: cl.ID, Name: cl.Name, Slug: cl.Slug, Status: cl.Status,
+		ExpectedRowVersion: expectedRowVersion, RowVersion: &cl.RowVersion, UpdatedAt: &cl.UpdatedAt,
+		Table: constants.TableTaxonomyCourseLevelTranslations, FKCol: "course_level_id", Translations: cl.Translations,
+	}
+	return saveSlugStatusEntity(ctx, r.db, args)
 }
 
 func (r *GormCourseLevelRepository) SoftDelete(ctx context.Context, id string) error {
@@ -376,236 +459,33 @@ func (r *GormCourseLevelRepository) HardDelete(ctx context.Context, id string) e
 	return r.db.WithContext(ctx).Delete(&courseLevelRow{}, id).Error
 }
 
-// --- row mappers -------------------------------------------------------------
-
-type imageFileRow struct {
-	ID   string `gorm:"column:id"`
-	URL  string `gorm:"column:url"`
-	Kind string `gorm:"column:kind"`
-	Mime string `gorm:"column:mime_type"`
+type slugStatusSaveArgs[R any] struct {
+	Model              *R
+	ID                 string
+	Name               string
+	Slug               string
+	Status             string
+	ExpectedRowVersion int64
+	RowVersion         *int64
+	UpdatedAt          *int64
+	Table              string
+	FKCol              string
+	Translations       map[string]taxpkg.NodeTranslation
 }
 
-func topicImageID(row *domain.CourseTopic) *string { return row.ImageFileID }
-
-func outcomeImageID(row *domain.CourseOutcome) *string { return row.ImageFileID }
-
-func applyTopicImageRow(row *domain.CourseTopic, img imageFileRow) {
-	row.ImageFileURL = img.URL
-	row.ImageFileKind = img.Kind
-	row.ImageFileMime = img.Mime
-}
-
-func applyOutcomeImageRow(row *domain.CourseOutcome, img imageFileRow) {
-	row.ImageFileURL = img.URL
-	row.ImageFileKind = img.Kind
-	row.ImageFileMime = img.Mime
-}
-
-func trimStringPtr(v *string) string {
-	if v == nil {
-		return ""
-	}
-	return strings.TrimSpace(*v)
-}
-
-func collectImageFileIDs[T any](rows []T, getID func(*T) *string) []string {
-	ids := make([]string, 0, len(rows))
-	seen := map[string]struct{}{}
-	for i := range rows {
-		id := trimStringPtr(getID(&rows[i]))
-		if id == "" {
-			continue
+func saveSlugStatusEntity[R any](ctx context.Context, db *gorm.DB, args slugStatusSaveArgs[R]) error {
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updates := map[string]any{"name": args.Name, "slug": args.Slug, "status": args.Status}
+		if err := gormx.OptimisticUpdate(ctx, tx, args.Model, args.ID, args.ExpectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
+			return err
 		}
-		if _, ok := seen[id]; ok {
-			continue
+		if err := upsertNameTranslations(ctx, tx, args.Table, args.FKCol, args.ID, args.Translations); err != nil {
+			return err
 		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-func loadImageFileMap(ctx context.Context, db *gorm.DB, ids []string) (map[string]imageFileRow, error) {
-	rows, err := gormx.FindActiveByIDs[imageFileRow](ctx, db, constants.TableMediaFiles,
-		"id, url, kind, mime_type", ids)
-	if err != nil {
-		return nil, err
-	}
-	return gormx.IndexByID(rows, func(row imageFileRow) string { return row.ID }), nil
-}
-
-func hydrateImageURLs[T any](
-	ctx context.Context,
-	db *gorm.DB,
-	rows []T,
-	getID func(*T) *string,
-	setImage func(*T, imageFileRow),
-) ([]T, error) {
-	ids := collectImageFileIDs(rows, getID)
-	images, err := loadImageFileMap(ctx, db, ids)
-	if err != nil {
-		return nil, err
-	}
-	for i := range rows {
-		id := trimStringPtr(getID(&rows[i]))
-		img, ok := images[id]
-		if !ok {
-			continue
+		*args.RowVersion = args.ExpectedRowVersion + 1
+		if v, ok := updates["updated_at"].(int64); ok {
+			*args.UpdatedAt = v
 		}
-		setImage(&rows[i], img)
-	}
-	return rows, nil
-}
-
-func listTaxonomyWithImageURLs[R any, D any](
-	ctx context.Context,
-	db *gorm.DB,
-	model *R,
-	filter domain.TaxonomyFilter,
-	applySearch func(*gorm.DB, domain.TaxonomyFilter) *gorm.DB,
-	mapRow func(*R) D,
-	getID func(*D) *string,
-	setImage func(*D, imageFileRow),
-) ([]D, int64, error) {
-	rows, total, err := taxonomyList(ctx, db, model, filter, applySearch, mapRow)
-	if err != nil {
-		return nil, 0, err
-	}
-	if !filter.IncludeImages {
-		return rows, total, nil
-	}
-	rows, err = hydrateImageURLs(ctx, db, rows, getID, setImage)
-	if err != nil {
-		return nil, 0, err
-	}
-	return rows, total, nil
-}
-
-func taxonomyGetByIDWithImageURLs[R any, D any](
-	ctx context.Context,
-	db *gorm.DB,
-	id string,
-	mapRow func(*R) D,
-	getID func(*D) *string,
-	setImage func(*D, imageFileRow),
-) (*D, error) {
-	row, err := taxonomyGetByID(ctx, db, id, mapRow)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := hydrateImageURLs(ctx, db, []D{*row}, getID, setImage)
-	if err != nil {
-		return nil, err
-	}
-	return &rows[0], nil
-}
-
-func rowToCourseTopic(r *courseTopicRow, img *imageFileRow) domain.CourseTopic {
-	child := []taxpkg.TreeNode(r.ChildTopics)
-	if child == nil {
-		child = []taxpkg.TreeNode{}
-	}
-	t := domain.CourseTopic{
-		ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status,
-		ImageFileID: r.ImageFileID, ChildTopics: child, CreatedBy: r.CreatedBy,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
-	}
-	if img != nil {
-		t.ImageFileURL = img.URL
-		t.ImageFileKind = img.Kind
-		t.ImageFileMime = img.Mime
-	}
-	return t
-}
-
-func courseTopicToRow(t *domain.CourseTopic) *courseTopicRow {
-	child := t.ChildTopics
-	if child == nil {
-		child = []taxpkg.TreeNode{}
-	}
-	return &courseTopicRow{
-		ID: t.ID, Name: t.Name, Slug: t.Slug, Status: t.Status,
-		ImageFileID: t.ImageFileID, ChildTopics: treeNodesJSONB(child),
-		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, DeletedAt: t.DeletedAt,
-	}
-}
-
-func rowToCourseOutcome(r *courseOutcomeRow, img *imageFileRow) domain.CourseOutcome {
-	desc := []string(r.Description)
-	if desc == nil {
-		desc = []string{}
-	}
-	o := domain.CourseOutcome{
-		ID: r.ID, ShortDescription: r.ShortDescription, Description: desc,
-		Status: r.Status, ImageFileID: r.ImageFileID, CreatedBy: r.CreatedBy,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
-	}
-	if img != nil {
-		o.ImageFileURL = img.URL
-		o.ImageFileKind = img.Kind
-		o.ImageFileMime = img.Mime
-	}
-	return o
-}
-
-func courseOutcomeToRow(o *domain.CourseOutcome) *courseOutcomeRow {
-	desc := o.Description
-	if desc == nil {
-		desc = []string{}
-	}
-	return &courseOutcomeRow{
-		ID: o.ID, ShortDescription: o.ShortDescription, Description: descriptionJSONB(desc),
-		Status: o.Status, ImageFileID: o.ImageFileID, CreatedBy: o.CreatedBy,
-		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt, DeletedAt: o.DeletedAt,
-	}
-}
-
-func rowToCourseSkill(r *courseSkillRow) domain.CourseSkill {
-	child := []taxpkg.TreeNode(r.Children)
-	if child == nil {
-		child = []taxpkg.TreeNode{}
-	}
-	return domain.CourseSkill{
-		ID: r.ID, Name: r.Name, Slug: r.Slug, Children: child, Status: r.Status,
-		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
-	}
-}
-
-func courseSkillToRow(s *domain.CourseSkill) *courseSkillRow {
-	child := s.Children
-	if child == nil {
-		child = []taxpkg.TreeNode{}
-	}
-	return &courseSkillRow{
-		ID: s.ID, Name: s.Name, Slug: s.Slug, Children: treeNodesJSONB(child),
-		Status: s.Status, CreatedBy: s.CreatedBy, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, DeletedAt: s.DeletedAt,
-	}
-}
-
-func rowToTag(r *tagRow) domain.Tag {
-	return domain.Tag{
-		ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status,
-		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
-	}
-}
-
-func tagToRow(t *domain.Tag) *tagRow {
-	return &tagRow{
-		ID: t.ID, Name: t.Name, Slug: t.Slug, Status: t.Status,
-		CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, DeletedAt: t.DeletedAt,
-	}
-}
-
-func rowToCourseLevel(r *courseLevelRow) domain.CourseLevel {
-	return domain.CourseLevel{
-		ID: r.ID, Name: r.Name, Slug: r.Slug, Status: r.Status,
-		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt,
-	}
-}
-
-func courseLevelToRow(cl *domain.CourseLevel) *courseLevelRow {
-	return &courseLevelRow{
-		ID: cl.ID, Name: cl.Name, Slug: cl.Slug, Status: cl.Status,
-		CreatedBy: cl.CreatedBy, CreatedAt: cl.CreatedAt, UpdatedAt: cl.UpdatedAt, DeletedAt: cl.DeletedAt,
-	}
+		return nil
+	})
 }

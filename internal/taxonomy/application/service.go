@@ -65,8 +65,20 @@ func (s *TaxonomyService) ListTopicsFull(ctx context.Context, filter domain.Taxo
 	return s.topicRepo.List(ctx, filter)
 }
 
+func (s *TaxonomyService) GetTopic(ctx context.Context, id, locale string, viewEdit bool) (*domain.CourseTopic, error) {
+	return s.topicRepo.GetDetail(ctx, id, locale, viewEdit)
+}
+
 func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCourseTopicInput) (*domain.CourseTopic, error) {
-	if err := validateChildTopics(in.ChildTopics); err != nil {
+	name, tr, err := syncNameCanonicalAndTranslations(in.Name, in.Translations)
+	if err != nil {
+		return nil, err
+	}
+	childTopics, err := prepareTreeWrite(in.ChildTopics)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateChildTopics(childTopics); err != nil {
 		return nil, err
 	}
 	fileID := strings.TrimSpace(in.ImageFileID)
@@ -75,10 +87,10 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 			return nil, err
 		}
 	}
-	childTopics := taxpkg.NormalizeTreeSlugs(in.ChildTopics)
-	n, sl, st := trimmedTaxonomyFields(in.Name, in.Status)
+	_, _, st := trimmedTaxonomyFields(name, in.Status)
 	t := &domain.CourseTopic{
-		Name: n, Slug: sl, Status: st, ChildTopics: childTopics,
+		Name: name, Slug: slugFromName(name), Status: st, ChildTopics: childTopics,
+		Translations: tr, RowVersion: 1,
 		CreatedBy: stringPtrIfNotBlank(in.ActorID),
 	}
 	if fileID != "" {
@@ -87,34 +99,79 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 	if err := s.topicRepo.Create(ctx, t); err != nil {
 		return nil, err
 	}
-	return s.topicRepo.GetByID(ctx, t.ID)
+	return s.topicRepo.GetDetail(ctx, t.ID, "", true)
 }
 
 func (s *TaxonomyService) UpdateTopic(ctx context.Context, id string, in domain.UpdateCourseTopicInput) (*domain.CourseTopic, error) {
-	row, err := s.topicRepo.GetByID(ctx, id)
+	row, err := s.topicRepo.GetDetail(ctx, id, "", true)
 	if err != nil {
 		return nil, err
 	}
-	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Status)
-	if in.ChildTopics != nil {
-		normalized := taxpkg.NormalizeTreeSlugs(*in.ChildTopics)
-		if err := validateChildTopics(normalized); err != nil {
-			return nil, err
-		}
-		row.ChildTopics = normalized
+	if err := applyCourseTopicUpdate(row, in); err != nil {
+		return nil, err
 	}
 	prevFileID := imageFileIDStr(row.ImageFileID)
 	if err := s.mutateImageFileID(ctx, &row.ImageFileID, in.ImageFileID); err != nil {
 		return nil, err
 	}
-	if err := s.topicRepo.Save(ctx, row); err != nil {
+	if err := s.topicRepo.Save(ctx, row, in.ExpectedRowVersion); err != nil {
 		return nil, err
 	}
-	nextFileID := imageFileIDStr(row.ImageFileID)
-	if in.ImageFileID != nil && prevFileID != "" && prevFileID != nextFileID && s.orphanEnqueuer != nil {
-		s.orphanEnqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
+	enqueueReplacedImageCleanup(ctx, s.orphanEnqueuer, in.ImageFileID, prevFileID, imageFileIDStr(row.ImageFileID))
+	return s.topicRepo.GetDetail(ctx, id, "", true)
+}
+
+func applyCourseTopicUpdate(row *domain.CourseTopic, in domain.UpdateCourseTopicInput) error {
+	canonical := row.Name
+	if in.Name != nil {
+		canonical = *in.Name
 	}
-	return s.topicRepo.GetByID(ctx, id)
+	merged := row.Translations
+	if in.Translations != nil {
+		patch, err := canonicalizeNameTranslations(in.Translations)
+		if err != nil {
+			return err
+		}
+		merged = replaceNameTranslations(patch)
+	}
+	name, tr, err := syncNameCanonicalAndTranslations(canonical, merged)
+	if err != nil {
+		return err
+	}
+	row.Name = name
+	row.Slug = slugFromName(name)
+	row.Translations = tr
+	if in.Status != nil {
+		v := strings.ToUpper(strings.TrimSpace(*in.Status))
+		if v != "" {
+			row.Status = v
+		}
+	}
+	return applyCourseTopicChildren(row, in.ChildTopics)
+}
+
+func applyCourseTopicChildren(row *domain.CourseTopic, childTopics *[]taxpkg.TreeNode) error {
+	if childTopics == nil {
+		// Omitted tree: still prepare + ValidateTree (UUID/dup/depth/translation names).
+		normalized, err := prepareTreeWrite(row.ChildTopics)
+		if err != nil {
+			return err
+		}
+		if err := validateChildTopics(normalized); err != nil {
+			return err
+		}
+		row.ChildTopics = normalized
+		return nil
+	}
+	normalized, err := prepareTreeWrite(*childTopics)
+	if err != nil {
+		return err
+	}
+	if err := validateChildTopics(normalized); err != nil {
+		return err
+	}
+	row.ChildTopics = normalized
+	return nil
 }
 
 func (s *TaxonomyService) DeleteTopic(ctx context.Context, id string) error {
@@ -123,10 +180,6 @@ func (s *TaxonomyService) DeleteTopic(ctx context.Context, id string) error {
 
 func (s *TaxonomyService) HardDeleteTopic(ctx context.Context, id string) error {
 	return s.deleteWithOrphanImage(ctx, id, imageIDLoaderTopic(s), s.topicRepo.HardDelete)
-}
-
-func (s *TaxonomyService) GetTopic(ctx context.Context, id string) (*domain.CourseTopic, error) {
-	return s.topicRepo.GetByID(ctx, id)
 }
 
 // --- CourseOutcome -----------------------------------------------------------
@@ -140,8 +193,16 @@ func (s *TaxonomyService) ListCourseOutcomesFull(ctx context.Context, filter dom
 	return s.outcomeRepo.List(ctx, filter)
 }
 
+func (s *TaxonomyService) GetCourseOutcome(ctx context.Context, id, locale string, viewEdit bool) (*domain.CourseOutcome, error) {
+	return s.outcomeRepo.GetDetail(ctx, id, locale, viewEdit)
+}
+
 func (s *TaxonomyService) CreateCourseOutcome(ctx context.Context, in domain.CreateCourseOutcomeInput) (*domain.CourseOutcome, error) {
-	if err := validateOutcomePayload(in.ShortDescription, in.Description); err != nil {
+	short, desc, tr, err := syncOutcomeCanonicalAndTranslations(in.ShortDescription, in.Description, in.Translations)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateOutcomePayload(short, desc); err != nil {
 		return nil, err
 	}
 	fileID := strings.TrimSpace(in.ImageFileID)
@@ -155,10 +216,9 @@ func (s *TaxonomyService) CreateCourseOutcome(ctx context.Context, in domain.Cre
 		st = "ACTIVE"
 	}
 	o := &domain.CourseOutcome{
-		ShortDescription: strings.TrimSpace(in.ShortDescription),
-		Description:      in.Description,
-		Status:           st,
-		CreatedBy:        stringPtrIfNotBlank(in.ActorID),
+		ShortDescription: short, Description: desc, Status: st,
+		Translations: tr, RowVersion: 1,
+		CreatedBy: stringPtrIfNotBlank(in.ActorID),
 	}
 	if fileID != "" {
 		o.ImageFileID = &fileID
@@ -166,41 +226,83 @@ func (s *TaxonomyService) CreateCourseOutcome(ctx context.Context, in domain.Cre
 	if err := s.outcomeRepo.Create(ctx, o); err != nil {
 		return nil, err
 	}
-	return s.outcomeRepo.GetByID(ctx, o.ID)
+	return s.outcomeRepo.GetDetail(ctx, o.ID, "", true)
 }
 
 func (s *TaxonomyService) UpdateCourseOutcome(ctx context.Context, id string, in domain.UpdateCourseOutcomeInput) (*domain.CourseOutcome, error) {
-	row, err := s.outcomeRepo.GetByID(ctx, id)
+	row, err := s.outcomeRepo.GetDetail(ctx, id, "", true)
 	if err != nil {
 		return nil, err
 	}
+	if err := applyCourseOutcomeUpdate(row, in); err != nil {
+		return nil, err
+	}
+	return s.persistOutcomeUpdate(ctx, id, row, in)
+}
+
+func (s *TaxonomyService) persistOutcomeUpdate(
+	ctx context.Context,
+	id string,
+	row *domain.CourseOutcome,
+	in domain.UpdateCourseOutcomeInput,
+) (*domain.CourseOutcome, error) {
+	prevFileID := imageFileIDStr(row.ImageFileID)
+	if err := s.mutateImageFileID(ctx, &row.ImageFileID, in.ImageFileID); err != nil {
+		return nil, err
+	}
+	if err := s.outcomeRepo.Save(ctx, row, in.ExpectedRowVersion); err != nil {
+		return nil, err
+	}
+	enqueueReplacedImageCleanup(ctx, s.orphanEnqueuer, in.ImageFileID, prevFileID, imageFileIDStr(row.ImageFileID))
+	return s.outcomeRepo.GetDetail(ctx, id, "", true)
+}
+
+func applyCourseOutcomeUpdate(row *domain.CourseOutcome, in domain.UpdateCourseOutcomeInput) error {
+	short := row.ShortDescription
 	if in.ShortDescription != nil {
-		row.ShortDescription = strings.TrimSpace(*in.ShortDescription)
+		short = *in.ShortDescription
 	}
+	desc := row.Description
 	if in.Description != nil {
-		row.Description = *in.Description
+		desc = *in.Description
 	}
+	merged := row.Translations
+	if in.Translations != nil {
+		patch, err := canonicalizeOutcomeTranslations(in.Translations)
+		if err != nil {
+			return err
+		}
+		merged = replaceOutcomeTranslations(patch)
+	}
+	short, desc, tr, err := syncOutcomeCanonicalAndTranslations(short, desc, merged)
+	if err != nil {
+		return err
+	}
+	if err := validateOutcomePayload(short, desc); err != nil {
+		return err
+	}
+	row.ShortDescription = short
+	row.Description = desc
+	row.Translations = tr
 	if in.Status != nil {
 		v := strings.ToUpper(strings.TrimSpace(*in.Status))
 		if v != "" {
 			row.Status = v
 		}
 	}
-	if err := validateOutcomePayload(row.ShortDescription, row.Description); err != nil {
-		return nil, err
+	return nil
+}
+
+func enqueueReplacedImageCleanup(
+	ctx context.Context,
+	enqueuer OrphanImageEnqueuer,
+	imageFileID *string,
+	prevFileID, nextFileID string,
+) {
+	if imageFileID == nil || prevFileID == "" || prevFileID == nextFileID || enqueuer == nil {
+		return
 	}
-	prevFileID := imageFileIDStr(row.ImageFileID)
-	if err := s.mutateImageFileID(ctx, &row.ImageFileID, in.ImageFileID); err != nil {
-		return nil, err
-	}
-	if err := s.outcomeRepo.Save(ctx, row); err != nil {
-		return nil, err
-	}
-	nextFileID := imageFileIDStr(row.ImageFileID)
-	if in.ImageFileID != nil && prevFileID != "" && prevFileID != nextFileID && s.orphanEnqueuer != nil {
-		s.orphanEnqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
-	}
-	return s.outcomeRepo.GetByID(ctx, id)
+	enqueuer.EnqueueOrphanCleanupForFileID(ctx, prevFileID)
 }
 
 func (s *TaxonomyService) DeleteCourseOutcome(ctx context.Context, id string) error {
@@ -222,39 +324,88 @@ func (s *TaxonomyService) ListCourseSkillsFull(ctx context.Context, filter domai
 	return s.skillRepo.List(ctx, filter)
 }
 
+func (s *TaxonomyService) GetCourseSkill(ctx context.Context, id, locale string, viewEdit bool) (*domain.CourseSkill, error) {
+	return s.skillRepo.GetDetail(ctx, id, locale, viewEdit)
+}
+
 func (s *TaxonomyService) CreateCourseSkill(ctx context.Context, in domain.CreateCourseSkillInput) (*domain.CourseSkill, error) {
-	if err := validateChildren(in.Children); err != nil {
+	name, tr, err := syncNameCanonicalAndTranslations(in.Name, in.Translations)
+	if err != nil {
 		return nil, err
 	}
-	children := taxpkg.NormalizeTreeSlugs(in.Children)
-	n, sl, st := trimmedTaxonomyFields(in.Name, in.Status)
+	children, err := prepareTreeWrite(in.Children)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateChildren(children); err != nil {
+		return nil, err
+	}
+	_, _, st := trimmedTaxonomyFields(name, in.Status)
 	sk := &domain.CourseSkill{
-		Name: n, Slug: sl, Status: st, Children: children,
+		Name: name, Slug: slugFromName(name), Status: st, Children: children,
+		Translations: tr, RowVersion: 1,
 		CreatedBy: stringPtrIfNotBlank(in.ActorID),
 	}
 	if err := s.skillRepo.Create(ctx, sk); err != nil {
 		return nil, err
 	}
-	return s.skillRepo.GetByID(ctx, sk.ID)
+	return s.skillRepo.GetDetail(ctx, sk.ID, "", true)
 }
 
 func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id string, in domain.UpdateCourseSkillInput) (*domain.CourseSkill, error) {
-	row, err := s.skillRepo.GetByID(ctx, id)
+	row, err := s.skillRepo.GetDetail(ctx, id, "", true)
 	if err != nil {
 		return nil, err
 	}
-	applyOptionalTaxonomyFields(&row.Name, &row.Slug, &row.Status, in.Name, in.Status)
+	canonical := row.Name
+	if in.Name != nil {
+		canonical = *in.Name
+	}
+	merged := row.Translations
+	if in.Translations != nil {
+		patch, err := canonicalizeNameTranslations(in.Translations)
+		if err != nil {
+			return nil, err
+		}
+		merged = replaceNameTranslations(patch)
+	}
+	name, tr, err := syncNameCanonicalAndTranslations(canonical, merged)
+	if err != nil {
+		return nil, err
+	}
+	row.Name = name
+	row.Slug = slugFromName(name)
+	row.Translations = tr
+	if in.Status != nil {
+		v := strings.ToUpper(strings.TrimSpace(*in.Status))
+		if v != "" {
+			row.Status = v
+		}
+	}
 	if in.Children != nil {
-		normalized := taxpkg.NormalizeTreeSlugs(*in.Children)
+		normalized, err := prepareTreeWrite(*in.Children)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateChildren(normalized); err != nil {
+			return nil, err
+		}
+		row.Children = normalized
+	} else {
+		// Omitted tree: still prepare + ValidateTree (UUID/dup/depth/translation names).
+		normalized, err := prepareTreeWrite(row.Children)
+		if err != nil {
+			return nil, err
+		}
 		if err := validateChildren(normalized); err != nil {
 			return nil, err
 		}
 		row.Children = normalized
 	}
-	if err := s.skillRepo.Save(ctx, row); err != nil {
+	if err := s.skillRepo.Save(ctx, row, in.ExpectedRowVersion); err != nil {
 		return nil, err
 	}
-	return s.skillRepo.GetByID(ctx, id)
+	return s.skillRepo.GetDetail(ctx, id, "", true)
 }
 
 func (s *TaxonomyService) DeleteCourseSkill(ctx context.Context, id string) error {
@@ -276,12 +427,16 @@ func (s *TaxonomyService) ListTagsFull(ctx context.Context, filter domain.Taxono
 	return s.tagRepo.List(ctx, filter)
 }
 
+func (s *TaxonomyService) GetTag(ctx context.Context, id, locale string, viewEdit bool) (*domain.Tag, error) {
+	return s.tagRepo.GetDetail(ctx, id, locale, viewEdit)
+}
+
 func (s *TaxonomyService) CreateTag(ctx context.Context, in domain.CreateTagInput) (*domain.Tag, error) {
 	return createSlugStatusFromInput(ctx, in, s.tagCreator())
 }
 
 func (s *TaxonomyService) UpdateTag(ctx context.Context, id string, in domain.UpdateTagInput) (*domain.Tag, error) {
-	return updateSlugStatusRepo(ctx, id, in, s.tagRepo.GetByID, s.tagRepo.Save)
+	return updateSlugStatusRepo(ctx, id, in, s.tagRepo.GetDetail, s.tagRepo.Save, applyTagUpdate)
 }
 
 func (s *TaxonomyService) DeleteTag(ctx context.Context, id string) error {
@@ -303,12 +458,16 @@ func (s *TaxonomyService) ListCourseLevelsFull(ctx context.Context, filter domai
 	return s.courseLevelRepo.List(ctx, filter)
 }
 
+func (s *TaxonomyService) GetCourseLevel(ctx context.Context, id, locale string, viewEdit bool) (*domain.CourseLevel, error) {
+	return s.courseLevelRepo.GetDetail(ctx, id, locale, viewEdit)
+}
+
 func (s *TaxonomyService) CreateCourseLevel(ctx context.Context, in domain.CreateCourseLevelInput) (*domain.CourseLevel, error) {
 	return createSlugStatusFromInput(ctx, in, s.courseLevelCreator())
 }
 
 func (s *TaxonomyService) UpdateCourseLevel(ctx context.Context, id string, in domain.UpdateCourseLevelInput) (*domain.CourseLevel, error) {
-	return updateSlugStatusRepo(ctx, id, in, s.courseLevelRepo.GetByID, s.courseLevelRepo.Save)
+	return updateSlugStatusRepo(ctx, id, in, s.courseLevelRepo.GetDetail, s.courseLevelRepo.Save, applyCourseLevelUpdate)
 }
 
 func (s *TaxonomyService) DeleteCourseLevel(ctx context.Context, id string) error {
@@ -383,19 +542,6 @@ func trimmedTaxonomyFields(name, status string) (string, string, string) {
 
 func slugFromName(name string) string {
 	return strings.TrimSpace(utils.SlugifyName(name))
-}
-
-func applyOptionalTaxonomyFields(dstName, dstSlug, dstStatus *string, name, status *string) {
-	if name != nil {
-		*dstName = strings.TrimSpace(*name)
-		*dstSlug = slugFromName(*dstName)
-	}
-	if status != nil {
-		v := strings.ToUpper(strings.TrimSpace(*status))
-		if v != "" {
-			*dstStatus = v
-		}
-	}
 }
 
 func imageFileIDStr(p *string) string {

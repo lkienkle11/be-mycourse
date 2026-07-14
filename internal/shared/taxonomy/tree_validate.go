@@ -2,6 +2,7 @@ package taxonomy
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -108,5 +109,14 @@ func validateTreeNode(n TreeNode, o resolvedTreeOpts, seenID, seenSlug map[strin
 		return errors.New("duplicate tree node slug")
 	}
 	seenSlug[slug] = struct{}{}
+	for loc, nt := range n.Translations {
+		trName := strings.TrimSpace(nt.Name)
+		if trName == "" {
+			continue
+		}
+		if utf8.RuneCountInString(trName) > o.maxNameLen {
+			return fmt.Errorf("tree node translation name for locale %q is invalid", loc)
+		}
+	}
 	return nil
 }

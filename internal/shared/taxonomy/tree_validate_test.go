@@ -47,6 +47,24 @@ func TestValidateTree_depth13_Fail(t *testing.T) {
 	}
 }
 
+func TestValidateTree_translationNameTooLong(t *testing.T) {
+	long := ""
+	for i := 0; i < taxonomy.DefaultMaxNameLen+1; i++ {
+		long += "x"
+	}
+	nodes := []taxonomy.TreeNode{{
+		ID:   uuid.New().String(),
+		Name: "Root",
+		Slug: "root",
+		Translations: map[string]taxonomy.NodeTranslation{
+			"vi": {Name: long},
+		},
+	}}
+	if err := taxonomy.ValidateTree(nodes, taxonomy.ValidateTreeOpts{}); err == nil {
+		t.Fatal("expected long translation name to fail")
+	}
+}
+
 func buildTreeNodeWithDepth(level, maxDepth int) taxonomy.TreeNode {
 	node := taxonomy.TreeNode{
 		ID:   uuid.New().String(),

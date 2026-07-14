@@ -6,8 +6,8 @@ import (
 	"mycourse-io-be/internal/instructor/domain"
 )
 
-func (s *InstructorService) ListExpertiseTopics(ctx context.Context, userID string) ([]domain.ExpertiseTopic, error) {
-	v, err := s.repo.ListExpertise(ctx, userID, true)
+func (s *InstructorService) ListExpertiseTopics(ctx context.Context, userID string, locale string) ([]domain.ExpertiseTopic, error) {
+	v, err := s.repo.ListExpertise(ctx, userID, true, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -29,8 +29,8 @@ func (s *InstructorService) DeleteAllExpertiseForUser(ctx context.Context, userI
 	return s.repo.DeleteAllSkillsForUser(ctx, userID)
 }
 
-func (s *InstructorService) ListExpertiseSkills(ctx context.Context, userID string) ([]domain.ExpertiseSkill, error) {
-	v, err := s.repo.ListExpertise(ctx, userID, false)
+func (s *InstructorService) ListExpertiseSkills(ctx context.Context, userID string, locale string) ([]domain.ExpertiseSkill, error) {
+	v, err := s.repo.ListExpertise(ctx, userID, false, locale)
 	if err != nil {
 		return nil, err
 	}

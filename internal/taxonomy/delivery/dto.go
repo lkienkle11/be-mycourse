@@ -13,6 +13,13 @@ type TaxonomyBaseFilter struct {
 	SearchBy      string  `form:"search_by"`
 	SearchValue   string  `form:"search_value"`
 	IncludeImages *bool   `form:"include_images"`
+	Locale        string  `form:"locale"`
+}
+
+// TaxonomyGetQuery is the query for GET /:id (locale + optional view=edit).
+type TaxonomyGetQuery struct {
+	Locale string `form:"locale"`
+	View   string `form:"view"`
 }
 
 func (f TaxonomyBaseFilter) getPage() int {
@@ -34,60 +41,78 @@ func (f TaxonomyBaseFilter) getPerPage() int {
 
 // CreateCourseTopicRequest is the JSON body for creating a course topic.
 type CreateCourseTopicRequest struct {
-	Name        string            `json:"name" validate:"required,min=1,max=255"`
-	ImageFileID string            `json:"image_file_id" validate:"omitempty,uuid"`
-	ChildTopics []taxpkg.TreeNode `json:"child_topics"`
-	Status      string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Name         string                            `json:"name" validate:"omitempty,min=1,max=255"`
+	ImageFileID  string                            `json:"image_file_id" validate:"omitempty,uuid"`
+	ChildTopics  []taxpkg.TreeNode                 `json:"child_topics"`
+	Status       string                            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations map[string]taxpkg.NodeTranslation `json:"translations"`
 }
 
 // UpdateCourseTopicRequest is the JSON body for updating a course topic.
 type UpdateCourseTopicRequest struct {
-	Name        *string            `json:"name" validate:"omitempty,min=1,max=255"`
-	ImageFileID *string            `json:"image_file_id" validate:"omitempty,uuid"`
-	ChildTopics *[]taxpkg.TreeNode `json:"child_topics"`
-	Status      *string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Name               *string                           `json:"name" validate:"omitempty,min=1,max=255"`
+	ImageFileID        *string                           `json:"image_file_id" validate:"omitempty,uuid"`
+	ChildTopics        *[]taxpkg.TreeNode                `json:"child_topics"`
+	Status             *string                           `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations       map[string]taxpkg.NodeTranslation `json:"translations"`
+	ExpectedRowVersion int64                             `json:"expected_row_version" validate:"required,min=1"`
+}
+
+// OutcomeTranslationDTO is the per-locale outcome translation payload.
+type OutcomeTranslationDTO struct {
+	ShortDescription string   `json:"short_description"`
+	Description      []string `json:"description"`
 }
 
 // CreateCourseOutcomeRequest is the JSON body for creating a course outcome.
 type CreateCourseOutcomeRequest struct {
-	ShortDescription string   `json:"short_description" validate:"required,min=1,max=100"`
-	Description      []string `json:"description"`
-	ImageFileID      string   `json:"image_file_id" validate:"omitempty,uuid"`
-	Status           string   `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	ShortDescription string                           `json:"short_description" validate:"omitempty,min=1,max=100"`
+	Description      []string                         `json:"description"`
+	ImageFileID      string                           `json:"image_file_id" validate:"omitempty,uuid"`
+	Status           string                           `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations     map[string]OutcomeTranslationDTO `json:"translations"`
 }
 
 // UpdateCourseOutcomeRequest is the JSON body for updating a course outcome.
 type UpdateCourseOutcomeRequest struct {
-	ShortDescription *string   `json:"short_description" validate:"omitempty,min=1,max=100"`
-	Description      *[]string `json:"description"`
-	ImageFileID      *string   `json:"image_file_id" validate:"omitempty,uuid"`
-	Status           *string   `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	ShortDescription   *string                          `json:"short_description" validate:"omitempty,min=1,max=100"`
+	Description        *[]string                        `json:"description"`
+	ImageFileID        *string                          `json:"image_file_id" validate:"omitempty,uuid"`
+	Status             *string                          `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations       map[string]OutcomeTranslationDTO `json:"translations"`
+	ExpectedRowVersion int64                            `json:"expected_row_version" validate:"required,min=1"`
 }
 
 // CreateCourseSkillRequest is the JSON body for creating a course skill.
 type CreateCourseSkillRequest struct {
-	Name     string            `json:"name" validate:"required,min=1,max=255"`
-	Children []taxpkg.TreeNode `json:"children"`
-	Status   string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Name         string                            `json:"name" validate:"omitempty,min=1,max=255"`
+	Children     []taxpkg.TreeNode                 `json:"children"`
+	Status       string                            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations map[string]taxpkg.NodeTranslation `json:"translations"`
 }
 
 // UpdateCourseSkillRequest is the JSON body for updating a course skill.
 type UpdateCourseSkillRequest struct {
-	Name     *string            `json:"name" validate:"omitempty,min=1,max=255"`
-	Children *[]taxpkg.TreeNode `json:"children"`
-	Status   *string            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Name               *string                           `json:"name" validate:"omitempty,min=1,max=255"`
+	Children           *[]taxpkg.TreeNode                `json:"children"`
+	Status             *string                           `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations       map[string]taxpkg.NodeTranslation `json:"translations"`
+	ExpectedRowVersion int64                             `json:"expected_row_version" validate:"required,min=1"`
 }
 
 // CreateTagRequest is the JSON body for creating a tag.
 type CreateTagRequest struct {
-	Name   string `json:"name" validate:"required,min=1,max=255"`
-	Status string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Name         string                            `json:"name" validate:"omitempty,min=1,max=255"`
+	Status       string                            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations map[string]taxpkg.NodeTranslation `json:"translations"`
 }
 
 // UpdateTagRequest is the JSON body for updating a tag.
 type UpdateTagRequest struct {
-	Name   *string `json:"name" validate:"omitempty,min=1,max=255"`
-	Status *string `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Name               *string                           `json:"name" validate:"omitempty,min=1,max=255"`
+	Status             *string                           `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
+	Translations       map[string]taxpkg.NodeTranslation `json:"translations"`
+	ExpectedRowVersion int64                             `json:"expected_row_version" validate:"required,min=1"`
 }
 
 // CreateCourseLevelRequest is the JSON body for creating a course level.
@@ -98,52 +123,68 @@ type UpdateCourseLevelRequest = UpdateTagRequest
 
 // CourseTopicResponse is the JSON response for a course topic.
 type CourseTopicResponse struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	Slug         string            `json:"slug"`
-	ImageFileID  string            `json:"image_file_id,omitempty"`
-	ImageFileURL string            `json:"image_file_url,omitempty"`
-	ChildTopics  []taxpkg.TreeNode `json:"child_topics"`
-	Status       string            `json:"status"`
-	CreatedBy    *string           `json:"created_by,omitempty"`
-	CreatedAt    int64             `json:"created_at"`
-	UpdatedAt    int64             `json:"updated_at"`
+	ID               string                            `json:"id"`
+	Name             string                            `json:"name"`
+	Slug             string                            `json:"slug"`
+	ImageFileID      string                            `json:"image_file_id,omitempty"`
+	ImageFileURL     string                            `json:"image_file_url,omitempty"`
+	ChildTopics      []taxpkg.TreeNode                 `json:"child_topics"`
+	Status           string                            `json:"status"`
+	ResolvedLocale   string                            `json:"resolved_locale,omitempty"`
+	AvailableLocales []string                          `json:"available_locales,omitempty"`
+	Translations     map[string]taxpkg.NodeTranslation `json:"translations,omitempty"`
+	RowVersion       int64                             `json:"row_version,omitempty"`
+	CreatedBy        *string                           `json:"created_by,omitempty"`
+	CreatedAt        int64                             `json:"created_at"`
+	UpdatedAt        int64                             `json:"updated_at"`
 }
 
 // CourseOutcomeResponse is the JSON response for a course outcome.
 type CourseOutcomeResponse struct {
-	ID               string   `json:"id"`
-	ShortDescription string   `json:"short_description"`
-	Description      []string `json:"description"`
-	ImageFileID      string   `json:"image_file_id,omitempty"`
-	ImageFileURL     string   `json:"image_file_url,omitempty"`
-	Status           string   `json:"status"`
-	CreatedBy        *string  `json:"created_by,omitempty"`
-	CreatedAt        int64    `json:"created_at"`
-	UpdatedAt        int64    `json:"updated_at"`
+	ID               string                           `json:"id"`
+	ShortDescription string                           `json:"short_description"`
+	Description      []string                         `json:"description"`
+	ImageFileID      string                           `json:"image_file_id,omitempty"`
+	ImageFileURL     string                           `json:"image_file_url,omitempty"`
+	Status           string                           `json:"status"`
+	ResolvedLocale   string                           `json:"resolved_locale,omitempty"`
+	AvailableLocales []string                         `json:"available_locales,omitempty"`
+	Translations     map[string]OutcomeTranslationDTO `json:"translations,omitempty"`
+	RowVersion       int64                            `json:"row_version,omitempty"`
+	CreatedBy        *string                          `json:"created_by,omitempty"`
+	CreatedAt        int64                            `json:"created_at"`
+	UpdatedAt        int64                            `json:"updated_at"`
 }
 
 // CourseSkillResponse is the JSON response for a course skill.
 type CourseSkillResponse struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Slug      string            `json:"slug"`
-	Children  []taxpkg.TreeNode `json:"children"`
-	Status    string            `json:"status"`
-	CreatedBy *string           `json:"created_by,omitempty"`
-	CreatedAt int64             `json:"created_at"`
-	UpdatedAt int64             `json:"updated_at"`
+	ID               string                            `json:"id"`
+	Name             string                            `json:"name"`
+	Slug             string                            `json:"slug"`
+	Children         []taxpkg.TreeNode                 `json:"children"`
+	Status           string                            `json:"status"`
+	ResolvedLocale   string                            `json:"resolved_locale,omitempty"`
+	AvailableLocales []string                          `json:"available_locales,omitempty"`
+	Translations     map[string]taxpkg.NodeTranslation `json:"translations,omitempty"`
+	RowVersion       int64                             `json:"row_version,omitempty"`
+	CreatedBy        *string                           `json:"created_by,omitempty"`
+	CreatedAt        int64                             `json:"created_at"`
+	UpdatedAt        int64                             `json:"updated_at"`
 }
 
 // SlugStatusResponse is the shared JSON shape for simple slug+status taxonomy resources.
 type SlugStatusResponse struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	Slug      string  `json:"slug"`
-	Status    string  `json:"status"`
-	CreatedBy *string `json:"created_by,omitempty"`
-	CreatedAt int64   `json:"created_at"`
-	UpdatedAt int64   `json:"updated_at"`
+	ID               string                            `json:"id"`
+	Name             string                            `json:"name"`
+	Slug             string                            `json:"slug"`
+	Status           string                            `json:"status"`
+	ResolvedLocale   string                            `json:"resolved_locale,omitempty"`
+	AvailableLocales []string                          `json:"available_locales,omitempty"`
+	Translations     map[string]taxpkg.NodeTranslation `json:"translations,omitempty"`
+	RowVersion       int64                             `json:"row_version,omitempty"`
+	CreatedBy        *string                           `json:"created_by,omitempty"`
+	CreatedAt        int64                             `json:"created_at"`
+	UpdatedAt        int64                             `json:"updated_at"`
 }
 
 // TagResponse is the JSON response for a tag.

@@ -81,13 +81,13 @@ func listPaginatedWithQuery[T any, R any](
 	)
 }
 
-func (h *Handler) respondApplicationByID(c *gin.Context, load func(context.Context, string) (*domain.Application, error)) {
+func (h *Handler) respondApplicationByID(c *gin.Context, load func(context.Context, string, string) (*domain.Application, error)) {
 	id, ok := parseIDParam(c)
 	if !ok {
 		failInvalidID(c)
 		return
 	}
-	row, err := load(c.Request.Context(), id)
+	row, err := load(c.Request.Context(), id, c.Query("locale"))
 	if mapInstructorError(c, err) {
 		return
 	}

@@ -247,28 +247,38 @@ func pluckApplicationRefIDsDB(db *gorm.DB, appID string, isTopic bool) ([]string
 	return ids, err
 }
 
-func (r *GormRepository) ListApplicationTopics(ctx context.Context, appID string) ([]domain.ApplicationTaxonomyChip, error) {
-	return r.listApplicationTaxonomyChips(ctx, appID, true)
+func (r *GormRepository) ListApplicationTopics(ctx context.Context, appID string, locale string) ([]domain.ApplicationTaxonomyChip, error) {
+	return r.listApplicationTaxonomyChips(ctx, appID, true, locale)
 }
 
-func (r *GormRepository) ListApplicationSkills(ctx context.Context, appID string) ([]domain.ApplicationTaxonomyChip, error) {
-	return r.listApplicationTaxonomyChips(ctx, appID, false)
+func (r *GormRepository) ListApplicationSkills(ctx context.Context, appID string, locale string) ([]domain.ApplicationTaxonomyChip, error) {
+	return r.listApplicationTaxonomyChips(ctx, appID, false, locale)
 }
 
-func (r *GormRepository) listApplicationTaxonomyChips(ctx context.Context, appID string, isTopic bool) ([]domain.ApplicationTaxonomyChip, error) {
+func (r *GormRepository) listApplicationTaxonomyChips(ctx context.Context, appID string, isTopic bool, locale string) ([]domain.ApplicationTaxonomyChip, error) {
 	type row struct {
 		RefID string `gorm:"column:ref_id"`
 		Name  string `gorm:"column:name"`
 		Slug  string `gorm:"column:slug"`
 	}
+	exact, base := taxonomyLocaleJoinArgs(locale)
 	alias, table, joinTable, refCol := "ias", constants.TableInstructorApplicationSkills, constants.TableTaxonomyCourseSkills, "skill_id"
+	rootAlias := "cs"
 	if isTopic {
 		alias, table, joinTable, refCol = "iat", constants.TableInstructorApplicationTopics, constants.TableTaxonomyCourseTopics, "topic_id"
+		rootAlias = "ct"
+	}
+	baseJoin := "LEFT JOIN " + joinTable + " " + rootAlias + " ON " + rootAlias + ".id = " + alias + "." + refCol + " AND " + rootAlias + ".deleted_at IS NULL"
+	var joins string
+	if isTopic {
+		joins = joinLocalizedTopicName(baseJoin)
+	} else {
+		joins = joinLocalizedSkillName(baseJoin)
 	}
 	var rows []row
 	err := activeScopeAlias(r.db.WithContext(ctx), alias).Table(table+" "+alias).
-		Select(alias+"."+refCol+" AS ref_id, COALESCE(tx.name, '') AS name, COALESCE(tx.slug, '') AS slug").
-		Joins("LEFT JOIN "+joinTable+" tx ON tx.id = "+alias+"."+refCol+" AND tx.deleted_at IS NULL").
+		Select(alias+"."+refCol+" AS ref_id, "+localizedNameSelect(rootAlias)+", COALESCE("+rootAlias+".slug, '') AS slug").
+		Joins(joins, exact, base).
 		Where(alias+".application_id = ?", appID).
 		Scan(&rows).Error
 	if err != nil {

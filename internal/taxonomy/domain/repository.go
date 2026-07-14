@@ -6,8 +6,11 @@ import "context"
 type taxonomyRepository[T any] interface {
 	List(ctx context.Context, filter TaxonomyFilter) ([]T, int64, error)
 	GetByID(ctx context.Context, id string) (*T, error)
+	// GetDetail loads by id. viewEdit=true returns canonical + full translations + available_locales
+	// without resolving display names. Otherwise hydrates labels for locale like list.
+	GetDetail(ctx context.Context, id, locale string, viewEdit bool) (*T, error)
 	Create(ctx context.Context, t *T) error
-	Save(ctx context.Context, t *T) error
+	Save(ctx context.Context, t *T, expectedRowVersion int64) error
 	SoftDelete(ctx context.Context, id string) error
 	HardDelete(ctx context.Context, id string) error
 }

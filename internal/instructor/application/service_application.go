@@ -22,14 +22,14 @@ func (s *InstructorService) ListApplications(ctx context.Context, f domain.Appli
 		return nil, 0, err
 	}
 	for i := range rows {
-		if e := s.enrichApplication(ctx, &rows[i], false); e != nil {
+		if e := s.enrichApplication(ctx, &rows[i], false, ""); e != nil {
 			return nil, 0, e
 		}
 	}
 	return rows, total, nil
 }
 
-func (s *InstructorService) GetApplication(ctx context.Context, id string) (*domain.Application, error) {
+func (s *InstructorService) GetApplication(ctx context.Context, id string, locale string) (*domain.Application, error) {
 	row, err := loadOneWithIdentity(
 		s,
 		ctx,
@@ -40,13 +40,13 @@ func (s *InstructorService) GetApplication(ctx context.Context, id string) (*dom
 	if err != nil {
 		return nil, err
 	}
-	if err := s.enrichApplication(ctx, row, true); err != nil {
+	if err := s.enrichApplication(ctx, row, true, locale); err != nil {
 		return nil, err
 	}
 	return row, nil
 }
 
-func (s *InstructorService) GetMyApplication(ctx context.Context, userID string) (*domain.Application, error) {
+func (s *InstructorService) GetMyApplication(ctx context.Context, userID string, locale string) (*domain.Application, error) {
 	if err := s.repo.MarkReturnedIfDue(ctx, userID); err != nil {
 		return nil, err
 	}
@@ -60,23 +60,23 @@ func (s *InstructorService) GetMyApplication(ctx context.Context, userID string)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.enrichApplication(ctx, row, true); err != nil {
+	if err := s.enrichApplication(ctx, row, true, locale); err != nil {
 		return nil, err
 	}
 	return row, nil
 }
 
-func (s *InstructorService) SubmitApplication(ctx context.Context, in domain.SubmitApplicationInput) (*domain.Application, error) {
-	return s.submitApplication(ctx, in, s.repo.CreateFirstApplication)
+func (s *InstructorService) SubmitApplication(ctx context.Context, in domain.SubmitApplicationInput, locale string) (*domain.Application, error) {
+	return s.submitApplication(ctx, in, s.repo.CreateFirstApplication, locale)
 }
 
-func (s *InstructorService) ResubmitMyApplication(ctx context.Context, in domain.SubmitApplicationInput) (*domain.Application, error) {
-	return s.submitApplication(ctx, in, s.repo.ResubmitApplication)
+func (s *InstructorService) ResubmitMyApplication(ctx context.Context, in domain.SubmitApplicationInput, locale string) (*domain.Application, error) {
+	return s.submitApplication(ctx, in, s.repo.ResubmitApplication, locale)
 }
 
 type applicationPersistFn func(context.Context, string, domain.SubmitApplicationInput) (*domain.Application, error)
 
-func (s *InstructorService) submitApplication(ctx context.Context, in domain.SubmitApplicationInput, persist applicationPersistFn) (*domain.Application, error) {
+func (s *InstructorService) submitApplication(ctx context.Context, in domain.SubmitApplicationInput, persist applicationPersistFn, locale string) (*domain.Application, error) {
 	if err := s.assertCanSubmit(ctx, in.ActorUserID); err != nil {
 		return nil, err
 	}
@@ -87,10 +87,10 @@ func (s *InstructorService) submitApplication(ctx context.Context, in domain.Sub
 	if err != nil {
 		return nil, err
 	}
-	return s.hydrateApplicationResponse(ctx, row)
+	return s.hydrateApplicationResponse(ctx, row, locale)
 }
 
-func (s *InstructorService) ApproveApplication(ctx context.Context, id string) (*domain.Application, error) {
+func (s *InstructorService) ApproveApplication(ctx context.Context, id string, locale string) (*domain.Application, error) {
 	app, err := s.repo.GetApplicationByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -109,10 +109,10 @@ func (s *InstructorService) ApproveApplication(ctx context.Context, id string) (
 		return nil, err
 	}
 	s.invalidateMe(ctx, app.UserID)
-	return s.GetApplication(ctx, id)
+	return s.GetApplication(ctx, id, locale)
 }
 
-func (s *InstructorService) RejectApplication(ctx context.Context, in domain.RejectApplicationInput) (*domain.Application, error) {
+func (s *InstructorService) RejectApplication(ctx context.Context, in domain.RejectApplicationInput, locale string) (*domain.Application, error) {
 	reason, err := normalizeRejectionReason(in.RejectionReason)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (s *InstructorService) RejectApplication(ctx context.Context, in domain.Rej
 	if err := s.repo.RejectApplicationWithHistory(ctx, in); err != nil {
 		return nil, err
 	}
-	return s.GetApplication(ctx, in.ApplicationID)
+	return s.GetApplication(ctx, in.ApplicationID, locale)
 }
 
 func (s *InstructorService) assertApplicantEligibleForReview(ctx context.Context, userID string) error {
@@ -169,7 +169,7 @@ func (s *InstructorService) assertCanSubmit(ctx context.Context, userID string) 
 	return nil
 }
 
-func (s *InstructorService) enrichApplication(ctx context.Context, app *domain.Application, withDetail bool) error {
+func (s *InstructorService) enrichApplication(ctx context.Context, app *domain.Application, withDetail bool, locale string) error {
 	topicIDs, err := s.repo.ListApplicationTopicIDs(ctx, app.ID)
 	if err != nil {
 		return err
@@ -181,11 +181,11 @@ func (s *InstructorService) enrichApplication(ctx context.Context, app *domain.A
 	app.TopicIDs = topicIDs
 	app.SkillIDs = skillIDs
 	if withDetail {
-		topics, err := s.repo.ListApplicationTopics(ctx, app.ID)
+		topics, err := s.repo.ListApplicationTopics(ctx, app.ID, locale)
 		if err != nil {
 			return err
 		}
-		skills, err := s.repo.ListApplicationSkills(ctx, app.ID)
+		skills, err := s.repo.ListApplicationSkills(ctx, app.ID, locale)
 		if err != nil {
 			return err
 		}
@@ -198,8 +198,8 @@ func (s *InstructorService) enrichApplication(ctx context.Context, app *domain.A
 	return nil
 }
 
-func (s *InstructorService) hydrateApplicationResponse(ctx context.Context, app *domain.Application) (*domain.Application, error) {
-	if err := s.enrichApplication(ctx, app, true); err != nil {
+func (s *InstructorService) hydrateApplicationResponse(ctx context.Context, app *domain.Application, locale string) (*domain.Application, error) {
+	if err := s.enrichApplication(ctx, app, true, locale); err != nil {
 		return nil, err
 	}
 	items := []domain.Application{*app}

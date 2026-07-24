@@ -570,6 +570,13 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Course field validation (title, descriptions, about-course Delta); reuse for any future rich-text or min-length rules.
 - Current Usage: `internal/course/delivery/dto.go`, `courseTitleAndSlug` in `internal/course/application/service.go`.
 
+### Asset: CountRunes (utils)
+- Name: `CountRunes`
+- Type: Util function
+- Path: `internal/shared/utils/text_rules.go`
+- Purpose: Count Unicode code points via `utf8.RuneCountInString`. Use for instructor application profile text length contracts shared with FE (`unicodeCodePointLength`). Prefer over `len(string)` (UTF-8 bytes).
+- Scope: Instructor application profile text fields (`bio`, `teaching_content_ideas` in `validateSubmitProfileFields`). Do **not** replace `CountNonWhitespace` (course visible-char rules).
+
 ### Asset: ensureUniqueCourseSlug (course infra)
 - Name: `ensureUniqueCourseSlug`
 - Type: Function (repo helper)

@@ -87,6 +87,7 @@ func (b submitApplicationBody) toInput(actorUserID string) domain.SubmitApplicat
 type profileBody struct {
 	Headline                  string            `json:"headline"`
 	Bio                       string            `json:"bio"`
+	TeachingContentIdeas      string            `json:"teaching_content_ideas"`
 	YearsOfExperience         string            `json:"years_of_experience"`
 	CurrentJobTitle           string            `json:"current_job_title"`
 	CurrentJobTitleID         string            `json:"current_job_title_id"`
@@ -134,7 +135,7 @@ func (b profileBody) toPayload() domain.ProfilePayload {
 		links = []string{}
 	}
 	return domain.ProfilePayload{
-		Headline: b.Headline, Bio: b.Bio, YearsOfExperience: b.YearsOfExperience,
+		Headline: b.Headline, Bio: b.Bio, TeachingContentIdeas: b.TeachingContentIdeas, YearsOfExperience: b.YearsOfExperience,
 		CurrentJobTitle: b.CurrentJobTitle, CurrentJobTitleID: b.CurrentJobTitleID, CurrentCompany: b.CurrentCompany,
 		CompanySnapshot: domain.CompanySnapshot{
 			CurrentCompanyID: b.CurrentCompanyID, CurrentCompanyDomain: b.CurrentCompanyDomain,
@@ -255,7 +256,7 @@ func profileToResponse(row domain.Profile) applicationResponse {
 
 func profileBodyFromPayload(p domain.ProfilePayload) profileBody {
 	return profileBody{
-		Headline: p.Headline, Bio: p.Bio, YearsOfExperience: p.YearsOfExperience,
+		Headline: p.Headline, Bio: p.Bio, TeachingContentIdeas: p.TeachingContentIdeas, YearsOfExperience: p.YearsOfExperience,
 		CurrentJobTitle: p.CurrentJobTitle, CurrentJobTitleID: p.CurrentJobTitleID,
 		CurrentCompany:   p.CurrentCompany,
 		CurrentCompanyID: p.CurrentCompanyID, CurrentCompanyDomain: p.CurrentCompanyDomain,

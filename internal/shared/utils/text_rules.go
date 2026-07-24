@@ -4,7 +4,14 @@ import (
 	"encoding/json"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
+
+// CountRunes returns the number of Unicode code points in s (UTF-8 runes).
+// Prefer this over len(s) for text length contracts shared with FE.
+func CountRunes(s string) int {
+	return utf8.RuneCountInString(s)
+}
 
 // CountNonWhitespace counts runes that are not Unicode whitespace (after trim).
 func CountNonWhitespace(s string) int {

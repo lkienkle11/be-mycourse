@@ -5,6 +5,7 @@ import "mycourse-io-be/internal/shared/constants"
 type ProfileDataRow struct {
 	Headline                  string            `gorm:"size:255"`
 	Bio                       string            `gorm:"type:text"`
+	TeachingContentIdeas      string            `gorm:"type:text"`
 	YearsOfExperience         string            `gorm:"size:32"`
 	CurrentJobTitle           string            `gorm:"size:255"`
 	CurrentJobTitleID         string            `gorm:"size:255"`

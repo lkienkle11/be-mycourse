@@ -45,7 +45,11 @@ func (s *InstructorService) validateSubmitInput(ctx context.Context, in domain.S
 
 func validateSubmitProfileFields(p domain.ProfilePayload, topicIDs, skillIDs []string) error {
 	bio := strings.TrimSpace(p.Bio)
-	if len(bio) < 100 || len(bio) > 2000 {
+	if n := sharedutils.CountRunes(bio); n < 100 || n > 2000 {
+		return domain.ErrInvalidApplicationPayload
+	}
+	ideas := strings.TrimSpace(p.TeachingContentIdeas)
+	if n := sharedutils.CountRunes(ideas); n < 50 || n > 500 {
 		return domain.ErrInvalidApplicationPayload
 	}
 	if _, ok := validYearsCodes[strings.TrimSpace(p.YearsOfExperience)]; !ok {

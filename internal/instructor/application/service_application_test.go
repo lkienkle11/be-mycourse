@@ -140,6 +140,7 @@ func (r appTestRoles) UserHasInstructorRole(context.Context, string) (bool, erro
 }
 
 const validApplicationBio = "I have eight years of experience building production systems, mentoring engineers, and delivering technical workshops for enterprise teams across multiple domains."
+const validTeachingContentIdeas = "A 6-week intro to Go concurrency with labs on channels, worker pools, and context cancellation, plus a follow-up course on designing idempotent HTTP APIs."
 
 func validSubmitInput() domain.SubmitApplicationInput {
 	return domain.SubmitApplicationInput{
@@ -147,7 +148,7 @@ func validSubmitInput() domain.SubmitApplicationInput {
 		TopicIDs:    []string{"00000000-0000-0000-0000-000000000010"},
 		SkillIDs:    []string{"00000000-0000-0000-0000-000000000020"},
 		ProfilePayload: domain.ProfilePayload{
-			Headline: "", Bio: validApplicationBio,
+			Headline: "", Bio: validApplicationBio, TeachingContentIdeas: validTeachingContentIdeas,
 			YearsOfExperience: domain.YearsThreeToFiveYears,
 			CurrentJobTitle:   "Senior Engineer", CurrentJobTitleID: "custom:senior-engineer",
 			CurrentCompany: "Example Co", CVFileID: "00000000-0000-0000-0000-000000000001",

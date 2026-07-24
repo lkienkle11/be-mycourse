@@ -53,12 +53,13 @@ type CompanySnapshot struct {
 
 // ProfilePayload is shared by applications and managed profiles.
 type ProfilePayload struct {
-	Headline          string
-	Bio               string
-	YearsOfExperience string
-	CurrentJobTitle   string
-	CurrentJobTitleID string
-	CurrentCompany    string
+	Headline             string
+	Bio                  string
+	TeachingContentIdeas string
+	YearsOfExperience    string
+	CurrentJobTitle      string
+	CurrentJobTitleID    string
+	CurrentCompany       string
 	CompanySnapshot
 	CVFileID         string
 	LinkedinURL      string

@@ -38,6 +38,7 @@
 | `000030_media_owner_visibility` | Adds **`media_files.user_id`** (FK → `users.id`, nullable for legacy rows) and **`media_files.visibility`** (`private` default, `public` optional). Indexes on `(user_id)` and `(visibility)` for list filtering. See **`docs/modules/media.md`**. |
 | `000031_user_oauth_identities` | Adds **`users.password_set_at`** and table **`user_oauth_identities`** for Google/X external identities. See **`docs/database.md`**. |
 | `000032_taxonomy_translations_row_version` | Taxonomy `*_translations` + `row_version` + JSONB tree `translations.en` backfill. Tree helper is **`LANGUAGE sql`** (no `plpgsql`/`DO $$`) so golang-migrate `;` splitting works. See **`docs/database.md`** / **`docs/modules/taxonomy.md`**. |
+| `000033_teaching_content_ideas` | Adds `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on **`instructor_applications`** and **`instructor_profiles`**. Required 50–500 Unicode code points (not UTF-8 bytes) on submit/resubmit; approve copies via profile snapshot. See **`docs/modules/instructor.md`** / **`docs/database.md`**. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

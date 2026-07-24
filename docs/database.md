@@ -830,12 +830,13 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000029 | `instructor_application_feature` | Application state machine columns, company snapshot columns, `years_of_experience` enum codes, application expertise junction tables, seed P68 + instructor grant |
 | 000031 | `user_oauth_identities` | `users.password_set_at` (`TIMESTAMPTZ NULL`) + backfill (`password_set_at = to_timestamp(created_at)` where `email_confirmed` and `hash_password IS NOT NULL`); table `user_oauth_identities` (BIGINT-epoch time columns) with `uix_oauth_provider_sub`, `idx_oauth_identities_user_id`, partial `idx_oauth_identities_provider_email` |
 | 000032 | `taxonomy_translations_row_version` | Five `*_translations` tables + `locale='en'` backfill from canonical columns; JSONB tree patch ensuring `translations.en.name` on `child_topics`/`children` (**fail-fast** on non-array / invalid nodes via `LANGUAGE sql` recursive helper — **no** `plpgsql`/`DO $$`, because golang-migrate splits on `;`); `row_version BIGINT NOT NULL DEFAULT 1` on five taxonomy roots (backfill existing = 1, mirror `000020`). Shipped in source — apply before localized taxonomy traffic. |
+| 000033 | `teaching_content_ideas` | `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on `instructor_applications` and `instructor_profiles` (required 50–500 Unicode code points on submit; approve copies with profile snapshot) |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
 ---
 
-## Instructor management tables (`000013` + feature `000029`)
+## Instructor management tables (`000013` + feature `000029` + `000033`)
 
 ### BE-01 audit — logical snapshot contract
 
@@ -843,7 +844,7 @@ The API exposes a logical `latest_submission` object. Physical storage maps as f
 
 | Logical field | Physical storage |
 |---------------|------------------|
-| `latest_submission.profile.*` (headline, bio, job/company, URLs, media IDs, portfolio, certificates) | Inline columns on `instructor_applications` (shared exported `ProfileDataRow` embedded in `applicationRow` with `gorm:"embedded"` in `internal/instructor/infra/rows.go`) |
+| `latest_submission.profile.*` (headline, bio, teaching_content_ideas, job/company, URLs, media IDs, portfolio, certificates) | Inline columns on `instructor_applications` (shared exported `ProfileDataRow` embedded in `applicationRow` with `gorm:"embedded"` in `internal/instructor/infra/rows.go`) |
 | `latest_submission.profile.years_of_experience` | `VARCHAR(32)` enum code on `instructor_applications` and `instructor_profiles` |
 | `latest_submission.profile.current_job_title_id` | `current_job_title_id VARCHAR(255) NOT NULL` — no `DEFAULT ''`; legacy backfill `custom:<slug>` |
 | `latest_submission.profile.current_company_*` | `current_company_id`, `current_company_domain`, `current_company_description`, `current_company_location` — **nullable** when user types company free-text (no suggestion selected) |
@@ -897,7 +898,7 @@ Do **not** persist empty string `''` as a fake id — use `NULL` for absent snap
 | `submitted_at` | BIGINT | Unix seconds when entered `pending` — **`000029`** |
 | `review_due_at` | BIGINT | `submitted_at + 5 days` — **`000029`** |
 | `returned_at` | BIGINT nullable | Unix seconds when SLA auto-returned; **NULL** when never returned — **`000029`** |
-| Profile columns | inline | `headline` (optional, default `''`; not on become-instructor form), `bio` (**required** on submit: 100–2000 chars), `years_of_experience` (enum), `current_job_title`, **`current_job_title_id`** (NOT NULL), `current_company`, **`current_company_id`** (nullable), **`current_company_domain`** (nullable), **`current_company_description`** (nullable), **`current_company_location`** (nullable), `cv_file_id`, URLs, `portfolio_links` JSONB, `certificates` JSONB (`title`, `issuer`, `issued_year`, `credential_url?`, `certificate_file_id?`), `intro_video_file_id` |
+| Profile columns | inline | `headline` (optional, default `''`; not on become-instructor form), `bio` (**required** on submit: 100–2000 Unicode code points), `teaching_content_ideas` (**required** on submit: 50–500 Unicode code points — **`000033`**; concrete class/course ideas, not topic taxonomy), `years_of_experience` (enum), `current_job_title`, **`current_job_title_id`** (NOT NULL), `current_company`, **`current_company_id`** (nullable), **`current_company_domain`** (nullable), **`current_company_description`** (nullable), **`current_company_location`** (nullable), `cv_file_id`, URLs, `portfolio_links` JSONB, `certificates` JSONB (`title`, `issuer`, `issued_year`, `credential_url?`, `certificate_file_id?`), `intro_video_file_id` |
 | `created_at`, `updated_at`, `deleted_at` | BIGINT | Soft delete |
 
 ### `instructor_application_topics` / `instructor_application_skills` (**`000029`**)
@@ -913,7 +914,7 @@ Application-scoped expertise snapshot. Same soft-delete + partial unique index p
 
 ### `instructor_profiles`
 
-Same inline profile shape as applications (including company snapshot columns from **`000029`**). Promoted on approve.
+Same inline profile shape as applications (including company snapshot columns from **`000029`** and `teaching_content_ideas` from **`000033`**). Promoted on approve.
 
 ### Other instructor tables (unchanged)
 

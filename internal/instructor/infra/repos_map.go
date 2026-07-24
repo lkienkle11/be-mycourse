@@ -17,11 +17,11 @@ func mapNotFound(err error) error {
 }
 
 type profileFields struct {
-	Headline, Bio, YearsOfExperience, CurrentJobTitle, CurrentJobTitleID, CurrentCompany      string
-	CurrentCompanyID, CurrentCompanyDomain, CurrentCompanyDescription, CurrentCompanyLocation *string
-	CVFileID, LinkedinURL, GithubURL, IntroVideoFileID                                        string
-	PortfolioLinks                                                                            *StringSliceJSON
-	Certificates                                                                              *CertificatesJSON
+	Headline, Bio, TeachingContentIdeas, YearsOfExperience, CurrentJobTitle, CurrentJobTitleID, CurrentCompany string
+	CurrentCompanyID, CurrentCompanyDomain, CurrentCompanyDescription, CurrentCompanyLocation                  *string
+	CVFileID, LinkedinURL, GithubURL, IntroVideoFileID                                                         string
+	PortfolioLinks                                                                                             *StringSliceJSON
+	Certificates                                                                                               *CertificatesJSON
 }
 
 func nullableStringPtr(s string) *string {
@@ -60,7 +60,7 @@ func fieldsFromPayload(p domain.ProfilePayload) (profileFields, error) {
 		return profileFields{}, err
 	}
 	return profileFields{
-		Headline: p.Headline, Bio: p.Bio, YearsOfExperience: p.YearsOfExperience,
+		Headline: p.Headline, Bio: p.Bio, TeachingContentIdeas: p.TeachingContentIdeas, YearsOfExperience: p.YearsOfExperience,
 		CurrentJobTitle: p.CurrentJobTitle, CurrentJobTitleID: p.CurrentJobTitleID,
 		CurrentCompany:            p.CurrentCompany,
 		CurrentCompanyID:          nullableStringPtr(derefString(p.CurrentCompanyID)),
@@ -74,7 +74,7 @@ func fieldsFromPayload(p domain.ProfilePayload) (profileFields, error) {
 
 func payloadFromFields(f profileFields) domain.ProfilePayload {
 	return domain.ProfilePayload{
-		Headline: f.Headline, Bio: f.Bio, YearsOfExperience: f.YearsOfExperience,
+		Headline: f.Headline, Bio: f.Bio, TeachingContentIdeas: f.TeachingContentIdeas, YearsOfExperience: f.YearsOfExperience,
 		CurrentJobTitle: f.CurrentJobTitle, CurrentJobTitleID: f.CurrentJobTitleID,
 		CurrentCompany: f.CurrentCompany,
 		CompanySnapshot: domain.CompanySnapshot{
@@ -92,7 +92,7 @@ func payloadFromFields(f profileFields) domain.ProfilePayload {
 
 func rowFieldsFromData(d *ProfileDataRow) profileFields {
 	return profileFields{
-		Headline: d.Headline, Bio: d.Bio, YearsOfExperience: d.YearsOfExperience,
+		Headline: d.Headline, Bio: d.Bio, TeachingContentIdeas: d.TeachingContentIdeas, YearsOfExperience: d.YearsOfExperience,
 		CurrentJobTitle: d.CurrentJobTitle, CurrentJobTitleID: d.CurrentJobTitleID,
 		CurrentCompany:   d.CurrentCompany,
 		CurrentCompanyID: d.CurrentCompanyID, CurrentCompanyDomain: d.CurrentCompanyDomain,
@@ -103,7 +103,7 @@ func rowFieldsFromData(d *ProfileDataRow) profileFields {
 }
 
 func writeFieldsToData(d *ProfileDataRow, f profileFields) {
-	d.Headline, d.Bio, d.YearsOfExperience = f.Headline, f.Bio, f.YearsOfExperience
+	d.Headline, d.Bio, d.TeachingContentIdeas, d.YearsOfExperience = f.Headline, f.Bio, f.TeachingContentIdeas, f.YearsOfExperience
 	d.CurrentJobTitle, d.CurrentJobTitleID, d.CurrentCompany = f.CurrentJobTitle, f.CurrentJobTitleID, f.CurrentCompany
 	d.CurrentCompanyID, d.CurrentCompanyDomain = f.CurrentCompanyID, f.CurrentCompanyDomain
 	d.CurrentCompanyDescription, d.CurrentCompanyLocation = f.CurrentCompanyDescription, f.CurrentCompanyLocation

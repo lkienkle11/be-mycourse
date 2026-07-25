@@ -570,12 +570,20 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Course field validation (title, descriptions, about-course Delta); reuse for any future rich-text or min-length rules.
 - Current Usage: `internal/course/delivery/dto.go`, `courseTitleAndSlug` in `internal/course/application/service.go`.
 
+### Asset: CountDeltaRunes (utils)
+- Name: `CountDeltaRunes`
+- Type: Util function
+- Path: `internal/shared/utils/text_rules.go`
+- Purpose: Count Unicode code points (**including** whitespace) on Quill Delta JSON string inserts via `CountRunes`. Invalid/non-JSON input **and valid JSON without an `ops` array** fall back to `CountRunes(strings.TrimSpace(raw))` for legacy plain text (same payload-class rule as FE `coerceToDelta` — prevents FE/BE drift on non-Delta JSON). Differs from `CountDeltaNonWhitespace` (course visible-char rules exclude whitespace).
+- Scope: Instructor application `bio` in `validateSubmitProfileFields` (100–2000). Structural allow-list validation of the Delta itself (string-only inserts, allowed attributes) is `validateBioDelta` in `internal/instructor/application/validate_profile.go` — counting alone never validates structure. FE mirrors with plain-text extract + `unicodeCodePointLength` / `countDeltaCodePoints`.
+- Current Usage: `validateSubmitProfileFields` in `internal/instructor/application/validate_profile.go`.
+
 ### Asset: CountRunes (utils)
 - Name: `CountRunes`
 - Type: Util function
 - Path: `internal/shared/utils/text_rules.go`
-- Purpose: Count Unicode code points via `utf8.RuneCountInString`. Use for instructor application profile text length contracts shared with FE (`unicodeCodePointLength`). Prefer over `len(string)` (UTF-8 bytes).
-- Scope: Instructor application profile text fields (`bio`, `teaching_content_ideas` in `validateSubmitProfileFields`). Do **not** replace `CountNonWhitespace` (course visible-char rules).
+- Purpose: Count Unicode code points via `utf8.RuneCountInString`. Use for instructor application profile plain-text length contracts shared with FE (`unicodeCodePointLength`). Prefer over `len(string)` (UTF-8 bytes). Also the building block inside `CountDeltaRunes` for Delta string inserts.
+- Scope: Instructor application `teaching_content_ideas` in `validateSubmitProfileFields` (plain string). Do **not** replace `CountNonWhitespace` (course visible-char rules). Do **not** use for `bio` length (use `CountDeltaRunes`).
 
 ### Asset: ensureUniqueCourseSlug (course infra)
 - Name: `ensureUniqueCourseSlug`

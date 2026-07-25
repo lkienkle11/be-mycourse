@@ -26,6 +26,17 @@ func CountNonWhitespace(s string) int {
 
 // CountDeltaNonWhitespace counts visible text in Quill Delta JSON (string inserts only).
 func CountDeltaNonWhitespace(raw string) int {
+	return countDeltaInserts(raw, CountNonWhitespace)
+}
+
+// CountDeltaRunes counts Unicode code points (including whitespace) in Quill Delta
+// JSON string inserts. Invalid/non-JSON input falls back to CountRunes(TrimSpace(raw))
+// for legacy plain text. Differs from CountDeltaNonWhitespace (excludes whitespace).
+func CountDeltaRunes(raw string) int {
+	return countDeltaInserts(raw, CountRunes)
+}
+
+func countDeltaInserts(raw string, countFn func(string) int) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return 0
@@ -35,14 +46,16 @@ func CountDeltaNonWhitespace(raw string) int {
 			Insert json.RawMessage `json:"insert"`
 		} `json:"ops"`
 	}
-	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return CountNonWhitespace(raw)
+	// JSON without an `ops` array is legacy plain text, same payload-class rule
+	// as FE coerceToDelta — otherwise FE and BE disagree on non-Delta JSON.
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil || payload.Ops == nil {
+		return countFn(raw)
 	}
 	total := 0
 	for _, op := range payload.Ops {
 		var text string
 		if err := json.Unmarshal(op.Insert, &text); err == nil {
-			total += CountNonWhitespace(text)
+			total += countFn(text)
 		}
 	}
 	return total

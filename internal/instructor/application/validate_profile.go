@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -17,10 +18,68 @@ var validYearsCodes = map[string]struct{}{
 	domain.YearsOverTenYears:     {},
 }
 
+// maxBioDeltaRawBytes caps the raw bio value so oversized Delta JSON (huge
+// attribute maps, thousands of ops) cannot be stored; 2000 code points of
+// formatted text stays far below this.
+const maxBioDeltaRawBytes = 32 * 1024
+
+// allowedBioDeltaAttributes is the attribute allow-list for bio Delta ops.
+// Mirrors FE lockSystemFont policy: font, size, header, media embeds, and
+// every unknown attribute are rejected server-side (UI-only rules can be
+// bypassed by direct API calls).
+var allowedBioDeltaAttributes = map[string]struct{}{
+	"bold":      {},
+	"italic":    {},
+	"underline": {},
+	"strike":    {},
+	"list":      {},
+}
+
 func (s *InstructorService) validateProfile(ctx context.Context, p domain.ProfilePayload) error {
 	if s.mediaVal != nil {
 		if err := s.mediaVal.ValidateProfilePayload(ctx, p); err != nil {
 			return err
+		}
+	}
+	return validateBioDelta(p.Bio)
+}
+
+// validateBioDelta enforces the bio Delta structure on every ProfilePayload
+// write path (application submit/resubmit and profile upsert): string inserts
+// only, attributes from allowedBioDeltaAttributes. JSON without an `ops` array
+// (and non-JSON) is legacy plain text — same payload-class rule as FE
+// coerceToDelta, so FE and BE never disagree on how a value is interpreted.
+func validateBioDelta(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if len(raw) > maxBioDeltaRawBytes {
+		return domain.ErrInvalidApplicationPayload
+	}
+	var payload struct {
+		Ops []json.RawMessage `json:"ops"`
+	}
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil || payload.Ops == nil {
+		return nil
+	}
+	for _, rawOp := range payload.Ops {
+		var op struct {
+			Insert     json.RawMessage            `json:"insert"`
+			Attributes map[string]json.RawMessage `json:"attributes"`
+		}
+		if err := json.Unmarshal(rawOp, &op); err != nil {
+			return domain.ErrInvalidApplicationPayload
+		}
+		var text string
+		if err := json.Unmarshal(op.Insert, &text); err != nil {
+			// Non-string insert = media embed (image/video/document object).
+			return domain.ErrInvalidApplicationPayload
+		}
+		for key := range op.Attributes {
+			if _, ok := allowedBioDeltaAttributes[key]; !ok {
+				return domain.ErrInvalidApplicationPayload
+			}
 		}
 	}
 	return nil
@@ -45,7 +104,7 @@ func (s *InstructorService) validateSubmitInput(ctx context.Context, in domain.S
 
 func validateSubmitProfileFields(p domain.ProfilePayload, topicIDs, skillIDs []string) error {
 	bio := strings.TrimSpace(p.Bio)
-	if n := sharedutils.CountRunes(bio); n < 100 || n > 2000 {
+	if n := sharedutils.CountDeltaRunes(bio); n < 100 || n > 2000 {
 		return domain.ErrInvalidApplicationPayload
 	}
 	ideas := strings.TrimSpace(p.TeachingContentIdeas)

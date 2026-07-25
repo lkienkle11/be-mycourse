@@ -196,7 +196,9 @@ components:
       type: object
       properties:
         headline: { type: string }
-        bio: { type: string }
+        bio:
+          type: string
+          description: Quill Delta JSON (TEXT column) or legacy plain text. Length 100–2000 Unicode code points on extracted plain text (CountDeltaRunes). Delta payloads allow string inserts only with attributes bold/italic/underline/strike/list; media embeds and font/size/header attributes are rejected (validateBioDelta).
         teaching_content_ideas:
           type: string
           description: Required on submit (50–500 Unicode code points). Concrete class/course ideas and outlines; not topic-group taxonomy.
@@ -264,9 +266,7 @@ components:
           description: Optional; not collected on become-instructor form (empty string)
         bio:
           type: string
-          minLength: 100
-          maxLength: 2000
-          description: Required professional bio (100–2000 Unicode code points; not UTF-8 bytes). Validated with CountRunes after trim.
+          description: Required professional bio as Quill Delta JSON string (same pattern as course about_course). Length is 100–2000 Unicode code points on extracted plain text via CountDeltaRunes (includes whitespace; non-JSON or JSON without an ops array falls back to CountRunes after trim as legacy plain text). Delta payloads are structurally validated (validateBioDelta) — string inserts only, attributes limited to bold/italic/underline/strike/list; image/video/document embeds, font, size, header, and unknown attributes are rejected; raw value over 32 KB is rejected. Not UTF-8 bytes; OpenAPI minLength/maxLength do not apply to the raw Delta JSON string.
         teaching_content_ideas:
           type: string
           minLength: 50
@@ -311,7 +311,7 @@ components:
           maxItems: 15
       example:
         headline: "Cloud and backend instructor"
-        bio: "I have eight years of experience building production systems, mentoring engineers, and delivering technical workshops for enterprise teams across multiple domains."
+        bio: "{\"ops\":[{\"insert\":\"I have eight years of experience building production systems, mentoring engineers, and delivering technical workshops for enterprise teams across multiple domains.\\n\"}]}"
         teaching_content_ideas: "A 6-week intro to Go concurrency with labs on channels, worker pools, and context cancellation, plus a follow-up course on designing idempotent HTTP APIs with Postgres."
         years_of_experience: THREE_TO_FIVE_YEARS
         current_job_title: "Senior Backend Engineer"
@@ -3409,7 +3409,11 @@ paths:
               type: object
               properties:
                 headline: { type: string }
-                bio: { type: string }
+                bio:
+                  {
+                    type: string,
+                    description: Quill Delta JSON (TEXT) or legacy plain text; length 100–2000 Unicode code points on extracted plain text (CountDeltaRunes) when required on application submit; Delta structure allow-listed (string inserts only, attributes bold/italic/underline/strike/list; media/font/size/header rejected),
+                  }
                 teaching_content_ideas:
                   {
                     type: string,
@@ -3477,7 +3481,11 @@ paths:
               type: object
               properties:
                 headline: { type: string }
-                bio: { type: string }
+                bio:
+                  {
+                    type: string,
+                    description: Quill Delta JSON (TEXT) or legacy plain text; length 100–2000 Unicode code points on extracted plain text (CountDeltaRunes) when required on application submit; Delta structure allow-listed (string inserts only, attributes bold/italic/underline/strike/list; media/font/size/header rejected),
+                  }
                 teaching_content_ideas:
                   {
                     type: string,

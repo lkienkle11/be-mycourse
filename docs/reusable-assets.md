@@ -1133,3 +1133,8 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Phase 01-04: reuse `BaseFilter`, `RequirePermission`, `response` helpers, `errcode`.
 - Phase 05-08: additionally reuse list/sort whitelist pattern and raw SQL helper patterns.
 - Phase 09-12: reuse auth/session + permission resolution functions and middleware gates; add domain-specific shared helpers where duplication appears.
+
+
+## Public SEO cache pattern pointer (take-note, 2026-07-25)
+
+Auth `/me` cache-aside and `internal/shared/ratelimit/` (+ NFR-1.1) are the patterns to extend for a future public catalogue cache and crawler tiers. Course public cache is **not** implemented. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).

@@ -357,3 +357,8 @@ Outline reorder and lease endpoints were optimized **without changing response s
 Measured warm reorder (2 sub-lessons, remote PostgreSQL): **~935ms–990ms** (down from ~2.35s+).
 
 **Frontend pairing:** `mergeReorderedLessons` / `mergeReorderedSections` in `fe-mycourse/src/lib/utils/course.ts` preserve nested `sub_lessons` / `lessons` when reorder API returns partial trees.
+
+
+## Public SEO take-note (2026-07-25)
+
+`learner-courses*` endpoints are **authenticated** (`course:read`). There is no public anonymous catalogue yet. Future public DTO work must reuse published-only semantics — see [`../security-public-seo-notes.md`](../security-public-seo-notes.md).

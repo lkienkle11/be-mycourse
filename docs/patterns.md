@@ -347,3 +347,8 @@ Minimum checklist when behavior or API **does** change:
 4. `docs/modules.md`, `README.md`, `docs/architecture.md`
 5. `docs/database.md` (if schema changed)
 6. `ruby scripts/generate-apidog-postman.rb` (if request/response contracts changed)
+
+
+## Public SEO DTO pattern (take-note, 2026-07-25)
+
+Prefer published-only projections and existing rate-limit tiers over inventing parallel auth/quota stacks. Notes: [`security-public-seo-notes.md`](./security-public-seo-notes.md).

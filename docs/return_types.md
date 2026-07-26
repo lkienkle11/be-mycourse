@@ -1355,3 +1355,8 @@ X-Token-Expired: true
 ```
 
 This header is set **only** when a `401` is caused by an expired access JWT (`jwt.ErrTokenExpired`). It is **not** set for missing or malformed tokens.
+
+
+## Future public SEO DTO note (2026-07-25)
+
+Any future anonymous public course DTO must be a **published-only** projection and must **not** equal full admin/instructor `CourseDetail` (exclude draft/review/collaborator/progress/PII). Field differences today between learner and admin responses are the starting matrix — see [`security-public-seo-notes.md`](./security-public-seo-notes.md).

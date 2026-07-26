@@ -117,3 +117,8 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 - Taxonomy, Media, Instructor, and Course domains are implemented on `/api/v1`.
 - Standalone payment/checkout and anonymous storefront flows are still planned.
 - Lesson/enrollment docs remain as compatibility docs because behavior is currently embedded in `internal/course/`.
+
+
+## Public SEO / storefront gap (take-note)
+
+No anonymous public course storefront routes. Learner course APIs require auth. Planning notes: [`security-public-seo-notes.md`](./security-public-seo-notes.md).

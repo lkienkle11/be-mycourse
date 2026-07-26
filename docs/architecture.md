@@ -206,3 +206,8 @@ MCP resource `gitnexus://repo/be-mycourse/context` lists current graph stats and
 | [`docs/modules/rbac.md`](modules/rbac.md) | RBAC domain deep-dive |
 | [`docs/modules/taxonomy.md`](modules/taxonomy.md) | Taxonomy domain deep-dive |
 | [`docs/modules/instructor.md`](modules/instructor.md) | Instructor management deep-dive |
+
+
+## Public read-model vs learner APIs (take-note, 2026-07-25)
+
+A future public SEO/storefront read-model is distinct from authenticated learner APIs. Public GETs must not rely on Bearer/cookie session. Flag any docs that drift toward “Bearer-only public catalogue” — cookie auth remains the app default for private routes. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).

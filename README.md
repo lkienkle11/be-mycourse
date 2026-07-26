@@ -24,6 +24,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 | [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy module (topics, outcomes, skills, tags, levels) |
 | [`docs/docker.md`](docs/docker.md) | Docker Compose alternative (local/VPS manual; PM2/CI unchanged) |
 | [`docs/deploy.md`](docs/deploy.md) | VPS runbook (PM2 + CI) |
+| [`docs/security-public-seo-notes.md`](docs/security-public-seo-notes.md) | **Take-note:** future public SEO/storefront intent; reuse B1–B10 assets; no BE code yet; links FE SEO docs |
 
 ---
 

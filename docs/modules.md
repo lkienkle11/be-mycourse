@@ -214,3 +214,8 @@ Tests are **co-located** with their packages. See [`docs/patterns.md`](patterns.
 ```bash
 go test ./...
 ```
+
+
+### Public SEO / storefront take-note (2026-07-25)
+
+Anonymous public catalogue remains **Planned**. Intent and reusable assets (B1–B10): [`security-public-seo-notes.md`](./security-public-seo-notes.md). No BE code in the FE SEO foundation phase.

@@ -824,3 +824,8 @@ Full reference: **[`docs/docker.md`](docker.md)** — env matrix, CGO runtime li
 ---
 
 *Adjust paths, domains, and secrets to match your environment.*
+
+
+## Public SEO / FE origin alignment (take-note, 2026-07-25)
+
+Keep TLS/HSTS on nginx. CORS allowed origins must match the FE site origin (future FE `SITE_URL`), not treat the API URL as the marketing site. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).

@@ -4,6 +4,8 @@
 
 ```text
 be-mycourse/
+├── AGENTS.md                       # Canonical version-controlled agent instructions
+├── CLAUDE.md                       # Claude entry point; imports AGENTS.md via @AGENTS.md
 ├── .claude/                        # Agent skills (GitNexus, etc.)
 ├── .context/                       # Session continuity artifacts
 ├── .cursor/                        # Workspace rules, editor skills

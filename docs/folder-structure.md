@@ -6,7 +6,7 @@
 be-mycourse/
 ├── AGENTS.md                       # Canonical version-controlled agent instructions
 ├── CLAUDE.md                       # Claude entry point; imports AGENTS.md via @AGENTS.md
-├── .claude/                        # Agent skills (GitNexus, etc.)
+├── .claude/                        # Version-controlled Claude commands and agent skills
 ├── .context/                       # Session continuity artifacts
 ├── .cursor/                        # Workspace rules, editor skills
 ├── .github/

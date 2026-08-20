@@ -104,6 +104,125 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 Before making any code or documentation changes, read and follow:
 1. All relevant skill files under `.ai/skills/`
 
+<!-- begin:repository-memory-bank-rule:start -->
+# Global Memory Bank Rules
+
+These rules are mandatory for every task and every response in every repository.
+
+## Memory location and project identity
+
+- The shared memory root is `/private/tmp/ai-agent/memory`.
+- Use the current Git repository root directory name as `projectName`. If there is no Git root, use the current working directory name.
+- Never store secrets, credentials, tokens, private keys, or raw sensitive values in memory.
+
+## Required pre-response load
+
+Before doing task work or composing any user-facing answer, load all memory files for the current project.
+
+1. Use the installed Memory Bank CLI first and load the project in one command: `memory-bank-cli memory_bank_read_all --project <projectName>`. Do not run preliminary `list_projects` or `list_project_files` commands during the normal path.
+2. After agent context compaction completes successfully, immediately reload every Memory Bank file for the current project before continuing task work or composing a response. Use the same CLI-first fallback sequence defined in this section.
+3. Every Memory Bank CLI or MCP operation has a hard 30-second limit. Do not retry a failed or timed-out operation in the same turn.
+4. If the CLI is unavailable, times out, or fails, fall back to the `memory-bank` MCP server. Call `list_project_files`, then issue the required `memory_bank_read` calls concurrently rather than serially.
+5. If both CLI and MCP fail, read every file directly from `/private/tmp/ai-agent/memory/<projectName>/`.
+6. If the project has no memory yet, continue the task and initialize it during the required persistence step.
+
+## Required end-of-turn persistence
+
+The final operation before sending each final answer must persist all durable context needed to continue later: the user's goal and constraints, decisions and rationale, changes made, commands/tests and outcomes, current state, blockers, and next steps.
+
+1. Prefer the CLI: use `memory-bank-cli memory_bank_update` for existing files and `memory-bank-cli memory_bank_write` for new files. Do not run preliminary list commands.
+2. Every Memory Bank CLI or MCP operation has a hard 30-second limit. Do not retry a failed or timed-out operation in the same turn.
+3. If a CLI write fails, fall back to `memory_bank_update` or `memory_bank_write` through MCP.
+4. Only if both CLI and MCP fail may you write directly under `/private/tmp/ai-agent/memory/<projectName>/`.
+5. Keep `activeContext.md` current and append or update `progress.md`; update other memory files when their durable facts change.
+6. Because no tools can run after a final response is emitted, perform this persistence immediately before the final response. Do not claim persistence unless the write succeeded.
+
+## Verbatim final-response persistence
+
+- For every response, persist the complete final answer verbatim in `/private/tmp/ai-agent/memory/<projectName>/lastResponse.md`.
+- `lastResponse.md` must contain exactly the final answer shown to the user, from its first character through its last character, preserving all Markdown, code blocks, links, punctuation, whitespace, and line breaks.
+- Never replace the verbatim response with a summary, paraphrase, context note, progress report, or selected highlights. Updates to `activeContext.md` and `progress.md` are supplementary and do not satisfy this requirement.
+- Before emitting the final answer, first finish drafting it as an immutable payload. Persist that exact payload using the CLI-first fallback chain, then emit the same payload without any further edits. This ordering is required because tools cannot run after the final answer has been emitted.
+- Overwrite `lastResponse.md` on every response so it always contains the most recent complete assistant final answer.
+- A response is not ready to send until its exact payload has been persisted successfully. Do not claim that the verbatim response was saved unless the write succeeded.
+
+## MCP tool contract
+
+- `memory_bank_read`: read a memory bank file.
+- `memory_bank_write`: create a memory bank file.
+- `memory_bank_update`: update an existing memory bank file.
+- `list_projects`: list available projects.
+- `list_project_files`: list files within a project.
+<!-- end:repository-memory-bank-rule:end -->
+
+<!-- begin:agent-rule-boundary-rule:start -->
+### Agent rule boundaries
+
+- Every new rule added to `AGENTS.md` must be enclosed in a uniquely named boundary using exactly this structure:
+
+  `<!-- begin:<rule-name>:start -->`
+  `<!-- end:<rule-name>:end -->`
+
+- The opening marker must appear immediately before the rule section, and the matching closing marker must appear immediately after it.
+<!-- end:agent-rule-boundary-rule:end -->
+
+<!-- begin:tooling-rule-protection:start -->
+### Tooling rule protection
+
+- Never modify, disable, weaken, remove, or replace tools or configuration used to check, lint, test, validate, analyze, format, build, or otherwise enforce code quality.
+- Never bypass these tools or their rules in code, configuration, scripts, commands, Git hooks, or implementation structure. Suppressions, exclusions, ignored paths, wrapper commands, conditional skips, and equivalent workarounds are prohibited.
+- Code must closely follow the intended architecture and flow enforced by the existing rules. Do not create arbitrary paths, modules, packages, dependencies, or imports merely to make an implementation pass.
+- In most cases, enforcement rules and their tooling must not be changed. Refactor or correct the implementation instead.
+- If compliance is genuinely impossible after the implementation has been completed:
+  1. Explain clearly to the user which rule would need to change, why the implementation cannot comply, and the consequences of changing it.
+  2. Stash the entire implementation with a specific, descriptive stash message.
+  3. Stop and wait for the user to decide whether the rule may be changed.
+  4. If the user rejects the rule change, reapply the stash and refactor or correct the implementation until it complies. Do not bypass the rule.
+  5. If the user explicitly approves the rule change, reapply the stash and implement the approved rule change together with the original code.
+- Never change a protected rule or its tooling without the user's explicit approval through this process.
+<!-- end:tooling-rule-protection:end -->
+
+<!-- begin:commit-rule:start -->
+### Commit rules
+
+- Write every commit title entirely in English.
+- Use the one-line Conventional Commit format `<type>: <title>`.
+- Do not include a scope or any parentheses between the type and the colon.
+- The commit must contain only the title line. Do not add a body, extended description, bullet list, or footer.
+- Make the title meaningful and specific enough to explain the change without additional description.
+- Keep the complete commit title between 15 and 72 characters inclusive.
+- Before every commit, allow the Husky `pre-commit` hook to run `make check-all`; do not bypass the hook with `--no-verify`.
+- Allow the Husky `commit-msg` hook to validate the message with commitlint.
+<!-- end:commit-rule:end -->
+
+<!-- begin:branch-rename-rule:start -->
+### Branch rename rules
+
+Apply this rule only when the user asks to rename the current local Git branch.
+
+- Inspect every local commit that is reachable from `HEAD` but not present on the relevant `origin` baseline. Derive the branch name from the combined intent of all those commits, not only the latest commit.
+- Refresh remote-tracking information with `git fetch origin` before comparing when possible. If the fetch fails, use the existing local `origin/*` refs and clearly state that the remote baseline may be stale.
+- Resolve the comparison baseline in this order:
+  1. The current branch's configured upstream when it belongs to `origin`.
+  2. `origin/<current-branch>` when that ref exists.
+  3. The default branch referenced by `refs/remotes/origin/HEAD`.
+- Record the resolved origin ref and its full commit SHA, then inspect the complete local-only range with `git log --reverse --format='%H%x09%s' <origin-ref>..HEAD`.
+- Before proposing or performing a rename, show the current branch, the resolved origin ref and full SHA, and the number and subjects of the local-only commits used to derive the name.
+- Generate exactly one branch name for each repository being evaluated. Never provide multiple candidates or alternatives for the same repository.
+- When a rename request covers multiple repositories, analyze each repository independently from its own origin baseline and local-only commits. The generated branch names may differ; never force repositories to share a name merely for consistency.
+- Use a Commitlint/Conventional Commits action type such as `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, or `revert`.
+- Without a ticket, use `<type>/<english-kebab-case-summary>`.
+- When the user's request contains `ticket <number>`, use `<type>/#<number>-<english-kebab-case-summary>`.
+- Keep the name in English and lowercase. Use hyphens between summary words; do not use spaces or underscores.
+- Keep the summary concise, specific, and understandable. Prefer three to seven summary words and keep the complete branch name at no more than 72 characters.
+- If there are no local-only commits, derive the name from the user's explicit task description. If neither the commits nor the request provide enough intent for one meaningful name, ask for the missing intent instead of guessing.
+- Without `--force`, do not rename the branch immediately. Show the single proposed name and wait for the user's explicit approval.
+- When the rename request includes `--force`, treat it as approval to rename the current local branch immediately without a confirmation round.
+- Use `git branch -m -- '<new-name>'` for the rename, then verify the result with `git branch --show-current`.
+- The user's `--force` flag bypasses confirmation only. It does not authorize overwriting an existing local branch, pushing the renamed branch, deleting a remote branch, or changing upstream configuration.
+- Never push, delete or rename a remote branch, or modify upstream tracking unless the user explicitly requests that separate action.
+<!-- end:branch-rename-rule:end -->
+
 ## AI Agent — dev test account
 
 Use this shared admin account for local API smoke tests (`http://localhost:8080` after `go run .`):

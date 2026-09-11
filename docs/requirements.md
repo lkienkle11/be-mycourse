@@ -618,8 +618,8 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 - Pushing to the `master` branch **MUST** trigger `.github/workflows/deploy-dev.yml`:
   - Install `libvips-dev libhdf5-dev pkg-config` on the runner after **`vegardit/fast-apt-mirror.sh`** (so downloads use the fast mirror). **`libhdf5-dev`** supplies **`hdf5.pc`** for **matio** (**CGO_ENABLED=1** / bimg).
   - Build the `mycourse-io-be-dev` binary with `CGO_ENABLED=1`.
-  - On the deploy host, back up **only** the current dev binary to `bin/mycourse-io-be-dev.prev`, then `rsync` the new binary onto `bin/mycourse-io-be-dev` (ecosystem is **not** backed up in CI; the script owns `ecosystem.config.cjs.prev`).
-  - Run `scripts/pm2-reload-with-binary-rollback.sh`: snapshot `ecosystem.config.cjs`, pull **only** that file from `origin/master`, reload PM2, health-check `GET /api/v1/health`, treat PM2 autorestart exhaustion as failure; on success, full `git pull`; on failure, restore previous binary **and** ecosystem from `.prev`, reload, and health-check again.
+  - While the deployment pause is active, finish after uploading the binary artifact and **MUST NOT** contact or modify the VPS.
+  - Keep the complete `deploy` job commented in the workflow. When deployment is intentionally restored, it backs up **only** the current dev binary to `bin/mycourse-io-be-dev.prev`, `rsync`s the new binary onto `bin/mycourse-io-be-dev`, and runs `scripts/pm2-reload-with-binary-rollback.sh` for ecosystem snapshot, PM2 reload, health checks, full-pull-on-success, and binary/ecosystem rollback on failure.
   - `ecosystem.config.cjs` **MUST** cap crash loops with `min_uptime` and `max_restarts: 3` for every PM2 app entry (dev, staging, prod).
 
 

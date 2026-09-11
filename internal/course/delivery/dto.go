@@ -24,8 +24,12 @@ type updateBasicInfoRequest struct {
 }
 
 type addCollaboratorsBulkRequest struct {
-	UserIDs []string `json:"user_ids" binding:"required,min=1,dive,uuid"`
+	UserIDs []string `json:"user_ids" binding:"required,min=1,max=100" validate:"required,min=1,max=100,dive,uuid"`
 	Role    string   `json:"role" binding:"omitempty,oneof=OWNER EDITOR"`
+}
+
+func (r *addCollaboratorsBulkRequest) NormalizeForValidation() {
+	r.UserIDs = utils.PrepareBulkUserIDs(r.UserIDs)
 }
 
 type collaboratorBulkFailureResponse struct {

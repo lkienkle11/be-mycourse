@@ -88,7 +88,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 
 | Method | Path | Permission | Description |
 |--------|------|-----------|-------------|
-| GET | `/api/v1/me` | None (JWT only) | Get current user profile |
+| GET | `/api/v1/me` | None (JWT only) | Get profile, effective permissions, and display-only ordered raw role names |
 | PATCH | `/api/v1/me` | None (JWT only) | Update current user profile |
 | DELETE | `/api/v1/me` | None (JWT only) | Soft-delete current user account |
 | DELETE | `/api/v1/me/hard` | None (JWT only) | Permanently delete current user account |
@@ -172,7 +172,7 @@ Instructor expertise/application/profile chip endpoints accept optional `locale`
 | DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |
 | GET | `/api/v1/courses/:courseId/collaborators` | `course_instructor:read` | List collaborators (paginated; query `page`, `per_page`, optional `search` on display_name/email) |
 | GET | `/api/v1/courses/:courseId/instructor-candidates` | `course_collaborator_candidate:read` (P67) | List instructor candidates for picker (paginated; **owner-only** in repo; excludes existing collaborators) |
-| POST | `/api/v1/courses/:courseId/collaborators/bulk` | `course:update` | Bulk add collaborators by `user_ids` |
+| POST | `/api/v1/courses/:courseId/collaborators/bulk` | `course:update` | Bulk add collaborators by `user_ids`; optional `actions` defaults to both scoped edit actions, empty means membership only |
 | DELETE | `/api/v1/courses/:courseId/collaborators/:userId` | `course:update` | Remove collaborator |
 | POST | `/api/v1/courses/:courseId/sections` | `course:update` | Create section |
 | PATCH | `/api/v1/courses/:courseId/sections/:sectionId` | `course:update` | Update section |

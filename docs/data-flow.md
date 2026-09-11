@@ -119,13 +119,17 @@ GET /api/v1/me (JWT required)
   └─ internal/auth/delivery/handler.go (GetMe)
        └─ AuthService.GetMe
             ├─ Check Redis cache (mycourse:user:me:{user_id}) — up to 1 minute stale
-            │   └─ Cache bypass when cached payload has email_confirmed=true and permissions=[] (legacy confirmed users missing learner role)
+            │   ├─ Cache bypass when cached payload has email_confirmed=true and permissions=[] (legacy confirmed users missing learner role)
+            │   └─ Cache bypass when the legacy payload has no roles field; roles=[] is a valid current hit
             ├─ On miss: loadAccessibleUser → checkUserAccessible
             ├─ Load permissions via RBAC PermissionCodesForUser
             ├─ Self-heal: when email_confirmed=true and permissions empty → EnsureLearnerRole → reload permissions
+            ├─ Load role names once via RBAC ListRolesForUser and rank sysadmin → admin → instructor → learner (unknown names remain stable afterward)
             ├─ Cache result
-            └─ Return MeResponse DTO (includes sorted permission_name strings)
+            └─ Return MeResponse DTO (sorted permissions + non-null display-only roles array)
 ```
+
+Successful internal RBAC role or direct-permission assignment/removal deletes `mycourse:user:me:{user_id}` after persistence, so the next `GET /me` reloads the effective roles and permissions. Permission middleware never reads the role projection. A permission already embedded in the current JWT remains authoritative until token refresh or expiry.
 
 ### DELETE /me (soft) and DELETE /me/hard
 
@@ -274,7 +278,7 @@ GET/POST /api/v1/learner-courses/:courseId/progress
 
 ## Data-Risk Hotspots
 
-- Permission staleness: JWT embedded permissions can lag up to 1 minute after RBAC changes (Redis cache TTL).
+- Permission freshness has two separate boundaries: successful direct user role/permission mutations evict the one-minute `/me` cache immediately, while a revoked permission already embedded in an access JWT can remain authorized until that token is refreshed or expires.
 - `role_permissions` full rebuild via sync can immediately revoke access if `constants.RolePermissions` is incomplete.
 - Session JSONB map in `users` centralizes all refresh sessions for a user in a single row — concurrent logins use a DB transaction to prevent race conditions.
 - Bunny webhook must be idempotent — the same status can be delivered multiple times.

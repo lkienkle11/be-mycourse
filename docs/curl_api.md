@@ -573,7 +573,7 @@ curl -X POST {{BASE_URL}}/api/v1/auth/discord \
 
 **`GET /api/v1/me`**
 
-Returns the authenticated user's profile and their current effective permission codes.
+Returns the authenticated user's profile, current effective permission codes, and raw display-only role names.
 
 Served from Redis cache (1-minute TTL) on cache hit; Postgres on miss.
 
@@ -597,7 +597,8 @@ curl -X GET {{BASE_URL}}/api/v1/me \
     "email_confirmed": true,
     "is_disabled":     false,
     "created_at":      1713456789,
-    "permissions":     ["course:read", "profile:read", "user:read"]
+    "permissions":     ["course:read", "profile:read", "user:read"],
+    "roles":           ["admin", "instructor", "learner"]
   }
 }
 ```
@@ -605,6 +606,8 @@ curl -X GET {{BASE_URL}}/api/v1/me \
 > `created_at` is a Unix epoch **integer** (seconds).
 
 > `permissions` is a sorted array of `permission_name` strings.
+
+> `roles` is always a non-null array. Known role names are ordered `sysadmin`, `admin`, `instructor`, `learner`; unknown names follow in their original order. These raw names are for display only—authorization remains permission-based. Successful role or direct-permission assignment/removal invalidates the cached profile, so the next request observes the current RBAC projection without waiting for the one-minute TTL. Existing JWT permissions still change only after token refresh or expiry.
 
 > When an avatar is linked, **`data.avatar`** is a **`dto.MediaFilePublic`** object (see `docs/return_types.md`).
 
@@ -1852,6 +1855,8 @@ curl -sS "{{BASE_URL}}/api/v1/courses/{{courseId}}/instructor-candidates?page=1&
 
 **`POST /api/v1/courses/:courseId/collaborators/bulk`** — permission `course:update` (owner-only in repo)
 
+`user_ids` accepts 1–100 UUIDs per request.
+
 ```bash
 curl -sS -X POST "{{BASE_URL}}/api/v1/courses/{{courseId}}/collaborators/bulk" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -1859,7 +1864,9 @@ curl -sS -X POST "{{BASE_URL}}/api/v1/courses/{{courseId}}/collaborators/bulk" \
   -d '{"user_ids":["USER_UUID_1","USER_UUID_2"],"role":"EDITOR"}'
 ```
 
-Success `data`: `{ "added": [Collaborator, ...], "failed": [{ "user_id", "message" }, ...] }`. Per-user business failures (e.g. not an instructor) appear in `failed[]`; infrastructure errors abort with HTTP 500.
+The request has no `actions` field. An active `EDITOR` membership permits the Course edit paths allowed by repository access checks; Course does not read the generic authorization grant tables.
+
+Success `data`: `{ "added": [Collaborator, ...], "failed": [{ "user_id", "message" }, ...] }`. Per-user business failures (for example, not an instructor or targeting the canonical owner) appear in `failed[]`; infrastructure errors abort with HTTP 500 and roll back membership writes.
 
 ### 14.4d Remove collaborator
 

@@ -78,7 +78,10 @@ Editable mutations (`ensureEditableDraft`) allow only `DRAFT` status (`IN_REVIEW
 
 - Collaborator roles:
   - `OWNER` — delete course, manage collaborator membership
-  - `EDITOR` — update basic info and outline (cannot submit, prepare draft, or reopen rejected draft)
+  - `EDITOR` — active membership allows basic-info/outline editing, but not submit, prepare draft, reopen rejected draft, delete, or collaborator management
+- Course routes still require their global RBAC permissions (for example `course:update`) before repository-level membership checks.
+- Canonical ownership comes only from `courses.owner_user_id`; a collaborator row whose role says `OWNER` does not gain canonical-owner privileges.
+- Course does not currently register a generic `internal/authorization` policy provider or read `authorization_grants`.
 - Optimistic locking:
   - mutable versioned rows carry `row_version` (starts at `1` on create — GORM must set `RowVersion: 1` explicitly because zero-value inserts override the column `DEFAULT 1`)
   - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success; accepts `title` (server recomputes `courses.slug` with the same uniqueness rules as create)
@@ -171,10 +174,10 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Bulk add collaborators | **Owner-only** (`requireOwnerAccess`). Each `user_id` must have `instructor`, `sysadmin`, or `admin` role (shared `instructorUserIDSet` via `gormx.UserIDSetByRoleNames`) and pass **#2** active-user check via `useraccess.CheckAccessible`. Service dedupes/trims `user_ids` and defaults empty `role` to `EDITOR`. Repo runs **one transaction**: batch role check, batch access snapshot load, batch existing-row load, **one** `UPDATE … WHERE id IN (?)` for existing rows, **`CreateInBatches` insert** for new rows, single hydrate via `loadCollaboratorsByUserIDs`. Per-user business failures (e.g. not instructor, inactive user) return in `failed[]`; infrastructure errors abort HTTP 500. |
-| List collaborators | `requireCourseAccess` — owner or `EDITOR` collaborator; **hides inactive (#2) collaborators** |
+| Bulk add collaborators | **Canonical-owner-only** (`requireOwnerAccess`), 1–100 raw `user_ids` per request. IDs are trimmed and deduped before UUID validation; blanks are discarded, all-blank/invalid input is rejected, and the raw 100-item cap applies before dedupe. Each target must have `instructor`, `sysadmin`, or `admin` role and pass the active-user check. The canonical owner is returned in `failed[]` and is never modified. Membership writes run in one transaction; the request has no scoped-actions field. |
+| List collaborators | `requireCourseAccess` — owner or active collaborator; **hides inactive (#2) collaborators**. Returned rows contain membership/profile fields and no generic authorization actions. |
 | Instructor-candidate picker | **Owner-only**; excludes existing collaborators; eligible instructors only (#2 + #3 via `userpicker.EligiblePickerWhereClause`) |
-| Remove collaborator | **Owner-only** |
+| Remove collaborator | **Canonical-owner-only**; soft-deletes membership in one transaction. |
 
 Implementation: `internal/course/application/service_collaborators_bulk.go`, `internal/course/infra/repo_collaborators_bulk.go`, `internal/course/infra/repo_collaborators.go`. Bulk add and submit validation both use `instructorUserIDSet` (`gormx.UserIDSetByRoleNames`). Submit validation (`validateDraftCollaborators`) batch-loads user snapshots via `loadCollaboratorAccessSnapshots` + eligibility set via `instructorUserIDSet` (no per-collaborator N+1 queries).
 
@@ -213,7 +216,7 @@ Instructor / collaborator routes:
 - `POST /api/v1/courses/:courseId/draft/prepare`
 - `PATCH /api/v1/courses/:courseId/basic-info`
 - `DELETE /api/v1/courses/:courseId`
-- collaborator membership under `/api/v1/courses/:courseId/collaborators` — paginated `GET`, bulk add `POST …/collaborators/bulk`, remove `DELETE …/:userId`
+- collaborator membership under `/api/v1/courses/:courseId/collaborators` — paginated `GET`, bulk add through `POST …/collaborators/bulk`, and remove through `DELETE …/:userId`; requests and responses contain no generic authorization action set
 - paginated collaborator list (`GET …/collaborators?page&per_page&search`) — course detail still embeds full collaborators via `loadCollaborators`; search uses shared `utils.UserDisplayNameEmailSearchSQL` (ILIKE `display_name` / `email`, alias `u`)
 - instructor candidate picker list (`GET …/instructor-candidates`) — route permission `course_collaborator_candidate:read` (P67); **owner-only** in repo; excludes existing collaborators; instructor role filter
 - outline CRUD / reorder under `/api/v1/courses/:courseId/{sections,lessons,sub-lessons,...}`

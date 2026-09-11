@@ -27,7 +27,7 @@ Handles user lifecycle and session management.
 **Capabilities:**
 - Register (pending user + confirmation email via Brevo)
 - Login / email confirmation / token refresh
-- `GET /me`, `PATCH /me`, `DELETE /me` (soft), `DELETE /me/hard`
+- `GET /me` (profile + effective permissions + display-only ordered raw role names), `PATCH /me`, `DELETE /me` (soft), `DELETE /me/hard`
 - `GET /me/permissions`
 - User access guards via `application/service_access.go` (`checkUserAccessible`: deleted / disabled / `banned_until`)
 - Stateful JWT sessions backed by PostgreSQL JSONB
@@ -123,6 +123,14 @@ See [`docs/modules/instructor.md`](modules/instructor.md) for full deep-dive.
 
 ---
 
+### Authorization (`internal/authorization/`)
+
+Shared IAM-lite bounded context: immutable action registry, generic grant store, resource-scoped role expansion, typed condition evaluation, explicit-DENY precedence, decision logging, and the only grant command service. Domains may contribute policy providers and facts; the base does not import Course or another feature. No provider or runtime consumer is currently registered, and migration `000034` contains DDL only.
+
+See [`docs/modules/authorization.md`](modules/authorization.md).
+
+---
+
 ### Course (`internal/course/`)
 
 Versioned course authoring, collaborator access, outline editing, admin review, learner enrollment, and learner progress now live in one bounded context.
@@ -130,7 +138,7 @@ Versioned course authoring, collaborator access, outline editing, admin review, 
 **Capabilities:**
 - Course root CRUD with owner-only delete
 - Single active draft per course plus current approved/published version
-- Multi-instructor collaboration through `OWNER` / `EDITOR` memberships (`EDITOR` edits content; owner-only prepare/submit/reopen)
+- Multi-instructor collaboration through `OWNER` / `EDITOR` memberships plus generic scoped grants for basic info and outline (owner-only prepare/submit/reopen)
 - Optimistic locking with `row_version`
 - Edit leases for outline resources (`OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON`)
 - Version-scoped sections, lessons, and sub-lessons

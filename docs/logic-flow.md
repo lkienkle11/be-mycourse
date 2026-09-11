@@ -40,7 +40,7 @@
 - Upload and webhook paths persist **`media_files`** and map public JSON to **`dto.UploadFileResponse`** (no **`origin_url`** key — Sub 12). Public contract exposes FE-facing fields (`user_id`, `video_id`, `row_version`, `created_at`, `updated_at`, plus basic media fields + typed `metadata`), while provider-internal fields stay backend-only (`json:"-"`). There is no dedicated sequence diagram in this repo for media; see **`docs/modules/media.md`**, **`docs/data-flow.md`**, and **`docs/router.md`** for the authoritative flow and layering (`internal/media/infra/media_resolver.go`).
 
 ## Course / Instructor Logic
-- Course authoring: `internal/course` owns draft lifecycle, collaborator roles (`OWNER`, `EDITOR`), review transitions, outline stable IDs, and learner progress. `EDITOR` may edit basic info and outline; **prepare draft**, **submit for review**, and **reopen draft** are **owner-only** (`requireOwnerAccess` → `ErrCourseOwnerOnly`).
+- Course authoring: `internal/course` owns draft lifecycle, collaborator membership, review transitions, outline stable IDs, and learner progress. Repository access checks use the canonical owner or an active `course_collaborators` membership; the generic `internal/authorization` module currently has no Course provider. **Prepare draft**, **submit for review**, and **reopen draft** remain canonical-owner-only (`requireOwnerAccess` → `ErrCourseOwnerOnly`).
 - Instructor management: `internal/instructor` owns roster, application review (state machine `pending` / `approved` / `rejected` / `returned`), profile upsert, expertise links, and ticket messaging.
 - Both modules are mounted on authenticated `/api/v1` and guarded by RBAC permissions at route level.
 

@@ -831,6 +831,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000031 | `user_oauth_identities` | `users.password_set_at` (`TIMESTAMPTZ NULL`) + backfill (`password_set_at = to_timestamp(created_at)` where `email_confirmed` and `hash_password IS NOT NULL`); table `user_oauth_identities` (BIGINT-epoch time columns) with `uix_oauth_provider_sub`, `idx_oauth_identities_user_id`, partial `idx_oauth_identities_provider_email` |
 | 000032 | `taxonomy_translations_row_version` | Five `*_translations` tables + `locale='en'` backfill from canonical columns; JSONB tree patch ensuring `translations.en.name` on `child_topics`/`children` (**fail-fast** on non-array / invalid nodes via `LANGUAGE sql` recursive helper — **no** `plpgsql`/`DO $$`, because golang-migrate splits on `;`); `row_version BIGINT NOT NULL DEFAULT 1` on five taxonomy roots (backfill existing = 1, mirror `000020`). Shipped in source — apply before localized taxonomy traffic. |
 | 000033 | `teaching_content_ideas` | `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on `instructor_applications` and `instructor_profiles` (required 50–500 Unicode code points on submit; approve copies with profile snapshot) |
+| 000034 | `authorization_base` | DDL-only shared authorization base: `authorization_actions`, `authorization_grants`, `authorization_role_actions`, and `authorization_role_bindings`; no provider actions, roles, bindings, grants, or Course collaborators are seeded/backfilled |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -929,6 +930,19 @@ API and RBAC: **`docs/modules/instructor.md`**.
 
 ---
 
+## Authorization tables (`000034`)
+
+| Table | Notes |
+|-------|-------|
+| `authorization_actions` | Startup-synchronized scoped-action catalog. Composite identity `(action_name, resource_type)` maps each action to an existing global RBAC `boundary_permission`. |
+| `authorization_grants` | Generic resource-scoped ALLOW/DENY policy statements for users. `resource_id` is a string; domain providers validate resource existence and lifecycle cleanup. `Grant()` is append-only, so multiple statements may share the same principal/action/resource/effect tuple and differ by conditions or validity windows. Expired statements remain unrevoked history; `revoked_at` records explicit revocation. Non-unique decision/resource indexes support evaluation and cleanup. |
+| `authorization_role_actions` | Resource-type role definitions: each `(role_name, resource_type)` maps to registered action names. The migration creates the table but seeds no definitions. |
+| `authorization_role_bindings` | Revocable user/role/resource-instance bindings. The migration creates the table but seeds or backfills no bindings. |
+
+The grant and role-binding tables have no polymorphic FK to domain resources. A future provider must define resource-lifecycle cleanup when it becomes a consumer. No provider is currently registered, and Course does not write these tables. See [`docs/modules/authorization.md`](modules/authorization.md).
+
+---
+
 ## Course management tables (`000016`)
 
 | Table | Notes |
@@ -938,7 +952,7 @@ API and RBAC: **`docs/modules/instructor.md`**.
 | `course_version_tags` | Active tag links for one version |
 | `course_version_skills` | Active course-skill links for one version |
 | `course_version_outcomes` | Active course-outcome links for one version |
-| `course_collaborators` | Course membership with business roles `OWNER` and `EDITOR` |
+| `course_collaborators` | Course membership and current authorization source for business roles `OWNER` and `EDITOR`; Course does not use the generic authorization tables |
 | `course_sections` | Version-scoped sections; stable business id + sortable `order_index` + `row_version` |
 | `course_lessons` | Version-scoped lessons under a section; stable business id + sortable `order_index` + `row_version` |
 | `course_sub_lessons` | Version-scoped lesson items under a lesson; stable business id, kind, preview flag, `estimated_duration_ms` (TEXT/QUIZ user estimate in ms; VIDEO stores 0 and resolves from `media_files.duration` on read), sortable `order_index`, `row_version` |
@@ -960,6 +974,10 @@ Use only on **dev** databases. Drop children before parents (FK order). `schema_
 
 ```sql
 DROP TABLE IF EXISTS public.schema_migrations;
+DROP TABLE IF EXISTS public.authorization_role_bindings;
+DROP TABLE IF EXISTS public.authorization_role_actions;
+DROP TABLE IF EXISTS public.authorization_grants;
+DROP TABLE IF EXISTS public.authorization_actions;
 DROP TABLE IF EXISTS public.media_pending_cloud_cleanup;
 DROP TABLE IF EXISTS public.user_oauth_identities;
 DROP TABLE IF EXISTS public.user_permissions;

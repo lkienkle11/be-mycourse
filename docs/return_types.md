@@ -142,6 +142,7 @@ type MeResponse struct {
     IsDisabled     bool               `json:"is_disabled"`
     CreatedAt      int64              `json:"created_at"`      // Unix epoch seconds
     Permissions    []string           `json:"permissions"`     // sorted permission_name strings
+    Roles          []string           `json:"roles"`           // ordered raw names; display only
 }
 ```
 
@@ -156,9 +157,12 @@ type MeResponse struct {
   "email_confirmed": true,
   "is_disabled":     false,
   "created_at":      1713456789,
-  "permissions":     ["course:read", "profile:read", "user:read"]
+  "permissions":     ["course:read", "profile:read", "user:read"],
+  "roles":           ["admin", "instructor", "learner"]
 }
 ```
+
+`roles` is always a non-null array ordered `sysadmin`, `admin`, `instructor`, `learner`, followed stably by unknown role names. It is a display projection only; `permissions` remains authoritative for access control.
 
 ### `services.TokenPairResult`
 
@@ -458,6 +462,15 @@ type ListPermissionsParams struct {
 **Key domain types** (`internal/course/domain`):
 
 ```go
+type Collaborator struct {
+    UserID       string   `json:"user_id"`
+    Role         string   `json:"role"`
+    DisplayName  string   `json:"display_name"`
+    Email        string   `json:"email"`
+    AvatarFileID string   `json:"avatar_file_id,omitempty"`
+    AvatarURL    string   `json:"avatar_url,omitempty"`
+}
+
 type CourseDetail struct {
     Course              Course         `json:"course"`
     CollaboratorRole    string         `json:"collaborator_role"`
@@ -727,11 +740,14 @@ All endpoints return `application/json`. The outer envelope is always `Response`
   "email_confirmed": true,
   "is_disabled":     false,
   "created_at":      1713456789,
-  "permissions":     ["course:read", "profile:read", "user:read"]
+  "permissions":     ["course:read", "profile:read", "user:read"],
+  "roles":           ["admin", "instructor", "learner"]
 }
 ```
 
 > `created_at` is a Unix epoch **integer** (seconds), not an ISO string.
+
+> `roles` is required and never `null`; it contains ordered raw role names for display only. Authorization continues to use `permissions`.
 
 ---
 

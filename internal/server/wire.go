@@ -23,6 +23,7 @@ import (
 
 	rbacapp "mycourse-io-be/internal/rbac/application"
 	rbacdelivery "mycourse-io-be/internal/rbac/delivery"
+	rbacdomain "mycourse-io-be/internal/rbac/domain"
 
 	sysapp "mycourse-io-be/internal/system/application"
 	sysdelivery "mycourse-io-be/internal/system/delivery"
@@ -61,6 +62,25 @@ type rbacPermissionReader struct{ svc *rbacapp.RBACService }
 
 func (r *rbacPermissionReader) PermissionCodesForUser(userID string) (map[string]struct{}, error) {
 	return r.svc.PermissionCodesForUser(context.Background(), userID)
+}
+
+// rbacRoleNameReader adapts RBACService to authapp.RoleNameReader.
+type rbacRoleNameReader struct {
+	svc interface {
+		ListRolesForUser(context.Context, string) ([]rbacdomain.Role, error)
+	}
+}
+
+func (r *rbacRoleNameReader) RoleNamesForUser(ctx context.Context, userID string) ([]string, error) {
+	roles, err := r.svc.ListRolesForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, len(roles))
+	for i := range roles {
+		names[i] = roles[i].Name
+	}
+	return names, nil
 }
 
 // rbacLearnerRoleEnsurer adapts RBACService to authapp.LearnerRoleEnsurer.
@@ -136,7 +156,7 @@ func Wire(db *gorm.DB, rdb *redis.Client) (*Services, *Handlers, error) {
 		Course:     courseHandler,
 		Media:      mediadelivery.NewHandler(core.Media, mediaGW),
 		Taxonomy:   taxdelivery.NewHandler(core.Taxonomy),
-		RBAC:       rbacdelivery.NewHandler(core.RBAC),
+		RBAC:       rbacdelivery.NewHandler(core.RBAC, core.Auth),
 		System:     sysdelivery.NewHandler(core.System),
 		Instructor: instHandler,
 	}

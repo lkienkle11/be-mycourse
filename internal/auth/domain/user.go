@@ -55,6 +55,8 @@ type MeProfile struct {
 	IsDisabled      bool
 	CreatedAt       int64
 	Permissions     []string
+	// Roles contains display-only RBAC role names and must never drive authorization decisions.
+	Roles []string
 }
 
 // TokenPairResult carries the issued access/refresh tokens after login, confirm, or refresh.

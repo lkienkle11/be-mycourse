@@ -295,6 +295,10 @@ func toMeResponse(me *domain.MeProfile) *MeResponse {
 	if me == nil {
 		return nil
 	}
+	roles := me.Roles
+	if roles == nil {
+		roles = []string{}
+	}
 	return &MeResponse{
 		UserID:          me.UserID,
 		UserCode:        me.UserCode,
@@ -306,6 +310,7 @@ func toMeResponse(me *domain.MeProfile) *MeResponse {
 		IsDisabled:      me.IsDisabled,
 		CreatedAt:       me.CreatedAt,
 		Permissions:     me.Permissions,
+		Roles:           roles,
 	}
 }
 

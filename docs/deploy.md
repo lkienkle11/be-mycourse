@@ -377,7 +377,7 @@ go mod download
 go build -trimpath -ldflags="-s -w" -o bin/mycourse-io-be-dev .
 ```
 
-**CI builds** (see Appendix C) produce the binary on the runner; the workflow copies the server’s current `bin/mycourse-io-be-dev` to **`bin/mycourse-io-be-dev.prev`**, then **`rsync`** overwrites **`bin/mycourse-io-be-dev`** in place (no intermediate `*.new` file). You do **not** need Go on the server if you always deploy via CI.
+**CI builds** (see Appendix C) produce the binary artifact on the runner. Automatic VPS deployment is temporarily paused, so the active workflow does not currently copy or replace the server binary. The complete commented deploy job retains the previous backup-and-`rsync` procedure for intentional restoration.
 
 > **Go version:** The project requires **Go 1.25.0** (match `go.mod` and the `go-version` in `.github/workflows/deploy-dev.yml`).
 
@@ -686,7 +686,7 @@ From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP r
 
 ## Appendix C — CI/CD with GitHub Actions
 
-The active workflow is **`.github/workflows/deploy-dev.yml`**. On each push to **`master`**, CI runs **`test`** (**`make test-all`**: Go tests including **`CGO_ENABLED=1`**, **`go vet`**, **`golangci-lint run`**, layout/arch/dupl checks — no compile in this job), then **`build`** (stripped **`go build`** binary artifact), then **`deploy`** to the VPS. No Go toolchain is required on the server if you always deploy via CI. The **`deploy`** job **only** copies the running dev binary to **`bin/mycourse-io-be-dev.prev`** (this **must** happen before **`rsync`** replaces **`bin/mycourse-io-be-dev`** — the deploy script runs **after** that and cannot recover the overwritten binary by itself). **`rsync`** writes the new build **to the same filename** (no **`*.new`** staging file). **`scripts/pm2-reload-with-binary-rollback.sh`** then: (1) copies **`ecosystem.config.cjs` → `ecosystem.config.cjs.prev`** (ecosystem rollback is **only** here — not duplicated in CI), (2) **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**, (3) **`pm2 reload ecosystem.config.cjs --only mycourse-api-dev --update-env`**, (4) polls **`GET /api/v1/health`** and **`pm2 jlist`** for **`errored` / stopped-with-`max_restarts`** exhaustion, (5) on success runs full **`git pull`**; on failure restores **both** **`.prev`** files, reloads, re-health-checks, prints **`pm2 logs`**, exits non-zero. If the ecosystem-only **`git checkout`** fails, the script restores ecosystem from its snapshot and **also** restores the binary from **`bin/mycourse-io-be-dev.prev`** when that file exists.
+The active workflow is **`.github/workflows/deploy-dev.yml`**. On each push to **`master`**, CI runs **`test`** (**`make test-all`**: Go tests including **`CGO_ENABLED=1`**, **`go vet`**, **`golangci-lint run`**, layout/arch/dupl checks — no compile in this job), then **`build`** (stripped **`go build`** binary artifact). Automatic VPS deployment is temporarily paused: the complete **`deploy`** job is commented, so CI does not open SSH, copy the live binary, run `rsync`, reload PM2, health-check the service, or invoke rollback. The retained commented block is the authoritative restoration source for those steps.
 
 ### C.1 — Required GitHub Secrets
 
@@ -709,15 +709,17 @@ File: `.github/workflows/deploy-dev.yml`
 
 **Trigger:** push to `master`.  
 **Concurrency:** `cancel-in-progress: true` — a second push while the first is deploying cancels the in-flight run.  
-**Job structure:** **`test`** → **`build`** → **`deploy`** (`build` needs `test`; `deploy` needs `build`).
+**Active job structure:** **`test`** → **`build`** (`build` needs `test`). The complete **`deploy`** job remains commented and retains its `needs: build` dependency for restoration.
 
 - **`test`:** **`vegardit/fast-apt-mirror.sh@v1`** rewrites the runner’s **APT sources** to a fast mirror; then **`apt-get update`** + **`apt-get install`** pulls **libvips-dev**, **libhdf5-dev** (**`hdf5.pc`** for **matio**), and **pkg-config** over that same mirror (**`sudo` does not change the mirror**). Steps **`go mod download`**, install **golangci-lint**, then **`make test-all`**. Local full compile gate: **`make check-all`** (see root **`Makefile`**).
 - **`build`:** **`CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o mycourse-io-be-dev .`**, uploads the **`backend-binary`** artifact (1-day retention).
-- **`deploy`:** downloads the artifact, **`scp`** the rollback helper, backs up the live binary to **`mycourse-io-be-dev.prev`**, **`rsync`** the new binary, runs **`scripts/pm2-reload-with-binary-rollback.sh`**.
+- **`deploy` (paused, retained as comments):** when restored, downloads the artifact, **`scp`**s the rollback helper, backs up the live binary to **`mycourse-io-be-dev.prev`**, **`rsync`**s the new binary, and runs **`scripts/pm2-reload-with-binary-rollback.sh`**.
 
 The authoritative definition is **`.github/workflows/deploy-dev.yml`** in the repository (do not rely on a frozen YAML excerpt here).
 
 ### C.3 — What each step does
+
+The `test`, `build`, and upload rows are active. Rows that require the `deploy` job describe the retained commented procedure and do not run while the pause is active.
 
 | Step | Details |
 |------|---------|
@@ -737,7 +739,7 @@ The authoritative definition is **`.github/workflows/deploy-dev.yml`** in the re
 
 **Script environment (optional overrides on the server SSH line):**
 
-In normal CI deploy, you only need to pass `DEPLOY_PATH`. Other `DEPLOY_*` values below are optional overrides read by `ecosystem.config.cjs`.
+When the retained CI deploy job is restored, you only need to pass `DEPLOY_PATH`. Other `DEPLOY_*` values below are optional overrides read by `ecosystem.config.cjs`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
@@ -754,7 +756,7 @@ In normal CI deploy, you only need to pass `DEPLOY_PATH`. Other `DEPLOY_*` value
 
 ### C.4 — Why ecosystem is pulled before the full `git pull`
 
-The script intentionally updates **`ecosystem.config.cjs` from `origin/master` alone** (via **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**) **before** reloading PM2 with the **new CI-built binary**. That way the running process is validated against the **latest committed PM2 options** (including **`max_restarts` / `min_uptime`**) without pulling the rest of the repo first. Only after **`GET /api/v1/health`** succeeds does it run:
+When automatic deployment is restored, the script intentionally updates **`ecosystem.config.cjs` from `origin/master` alone** (via **`git fetch`** + **`git checkout origin/master -- ecosystem.config.cjs`**) **before** reloading PM2 with the **new CI-built binary**. That way the running process is validated against the **latest committed PM2 options** (including **`max_restarts` / `min_uptime`**) without pulling the rest of the repo first. Only after **`GET /api/v1/health`** succeeds does it run:
 
 ```bash
 git stash -u   # stash any local changes (including untracked files)
@@ -767,10 +769,10 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 ### C.5 — Pipeline principles and future extensions
 
 - **Build in CI, not on server:** The VPS does not need Go installed for normal deploys. The binary is built reproducibly in the GitHub Actions runner.
-- **`cancel-in-progress: true`:** Rapid successive pushes to `master` only deploy the latest commit, avoiding partial deploys.
+- **`cancel-in-progress: true`:** Rapid successive pushes to `master` keep only the latest active test/build run. When deployment is restored, the same setting also prevents overlapping deploy runs.
 - **Migrations:** Currently not automated in CI. Recommended approach: stop PM2, run binary once with `MIGRATE=1`, restart. Add a separate `migrate` workflow with `environment: production-migrate` (requires manual approval) when you need controlled migrations.
 - **Staging / Production:** To extend CI for staging/production environments, add jobs that build `mycourse-io-be-staging` / `mycourse-io-be-prod` and reload `mycourse-api-staging` / `mycourse-api-prod` respectively — following the same `rsync` + `pm2 reload ecosystem.config.cjs --only <name>` + rollback script pattern (with `PM2_APP_NAME` / `BINARY_REL` overrides).
-- **Frontend CI:** Separate repo/workflow — push to **`dev`**, secret **`DEPLOY_PATH_DEV`** (FE checkout path), server **`npm ci` + `npm run build`** + PM2 **`mycourse-web-dev`** — see [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md) Appendix G.
+- **Frontend CI:** The separate repo workflow on **`dev`** also currently stops after test/build with its deploy job retained as comments — see [`../fe-mycourse/docs/deploy.md`](../fe-mycourse/docs/deploy.md) Appendix G.
 
 ---
 
@@ -785,7 +787,7 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | Cache | `internal/shared/cache/` | Redis; auth/taxonomy helpers in module `application` |
 | Error codes | `internal/shared/errors/` | App `code` values and default messages for JSON envelope |
 | HTTP errors | `internal/shared/httperr/` | Global Gin error handler |
-| CI/CD | `.github/workflows/deploy-dev.yml` | Active workflow: **test** → **build** → **deploy** on **`master`** |
+| CI/CD | `.github/workflows/deploy-dev.yml` | Active workflow: **test** → **build** on **`master`**; complete **deploy** job temporarily commented |
 | Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |
 | Docker (optional) | `Dockerfile`, `docker/compose.*.yml`, `scripts/docker/*` | Manual container deploy — see **[Appendix E](#appendix-e--docker-alternative-optional)** and [`docs/docker.md`](docker.md) |

@@ -36,6 +36,7 @@ type UserRoleRepository interface {
 type UserPermissionRepository interface {
 	ListPermissionsForUser(ctx context.Context, userID string) ([]Permission, error)
 	PermissionCodesForUser(ctx context.Context, userID string) (map[string]struct{}, error)
+	PermissionCodesForUsers(ctx context.Context, userIDs []string) (map[string]map[string]struct{}, error)
 	AssignPermission(ctx context.Context, userID string, permissionID string) error
 	AssignPermissionByName(ctx context.Context, userID string, permissionName string) error
 	RemovePermission(ctx context.Context, userID string, permissionID string) error

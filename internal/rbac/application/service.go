@@ -9,6 +9,7 @@ import (
 
 	"mycourse-io-be/internal/rbac/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	sharedutils "mycourse-io-be/internal/shared/utils"
 )
 
 // RBACService provides all RBAC use-cases.
@@ -190,6 +191,30 @@ func (s *RBACService) PermissionCodesForUser(ctx context.Context, userID string)
 		return nil, apperrors.ErrRBACInvalidUserID
 	}
 	return s.userPermRepo.PermissionCodesForUser(ctx, userID)
+}
+
+func (s *RBACService) PermissionCodesForUsers(
+	ctx context.Context,
+	userIDs []string,
+) (map[string]map[string]struct{}, error) {
+	userIDs = sharedutils.PrepareBulkUserIDs(userIDs)
+	out := make(map[string]map[string]struct{}, len(userIDs))
+	for _, userID := range userIDs {
+		out[userID] = map[string]struct{}{}
+	}
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	resolved, err := s.userPermRepo.PermissionCodesForUsers(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, userID := range userIDs {
+		if permissions, ok := resolved[userID]; ok && permissions != nil {
+			out[userID] = permissions
+		}
+	}
+	return out, nil
 }
 
 func (s *RBACService) AssignPermissionToUser(ctx context.Context, userID string, permissionID string) error {

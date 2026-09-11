@@ -9,6 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/requestprincipal"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/setting"
 	"mycourse-io-be/internal/shared/token"
@@ -78,11 +79,19 @@ func populateContext(c *gin.Context, claims *token.Claims) {
 	c.Set(ContextEmail, claims.Email)
 	c.Set(ContextDisplayName, claims.DisplayName)
 
+	// permSet is baked into the access token at issuance. Revoking a role or
+	// permission in the database takes effect for this principal only once the
+	// current access token expires or a new one is issued; it is not live per
+	// request the way resource scoped grant revocation is (see docs/modules/authorization.md).
 	permSet := make(map[string]struct{}, len(claims.Permissions))
 	for _, p := range claims.Permissions {
 		permSet[p] = struct{}{}
 	}
 	c.Set(ContextPermissions, permSet)
+	principal := requestprincipal.Principal{
+		Type: requestprincipal.TypeUser, ID: claims.UserID, GlobalPermissions: permSet,
+	}
+	c.Request = c.Request.WithContext(requestprincipal.WithContext(c.Request.Context(), principal))
 }
 
 // extractBearerToken reads the access JWT from Authorization: Bearer, falling back to

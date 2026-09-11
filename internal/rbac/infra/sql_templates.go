@@ -16,6 +16,22 @@ SELECT DISTINCT cc FROM (
   WHERE up.user_id = :user_id
 ) AS _
 `
+	RbacSQLPermissionCodesForUsersTmpl = `
+SELECT user_id::text AS user_id, permission_name
+FROM (
+  SELECT ur.user_id, p.permission_name
+  FROM %s ur
+  INNER JOIN %s rp ON rp.role_id = ur.role_id
+  INNER JOIN %s p ON p.permission_id = rp.permission_id
+  WHERE ur.user_id IN ?
+  UNION
+  SELECT up.user_id, p.permission_name
+  FROM %s up
+  INNER JOIN %s p ON p.permission_id = up.permission_id
+  WHERE up.user_id IN ?
+) AS permissions_by_user
+ORDER BY user_id, permission_name
+`
 	RbacSQLDeleteRolePermissionsByPermissionIDTmpl = `
 DELETE FROM %s WHERE permission_id = :permission_id
 `

@@ -20,7 +20,14 @@ import (
 
 // Pre-built SQL strings (filled once from table names).
 var (
-	sqlPermissionCodesForUser        string
+	sqlPermissionCodesForUser  string
+	sqlPermissionCodesForUsers = fmt.Sprintf(RbacSQLPermissionCodesForUsersTmpl,
+		constants.TableRBACUserRoles,
+		constants.TableRBACRolePermissions,
+		constants.TableRBACPermissions,
+		constants.TableRBACUserPermissions,
+		constants.TableRBACPermissions,
+	)
 	sqlDeleteRolePermsByPermissionID string
 	sqlDeleteRolePermsByRoleID       string
 	sqlDeleteUserPermsByPermissionID string
@@ -385,6 +392,37 @@ func (r *GormUserPermissionRepository) PermissionCodesForUser(ctx context.Contex
 	out := make(map[string]struct{}, len(codes))
 	for _, c := range codes {
 		out[c] = struct{}{}
+	}
+	return out, nil
+}
+
+type permissionCodeByUserRow struct {
+	UserID         string `gorm:"column:user_id"`
+	PermissionName string `gorm:"column:permission_name"`
+}
+
+func (r *GormUserPermissionRepository) PermissionCodesForUsers(
+	ctx context.Context,
+	userIDs []string,
+) (map[string]map[string]struct{}, error) {
+	userIDs = utils.PrepareBulkUserIDs(userIDs)
+	out := make(map[string]map[string]struct{}, len(userIDs))
+	for _, userID := range userIDs {
+		out[userID] = map[string]struct{}{}
+	}
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	var rows []permissionCodeByUserRow
+	if err := r.db.WithContext(ctx).Raw(sqlPermissionCodesForUsers, userIDs, userIDs).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		permissions, exists := out[row.UserID]
+		if !exists {
+			continue
+		}
+		permissions[row.PermissionName] = struct{}{}
 	}
 	return out, nil
 }

@@ -62,6 +62,8 @@ All endpoints are under `/api/internal-v1/rbac/` and require the `X-API-Key` int
 | POST | `/rbac/users/:userId/direct-permissions` | Assign a direct permission to a user |
 | DELETE | `/rbac/users/:userId/direct-permissions/:permissionId` | Remove a direct permission from a user |
 
+Successful role or direct-permission assignment/removal invalidates the affected user's cached `GET /api/v1/me` projection after persistence succeeds. That response exposes raw role names only for display, ordered `sysadmin`, `admin`, `instructor`, `learner` with unknown names afterward; authorization continues to use permission checks, never the projected role list.
+
 ---
 
 ## Permission Middleware
@@ -73,8 +75,8 @@ All endpoints are under `/api/internal-v1/rbac/` and require the `X-API-Key` int
 media.GET("", middleware.RequirePermission(pc, constants.AllPermissions.MediaFileRead), h.listFiles)
 ```
 
-- Reads JWT embedded permissions first (fast path).
-- If the required permission is absent from claims, falls back to DB lookup via `RBACService.PermissionCodesForUser`.
+- Reads JWT embedded permissions first (fast path). A permission already present in an issued token remains accepted until that token expires or is refreshed, even if the DB binding is revoked meanwhile.
+- If the required permission is absent from claims, falls back to DB lookup via `RBACService.PermissionCodesForUser`, so a newly granted permission can take effect without waiting for a new token.
 - Returns `403 Forbidden` if the permission is not present.
 - Returns `401 Unauthorized` if no valid JWT is provided.
 
@@ -144,7 +146,7 @@ type PermissionChecker interface {
 
 - **Permission bindings are additive** in the seeder: it never removes existing permissions.
 - **Role names are stable**: do not rename `admin`, `instructor`, `learner` — JWT claims reference role names.
-- **Cache invalidation**: after role-permission changes, affected users must re-login to receive updated JWT claims (no real-time push).
+- **Cache and token freshness**: direct user role/permission mutations evict that user's `/me` cache immediately after persistence. Existing JWT claims are immutable, so revocation of a permission already present in a token takes effect only after refresh or expiry. Role-definition permission changes likewise require new tokens for affected users.
 
 ---
 

@@ -5,7 +5,8 @@ _Last updated: 2026-06-25_
 ## 2026-06-25 addendum (collaborators)
 
 - Paginated `GET /api/v1/courses/:courseId/collaborators` (`course_instructor:read`; query `page`, `per_page`, optional `search`)
-- Bulk add `POST /api/v1/courses/:courseId/collaborators/bulk` — body `{ "user_ids": ["..."], "role": "EDITOR" }` returns `added` + `failed[]`; per-user business failures in `failed[]`; infrastructure errors abort with HTTP 500
+- Bulk add uses the existing `POST /api/v1/courses/:courseId/collaborators/bulk` only. Body `{ "user_ids": ["..."], "role": "EDITOR" }` creates or restores active collaborator membership; there is no scoped-actions field or separate actions endpoint.
+- Responses contain collaborator rows plus per-user business failures (including the canonical owner target) in `failed[]`; infrastructure errors abort with HTTP 500 and roll back membership writes.
 - Removed legacy single add `POST /api/v1/courses/:courseId/collaborators`; `DELETE …/collaborators/:userId` unchanged
 - Batch repo: `repo_collaborators_bulk.go` — single transaction, shared `instructorUserIDSet` eligibility, `planBulkCollaboratorWrites` classification, batch `UPDATE id IN (…)` + `CreateInBatches` insert, `loadCollaboratorsByUserIDs` hydrate
 - Submit validation: `validateDraftCollaborators` batch-loads snapshots + `instructorUserIDSet` (no N+1)

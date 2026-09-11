@@ -48,7 +48,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - Error codes: `4013`–`4017`, `4019`, `4023`–`4025` (BE). `4018 InvalidOAuthState` is **FE-local only** (not in Go/Swagger). Config: `oauth:` section in **`config/app.yaml` and every `config/app-<stage>.yaml`**. Routes `/auth/google*`, `/auth/x`, and `/auth/discord` register only when `OAuthGoogleConfigured()`, `OAuthXConfigured()`, or `OAuthDiscordConfigured()` passes (Google: `client_id` + `client_secret`; X/Discord: all three vars including `callback_url`).
 
 ### `/api/v1` (auth subgroup)
-- `GET /me`
+- `GET /me` — profile, effective `permissions`, and ordered raw `roles`; roles are display-only and permissions remain authoritative
 - `PATCH /me` — partial profile update; body supports **`avatar_file_id`** (UUID of an existing **`media_files`** row). Response uses nested **`avatar`** (`dto.MediaFilePublic`) instead of a raw URL string.
 - `DELETE /me` — soft delete account
 - `DELETE /me/hard` — permanent account removal
@@ -84,7 +84,7 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
   - `GET /instructor-stubs/assignments|activity-log` — stubs
   - P68 `instructor_application:submit_blocked` on `GET /me/permissions` (resolver step 4, after G/H)
 - Course management (see **`docs/modules/course.md`**):
-  - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId` (query `include_outline=false` skips outline tree — info/collaborators tabs), `PATCH /courses/:courseId/basic-info`, paginated `GET …/collaborators`, picker `GET …/instructor-candidates` (P67), `POST …/collaborators/bulk` + `DELETE …/collaborators/:userId`, outline CRUD/reorder, lease acquire/heartbeat/release
+  - Instructor/collab: `GET /courses/my`, `POST /courses`, `GET /courses/:courseId` (query `include_outline=false` skips outline tree — info/collaborators tabs), `PATCH /courses/:courseId/basic-info`, paginated `GET …/collaborators`, picker `GET …/instructor-candidates` (P67), `POST …/collaborators/bulk`, `DELETE …/collaborators/:userId`, outline CRUD/reorder, lease acquire/heartbeat/release
   - Review: `POST /courses/:courseId/draft/prepare`, `POST /courses/:courseId/submit-review`, `POST /courses/:courseId/reopen-draft` (**owner-only** in repo — `EDITOR` may edit draft/outline but not these three), `GET /course-reviews/pending` (`[]CourseListItem` + `owner_display_name`), `POST /course-reviews/:courseId/approve|reject`
   - Admin catalog: `GET /course-admin/courses`, `GET /course-admin/courses/trash` (`[]CourseListItem` + `owner_display_name`), `POST /course-admin/courses/:courseId/trash|restore`, `DELETE /course-admin/courses/:courseId/permanent`
   - Learner: `GET /learner-courses`, `GET /learner-courses/:courseId`, `POST /learner-courses/:courseId/enroll`, `GET|POST /learner-courses/:courseId/progress`

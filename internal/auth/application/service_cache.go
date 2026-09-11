@@ -30,8 +30,12 @@ func (s *AuthService) getCachedMe(ctx context.Context, userID string) (*domain.M
 	if err != nil {
 		return nil, false
 	}
+	return decodeCachedMe(data, userID)
+}
+
+func decodeCachedMe(data []byte, userID string) (*domain.MeProfile, bool) {
 	var me domain.MeProfile
-	if err := json.Unmarshal(data, &me); err != nil || me.UserID != userID {
+	if err := json.Unmarshal(data, &me); err != nil || me.UserID != userID || me.Roles == nil {
 		return nil, false
 	}
 	return &me, true

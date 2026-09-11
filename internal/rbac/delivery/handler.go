@@ -19,12 +19,18 @@ import (
 
 // Handler holds all HTTP handler methods for the RBAC domain.
 type Handler struct {
-	svc *application.RBACService
+	svc     *application.RBACService
+	meCache MeCacheInvalidator
+}
+
+// MeCacheInvalidator invalidates the cached /me projection after RBAC binding changes.
+type MeCacheInvalidator interface {
+	InvalidateUserMeCache(ctx context.Context, userID string)
 }
 
 // NewHandler constructs an RBAC delivery Handler.
-func NewHandler(svc *application.RBACService) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *application.RBACService, meCache MeCacheInvalidator) *Handler {
+	return &Handler{svc: svc, meCache: meCache}
 }
 
 // --- Permissions -------------------------------------------------------------
@@ -177,11 +183,15 @@ func (h *Handler) assignUserRole(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
+	h.invalidateMeCache(c.Request.Context(), userID)
 	response.OK(c, "assigned", nil)
 }
 
 func (h *Handler) removeUserRole(c *gin.Context) {
-	spec := removeBindingSpec[uint]{parse: parseRoleIDParam, invalidMsg: "invalid role id", call: removeRoleBinding}
+	spec := removeBindingSpec[uint]{
+		parse: parseRoleIDParam, invalidMsg: "invalid role id", call: removeRoleBinding,
+		afterSuccess: func(ctx context.Context, userID string) { h.invalidateMeCache(ctx, userID) },
+	}
 	removeUserBindingForHandler(h, c, spec)
 }
 
@@ -214,24 +224,41 @@ func (h *Handler) assignUserPermission(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.BadRequest, err.Error(), nil)
 		return
 	}
+	h.invalidateMeCache(c.Request.Context(), userID)
 	response.OK(c, "assigned", nil)
 }
 
 func (h *Handler) removeUserPermission(c *gin.Context) {
-	spec := removeBindingSpec[string]{parse: parsePermissionIDParam, invalidMsg: "invalid permission id", call: removePermissionBinding}
+	spec := removeBindingSpec[string]{
+		parse: parsePermissionIDParam, invalidMsg: "invalid permission id", call: removePermissionBinding,
+		afterSuccess: func(ctx context.Context, userID string) { h.invalidateMeCache(ctx, userID) },
+	}
 	removeUserBindingForHandler(h, c, spec)
 }
 
 type removeBindingSpec[SecondID any] struct {
-	parse      func(*gin.Context) (SecondID, bool)
-	invalidMsg string
-	call       func(*application.RBACService, context.Context, string, SecondID) error
+	parse        func(*gin.Context) (SecondID, bool)
+	invalidMsg   string
+	call         func(*application.RBACService, context.Context, string, SecondID) error
+	afterSuccess func(context.Context, string)
 }
 
 func removeUserBindingForHandler[SecondID any](h *Handler, c *gin.Context, spec removeBindingSpec[SecondID]) {
 	removeUserBinding(c, spec.parse, func(userID string, secondID SecondID) error {
-		return spec.call(h.svc, c.Request.Context(), userID, secondID)
+		if err := spec.call(h.svc, c.Request.Context(), userID, secondID); err != nil {
+			return err
+		}
+		if spec.afterSuccess != nil {
+			spec.afterSuccess(c.Request.Context(), userID)
+		}
+		return nil
 	}, spec.invalidMsg)
+}
+
+func (h *Handler) invalidateMeCache(ctx context.Context, userID string) {
+	if h.meCache != nil && userID != "" {
+		h.meCache.InvalidateUserMeCache(ctx, userID)
+	}
 }
 
 func parseRoleIDParam(c *gin.Context) (uint, bool) { return utils.ParseUintPathParam(c, "roleId") }

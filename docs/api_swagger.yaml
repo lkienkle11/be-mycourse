@@ -485,6 +485,7 @@ components:
         updated_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
     MeProfile:
       type: object
+      required: [roles]
       properties:
         user_id: { type: integer }
         user_code: { type: string, format: uuid }
@@ -496,6 +497,15 @@ components:
         permissions:
           type: array
           items: { type: string }
+        roles:
+          type: array
+          nullable: false
+          description: >
+            Raw display-only RBAC role names. Known names are ordered sysadmin, admin,
+            instructor, learner; unknown names follow stably. Authorization remains
+            permission-based and must not use this field.
+          items: { type: string }
+          example: [admin, instructor, learner]
     InstructorExpertiseTopic:
       type: object
       description: >
@@ -1334,7 +1344,7 @@ paths:
   /api/v1/me:
     get:
       tags: [Me]
-      summary: Current user profile + effective permissions
+      summary: Current user profile + effective permissions + display roles
       security:
         - bearerJwt: []
       responses:
@@ -2280,7 +2290,8 @@ paths:
       summary: List collaborators (paginated)
       description: |
         Paginated collaborator list for a course. Query `search` matches `display_name` or `email` (ILIKE).
-        Order: `OWNER` first, then `EDITOR` by collaborator id.
+        Order: canonical `OWNER` first, then `EDITOR` by collaborator id. Course authorization uses
+        the canonical owner or active collaborator membership; items do not expose scoped actions.
         `loadCollaborators` on course detail is unchanged (full list embedded in `CourseDetail`).
       security:
         - bearerJwt: []
@@ -2303,7 +2314,12 @@ paths:
         schema: { type: string, format: uuid }
     post:
       tags: [Course]
-      summary: Add multiple collaborators by user id
+      summary: Add collaborators in bulk
+      description: |
+        Canonical-owner-only business facade. `role` is optional and may only be `EDITOR`.
+        The request creates or restores active Course collaborator membership and has no scoped-actions field.
+        Raw `user_ids` is limited to 100 entries; values are trimmed and deduplicated before UUID
+        validation, blank values are discarded, and all-blank or any nonblank invalid UUID is rejected.
       security:
         - bearerJwt: []
       requestBody:
@@ -2317,8 +2333,10 @@ paths:
                 user_ids:
                   type: array
                   minItems: 1
+                  maxItems: 100
                   items: { type: string, format: uuid }
-                role: { type: string, enum: [OWNER, EDITOR] }
+                  description: Raw list is capped at 100, then values are trimmed, blank values discarded, deduplicated, and UUID-validated.
+                role: { type: string, enum: [EDITOR], default: EDITOR }
       responses:
         "200":
           description: Aggregated add result with `added[]` and `failed[]`

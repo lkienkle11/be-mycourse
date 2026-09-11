@@ -160,15 +160,17 @@
 
 ### FR-2 User Profile
 
-> **Source:** `api/v1/me.go`, `services/auth/auth.go`, `services/cache/auth_user.go`
+> **Source:** `internal/auth/delivery/handler.go`, `internal/auth/application/service.go`, `internal/auth/application/service_cache.go`
 
 #### FR-2.1 Get My Profile (`GET /api/v1/me`)
 
-- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), and `permissions` (sorted `permission_name` strings from RBAC union of role + direct grants).
+- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), `permissions` (sorted `permission_name` strings from RBAC union of role + direct grants), and `roles` (raw display-only role names).
+- `roles` **MUST** be a non-null array ordered `sysadmin`, `admin`, `instructor`, `learner`, with unknown names following in their original RBAC order. The system **MUST NOT** use this projection for authorization; `permissions` remains authoritative.
 - Sensitive fields (`hash_password`, `confirmation_token`, `confirmation_sent_at`, `refresh_token_session`) **MUST NOT** be returned.
-- The system **SHOULD** serve the response from Redis cache (`mycourse:user:me:{user_id}`, TTL 1 min) on cache hit, except when the cached payload has `email_confirmed=true` and `permissions=[]` (stale legacy state) — then the system **MUST** bypass cache and rebuild.
+- The system **SHOULD** serve the response from Redis cache (`mycourse:user:me:{user_id}`, TTL 1 min) on cache hit, except when the cached payload has `email_confirmed=true` and `permissions=[]` (stale legacy state) or lacks the `roles` field — then the system **MUST** bypass cache and rebuild. An explicit `roles: []` is a valid current cache hit.
 - On a cache miss the system **MUST** load the user via active-only lookup and run **`checkUserAccessible`** (`internal/auth/application/service_access.go`) before building the response.
 - When `email_confirmed=true` and effective permissions are empty after RBAC lookup, the system **MUST** call **`EnsureLearnerRole`** (same idempotent path as FR-1.2), reload permissions, and include the result in the response.
+- Successful internal RBAC role or direct-permission assignment/removal **MUST** invalidate the affected user's cached profile after persistence succeeds. This cache eviction does not rewrite an already-issued access token.
 - Requires `Authorization: Bearer <access_token>`.
 
 **Error cases:**
@@ -261,7 +263,8 @@
 
 - A user's effective permissions = **UNION** of permissions from all assigned roles (via `user_roles` → `role_permissions`) **PLUS** any direct `user_permissions` grants.
 - This union is computed at login time and embedded in the JWT `permissions` claim as sorted `permission_name` strings.
-- The `middleware.RequirePermission` middleware checks the claim set without a DB round-trip per request.
+- The `middleware.RequirePermission` middleware accepts permissions present in the JWT claim set without a DB round-trip, and falls back to the current DB union only when a required permission is absent from the claim set.
+- Revoking a permission that is already present in an issued access token **MUST NOT** be represented as immediate: it takes effect for that token only after refresh or expiry. `/me` cache invalidation is independent from this JWT lifetime.
 
 ---
 
@@ -406,8 +409,9 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 
 - The system **MUST** provide course authoring endpoints under `/api/v1/courses` for create/read/update/delete and collaborator management.
 - Paginated collaborator list (`GET …/collaborators`) **MUST** support `page`, `per_page`, and optional `search` on collaborator `display_name` / `email`.
-- Bulk add collaborators (`POST …/collaborators/bulk`) **MUST** accept `user_ids[]` and optional `role`; per-user business failures return in `failed[]`; infrastructure errors (including DB failures during instructor-role checks) **MUST** abort with HTTP 500 — never map infra errors into `failed[]`.
-- Bulk add **MUST** run in a single repository transaction with batch instructor/existing-collaborator lookups and batch writes (`UPDATE … WHERE id IN (?)` + `CreateInBatches` insert) — not N per-user insert/update round-trips.
+- Bulk collaborator management (`POST …/collaborators/bulk`) **MUST** accept 1–100 `user_ids[]` and optional `role` (EDITOR only). It creates or restores Course membership and has no scoped-actions field. The canonical owner **MUST NOT** be modified through this API.
+- Bulk collaborator management **MUST** return per-user business failures in `failed[]`; infrastructure errors **MUST** abort with HTTP 500 and roll back the transaction.
+- Bulk collaborator management **MUST** run in a single repository transaction with batch instructor/existing-collaborator lookups and batch membership writes (`UPDATE … WHERE id IN (?)` + `CreateInBatches` insert), not N per-user insert/update round-trips.
 - Instructor-candidate picker (`GET …/instructor-candidates`) **MUST** require dedicated permission **`course_collaborator_candidate:read` (P67)** at the route layer; repository **MUST** restrict picker access to course owners (`requireOwnerAccess`).
 - The system **MUST** enforce role-gated review endpoints under `/api/v1/course-reviews` for pending queue, approve, and reject actions.
 - The system **MUST** expose sysadmin catalog endpoints under `/api/v1/course-admin` for listing all non-trashed courses, listing trashed approved courses, moving eligible courses to trash, restoring from trash, and permanently deleting trashed courses (granular permissions **P62–P66**, not shell `admin:modify`).

@@ -248,22 +248,22 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 ### Asset: MeResponse
 - Name: `MeResponse`
 - Type: Type/DTO
-- Path: `dto/auth.go`
-- Purpose: HTTP JSON contract for **`GET/PATCH /internal/*/delivery/me`** (handler boundary only).
+- Path: `internal/auth/delivery/dto.go`
+- Purpose: HTTP JSON contract for **`GET/PATCH /api/v1/me`** (handler boundary only), including non-null display-only `roles`.
 - Scope: User profile/session related API responses.
-- Dependencies: Built from **`entities.MeProfile`** via **`mapping.ToMeResponseFromProfile`**.
-- Current Usage: `internal/*/delivery/me.go` (response envelope only).
+- Dependencies: Built from **`auth/domain.MeProfile`** via the private **`toMeResponse`** mapper.
+- Current Usage: `internal/auth/delivery/handler.go` (response envelope only).
 - Reuse Opportunity:
-  - Keep transport-only; internal/shared/cache use **`entities.MeProfile`**.
+  - Keep transport-only; auth application/cache use **`domain.MeProfile`**.
 
 ### Asset: MeProfile (service + cache shape)
-- Name: `MeProfile` (avatar uses **`entities.MediaFilePublic`** — same type as **`dto.MediaFilePublic`** via alias)
+- Name: `MeProfile`
 - Type: Type/Entity
-- Path: `internal/<domain>/domain/me_profile.go`, `internal/<domain>/domain/media_file_public.go`
-- Purpose: Non-DTO user self projection for **`internal/auth/application`** and Redis **`/me`** cache. **`Avatar`** is **`*entities.MediaFilePublic`** (JSON identical to API — **`dto.MediaFilePublic`** is a type alias).
+- Path: `internal/auth/domain/user.go`
+- Purpose: Non-DTO user self projection for **`internal/auth/application`** and Redis **`/me`** cache. It carries raw avatar identifiers plus sorted permissions and ordered display-only role names.
 - Scope: Auth read path + cache serialize/deserialize.
-- Dependencies: **`internal/<domain>/domain` only** in the struct definitions; **`dto`** re-exports **`MediaFilePublic`** for handler/DTO field names.
-- Current Usage: `internal/auth/application/auth.go`, `internal/auth/application/me_update.go`, `internal/auth/application/ (cache helpers) and internal/shared/cache/auth_user.go`; built by **`mapping.BuildMeProfileFromUser`**.
+- Dependencies: Auth domain only; the delivery layer resolves the public avatar DTO separately.
+- Current Usage: `internal/auth/application/service.go` and `internal/auth/application/service_cache.go`; built by the private **`buildMeProfile`** helper.
 
 ## Utility / Helper Assets
 
@@ -376,13 +376,13 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Reuse Opportunity: Any new writer of `metadata_json` for Bunny should import these constants.
 
 ### Asset: Mapping helpers for API DTO contracts
-- Name: `ToUploadFileResponse`, model→DTO taxonomy mappers, **`CategoryListHTTPPayload`**, **`CategoryRowHTTPPayload`**, **`TagListHTTPPayload`**, **`TagRowHTTPPayload`**, **`CourseLevelListHTTPPayload`**, **`CourseLevelRowHTTPPayload`**, **`BuildMeProfileFromUser`**, **`ToMeResponseFromProfile`**
+- Name: `ToUploadFileResponse`, model→DTO taxonomy mappers, **`CategoryListHTTPPayload`**, **`CategoryRowHTTPPayload`**, **`TagListHTTPPayload`**, **`TagRowHTTPPayload`**, **`CourseLevelListHTTPPayload`**, **`CourseLevelRowHTTPPayload`**
 - Type: Util/Helper
 - Path: `pkg/logic/mapping/media_file_mapping.go`, `pkg/logic/mapping/taxonomy_category_mapping.go`, `pkg/logic/mapping/taxonomy_model_mapping.go`, `pkg/logic/mapping/taxonomy_course_level_mapping.go`, `pkg/logic/mapping/taxonomy_tag_mapping.go`, `pkg/logic/mapping/auth_me_mapping.go`
 - Purpose: Centralize entity/model -> DTO mapping so handlers do not return raw persistence/entity structs. Taxonomy **`HTTPPayload`** helpers let **`internal/*/delivery/taxonomy/*_handler.go`** stay free of **`internal/*/infra` GORM rows** imports (**`restrict_api`**). **`ToUploadFileResponse`** omits canonical origin from the public DTO (Sub 12 — no `origin_url` on `dto.UploadFileResponse`); internal `entities.File.OriginURL` / DB `origin_url` still store it for server use.
-- Scope: Media and taxonomy transport responses; auth /me service→handler bridge.
+- Scope: Media and taxonomy transport responses. Auth `/me` uses bounded-context-private `buildMeProfile` and `toMeResponse` helpers instead of this shared mapping set.
 - Dependencies: `dto`, `internal/*/infra` GORM rows, `internal/<domain>/domain`.
-- Current Usage: `internal/*/delivery/media/file_handler.go`, `internal/*/delivery/taxonomy/*_handler.go`, `internal/*/delivery/me.go`.
+- Current Usage: media and taxonomy delivery handlers.
 - Reuse Opportunity:
   - Reuse for all upcoming domain handlers to enforce stable public API contracts.
 
@@ -704,9 +704,9 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 ### Asset: Collaborator bulk add (batch repository)
 - Name: `AddCollaboratorsBulk`, `instructorUserIDSet`, `planBulkCollaboratorWrites`, `applyBulkCollaboratorWrites`, `prepareCollaboratorBulkInput`
 - Type: Functions (`internal/course/infra/repo_collaborators_bulk.go`, `internal/course/application/service_collaborators_bulk.go`)
-- Purpose: Batch collaborator add — one transaction per request; instructor eligibility via `gormx.UserIDSetByRoleNames` (instructor/sysadmin/admin); batch existing-row load; **one** `UPDATE id IN (…)` for role changes; **`CreateInBatches` insert** for new rows; single hydrate. `planBulkCollaboratorWrites` classifies insert/update/failed in memory. Per-user business failures in `failed[]`; infra errors abort transaction.
+- Purpose: Batch collaborator membership/grant management — one transaction per request; instructor eligibility via `gormx.UserIDSetByRoleNames` (instructor/sysadmin/admin); canonical-owner target rejection; batch existing-row load; **one** `UPDATE id IN (…)` for role changes; **`CreateInBatches` insert** for new rows; one generic `GrantService.ReplaceMany`; single effective-action hydrate. `planBulkCollaboratorWrites` classifies insert/update/failed in memory. Per-user business failures stay in `failed[]`; infrastructure errors roll back membership and grants.
 - Scope: `POST /api/v1/courses/:courseId/collaborators/bulk` only (legacy single POST removed).
-- Dependencies: `requireOwnerAccess`, `loadCollaboratorsByUserIDs`, `collaboratorRow`, `ensureCourseRowID`, `domain.CollaboratorBulkResult`, `instructordomain.RoleName*`.
+- Dependencies: `requireOwnerAccess`, `GrantService`, `loadCollaboratorsByUserIDs`, `collaboratorRow`, `ensureCourseRowID`, `domain.CollaboratorBulkResult`, `instructordomain.RoleName*`.
 - Current Usage: `CourseService.AddCollaboratorsBulk`, `handler_instructor.go` bulk handler; submit validation via `instructorUserIDSet` + `loadCollaboratorAccessSnapshots`.
 
 ### Asset: Taxonomy list total inference

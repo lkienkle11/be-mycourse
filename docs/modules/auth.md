@@ -370,11 +370,13 @@ Soft-deleted accounts surface as email-not-found; the resulting UNIQUE-email pat
 
 ### `GET /api/v1/me` (JWT required)
 
-Returns the current user's profile and effective permission names (sorted `permission_name` strings from RBAC). Redis cache-first; DB fallback with up to **1 minute** staleness.
+Returns the current user's profile, effective permission names (sorted `permission_name` strings from RBAC), and raw display-only role names. Roles are ordered `sysadmin`, `admin`, `instructor`, `learner`; unknown names follow in their original RBAC order. `permissions` remains the only authorization input—clients must not infer access from `roles`. Redis cache-first; DB fallback with up to **1 minute** staleness.
 
 **Access check:** `loadAccessibleUser` → **`checkUserAccessible`** in `application/service_access.go`. Rejects soft-deleted users (**404**), permanently disabled users (**403**, `4005`), and actively banned users (**403**, `4012` — `banned_until > now()`).
 
 **Legacy self-heal:** When a confirmed user has zero effective permissions (for example, email was confirmed before learner-role assignment was wired), `GetMe` calls `EnsureLearnerRole`, reloads permissions, and bypasses a stale cached payload that still shows `permissions: []`.
+
+Cached payloads created before the `roles` field existed are treated as cache misses. A current user with no roles returns `"roles": []`, never `null`; successful internal RBAC role or direct-permission assignment/removal invalidates that user's `/me` cache immediately after persistence. This refreshes the profile projection only: permissions already embedded in an issued access token remain usable for authorization until token refresh or expiry.
 
 ---
 

@@ -25,6 +25,18 @@ type PermissionReader interface {
 	PermissionCodesForUser(userID string) (map[string]struct{}, error)
 }
 
+// RoleNameReader returns display-only RBAC role names for a user.
+type RoleNameReader interface {
+	RoleNamesForUser(ctx context.Context, userID string) ([]string, error)
+}
+
+// MeProjectionDeps groups the RBAC collaborators used to construct the cached /me projection.
+type MeProjectionDeps struct {
+	Permissions PermissionReader
+	Roles       RoleNameReader
+	Learner     LearnerRoleEnsurer
+}
+
 // LearnerRoleEnsurer assigns the baseline learner role when absent.
 type LearnerRoleEnsurer interface {
 	EnsureLearnerRole(userID string) error
@@ -50,6 +62,7 @@ type AuthService struct {
 	userRepo           domain.UserRepository
 	sessionRepo        sessionRepo // extended infra methods
 	permReader         PermissionReader
+	roleNameReader     RoleNameReader
 	learnerRoleEnsurer LearnerRoleEnsurer
 	emailConfirmer     EmailConfirmer
 	mediaValidator     MediaFileValidator
@@ -74,8 +87,7 @@ type sessionRepo interface {
 func NewAuthService(
 	userRepo domain.UserRepository,
 	sess sessionRepo,
-	perm PermissionReader,
-	learner LearnerRoleEnsurer,
+	meProjection MeProjectionDeps,
 	emailConfirmer EmailConfirmer,
 	media MediaFileValidator,
 	orphan OrphanCleanupEnqueuer,
@@ -84,8 +96,9 @@ func NewAuthService(
 	return &AuthService{
 		userRepo:           userRepo,
 		sessionRepo:        sess,
-		permReader:         perm,
-		learnerRoleEnsurer: learner,
+		permReader:         meProjection.Permissions,
+		roleNameReader:     meProjection.Roles,
+		learnerRoleEnsurer: meProjection.Learner,
 		emailConfirmer:     emailConfirmer,
 		mediaValidator:     media,
 		orphanEnqueuer:     orphan,
@@ -292,15 +305,10 @@ func (s *AuthService) GetMe(ctx context.Context, userID string) (*domain.MeProfi
 	if err != nil {
 		return nil, err
 	}
-	perms, err := s.permissionSlice(user.ID)
+	me, err := s.loadMeProfile(ctx, user)
 	if err != nil {
 		return nil, err
 	}
-	perms, err = s.healConfirmedEmptyPermissions(user, perms)
-	if err != nil {
-		return nil, err
-	}
-	me := buildMeProfile(user, perms)
 	s.setCachedMe(ctx, me)
 	return me, nil
 }
@@ -403,6 +411,33 @@ func (s *AuthService) permissionSlice(userID string) ([]string, error) {
 	return out, nil
 }
 
+func (s *AuthService) roleNameSlice(ctx context.Context, userID string) ([]string, error) {
+	if s.roleNameReader == nil {
+		return []string{}, nil
+	}
+	names, err := s.roleNameReader.RoleNamesForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return sortRolesByRank(names), nil
+}
+
+func (s *AuthService) loadMeProfile(ctx context.Context, user *domain.User) (*domain.MeProfile, error) {
+	perms, err := s.permissionSlice(user.ID)
+	if err != nil {
+		return nil, err
+	}
+	perms, err = s.healConfirmedEmptyPermissions(user, perms)
+	if err != nil {
+		return nil, err
+	}
+	roles, err := s.roleNameSlice(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	return buildMeProfile(user, perms, roles), nil
+}
+
 func needsLearnerRoleHeal(me *domain.MeProfile) bool {
 	return me != nil && me.EmailConfirmed && len(me.Permissions) == 0
 }
@@ -443,16 +478,15 @@ func (s *AuthService) warmMeCache(ctx context.Context, user *domain.User) {
 	if s.redis == nil {
 		return
 	}
-	perms, err := s.permissionSlice(user.ID)
+	me, err := s.loadMeProfile(ctx, user)
 	if err != nil {
 		return
 	}
-	me := buildMeProfile(user, perms)
 	s.setCachedMe(ctx, me)
 }
 
-// buildMeProfile maps a domain.User + permissions to a MeProfile.
-func buildMeProfile(user *domain.User, perms []string) *domain.MeProfile {
+// buildMeProfile maps a domain.User plus display projection fields to a MeProfile.
+func buildMeProfile(user *domain.User, perms, roles []string) *domain.MeProfile {
 	return &domain.MeProfile{
 		UserID:         user.ID,
 		UserCode:       user.UserCode,
@@ -463,7 +497,34 @@ func buildMeProfile(user *domain.User, perms []string) *domain.MeProfile {
 		IsDisabled:     user.IsDisable,
 		CreatedAt:      user.CreatedAt,
 		Permissions:    perms,
+		Roles:          nonNilStrings(roles),
 	}
+}
+
+var roleRankOrder = []string{"sysadmin", "admin", "instructor", "learner"}
+
+func sortRolesByRank(names []string) []string {
+	out := nonNilStrings(names)
+	sort.SliceStable(out, func(i, j int) bool {
+		return roleRank(out[i]) < roleRank(out[j])
+	})
+	return out
+}
+
+func roleRank(name string) int {
+	for rank, rankedName := range roleRankOrder {
+		if name == rankedName {
+			return rank
+		}
+	}
+	return len(roleRankOrder)
+}
+
+func nonNilStrings(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	return append([]string(nil), values...)
 }
 
 // --- util funcs ---

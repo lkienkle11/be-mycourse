@@ -39,6 +39,7 @@
 | `000031_user_oauth_identities` | Adds **`users.password_set_at`** and table **`user_oauth_identities`** for Google/X external identities. See **`docs/database.md`**. |
 | `000032_taxonomy_translations_row_version` | Taxonomy `*_translations` + `row_version` + JSONB tree `translations.en` backfill. Tree helper is **`LANGUAGE sql`** (no `plpgsql`/`DO $$`) so golang-migrate `;` splitting works. See **`docs/database.md`** / **`docs/modules/taxonomy.md`**. |
 | `000033_teaching_content_ideas` | Adds `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on **`instructor_applications`** and **`instructor_profiles`**. Required 50–500 Unicode code points (not UTF-8 bytes) on submit/resubmit; approve copies via profile snapshot. See **`docs/modules/instructor.md`** / **`docs/database.md`**. |
+| `000034_authorization_base` | Adds the shared **`authorization_actions`** catalog, generic **`authorization_grants`** store (ALLOW/DENY, conditions, validity, revocation), **`authorization_role_actions`**, and **`authorization_role_bindings`**. DDL only: no provider actions, role definitions, bindings, grants, or Course collaborators are seeded/backfilled. See **`docs/modules/authorization.md`**. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

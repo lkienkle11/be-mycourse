@@ -87,6 +87,8 @@ type MeResponse struct {
 	IsDisabled      bool     `json:"is_disabled"`
 	CreatedAt       int64    `json:"created_at"`
 	Permissions     []string `json:"permissions"`
+	// Roles contains display-only RBAC role names and must never drive authorization decisions.
+	Roles []string `json:"roles"`
 }
 
 // MyPermissionsResponse is the data payload for GET /api/v1/me/permissions.

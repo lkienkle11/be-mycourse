@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-06-17 (course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads). Prior: outline reorder write-path performance, batch media meta query, lease read-after-write removal. Read-path batching/parallelism: 2026-06-16._
+_Last audited: 2026-09-12 (collaborator membership moved from `course_collaborators` onto `internal/authorization`'s resource-scoped role gate — `openspec/changes/replace-course-collaborator-with-role-gate`; `course_collaborators` is dropped). Prior: course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads (2026-06-17); outline reorder write-path performance, batch media meta query, lease read-after-write removal; read-path batching/parallelism (2026-06-16)._
 
 ## Overview
 
@@ -8,7 +8,7 @@ _Last audited: 2026-06-17 (course version numbering on reject/reopen, reorder ne
 
 - course roots (`courses`)
 - versioned course content (`course_versions`)
-- collaborator membership (`course_collaborators`)
+- collaborator membership, via `internal/authorization`'s resource-scoped role gate (`authorization_role_bindings`/`authorization_role_actions`, `resource_type = "course"`) — not a Course-owned table; see "Collaboration and conflict control"
 - version-scoped outline data (`course_sections`, `course_lessons`, `course_sub_lessons`)
 - sub-lesson detail rows for `VIDEO`, `QUIZ`, and `TEXT`
 - edit leases (`course_edit_leases`)
@@ -32,7 +32,7 @@ internal/course/
     ├── repo_helpers.go / duration.go   # parallelReadDB, shared load/update helpers
 ```
 
-Migration: `migrations/000016_course_management.{up,down}.sql`
+Migration: `migrations/000016_course_management.{up,down}.sql` (courses, versions, outline, leases, enrollment, progress). Collaborator membership moved out of this module's own migration and onto `internal/authorization`'s tables (migrations `000034`-`000036`); `course_collaborators` itself is dropped by migration `000037_drop_course_collaborators`.
 
 ## Core model
 
@@ -79,9 +79,9 @@ Editable mutations (`ensureEditableDraft`) allow only `DRAFT` status (`IN_REVIEW
 - Collaborator roles:
   - `OWNER` — delete course, manage collaborator membership
   - `EDITOR` — active membership allows basic-info/outline editing, but not submit, prepare draft, reopen rejected draft, delete, or collaborator management
-- Course routes still require their global RBAC permissions (for example `course:update`) before repository-level membership checks.
-- Canonical ownership comes only from `courses.owner_user_id`; a collaborator row whose role says `OWNER` does not gain canonical-owner privileges.
-- Course does not currently register a generic `internal/authorization` policy provider or read `authorization_grants`.
+- Course routes still require their global RBAC permissions (for example `course:update`) before the resource-scoped role gate decision — see decision step 2 in `docs/modules/authorization.md`.
+- Canonical ownership comes only from `courses.owner_user_id`. `CoursePolicyProvider.Evaluate` synthesizes the owner's `PolicyAllow` directly from that column at decision time; the owner never has a stored `authorization_role_bindings` row.
+- Course is registered as an `internal/authorization` `PolicyProvider` (`CoursePolicyProvider`, `internal/course/application/authorization_policy.go`). Every access check goes through one seam — `requireCourseAction` (`internal/course/infra/repo_access.go`) calling `Authorizer.Authorize` — which never compares a role name string; `requireCourseAccess`/`requireEditorAccess`/`requireOwnerAccess` are thin, differently-named wrappers around that one seam, kept for call-site readability. A course collaborator's actions come from an active `EDITOR` `authorization_role_bindings` row (`resource_type = "course"`), not a Course-owned table — see `docs/modules/authorization.md`'s "Registered providers" for the full action list and role-to-action mapping.
 - Optimistic locking:
   - mutable versioned rows carry `row_version` (starts at `1` on create — GORM must set `RowVersion: 1` explicitly because zero-value inserts override the column `DEFAULT 1`)
   - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success; accepts `title` (server recomputes `courses.slug` with the same uniqueness rules as create)
@@ -174,10 +174,10 @@ Shared validators in `internal/shared/validate` (`nonwhitespace_min`, `delta_non
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Bulk add collaborators | **Canonical-owner-only** (`requireOwnerAccess`), 1–100 raw `user_ids` per request. IDs are trimmed and deduped before UUID validation; blanks are discarded, all-blank/invalid input is rejected, and the raw 100-item cap applies before dedupe. Each target must have `instructor`, `sysadmin`, or `admin` role and pass the active-user check. The canonical owner is returned in `failed[]` and is never modified. Membership writes run in one transaction; the request has no scoped-actions field. |
-| List collaborators | `requireCourseAccess` — owner or active collaborator; **hides inactive (#2) collaborators**. Returned rows contain membership/profile fields and no generic authorization actions. |
-| Instructor-candidate picker | **Owner-only**; excludes existing collaborators; eligible instructors only (#2 + #3 via `userpicker.EligiblePickerWhereClause`) |
-| Remove collaborator | **Canonical-owner-only**; soft-deletes membership in one transaction. |
+| Bulk add collaborators | **Canonical-owner-only** (`requireOwnerAccess`, action `course_collaborators:manage`), 1–100 raw `user_ids` per request. IDs are trimmed and deduped before UUID validation; blanks are discarded, all-blank/invalid input is rejected, and the raw 100-item cap applies before dedupe. Optional `role` field only accepts `"EDITOR"` (`oneof=EDITOR`; defaults to `EDITOR`) — owner access is never a stored role binding, so no other value is meaningful here. Each target must have `instructor`, `sysadmin`, or `admin` role and pass the active-user check. The canonical owner is returned in `failed[]` and is never modified. An already-active collaborator is a no-op success (bulk add can only ever request `EDITOR`, so there is no role to change). Validation and the role-binding assignment (`RoleBindingService.Assign`, one batched call for every newly-added principal — never one call per principal) run in the same transaction, via `gormx.WithTx` (see `docs/modules/authorization.md`'s grant-statement-semantics section). The request has no scoped-actions field. |
+| List collaborators | `requireEditorAccess` (action `course_collaborators:view`) — owner or active collaborator; **hides inactive (#2) collaborators**. Source is the synthesized owner plus active `EDITOR` role bindings, read via `RoleBindingService.List` (not a table Course owns, and not a direct query against `authorization_role_bindings`). Returned rows contain membership/profile fields and no generic authorization actions. |
+| Instructor-candidate picker | **Owner-only** (action `course_collaborators:manage`); excludes existing collaborators (owner + active role-binding principals, fetched via `RoleBindingService.List`); eligible instructors only (#2 + #3 via `userpicker.EligiblePickerWhereClause`) |
+| Remove collaborator | **Canonical-owner-only** (action `course_collaborators:manage`); revokes the role binding (`RoleBindingService.Revoke`) in the same transaction as the access check, via `gormx.WithTx`. |
 
 Implementation: `internal/course/application/service_collaborators_bulk.go`, `internal/course/infra/repo_collaborators_bulk.go`, `internal/course/infra/repo_collaborators.go`. Bulk add and submit validation both use `instructorUserIDSet` (`gormx.UserIDSetByRoleNames`). Submit validation (`validateDraftCollaborators`) batch-loads user snapshots via `loadCollaboratorAccessSnapshots` + eligibility set via `instructorUserIDSet` (no per-collaborator N+1 queries).
 
@@ -306,10 +306,9 @@ Previous closeout (2026-06-15): migration **`000022_course_sub_lesson_estimated_
 1. Insert `courses` (`owner_user_id`, server-computed `slug`, UUID v7 `id` via `gormx.EnsureStringID` before GORM `Create`)
 2. Insert initial `course_versions` row (`version_no = 1`, `status = DRAFT`, trimmed `title`)
 3. Set `courses.current_draft_version_id`
-4. Insert `course_collaborators` row (`role = OWNER`)
-5. Reload detail via `loadCourseDetail` → `requireCourseAccess` (single JOIN: `courses` + optional `course_collaborators`)
+4. Reload detail via `loadCourseDetail` → `requireCourseAccess`
 
-Access resolution in step 5 uses one parameterized query instead of separate `loadCourse` + collaborator lookups.
+No collaborator row is written for the owner: ownership is `courses.owner_user_id` itself, synthesized by `CoursePolicyProvider` at decision/read time, never a stored role binding (see "Collaboration and conflict control").
 
 List endpoints (`GET /courses/my`, learner catalog, pending reviews) use a flat `courseListScanRow` for GORM `Raw().Scan` — embedded `courseRow` is not populated by GORM for joined list queries; rows are mapped back through `asCourseRow()` → `toCourse()`.
 
@@ -330,7 +329,7 @@ Course detail and taxonomy list reads were optimized **without changing response
 | Area | Change | Path |
 |------|--------|------|
 | DB pool | `tunePool` after `gorm.Open` (`gormx.DefaultConfig` — logs every SQL with latency colors) — `MaxOpenConns=50`, `MaxIdleConns=25` | `internal/shared/db/db.go` |
-| Course access | `requireCourseAccess` — one JOIN query (`courses` + `course_collaborators`) | `repo_access.go` |
+| Course access | `requireCourseAccess`/`requireEditorAccess`/`requireOwnerAccess` — one seam (`requireCourseAction`) calling `Authorizer.Authorize`; display role read from `authorization_role_bindings` for non-owners | `repo_access.go` |
 | Course detail | Optional `include_outline=false` skips outline tree load on GET | `handler_instructor.go`, `repo_access.go` |
 | Course detail | Parallel live/draft version row fetch; batch version assets for both versions (`loadCourseVersionAssetsBatch`, `loadVersionRefIDsBatch`) | `repo_access.go`, `repos.go` |
 | Course detail | Parallel fetch of version assets, collaborators, outline, and `last_rejection_reason` (`errgroup` + `parallelReadDB` per goroutine) | `repo_access.go`, `repo_helpers.go` |

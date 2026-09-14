@@ -125,7 +125,7 @@ See [`docs/modules/instructor.md`](modules/instructor.md) for full deep-dive.
 
 ### Authorization (`internal/authorization/`)
 
-Shared IAM-lite bounded context: immutable action registry, generic grant store, resource-scoped role expansion, typed condition evaluation, explicit-DENY precedence, decision logging, and the only grant command service. Domains may contribute policy providers and facts; the base does not import Course or another feature. No provider or runtime consumer is currently registered, and migration `000034` contains DDL only.
+Shared IAM-lite bounded context: immutable action registry, generic grant store, resource-scoped role expansion (including a `'*'` wildcard sentinel, migration `000035`), typed condition evaluation, explicit-DENY precedence, decision logging, and the only grant/role-binding command services (`GrantService`, `RoleBindingService`). Domains may contribute policy providers and facts; the base does not import Course or another feature. Course (`CoursePolicyProvider`) is registered as of `openspec/changes/replace-course-collaborator-with-role-gate` — the first and, so far, only registered provider and writer of `authorization_role_bindings`/`authorization_role_actions`.
 
 See [`docs/modules/authorization.md`](modules/authorization.md).
 
@@ -138,7 +138,7 @@ Versioned course authoring, collaborator access, outline editing, admin review, 
 **Capabilities:**
 - Course root CRUD with owner-only delete
 - Single active draft per course plus current approved/published version
-- Multi-instructor collaboration through `OWNER` / `EDITOR` memberships plus generic scoped grants for basic info and outline (owner-only prepare/submit/reopen)
+- Multi-instructor collaboration through `OWNER` / `EDITOR` role membership on `internal/authorization`'s resource-scoped role gate (owner-only prepare/submit/reopen)
 - Optimistic locking with `row_version`
 - Edit leases for outline resources (`OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON`)
 - Version-scoped sections, lessons, and sub-lessons
@@ -149,7 +149,7 @@ Versioned course authoring, collaborator access, outline editing, admin review, 
 
 **Exposed under:** `/api/v1/courses`, `/api/v1/course-reviews`, `/api/v1/course-admin`, `/api/v1/learner-courses`
 
-**Migration:** `000016_course_management`
+**Migration:** `000016_course_management`; collaborator membership backed by `internal/authorization`'s tables (migrations `000034`-`000037`) — `course_collaborators` itself is dropped
 
 See [`docs/modules/course.md`](modules/course.md) for full deep-dive.
 

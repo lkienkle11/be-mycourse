@@ -832,6 +832,9 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000032 | `taxonomy_translations_row_version` | Five `*_translations` tables + `locale='en'` backfill from canonical columns; JSONB tree patch ensuring `translations.en.name` on `child_topics`/`children` (**fail-fast** on non-array / invalid nodes via `LANGUAGE sql` recursive helper — **no** `plpgsql`/`DO $$`, because golang-migrate splits on `;`); `row_version BIGINT NOT NULL DEFAULT 1` on five taxonomy roots (backfill existing = 1, mirror `000020`). Shipped in source — apply before localized taxonomy traffic. |
 | 000033 | `teaching_content_ideas` | `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on `instructor_applications` and `instructor_profiles` (required 50–500 Unicode code points on submit; approve copies with profile snapshot) |
 | 000034 | `authorization_base` | DDL-only shared authorization base: `authorization_actions`, `authorization_grants`, `authorization_role_actions`, and `authorization_role_bindings`; no provider actions, roles, bindings, grants, or Course collaborators are seeded/backfilled |
+| 000035 | `authorization_role_binding_wildcard` | `CHECK` constraint on `authorization_role_bindings.resource_id` enforcing the reserved wildcard sentinel `'*'` (meaning "every resource of this binding's `resource_type`") or a UUID-shaped string — no schema change beyond the constraint |
+| 000036 | `backfill_course_collaborator_role_bindings` | One-time, dev-only backfill: one `authorization_role_bindings` row per active EDITOR `course_collaborators` row (OWNER-role rows excluded — owner access is synthesized from `courses.owner_user_id`, never a stored binding) |
+| 000037 | `drop_course_collaborators` | Drops `course_collaborators` once Course fully moved onto the role gate (reads, writes, and the legacy data importer) — see `openspec/changes/replace-course-collaborator-with-role-gate` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -930,16 +933,16 @@ API and RBAC: **`docs/modules/instructor.md`**.
 
 ---
 
-## Authorization tables (`000034`)
+## Authorization tables (`000034`-`000037`)
 
 | Table | Notes |
 |-------|-------|
-| `authorization_actions` | Startup-synchronized scoped-action catalog. Composite identity `(action_name, resource_type)` maps each action to an existing global RBAC `boundary_permission`. |
-| `authorization_grants` | Generic resource-scoped ALLOW/DENY policy statements for users. `resource_id` is a string; domain providers validate resource existence and lifecycle cleanup. `Grant()` is append-only, so multiple statements may share the same principal/action/resource/effect tuple and differ by conditions or validity windows. Expired statements remain unrevoked history; `revoked_at` records explicit revocation. Non-unique decision/resource indexes support evaluation and cleanup. |
-| `authorization_role_actions` | Resource-type role definitions: each `(role_name, resource_type)` maps to registered action names. The migration creates the table but seeds no definitions. |
-| `authorization_role_bindings` | Revocable user/role/resource-instance bindings. The migration creates the table but seeds or backfills no bindings. |
+| `authorization_actions` | Startup-synchronized scoped-action catalog. Composite identity `(action_name, resource_type)` maps each action to an existing global RBAC `boundary_permission`. Currently holds Course's 9 `resource_type = "course"` actions, synced at startup by `GrantService.SyncActions`. |
+| `authorization_grants` | Generic resource-scoped ALLOW/DENY policy statements for users. `resource_id` is a string; domain providers validate resource existence and lifecycle cleanup. `Grant()` is append-only, so multiple statements may share the same principal/action/resource/effect tuple and differ by conditions or validity windows. Expired statements remain unrevoked history; `revoked_at` records explicit revocation. Non-unique decision/resource indexes support evaluation and cleanup. Currently empty (no direct per-action grants written yet; Course uses role bindings, not this table). |
+| `authorization_role_actions` | Resource-type role definitions: each `(role_name, resource_type)` maps to registered action names. Seeded at startup from each `PolicyProvider`'s declared mapping (`GrantRepository.SyncRoleActions`) — Course seeds OWNER (all 9 actions) and EDITOR (5 "any active collaborator" actions) for `resource_type = "course"`. |
+| `authorization_role_bindings` | Revocable user/role/resource-instance bindings. `resource_id` may be a concrete resource id or the wildcard sentinel `'*'` (migration `000035`, meaning every resource of that `resource_type`). Holds Course's active EDITOR collaborator bindings, written by `RoleBindingService.Assign`/`Revoke` (`internal/course/infra`'s bulk-add/remove flows) — see `docs/modules/course.md`. |
 
-The grant and role-binding tables have no polymorphic FK to domain resources. A future provider must define resource-lifecycle cleanup when it becomes a consumer. No provider is currently registered, and Course does not write these tables. See [`docs/modules/authorization.md`](modules/authorization.md).
+The grant and role-binding tables have no polymorphic FK to domain resources; each domain provider validates resource existence and defines resource-lifecycle cleanup (`GrantService.RevokeResource`/`RoleBindingService.RevokeResource`) itself. Course is the first registered `PolicyProvider` and the first writer of `authorization_role_bindings`/`authorization_role_actions`; `authorization_grants` remains unused so far. See [`docs/modules/authorization.md`](modules/authorization.md).
 
 ---
 
@@ -952,7 +955,7 @@ The grant and role-binding tables have no polymorphic FK to domain resources. A 
 | `course_version_tags` | Active tag links for one version |
 | `course_version_skills` | Active course-skill links for one version |
 | `course_version_outcomes` | Active course-outcome links for one version |
-| `course_collaborators` | Course membership and current authorization source for business roles `OWNER` and `EDITOR`; Course does not use the generic authorization tables |
+| ~~`course_collaborators`~~ | **Dropped by migration `000037`.** Course membership for business roles `OWNER`/`EDITOR` now lives in `authorization_role_bindings` (see "Authorization tables" above and `docs/modules/authorization.md`); the owner is synthesized from `courses.owner_user_id`, never a stored row. |
 | `course_sections` | Version-scoped sections; stable business id + sortable `order_index` + `row_version` |
 | `course_lessons` | Version-scoped lessons under a section; stable business id + sortable `order_index` + `row_version` |
 | `course_sub_lessons` | Version-scoped lesson items under a lesson; stable business id, kind, preview flag, `estimated_duration_ms` (TEXT/QUIZ user estimate in ms; VIDEO stores 0 and resolves from `media_files.duration` on read), sortable `order_index`, `row_version` |

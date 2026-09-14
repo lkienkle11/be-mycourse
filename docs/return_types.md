@@ -500,7 +500,7 @@ type CourseListItem struct {
 
 **`CourseListItem.owner_display_name`:** populated on `GET /course-admin/courses`, `GET /course-admin/courses/trash`, and `GET /course-reviews/pending` only. Instructor (`GET /courses/my`) and learner catalog lists omit this field.
 
-**Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses`, `course_versions`, and `course_collaborators`.
+**Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses` and `course_versions`. No collaborator row is inserted: ownership is `courses.owner_user_id` itself, synthesized by `CoursePolicyProvider` (see `docs/modules/authorization.md`), never a stored `authorization_role_bindings` row.
 
 **Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH (except optional `preview_video_file_id`); handler passes trimmed pointers. When `title` is set, service slugifies via `courseTitleAndSlug` (≥5 non-whitespace) and `ensureUniqueCourseSlug` (excluding current course).
 

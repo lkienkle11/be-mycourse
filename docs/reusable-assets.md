@@ -702,11 +702,11 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Current Usage: `InstructorService.AddRosterBulk`, `handler_roster.go` bulk handler.
 
 ### Asset: Collaborator bulk add (batch repository)
-- Name: `AddCollaboratorsBulk`, `instructorUserIDSet`, `planBulkCollaboratorWrites`, `applyBulkCollaboratorWrites`, `prepareCollaboratorBulkInput`
+- Name: `AddCollaboratorsBulk`, `instructorUserIDSet`, `existingActiveCollaboratorUserIDs`, `planBulkCollaboratorWrites`, `prepareCollaboratorBulkInput`
 - Type: Functions (`internal/course/infra/repo_collaborators_bulk.go`, `internal/course/application/service_collaborators_bulk.go`)
-- Purpose: Batch collaborator membership/grant management — one transaction per request; instructor eligibility via `gormx.UserIDSetByRoleNames` (instructor/sysadmin/admin); canonical-owner target rejection; batch existing-row load; **one** `UPDATE id IN (…)` for role changes; **`CreateInBatches` insert** for new rows; one generic `GrantService.ReplaceMany`; single effective-action hydrate. `planBulkCollaboratorWrites` classifies insert/update/failed in memory. Per-user business failures stay in `failed[]`; infrastructure errors roll back membership and grants.
+- Purpose: Batch collaborator membership via the resource-scoped role gate (`internal/authorization`), not a Course-owned table. Access check, instructor-eligibility check (`gormx.UserIDSetByRoleNames`), and the existing-active-binding lookup (`existingActiveCollaboratorUserIDs`, via `RoleBindingService.List`) all run in one transaction; `planBulkCollaboratorWrites` classifies each requested user into `failed`/`insertUserIDs`/`succeededUserIDs` (an already-active collaborator is a no-op success, never an update — `role` can only ever be `EDITOR`, enforced at the DTO boundary, so there is no role to change); `RoleBindingService.Assign` (one batched call for every brand-new principal) runs inside that same transaction via `gormx.WithTx`, so the whole operation is atomic. `loadCollaboratorsByUserIDs` hydrates the response after commit. Per-user business failures stay in `failed[]`; infrastructure errors roll back the whole write.
 - Scope: `POST /api/v1/courses/:courseId/collaborators/bulk` only (legacy single POST removed).
-- Dependencies: `requireOwnerAccess`, `GrantService`, `loadCollaboratorsByUserIDs`, `collaboratorRow`, `ensureCourseRowID`, `domain.CollaboratorBulkResult`, `instructordomain.RoleName*`.
+- Dependencies: `requireOwnerAccess`, `RoleBindingService`, `loadCollaboratorsByUserIDs`, `domain.CollaboratorBulkResult`, `instructordomain.RoleName*`.
 - Current Usage: `CourseService.AddCollaboratorsBulk`, `handler_instructor.go` bulk handler; submit validation via `instructorUserIDSet` + `loadCollaboratorAccessSnapshots`.
 
 ### Asset: Taxonomy list total inference

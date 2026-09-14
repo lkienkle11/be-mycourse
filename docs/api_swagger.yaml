@@ -2290,8 +2290,9 @@ paths:
       summary: List collaborators (paginated)
       description: |
         Paginated collaborator list for a course. Query `search` matches `display_name` or `email` (ILIKE).
-        Order: canonical `OWNER` first, then `EDITOR` by collaborator id. Course authorization uses
-        the canonical owner or active collaborator membership; items do not expose scoped actions.
+        Order: canonical `OWNER` first, then `EDITOR` by grant time. Course authorization uses
+        the canonical owner or active collaborator membership (backed by `internal/authorization`'s
+        resource-scoped role gate, not a Course-owned table); items do not expose scoped actions.
         `loadCollaborators` on course detail is unchanged (full list embedded in `CourseDetail`).
       security:
         - bearerJwt: []

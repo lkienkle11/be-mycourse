@@ -92,7 +92,7 @@ Cross-domain dependencies (e.g. Auth calling RBAC) use **interface adapters** de
 
 ## Implemented Domains
 
-Current bounded contexts under `internal/`: `auth`, `course`, `instructor`, `media`, `rbac`, `system`, `taxonomy`.
+Current bounded contexts under `internal/`: `auth`, `authorization`, `course`, `instructor`, `media`, `rbac`, `system`, `taxonomy`.
 
 ---
 

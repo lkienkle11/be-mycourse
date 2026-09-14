@@ -187,6 +187,9 @@ func importLegacyStatement(tx *gorm.DB, st legacyInsertStmt, idmap *legacyIDMap,
 		report.SkippedRows++
 		return nil
 	}
+	if st.Table == "course_collaborators" {
+		return importLegacyCourseCollaboratorAsRoleBinding(tx, newRow, oldID, newID, idmap, report)
+	}
 	cols := make([]string, 0, len(newRow))
 	args := make([]any, 0, len(newRow))
 	for _, c := range st.Columns {
@@ -226,6 +229,68 @@ func importLegacyStatement(tx *gorm.DB, st legacyInsertStmt, idmap *legacyIDMap,
 	}
 	report.ImportedRows++
 	return nil
+}
+
+// importLegacyCourseCollaboratorAsRoleBinding re-targets a legacy course_collaborators row onto
+// authorization_role_bindings instead of the generic column-passthrough insert path: the two
+// tables' column sets don't overlap at all (principal_user_id/role_name/resource_type/
+// resource_id/revoked_at vs. course_id/user_id/role/deleted_at), so importLegacyStatement's
+// generic loop (which only ever emits columns already named in the source dump statement)
+// cannot produce this shape on its own. newRow is already rewritten by
+// rewriteLegacyRowForUUID/rewriteCourseCollaborators: "id" is a fresh UUID v7, "course_id" and
+// "user_id" are already remapped through the courses/users id maps.
+//
+// An OWNER row is skipped entirely: the course owner's access is synthesized from
+// courses.owner_user_id by CoursePolicyProvider, never a stored role binding, mirroring
+// migration 000036's backfill rule for the same reason.
+func importLegacyCourseCollaboratorAsRoleBinding(
+	tx *gorm.DB,
+	newRow map[string]any,
+	oldID, newID string,
+	idmap *legacyIDMap,
+	report *legacyImportReport,
+) error {
+	args, skip := legacyCourseCollaboratorRoleBindingArgs(newRow)
+	if skip {
+		report.SkippedRows++
+		return nil
+	}
+	sql := `INSERT INTO authorization_role_bindings
+		(id, principal_user_id, role_name, resource_type, resource_id, granted_by_user_id, created_at, revoked_at)
+		VALUES ($1, $2, $3, 'course', $4, NULL, $5, $6)`
+	if result := tx.Exec(sql, args...); result.Error != nil {
+		return fmt.Errorf("insert authorization_role_bindings (from course_collaborators): %w", result.Error)
+	}
+	if oldID != "" && newID != "" {
+		if idmap.Tables["course_collaborators"] == nil {
+			idmap.Tables["course_collaborators"] = map[string]string{}
+		}
+		idmap.Tables["course_collaborators"][oldID] = newID
+	}
+	report.ImportedRows++
+	return nil
+}
+
+// legacyCourseCollaboratorRoleBindingArgs is the pure decision/arg-building half of
+// importLegacyCourseCollaboratorAsRoleBinding, split out so the OWNER-skip rule and the
+// column-to-arg mapping are unit-testable without a database. skip is true for an OWNER-role
+// legacy row (see importLegacyCourseCollaboratorAsRoleBinding's doc comment); otherwise args is
+// ordered id, principal_user_id, role_name, resource_id, created_at, revoked_at — matching the
+// SQL's $1..$6 placeholders exactly (resource_type/granted_by_user_id are the literal 'course'
+// and NULL already baked into that SQL, not part of args).
+func legacyCourseCollaboratorRoleBindingArgs(newRow map[string]any) (args []any, skip bool) {
+	role := strings.TrimSpace(fmt.Sprintf("%v", newRow["role"]))
+	if strings.EqualFold(role, "OWNER") {
+		return nil, true
+	}
+	return []any{
+		newRow["id"],
+		newRow["user_id"],
+		role,
+		newRow["course_id"],
+		newRow["created_at"],
+		newRow["deleted_at"], // a soft-deleted legacy collaborator becomes an already-revoked binding
+	}, false
 }
 
 func applyLegacyCourseVersionPatches(tx *gorm.DB, idmap *legacyIDMap, patches []legacyCourseVersionPatch) error {

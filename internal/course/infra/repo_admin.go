@@ -5,7 +5,10 @@ import (
 
 	"gorm.io/gorm"
 
+	authzdomain "mycourse-io-be/internal/authorization/domain"
+	courseapp "mycourse-io-be/internal/course/application"
 	"mycourse-io-be/internal/course/domain"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 )
 
@@ -103,13 +106,18 @@ func (r *GormRepository) RestoreCourse(ctx context.Context, courseID string) err
 	})
 }
 
+// PermanentDeleteCourse revokes every role binding on the course (via RevokeResource, as part of
+// the same course-side transaction via gormx.WithTx).
 func (r *GormRepository) PermanentDeleteCourse(ctx context.Context, courseID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		course, err := r.loadTrashedCourse(ctx, tx, courseID)
 		if err != nil {
 			return err
 		}
-		return r.softDeleteCourseTree(ctx, tx, course.ID)
+		if err := r.softDeleteCourseTree(ctx, tx, course.ID); err != nil {
+			return err
+		}
+		return r.roleBindings.RevokeResource(gormx.WithTx(ctx, tx), authzdomain.Resource{Type: courseapp.ResourceTypeCourse, ID: course.ID})
 	})
 }
 
@@ -153,17 +161,16 @@ func mapCourseListScanRows(rows []courseListScanRow) []domain.CourseListItem {
 
 func (r *GormRepository) softDeleteCourseTree(ctx context.Context, tx *gorm.DB, courseID string) error {
 	now := timex.NowUnix()
-	for _, model := range []any{&courseRow{}, &courseVersionRow{}, &collaboratorRow{}, &enrollmentRow{}, &progressRow{}} {
+	// Role bindings (the role-gate replacement for course_collaborators) are revoked by the
+	// caller via RoleBindingService.RevokeResource, as part of this same transaction — see
+	// DeleteCourse/PermanentDeleteCourse.
+	for _, model := range []any{&courseRow{}, &courseVersionRow{}, &enrollmentRow{}, &progressRow{}} {
 		switch model.(type) {
 		case *courseRow:
 			if err := tx.Model(model).Where("id = ? AND deleted_at IS NULL", courseID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
 				return err
 			}
 		case *courseVersionRow:
-			if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", courseID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
-				return err
-			}
-		case *collaboratorRow:
 			if err := tx.Model(model).Where("course_id = ? AND deleted_at IS NULL", courseID).Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
 				return err
 			}

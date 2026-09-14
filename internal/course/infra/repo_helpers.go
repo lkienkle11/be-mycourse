@@ -71,8 +71,6 @@ func ensureCourseRowID(row any) error {
 		return gormx.EnsureStringID(&r.ID)
 	case *courseVersionRow:
 		return gormx.EnsureStringID(&r.ID)
-	case *collaboratorRow:
-		return gormx.EnsureStringID(&r.ID)
 	case *sectionRow:
 		return gormx.EnsureStringID(&r.ID)
 	case *lessonRow:

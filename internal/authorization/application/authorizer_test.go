@@ -78,15 +78,21 @@ func (testPolicyProvider) CanManageGrants(request domain.GrantManagementRequest)
 }
 
 type memoryGrantRepository struct {
-	actions   []domain.ActionDefinition
-	grants    []domain.Grant
-	nextID    int
-	listCalls int
-	listErr   error
+	actions     []domain.ActionDefinition
+	roleActions []domain.RoleActionDefinition
+	grants      []domain.Grant
+	nextID      int
+	listCalls   int
+	listErr     error
 }
 
 func (r *memoryGrantRepository) UpsertActions(_ context.Context, actions []domain.ActionDefinition) error {
 	r.actions = append([]domain.ActionDefinition(nil), actions...)
+	return nil
+}
+
+func (r *memoryGrantRepository) SyncRoleActions(_ context.Context, roleActions []domain.RoleActionDefinition) error {
+	r.roleActions = append(r.roleActions, roleActions...)
 	return nil
 }
 

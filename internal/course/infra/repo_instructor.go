@@ -7,17 +7,44 @@ import (
 
 	"gorm.io/gorm"
 
+	authzdomain "mycourse-io-be/internal/authorization/domain"
+	courseapp "mycourse-io-be/internal/course/application"
 	"mycourse-io-be/internal/course/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 )
 
+// ListEditableCourses reads the principal's own active course-scoped role bindings through
+// RoleBindingService.List (the one sanctioned read path for authorization_role_bindings — never
+// a direct query against that table), then filters/labels courses by that small, already-known
+// id set instead of joining the table live.
 func (r *GormRepository) ListEditableCourses(ctx context.Context, userID string) ([]domain.CourseListItem, error) {
+	bindings, err := r.roleBindings.List(ctx, authzdomain.RoleBindingQuery{
+		PrincipalUserIDs: []string{userID},
+		Resource:         authzdomain.Resource{Type: courseapp.ResourceTypeCourse},
+	})
+	if err != nil {
+		return nil, err
+	}
+	editorCourseIDs := make([]string, len(bindings))
+	for i, b := range bindings {
+		editorCourseIDs[i] = b.Resource.ID
+	}
+
+	membershipClause := "c.owner_user_id = @user_id"
+	roleClause := "CASE WHEN c.owner_user_id = @user_id THEN 'OWNER' ELSE '' END"
+	args := map[string]any{"user_id": userID}
+	if len(editorCourseIDs) > 0 {
+		membershipClause += " OR c.id::text IN @editor_course_ids"
+		roleClause = "CASE WHEN c.owner_user_id = @user_id THEN 'OWNER' ELSE 'EDITOR' END"
+		args["editor_course_ids"] = editorCourseIDs
+	}
+
 	q := `
 SELECT
     ` + courseListBaseColumns + `,
-    CASE WHEN c.owner_user_id = @user_id THEN 'OWNER' ELSE cc.role END AS role,
+    ` + roleClause + ` AS role,
     COALESCE(dv.title, pv.title, '') AS title,
     COALESCE(dv.status, pv.status, '') AS review_status,
     COALESCE(dv.version_no, pv.version_no, 0) AS version_no,
@@ -27,8 +54,6 @@ SELECT
     COALESCE(dm.url, pm.url, '') AS thumbnail_url,
     COALESCE(dv.preview_video_file_id::text, pv.preview_video_file_id::text, '') AS preview_video_file_id
 FROM courses c
-LEFT JOIN course_collaborators cc
-    ON cc.course_id = c.id AND cc.user_id = @user_id AND cc.deleted_at IS NULL
 LEFT JOIN course_versions dv
     ON dv.id = c.current_draft_version_id AND dv.deleted_at IS NULL
 LEFT JOIN course_versions pv
@@ -39,11 +64,11 @@ LEFT JOIN media_files pm
     ON pm.id = pv.thumbnail_file_id AND pm.deleted_at IS NULL
 WHERE c.deleted_at IS NULL
   AND c.trashed_at IS NULL
-  AND (c.owner_user_id = @user_id OR cc.id IS NOT NULL)
+  AND (` + membershipClause + `)
 ORDER BY c.id DESC`
 
 	var rows []courseListScanRow
-	if err := r.db.WithContext(ctx).Raw(q, map[string]any{"user_id": userID}).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(q, args).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]domain.CourseListItem, len(rows))
@@ -87,13 +112,12 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 		if err := touchCreateCourseEntity(ctx, tx, &version.CreatedAt, &version.UpdatedAt, version); err != nil {
 			return err
 		}
-		if err := tx.Model(&courseRow{}).Where("id = ?", course.ID).
-			Updates(map[string]any{"current_draft_version_id": version.ID, "updated_at": timex.NowUnix()}).Error; err != nil {
-			return err
-		}
-
-		collab := &collaboratorRow{CourseID: course.ID, UserID: in.ActorUserID, Role: domain.CollaboratorRoleOwner}
-		return touchCreateCourseEntity(ctx, tx, &collab.CreatedAt, &collab.UpdatedAt, collab)
+		// No course_collaborators row for the owner: ownership is courses.owner_user_id
+		// itself, synthesized by CoursePolicyProvider and read directly by
+		// collaboratorsSelectSQL/instructorCandidatesBaseSQL/ListEditableCourses — never a
+		// stored role binding or collaborator row.
+		return tx.Model(&courseRow{}).Where("id = ?", course.ID).
+			Updates(map[string]any{"current_draft_version_id": version.ID, "updated_at": timex.NowUnix()}).Error
 	})
 	if err != nil {
 		return nil, err
@@ -107,7 +131,7 @@ func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, u
 
 func (r *GormRepository) PrepareDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
+		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID, courseapp.ActionCourseDraftPrepare)
 		if err != nil {
 			return err
 		}
@@ -181,9 +205,13 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
+// DeleteCourse revokes every role binding on the course (via RevokeResource, as part of the same
+// course-side transaction via gormx.WithTx) only when softDeleteCourseTree actually ran (a hard
+// delete, not a move-to-trash — a trashed-but-not-yet-permanently-deleted course keeps its
+// collaborators).
 func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, actorUserID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
+		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID, courseapp.ActionCourseLifecycleDelete)
 		if err != nil {
 			return err
 		}
@@ -196,25 +224,39 @@ func (r *GormRepository) DeleteCourse(ctx context.Context, courseID string, acto
 			return tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
 				Updates(map[string]any{"trashed_at": now, "updated_at": now}).Error
 		}
-		return r.softDeleteCourseTree(ctx, tx, access.ID)
+		if err := r.softDeleteCourseTree(ctx, tx, access.ID); err != nil {
+			return err
+		}
+		return r.roleBindings.RevokeResource(gormx.WithTx(ctx, tx), authzdomain.Resource{Type: courseapp.ResourceTypeCourse, ID: access.ID})
 	})
 }
 
+// RemoveCollaborator's access check and the role-binding revoke run in one course-side
+// transaction: gormx.WithTx makes internal/authorization's GormGrantRepository join tx instead
+// of running a separately committed write. The revoke leaves RoleName empty so it ends every
+// active role binding this user holds on the course, not only EDITOR — matching this method's
+// pre-role-gate behavior of deleting the collaborator row by (course_id, user_id) regardless of
+// its stored role.
 func (r *GormRepository) RemoveCollaborator(ctx context.Context, courseID string, actorUserID, userID string) ([]domain.Collaborator, error) {
-	var out []domain.Collaborator
+	var resolvedCourseID string
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
+		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID, courseapp.ActionCourseCollaboratorsManage)
 		if err != nil {
 			return err
 		}
 		if access.OwnerUserID == userID {
 			return domain.ErrCourseOwnerCannotBeRemoved
 		}
-		if err := gormx.SoftDeleteWithAudit(ctx, tx, &collaboratorRow{}, "course_id = ? AND user_id = ? AND deleted_at IS NULL", access.ID, userID); err != nil {
-			return err
-		}
-		out, err = r.loadCollaborators(ctx, tx, courseID)
-		return err
+		resolvedCourseID = access.ID
+		return r.roleBindings.Revoke(gormx.WithTx(ctx, tx), authzdomain.RoleBindingRevocation{
+			Issuer:           courseAuthorizationPrincipal(ctx, actorUserID),
+			PrincipalUserIDs: []string{userID},
+			Resource:         authzdomain.Resource{Type: courseapp.ResourceTypeCourse, ID: resolvedCourseID},
+			Context:          authzdomain.EvaluationContext{DomainFacts: courseapp.CourseAuthorizationFacts{IsOwner: true}},
+		})
 	})
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	return r.loadCollaborators(ctx, r.db, resolvedCourseID)
 }

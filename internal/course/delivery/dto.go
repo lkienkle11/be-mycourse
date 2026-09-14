@@ -23,9 +23,14 @@ type updateBasicInfoRequest struct {
 	OutcomeIDs         []string `json:"outcome_ids" validate:"required,len=1,dive,uuid"`
 }
 
+// Role only ever accepts EDITOR: the canonical owner's access is synthesized from
+// courses.owner_user_id (CoursePolicyProvider), never a stored role binding, so accepting
+// "OWNER" here would let a caller create a role binding this design never reads back as an
+// owner grant, and — since AddCollaboratorsBulk only assigns brand-new bindings, never changes
+// an existing collaborator's stored role — could leave that binding permanently misdescribed.
 type addCollaboratorsBulkRequest struct {
 	UserIDs []string `json:"user_ids" binding:"required,min=1,max=100" validate:"required,min=1,max=100,dive,uuid"`
-	Role    string   `json:"role" binding:"omitempty,oneof=OWNER EDITOR"`
+	Role    string   `json:"role" binding:"omitempty,oneof=EDITOR"`
 }
 
 func (r *addCollaboratorsBulkRequest) NormalizeForValidation() {

@@ -21,13 +21,13 @@ func collaboratorEligibilityFor(users ...string) map[string]useraccess.Assignmen
 func TestPlanBulkCollaboratorWritesAllSuccess(t *testing.T) {
 	t.Parallel()
 	instructorSet := map[string]struct{}{"u1": {}, "u2": {}}
-	existingByUser := map[string]collaboratorRow{"u1": {ID: "collab-1", UserID: "u1"}}
+	existingUserIDs := map[string]struct{}{"u1": {}}
 
 	plan := planBulkCollaboratorWrites(
 		[]string{"u1", "u2"},
 		instructorSet,
 		collaboratorEligibilityFor("u1", "u2"),
-		existingByUser,
+		existingUserIDs,
 		testCollaboratorEligibilityNow,
 	)
 	if len(plan.failed) != 0 {
@@ -36,24 +36,21 @@ func TestPlanBulkCollaboratorWritesAllSuccess(t *testing.T) {
 	if len(plan.succeededUserIDs) != 2 {
 		t.Fatalf("succeeded = %v", plan.succeededUserIDs)
 	}
-	if len(plan.updateIDs) != 1 || plan.updateIDs[0] != "collab-1" {
-		t.Fatalf("updateIDs = %v", plan.updateIDs)
-	}
 	if len(plan.insertUserIDs) != 1 || plan.insertUserIDs[0] != "u2" {
-		t.Fatalf("insertUserIDs = %v", plan.insertUserIDs)
+		t.Fatalf("insertUserIDs = %v, want only the brand-new u2 (u1 already active, no write needed)", plan.insertUserIDs)
 	}
 }
 
 func TestPlanBulkCollaboratorWritesPartialSuccess(t *testing.T) {
 	t.Parallel()
 	instructorSet := map[string]struct{}{"u1": {}, "u2": {}, "u3": {}}
-	existingByUser := map[string]collaboratorRow{"u1": {ID: "collab-1", UserID: "u1"}}
+	existingUserIDs := map[string]struct{}{"u1": {}}
 
 	plan := planBulkCollaboratorWrites(
 		[]string{"u1", "bad"},
 		instructorSet,
 		collaboratorEligibilityFor("u1"),
-		existingByUser,
+		existingUserIDs,
 		testCollaboratorEligibilityNow,
 	)
 	if len(plan.failed) != 1 || plan.failed[0].UserID != "bad" {
@@ -67,13 +64,13 @@ func TestPlanBulkCollaboratorWritesPartialSuccess(t *testing.T) {
 func TestPlanBulkCollaboratorWritesAllFailed(t *testing.T) {
 	t.Parallel()
 	instructorSet := map[string]struct{}{"u1": {}, "u2": {}}
-	existingByUser := map[string]collaboratorRow{"u1": {ID: "collab-1", UserID: "u1"}}
+	existingUserIDs := map[string]struct{}{"u1": {}}
 
 	plan := planBulkCollaboratorWrites(
 		[]string{"bad1", "bad2"},
 		instructorSet,
 		collaboratorEligibilityFor(),
-		existingByUser,
+		existingUserIDs,
 		testCollaboratorEligibilityNow,
 	)
 	if len(plan.failed) != 2 {
@@ -82,8 +79,8 @@ func TestPlanBulkCollaboratorWritesAllFailed(t *testing.T) {
 	if len(plan.succeededUserIDs) != 0 {
 		t.Fatalf("succeeded = %v", plan.succeededUserIDs)
 	}
-	if len(plan.updateIDs) != 0 || len(plan.insertUserIDs) != 0 {
-		t.Fatalf("unexpected writes update=%v insert=%v", plan.updateIDs, plan.insertUserIDs)
+	if len(plan.insertUserIDs) != 0 {
+		t.Fatalf("unexpected insertUserIDs = %v", plan.insertUserIDs)
 	}
 }
 

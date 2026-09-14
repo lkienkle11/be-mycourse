@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	courseapp "mycourse-io-be/internal/course/application"
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/timex"
@@ -463,7 +464,7 @@ func updateSectionOrLesson[T any, D any](r *GormRepository, ctx context.Context,
 func (r *GormRepository) AcquireLease(ctx context.Context, courseID string, actorUserID string, in domain.AcquireLeaseInput) (*domain.Lease, error) {
 	var out *domain.Lease
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID); err != nil {
+		if _, err := r.requireEditorAccess(ctx, tx, courseID, actorUserID, courseapp.ActionCourseLeaseManage); err != nil {
 			return err
 		}
 		now := timex.NowUnix()

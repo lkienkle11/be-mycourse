@@ -10,17 +10,20 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
+	authzapp "mycourse-io-be/internal/authorization/application"
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/constants"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
 
 type GormRepository struct {
-	db *gorm.DB
+	db           *gorm.DB
+	authorizer   *authzapp.Authorizer
+	roleBindings *authzapp.RoleBindingService
 }
 
-func NewGormRepository(db *gorm.DB) *GormRepository {
-	return &GormRepository{db: db}
+func NewGormRepository(db *gorm.DB, authorizer *authzapp.Authorizer, roleBindings *authzapp.RoleBindingService) *GormRepository {
+	return &GormRepository{db: db, authorizer: authorizer, roleBindings: roleBindings}
 }
 
 type courseRow struct {
@@ -84,18 +87,6 @@ type courseVersionOutcomeRefRow struct {
 func (courseVersionRefRow) TableName() string        { return constants.TableCourseVersionTags }
 func (courseVersionSkillRefRow) TableName() string   { return constants.TableCourseVersionSkills }
 func (courseVersionOutcomeRefRow) TableName() string { return constants.TableCourseVersionOutcomes }
-
-type collaboratorRow struct {
-	ID        string `gorm:"column:id;primaryKey"`
-	CourseID  string `gorm:"column:course_id;not null"`
-	UserID    string `gorm:"column:user_id;type:uuid;not null"`
-	Role      string `gorm:"column:role;type:varchar(16);not null"`
-	CreatedAt int64  `gorm:"column:created_at;not null"`
-	UpdatedAt int64  `gorm:"column:updated_at;not null"`
-	DeletedAt *int64 `gorm:"column:deleted_at"`
-}
-
-func (collaboratorRow) TableName() string { return constants.TableCourseCollaborators }
 
 type sectionRow struct {
 	ID              string `gorm:"column:id;primaryKey"`

@@ -139,12 +139,11 @@ func (t *taxOrphanEnqueuer) EnqueueOrphanCleanupForFileID(ctx context.Context, f
 func Wire(db *gorm.DB, rdb *redis.Client) (*Services, *Handlers, error) {
 	core := wireCore(db, rdb)
 	instSvc, instHandler := wireInstructor(db, core.RBAC, core.Auth, core.UserRepo, core.FileRepo)
-	// Sync the empty authorization catalog. Runtime services are constructed only when a
-	// PolicyProvider has a consumer in a future change.
-	if err := wireAuthorization(db); err != nil {
+	authz, err := wireAuthorization(db, courseapp.RoleActions(), courseapp.NewCoursePolicyProvider())
+	if err != nil {
 		return nil, nil, err
 	}
-	courseSvc, courseHandler := wireCourse(db)
+	courseSvc, courseHandler := wireCourse(db, authz)
 	mediaGW := mediainfra.NewStorageGateway()
 
 	svcs := &Services{

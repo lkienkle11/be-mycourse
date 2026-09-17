@@ -7,7 +7,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
+	authzdomain "mycourse-io-be/internal/authorization/domain"
+	courseapp "mycourse-io-be/internal/course/application"
 	"mycourse-io-be/internal/course/domain"
+	"mycourse-io-be/internal/shared/requestprincipal"
 	"mycourse-io-be/internal/shared/timex"
 )
 
@@ -236,38 +239,87 @@ func (r *GormRepository) requireEnrollment(ctx context.Context, db *gorm.DB, cou
 	return loadActiveRow[enrollmentRow](ctx, db, domain.ErrCourseEnrollmentNotFound, "course_id = ? AND user_id = ? AND deleted_at IS NULL", courseID, userID)
 }
 
-func (r *GormRepository) requireCourseAccess(ctx context.Context, db *gorm.DB, courseID string, userID string) (*courseAccess, error) {
+// requireCourseAction is the one seam through which every Course access check flows: it loads
+// the course, determines whether userID is its registered owner (the one fact
+// CoursePolicyProvider needs), and asks Authorizer.Authorize whether userID may perform action
+// on this course. No other function in internal/course constructs an AuthorizationRequest or
+// compares a collaborator role string to decide access; access.Role on the returned value is
+// display data only (surfaced in API responses), never consulted for the decision itself.
+func (r *GormRepository) requireCourseAction(
+	ctx context.Context,
+	db *gorm.DB,
+	courseID string,
+	userID string,
+	action string,
+	deniedErr error,
+) (*courseAccess, error) {
 	course, err := r.loadCourse(ctx, db, courseID)
 	if err != nil {
 		return nil, err
 	}
-	if course.OwnerUserID == userID {
+	isOwner := course.OwnerUserID == userID
+	principal := courseAuthorizationPrincipal(ctx, userID)
+	decision, err := r.authorizer.Authorize(ctx, authzdomain.AuthorizationRequest{
+		Principal: principal,
+		Action:    action,
+		Resource:  authzdomain.Resource{Type: courseapp.ResourceTypeCourse, ID: courseID},
+		Context:   authzdomain.EvaluationContext{DomainFacts: courseapp.CourseAuthorizationFacts{IsOwner: isOwner}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !decision.Allowed() {
+		return nil, deniedErr
+	}
+	if isOwner {
 		return &courseAccess{courseRow: *course, Role: domain.CollaboratorRoleOwner}, nil
 	}
-	collab, err := loadActiveRow[collaboratorRow](ctx, db, domain.ErrCourseCollaboratorAccess, "course_id = ? AND user_id = ? AND deleted_at IS NULL", courseID, userID)
+	binding, err := loadActiveRow[activeCollaboratorRoleBindingRow](ctx, db, domain.ErrCourseCollaboratorAccess,
+		"resource_type = ? AND (resource_id = ? OR resource_id = ?) AND principal_user_id = ? AND revoked_at IS NULL",
+		courseapp.ResourceTypeCourse, courseID, authzdomain.WildcardResourceID, userID)
 	if err != nil {
 		return nil, err
 	}
-	return &courseAccess{courseRow: *course, Role: collab.Role}, nil
+	return &courseAccess{courseRow: *course, Role: binding.RoleName}, nil
 }
 
-func (r *GormRepository) requireEditorAccess(ctx context.Context, db *gorm.DB, courseID string, userID string) (*courseAccess, error) {
-	return r.requireCourseAccess(ctx, db, courseID, userID)
+// activeCollaboratorRoleBindingRow reads only the display Role for a non-owner collaborator
+// (the decision itself already happened above, via Authorizer.Authorize) from
+// authorization_role_bindings — the role gate, not the dropped course_collaborators table. The
+// query's resource_id OR-clause must keep matching authzdomain.WildcardResourceID too, mirroring
+// roleExpandedGrants' matching rule: a wildcard-bound principal is already Allow()'d above, so
+// this lookup denying them here (exact match only) would silently override that decision.
+type activeCollaboratorRoleBindingRow struct {
+	RoleName string `gorm:"column:role_name"`
 }
 
-func (r *GormRepository) requireOwnerAccess(ctx context.Context, db *gorm.DB, courseID string, userID string) (*courseAccess, error) {
-	access, err := r.requireCourseAccess(ctx, db, courseID, userID)
-	if err != nil {
-		return nil, err
+func (activeCollaboratorRoleBindingRow) TableName() string { return "authorization_role_bindings" }
+
+// courseAuthorizationPrincipal builds the Principal Authorize needs from the request-scoped
+// context populated by the JWT middleware (internal/shared/requestprincipal), falling back to
+// an empty-global-permissions Principal for userID when no such context exists (e.g. a caller
+// that never went through HTTP middleware) — a safe fail-closed default, not a bypass.
+func courseAuthorizationPrincipal(ctx context.Context, userID string) authzdomain.Principal {
+	if principal, ok := requestprincipal.FromContext(ctx); ok && principal.ID == userID {
+		return principal
 	}
-	if access.Role != domain.CollaboratorRoleOwner {
-		return nil, domain.ErrCourseOwnerOnly
-	}
-	return access, nil
+	return authzdomain.Principal{Type: authzdomain.PrincipalTypeUser, ID: userID}
+}
+
+func (r *GormRepository) requireCourseAccess(ctx context.Context, db *gorm.DB, courseID string, userID string) (*courseAccess, error) {
+	return r.requireCourseAction(ctx, db, courseID, userID, courseapp.ActionCourseDetailView, domain.ErrCourseCollaboratorAccess)
+}
+
+func (r *GormRepository) requireEditorAccess(ctx context.Context, db *gorm.DB, courseID string, userID string, action string) (*courseAccess, error) {
+	return r.requireCourseAction(ctx, db, courseID, userID, action, domain.ErrCourseCollaboratorAccess)
+}
+
+func (r *GormRepository) requireOwnerAccess(ctx context.Context, db *gorm.DB, courseID string, userID string, action string) (*courseAccess, error) {
+	return r.requireCourseAction(ctx, db, courseID, userID, action, domain.ErrCourseOwnerOnly)
 }
 
 func (r *GormRepository) ensureEditableDraft(ctx context.Context, tx *gorm.DB, courseID string, userID string) (*courseAccess, error) {
-	access, err := r.requireEditorAccess(ctx, tx, courseID, userID)
+	access, err := r.requireEditorAccess(ctx, tx, courseID, userID, courseapp.ActionCourseDraftEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -329,15 +381,11 @@ func (r *GormRepository) loadVersionRow(ctx context.Context, db *gorm.DB, versio
 }
 
 func (r *GormRepository) loadCollaborators(ctx context.Context, db *gorm.DB, courseID string) ([]domain.Collaborator, error) {
-	q := collaboratorsFilteredSelectSQL() + collaboratorOrderSQL()
-	var rows []collaboratorScanRow
-	if err := db.WithContext(ctx).Raw(q, map[string]any{
-		"course_id": courseID,
-		"now":       timex.NowUnix(),
-	}).Scan(&rows).Error; err != nil {
+	sources, err := r.collaboratorSourceRows(ctx, db, courseID)
+	if err != nil {
 		return nil, err
 	}
-	return scanRowsToCollaborators(rows), nil
+	return r.loadCollaboratorProfiles(ctx, db, sources, true, "")
 }
 
 func (r *GormRepository) loadSectionsByVersion(ctx context.Context, db *gorm.DB, versionID string) ([]sectionRow, error) {

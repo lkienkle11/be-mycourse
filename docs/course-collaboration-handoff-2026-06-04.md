@@ -1,6 +1,20 @@
 # Course Collaboration Handoff
 
-_Last updated: 2026-06-25_
+_Last updated: 2026-09-13_
+
+## 2026-09-13 addendum (post-review fixes and a bulk-add contract narrowing)
+
+- Bulk add's `role` field now only accepts `"EDITOR"` (`oneof=EDITOR`, was `oneof=OWNER EDITOR`). A request with `"role": "OWNER"` now gets HTTP 400 instead of being silently accepted and having no effect. Owner access is never a stored role binding (synthesized from `courses.owner_user_id`), so `"OWNER"` was never a meaningful value here.
+- The role-binding write for bulk add / remove collaborator / delete course is now part of the same DB transaction as the access check and validation (`internal/shared/gormx.WithTx`), not a separate, sequential step after commit — `internal/authorization`'s repository and Course's repository share one `*gorm.DB`, so this is a genuine atomic write, not the two-step best-effort sequence described in the entry below.
+- Two wildcard-role-binding matching bugs found by code review and fixed: `requireCourseAction`'s display-role lookup, and the new `RoleBindingService.List` read path, both now match a wildcard (`resource_id = '*'`) binding the same way authorization decisions already did.
+- `existingActiveCollaboratorBindings` renamed to `existingActiveCollaboratorUserIDs` (now returns a plain user-ID set, no `collaboratorRow`/`updateIDs` machinery — moot now that bulk add can never request a role change for an existing collaborator).
+
+## 2026-09-12 addendum (course_collaborators dropped)
+
+- `course_collaborators` (added by migration `000016`, see the table list below) has been dropped by migration `000037`. Collaborator membership is now stored as `authorization_role_bindings` rows (`resource_type = "course"`), backfilled by migration `000036` and gated via the generic role gate in `internal/authorization`.
+- Every table row and API surface described below is otherwise unchanged except the bulk-add `role` field narrowing noted above: `GET /api/v1/courses/:courseId/collaborators`, the bulk add endpoint's shape, and `OWNER`/`EDITOR` display semantics are all the same at the HTTP contract level.
+- Access checks now go through one seam, `requireCourseAction` (`internal/course/infra/repo_access.go`), which calls `Authorizer.Authorize` instead of comparing a stored role string.
+- See `docs/modules/authorization.md` and `docs/modules/course.md` for the full design (wildcard role bindings, `RoleBindingService`, owner synthesis).
 
 ## 2026-06-25 addendum (collaborators)
 
@@ -8,7 +22,7 @@ _Last updated: 2026-06-25_
 - Bulk add uses the existing `POST /api/v1/courses/:courseId/collaborators/bulk` only. Body `{ "user_ids": ["..."], "role": "EDITOR" }` creates or restores active collaborator membership; there is no scoped-actions field or separate actions endpoint.
 - Responses contain collaborator rows plus per-user business failures (including the canonical owner target) in `failed[]`; infrastructure errors abort with HTTP 500 and roll back membership writes.
 - Removed legacy single add `POST /api/v1/courses/:courseId/collaborators`; `DELETE …/collaborators/:userId` unchanged
-- Batch repo: `repo_collaborators_bulk.go` — single transaction, shared `instructorUserIDSet` eligibility, `planBulkCollaboratorWrites` classification, batch `UPDATE id IN (…)` + `CreateInBatches` insert, `loadCollaboratorsByUserIDs` hydrate
+- Batch repo: `repo_collaborators_bulk.go` — validation, planning (shared `instructorUserIDSet` eligibility, `planBulkCollaboratorWrites` classification against `existingActiveCollaboratorUserIDs`), and `RoleBindingService.Assign` (one batched call for every newly-added principal) all run inside the same transaction via `gormx.WithTx`; `loadCollaboratorsByUserIDs` hydrates the response after commit.
 - Submit validation: `validateDraftCollaborators` batch-loads snapshots + `instructorUserIDSet` (no N+1)
 - Tests: `service_collaborators_bulk_test.go` (input normalization); `repo_collaborators_bulk_test.go` (`planBulkCollaboratorWrites` success/partial/all-failed)
 - Picker `GET /api/v1/courses/:courseId/instructor-candidates` — **P67** `course_collaborator_candidate:read` (migrations `000027`, `000028`); **owner-only** in repo

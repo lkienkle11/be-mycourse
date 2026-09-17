@@ -55,7 +55,8 @@ server/wire    → all layers
 | Context | Path | Responsibility |
 |---------|------|---------------|
 | **auth** | `internal/auth/` | User registration, login, email confirmation, JWT sessions, token refresh |
-| **course** | `internal/course/` | Versioned course authoring, collaboration, review workflow, learner enrollment/progress |
+| **authorization** | `internal/authorization/` | Shared IAM-lite: action registry, generic grant store, resource-scoped role bindings (with a `'*'` wildcard). Course is the first registered `PolicyProvider` |
+| **course** | `internal/course/` | Versioned course authoring, collaboration (via `authorization`'s role gate), review workflow, learner enrollment/progress |
 | **instructor** | `internal/instructor/` | Instructor roster, applications, profiles, expertise, support tickets |
 | **media** | `internal/media/` | File/video upload, R2/Bunny storage, orphan cleanup, webhooks |
 | **rbac** | `internal/rbac/` | Roles, permissions, user-role/user-permission bindings |
@@ -101,14 +102,15 @@ Cross-cutting concerns that are not domain-specific:
 Dependency injection lives in **`internal/server/wire.go`**. The `Wire()` function:
 
 1. Instantiates infra repositories and **port adapters** (`mediainfra.NewStorageGateway()`, `sysinfra.NewSystemCryptoAdapter()`).
-2. Constructs application services in dependency order:
+2. Constructs application services in dependency order (`wireCore`, then `Wire()` itself):
    - RBAC (no cross-domain deps)
    - System (`SystemService` + `SystemCrypto` port)
-   - Course (`CourseService`)
    - Media (`MediaService` + `MediaGateway` port)
    - Taxonomy (depends on Media for image validation)
    - Auth (depends on RBAC + Media)
    - Instructor (`InstructorService`, wired through adapters and shared core)
+   - Authorization (`wireAuthorization`: registers `CoursePolicyProvider` and seeds its actions/role-actions — must run before Course is wired)
+   - Course (`wireCourse`: receives the `Authorizer`/`RoleBindingService` constructed above)
 3. Wraps cross-domain interface adapters (e.g. `rbacPermissionReader`, `mediaProfileImageValidator`).
 4. Passes `MediaGateway` into `mediadelivery.NewHandler(svc, gw)` so delivery stays free of `infra` imports.
 5. Returns `*Services` and `*Handlers` structs.

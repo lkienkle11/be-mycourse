@@ -8,8 +8,8 @@ import (
 	courseinfra "mycourse-io-be/internal/course/infra"
 )
 
-func wireCourse(db *gorm.DB) (*courseapp.CourseService, *coursedelivery.Handler) {
-	repo := courseinfra.NewGormRepository(db)
+func wireCourse(db *gorm.DB, authz *AuthorizationServices) (*courseapp.CourseService, *coursedelivery.Handler) {
+	repo := courseinfra.NewGormRepository(db, authz.Authorizer, authz.RoleBindingService)
 	svc := courseapp.NewCourseService(repo)
 	return svc, coursedelivery.NewHandler(svc)
 }

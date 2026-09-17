@@ -75,7 +75,6 @@ const (
 	TableCourseVersionTags          = "course_version_tags"
 	TableCourseVersionSkills        = "course_version_skills"
 	TableCourseVersionOutcomes      = "course_version_outcomes"
-	TableCourseCollaborators        = "course_collaborators"
 	TableAuthorizationActions       = "authorization_actions"
 	TableAuthorizationGrants        = "authorization_grants"
 	TableAuthorizationRoleActions   = "authorization_role_actions"

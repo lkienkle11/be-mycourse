@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
+	courseapp "mycourse-io-be/internal/course/application"
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/timex"
 )
@@ -16,7 +17,7 @@ func (r *GormRepository) SubmitForReview(ctx context.Context, courseID string, a
 
 func (r *GormRepository) ReopenDraft(ctx context.Context, courseID string, actorUserID string) (*domain.CourseDetail, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID); err != nil {
+		if _, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID, courseapp.ActionCourseReviewManage); err != nil {
 			return err
 		}
 		course, version, err := r.requireDraftVersion(ctx, tx, courseID)
@@ -216,7 +217,7 @@ LIMIT @limit OFFSET @offset`
 }
 
 func (r *GormRepository) ListReviewHistory(ctx context.Context, courseID string, actorUserID string, filter domain.ReviewHistoryFilter) ([]domain.CourseReviewHistoryItem, int64, error) {
-	if _, err := r.requireEditorAccess(ctx, r.db, courseID, actorUserID); err != nil {
+	if _, err := r.requireEditorAccess(ctx, r.db, courseID, actorUserID, courseapp.ActionCourseReviewView); err != nil {
 		return nil, 0, err
 	}
 

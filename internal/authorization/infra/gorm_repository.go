@@ -11,6 +11,7 @@ import (
 
 	"mycourse-io-be/internal/authorization/domain"
 	"mycourse-io-be/internal/shared/constants"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/uuidx"
 )
@@ -87,8 +88,12 @@ type conditionPayload struct {
 	Values   []any  `json:"values"`
 }
 
+// dbForContext returns the transaction a caller joined via gormx.WithTx, when present, so a
+// caller from a different bounded context (e.g. internal/course) can make this repository's
+// writes part of its own transaction instead of a separately committed one. Falls back to this
+// repository's own *gorm.DB otherwise.
 func (r *GormGrantRepository) dbForContext(ctx context.Context) *gorm.DB {
-	return r.db.WithContext(ctx)
+	return gormx.DBFromContext(ctx, r.db)
 }
 
 func (r *GormGrantRepository) UpsertActions(ctx context.Context, actions []domain.ActionDefinition) error {
@@ -122,6 +127,26 @@ func (r *GormGrantRepository) UpsertActions(ctx context.Context, actions []domai
 			"updated_at":          now,
 		}),
 	}).CreateInBatches(rows, grantInsertBatchSize).Error
+}
+
+// SyncRoleActions idempotently inserts any (role_name, resource_type, action_name) tuple in
+// roleActions that does not already exist. It never removes an existing tuple, matching
+// UpsertActions' append-only stance on the action catalog; the composite primary key makes a
+// duplicate insert attempt a no-op rather than an error.
+func (r *GormGrantRepository) SyncRoleActions(ctx context.Context, roleActions []domain.RoleActionDefinition) error {
+	if len(roleActions) == 0 {
+		return nil
+	}
+	now := timex.NowUnix()
+	rows := make([]roleActionRow, len(roleActions))
+	for i, roleAction := range roleActions {
+		rows[i] = roleActionRow{
+			RoleName: roleAction.RoleName, ResourceType: roleAction.ResourceType,
+			ActionName: roleAction.ActionName, CreatedAt: now,
+		}
+	}
+	return r.dbForContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).
+		CreateInBatches(rows, grantInsertBatchSize).Error
 }
 
 func validatePersistedActionRows(actions []domain.ActionDefinition, existing []actionRow) error {
@@ -195,11 +220,24 @@ type roleExpandedGrantRow struct {
 	CreatedAt       int64   `gorm:"column:created_at"`
 }
 
+// roleBindingResourceClause returns the WHERE fragment and bind args matching a role binding
+// against a requested resource ID: either the exact resource ID, or a binding scoped to
+// domain.WildcardResourceID (every resource of the binding's own resource_type). Extracted as
+// its own function so the matching rule is unit-testable without a database (see
+// gorm_repository_test.go); roleExpandedGrants is the only caller.
+func roleBindingResourceClause(resourceID string) (string, []any) {
+	return "(rb.resource_id = ? OR rb.resource_id = ?)", []any{resourceID, domain.WildcardResourceID}
+}
+
 // roleExpandedGrants resolves active resource-scoped role bindings into synthesized ALLOW
 // grants, one per action the binding's role currently covers for its resource type. It never
 // sets ValidFrom/ExpiresAt/Conditions (role bindings do not support them) and is always
 // ALLOW-only by construction. Unlike the direct-grant query, there is no now-based validity
 // window to check: a role binding is only ever active or revoked (revoked_at IS NULL below).
+//
+// roleBindingResourceClause lets a wildcard binding match every resource of its own
+// resource_type; it can never leak into another resource_type because the resource_type filter
+// below is a separate, unconditional AND clause whenever query.Resource.Type is set.
 func (r *GormGrantRepository) roleExpandedGrants(ctx context.Context, query domain.GrantQuery) ([]domain.Grant, error) {
 	db := r.dbForContext(ctx)
 	db = db.Table(roleBindingRow{}.TableName() + " AS rb").
@@ -216,7 +254,8 @@ func (r *GormGrantRepository) roleExpandedGrants(ctx context.Context, query doma
 		db = db.Where("rb.resource_type = ?", query.Resource.Type)
 	}
 	if query.Resource.ID != "" {
-		db = db.Where("rb.resource_id = ?", query.Resource.ID)
+		clause, args := roleBindingResourceClause(query.Resource.ID)
+		db = db.Where(clause, args...)
 	}
 	if len(query.ActionNames) > 0 {
 		db = db.Where("ra.action_name IN ?", query.ActionNames)
@@ -244,6 +283,97 @@ func roleExpandedRowToGrant(row *roleExpandedGrantRow) domain.Grant {
 		CreatedAt:       row.CreatedAt,
 	}
 }
+
+// AssignRoleBindings inserts one active authorization_role_bindings row per principal in
+// principalUserIDs, in a single batched insert (never one query per principal).
+func (r *GormGrantRepository) AssignRoleBindings(
+	ctx context.Context,
+	principalUserIDs []string,
+	roleName string,
+	resource domain.Resource,
+	grantedByUserID string,
+	now int64,
+) error {
+	if len(principalUserIDs) == 0 {
+		return nil
+	}
+	rows := make([]roleBindingRow, 0, len(principalUserIDs))
+	for _, principalID := range principalUserIDs {
+		id, err := uuidx.NewV7()
+		if err != nil {
+			return err
+		}
+		rows = append(rows, roleBindingRow{
+			ID: id, PrincipalUserID: principalID, RoleName: roleName,
+			ResourceType: resource.Type, ResourceID: resource.ID,
+			GrantedByUserID: stringPointer(grantedByUserID), CreatedAt: now,
+		})
+	}
+	return r.dbForContext(ctx).CreateInBatches(rows, grantInsertBatchSize).Error
+}
+
+// RevokeRoleBindings marks every active binding matching query as revoked, in a single batched
+// update. Matching zero rows (e.g. a binding that is already revoked, or was never active) is
+// not an error. Unlike ListRoleBindings/roleExpandedGrants, a query.Resource.ID of a concrete
+// resource intentionally does NOT also match a domain.WildcardResourceID binding here: revoking
+// one resource's access must never silently revoke a wildcard binding's access to every other
+// resource of that type. Revoking a wildcard binding itself requires querying with
+// Resource.ID == domain.WildcardResourceID.
+func (r *GormGrantRepository) RevokeRoleBindings(ctx context.Context, query domain.RoleBindingQuery, revokedAt int64) error {
+	db := r.dbForContext(ctx).Model(&roleBindingRow{}).Where("revoked_at IS NULL")
+	if len(query.PrincipalUserIDs) > 0 {
+		db = db.Where("principal_user_id IN ?", query.PrincipalUserIDs)
+	}
+	if query.RoleName != "" {
+		db = db.Where("role_name = ?", query.RoleName)
+	}
+	if query.Resource.Type != "" {
+		db = db.Where("resource_type = ?", query.Resource.Type)
+	}
+	if query.Resource.ID != "" {
+		db = db.Where("resource_id = ?", query.Resource.ID)
+	}
+	return db.Update("revoked_at", revokedAt).Error
+}
+
+// ListRoleBindings returns every active binding matching query, ordered by CreatedAt then ID,
+// for callers that need to list or display bindings (e.g. a resource's collaborators) rather
+// than gate a decision. This is the one sanctioned read path for authorization_role_bindings
+// outside GrantRepository.ListActive's role-expansion. A binding scoped to
+// domain.WildcardResourceID matches a concrete query.Resource.ID here too, mirroring
+// roleExpandedGrants' matching rule — a wildcard-bound principal must still show up when
+// listing (e.g. an EDITOR-of-every-course) collaborators for one specific resource.
+func (r *GormGrantRepository) ListRoleBindings(ctx context.Context, query domain.RoleBindingQuery) ([]domain.RoleBinding, error) {
+	db := r.dbForContext(ctx).Table(roleBindingRow{}.TableName() + " AS rb").Where("rb.revoked_at IS NULL")
+	if len(query.PrincipalUserIDs) > 0 {
+		db = db.Where("rb.principal_user_id IN ?", query.PrincipalUserIDs)
+	}
+	if query.RoleName != "" {
+		db = db.Where("rb.role_name = ?", query.RoleName)
+	}
+	if query.Resource.Type != "" {
+		db = db.Where("rb.resource_type = ?", query.Resource.Type)
+	}
+	if query.Resource.ID != "" {
+		clause, args := roleBindingResourceClause(query.Resource.ID)
+		db = db.Where(clause, args...)
+	}
+	var rows []roleBindingRow
+	if err := db.Order("rb.created_at ASC, rb.id ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]domain.RoleBinding, len(rows))
+	for i := range rows {
+		out[i] = domain.RoleBinding{
+			ID: rows[i].ID, PrincipalUserID: rows[i].PrincipalUserID, RoleName: rows[i].RoleName,
+			Resource:        domain.Resource{Type: rows[i].ResourceType, ID: rows[i].ResourceID},
+			GrantedByUserID: stringValue(rows[i].GrantedByUserID), CreatedAt: rows[i].CreatedAt,
+		}
+	}
+	return out, nil
+}
+
+var _ domain.RoleBindingRepository = (*GormGrantRepository)(nil)
 
 // mergeGrants combines directly stored grants with role-expanded ones into one
 // deterministically ordered slice, matching ListActive's pre-existing sort order. No
@@ -456,5 +586,3 @@ func stringValue(value *string) string {
 	}
 	return *value
 }
-
-var _ domain.GrantRepository = (*GormGrantRepository)(nil)

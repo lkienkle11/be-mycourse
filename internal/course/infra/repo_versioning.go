@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	courseapp "mycourse-io-be/internal/course/application"
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
@@ -26,7 +27,7 @@ type subLessonValidationInput struct {
 
 func (r *GormRepository) updateDraftStatus(ctx context.Context, courseID string, actorUserID string, fromStatus, toStatus, reason string, setSubmitted bool) (*domain.CourseDetail, error) {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID); err != nil {
+		if _, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID, courseapp.ActionCourseReviewManage); err != nil {
 			return err
 		}
 		course, version, err := r.requireDraftVersion(ctx, tx, courseID)

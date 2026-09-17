@@ -5,14 +5,14 @@ import (
 
 	"gorm.io/gorm"
 
+	authzdomain "mycourse-io-be/internal/authorization/domain"
+	courseapp "mycourse-io-be/internal/course/application"
 	"mycourse-io-be/internal/course/domain"
 	instructordomain "mycourse-io-be/internal/instructor/domain"
 	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/useraccess"
 )
-
-const collaboratorBulkInsertBatchSize = 100
 
 func (r *GormRepository) instructorUserIDSet(ctx context.Context, db *gorm.DB, userIDs []string) (map[string]struct{}, error) {
 	return gormx.UserIDSetByRoleNames(ctx, db, userIDs, []string{
@@ -22,10 +22,31 @@ func (r *GormRepository) instructorUserIDSet(ctx context.Context, db *gorm.DB, u
 	})
 }
 
+// existingActiveCollaboratorUserIDs reports which of userIDs already hold an active role
+// binding on this course, so planBulkCollaboratorWrites can tell "already a collaborator" (no
+// write needed — bulk add only ever assigns EDITOR, and re-adding an existing collaborator
+// can't change their role since EDITOR is the only role bulk add can request) from "brand new"
+// (needs a fresh RoleBindingService.Assign). Reads through RoleBindingService.List, the one
+// sanctioned read path for authorization_role_bindings — never a direct query against that
+// table. tx joins the read into the caller's ongoing transaction via gormx.WithTx.
+func (r *GormRepository) existingActiveCollaboratorUserIDs(ctx context.Context, tx *gorm.DB, courseID string, userIDs []string) (map[string]struct{}, error) {
+	bindings, err := r.roleBindings.List(gormx.WithTx(ctx, tx), authzdomain.RoleBindingQuery{
+		PrincipalUserIDs: userIDs,
+		Resource:         authzdomain.Resource{Type: courseapp.ResourceTypeCourse, ID: courseID},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]struct{}, len(bindings))
+	for _, b := range bindings {
+		out[b.PrincipalUserID] = struct{}{}
+	}
+	return out, nil
+}
+
 type bulkCollaboratorWriteState struct {
 	failed           []domain.CollaboratorBulkFailure
 	succeededUserIDs []string
-	updateIDs        []string
 	insertUserIDs    []string
 }
 
@@ -33,13 +54,12 @@ func planBulkCollaboratorWrites(
 	userIDs []string,
 	instructorSet map[string]struct{},
 	accessByID map[string]useraccess.AssignmentSnapshot,
-	existingByUser map[string]collaboratorRow,
+	existingUserIDs map[string]struct{},
 	now int64,
 ) bulkCollaboratorWriteState {
 	state := bulkCollaboratorWriteState{
 		failed:           make([]domain.CollaboratorBulkFailure, 0),
 		succeededUserIDs: make([]string, 0, len(userIDs)),
-		updateIDs:        make([]string, 0),
 		insertUserIDs:    make([]string, 0, len(userIDs)),
 	}
 	for _, userID := range userIDs {
@@ -65,9 +85,7 @@ func planBulkCollaboratorWrites(
 			})
 			continue
 		}
-		if existing, ok := existingByUser[userID]; ok {
-			state.updateIDs = append(state.updateIDs, existing.ID)
-		} else {
+		if _, ok := existingUserIDs[userID]; !ok {
 			state.insertUserIDs = append(state.insertUserIDs, userID)
 		}
 		state.succeededUserIDs = append(state.succeededUserIDs, userID)
@@ -75,45 +93,13 @@ func planBulkCollaboratorWrites(
 	return state
 }
 
-func applyBulkCollaboratorWrites(
-	ctx context.Context,
-	tx *gorm.DB,
-	courseID string,
-	userIDs []string,
-	role string,
-	instructorSet map[string]struct{},
-	accessByID map[string]useraccess.AssignmentSnapshot,
-	existingByUser map[string]collaboratorRow,
-) (bulkCollaboratorWriteState, error) {
-	now := timex.NowUnix()
-	plan := planBulkCollaboratorWrites(userIDs, instructorSet, accessByID, existingByUser, now)
-	if len(plan.updateIDs) == 0 && len(plan.insertUserIDs) == 0 {
-		return plan, nil
-	}
-	if len(plan.updateIDs) > 0 {
-		if err := tx.WithContext(ctx).Model(&collaboratorRow{}).
-			Where("id IN ? AND deleted_at IS NULL", plan.updateIDs).
-			Updates(map[string]any{"role": role, "updated_at": now}).Error; err != nil {
-			return bulkCollaboratorWriteState{}, err
-		}
-	}
-	if len(plan.insertUserIDs) > 0 {
-		rows := make([]collaboratorRow, 0, len(plan.insertUserIDs))
-		for _, userID := range plan.insertUserIDs {
-			row := collaboratorRow{CourseID: courseID, UserID: userID, Role: role}
-			if err := ensureCourseRowID(&row); err != nil {
-				return bulkCollaboratorWriteState{}, err
-			}
-			gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-			rows = append(rows, row)
-		}
-		if err := tx.WithContext(ctx).CreateInBatches(rows, collaboratorBulkInsertBatchSize).Error; err != nil {
-			return bulkCollaboratorWriteState{}, err
-		}
-	}
-	return plan, nil
-}
-
+// AddCollaboratorsBulk validates and plans inside one course-side transaction (access check,
+// instructor eligibility, existing-binding lookup — a consistent read snapshot), then assigns
+// the role binding for every newly-added principal in one batched RoleBindingService.Assign
+// call (never one call per principal, per .ai/skills/logic-n-1-optimize) as part of that same
+// transaction: gormx.WithTx makes internal/authorization's GormGrantRepository (which owns its
+// own *gorm.DB, constructed once at wiring time) join tx instead of running a separately
+// committed write, so a failure after the plan step rolls the whole operation back atomically.
 func (r *GormRepository) AddCollaboratorsBulk(
 	ctx context.Context,
 	courseID string,
@@ -128,44 +114,49 @@ func (r *GormRepository) AddCollaboratorsBulk(
 	if len(userIDs) == 0 {
 		return result, nil
 	}
+	var plan bulkCollaboratorWriteState
+	var resolvedCourseID string
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID)
+		access, err := r.requireOwnerAccess(ctx, tx, courseID, actorUserID, courseapp.ActionCourseCollaboratorsManage)
 		if err != nil {
 			return err
 		}
+		resolvedCourseID = access.ID
 		instructorSet, err := r.instructorUserIDSet(ctx, tx, userIDs)
 		if err != nil {
 			return err
 		}
-		var existingRows []collaboratorRow
-		if err := tx.Where("course_id = ? AND user_id IN ? AND deleted_at IS NULL", access.ID, userIDs).Find(&existingRows).Error; err != nil {
+		existingUserIDs, err := r.existingActiveCollaboratorUserIDs(ctx, tx, access.ID, userIDs)
+		if err != nil {
 			return err
-		}
-		existingByUser := make(map[string]collaboratorRow, len(existingRows))
-		for _, row := range existingRows {
-			existingByUser[row.UserID] = row
 		}
 		accessByID, err := gormx.LoadAssignmentSnapshotsByIDs(ctx, tx, userIDs)
 		if err != nil {
 			return err
 		}
-		writeState, err := applyBulkCollaboratorWrites(ctx, tx, access.ID, userIDs, role, instructorSet, accessByID, existingByUser)
-		if err != nil {
-			return err
-		}
-		result.Failed = writeState.failed
-		if len(writeState.succeededUserIDs) == 0 {
+		plan = planBulkCollaboratorWrites(userIDs, instructorSet, accessByID, existingUserIDs, timex.NowUnix())
+		if len(plan.insertUserIDs) == 0 {
 			return nil
 		}
-		added, err := r.loadCollaboratorsByUserIDs(ctx, tx, access.ID, writeState.succeededUserIDs)
-		if err != nil {
-			return err
-		}
-		result.Added = added
-		return nil
+		return r.roleBindings.Assign(gormx.WithTx(ctx, tx), authzdomain.RoleBindingAssignment{
+			Issuer:           courseAuthorizationPrincipal(ctx, actorUserID),
+			PrincipalUserIDs: plan.insertUserIDs,
+			RoleName:         role,
+			Resource:         authzdomain.Resource{Type: courseapp.ResourceTypeCourse, ID: resolvedCourseID},
+			Context:          authzdomain.EvaluationContext{DomainFacts: courseapp.CourseAuthorizationFacts{IsOwner: true}},
+		})
 	})
 	if err != nil {
 		return domain.CollaboratorBulkResult{}, err
 	}
+	result.Failed = plan.failed
+	if len(plan.succeededUserIDs) == 0 {
+		return result, nil
+	}
+	added, err := r.loadCollaboratorsByUserIDs(ctx, r.db, resolvedCourseID, plan.succeededUserIDs)
+	if err != nil {
+		return domain.CollaboratorBulkResult{}, err
+	}
+	result.Added = added
 	return result, nil
 }

@@ -84,7 +84,7 @@ sequenceDiagram
 
 ## 25. Create Course (`POST /api/v1/courses`)
 
-**Description:** Instructor creates a course root, initial draft version v1, owner collaborator row, and returns full detail in one transaction.
+**Description:** Instructor creates a course root and initial draft version v1, and returns full detail in one transaction. Ownership is `courses.owner_user_id`; no collaborator row is written (owner access is synthesized by `CoursePolicyProvider`, not stored).
 
 ```mermaid
 sequenceDiagram
@@ -99,11 +99,10 @@ sequenceDiagram
     S->>S: SlugifyName(title)
     S->>R: CreateCourse(input)
     R->>DB: BEGIN
-    R->>DB: INSERT courses
+    R->>DB: INSERT courses (owner_user_id)
     R->>DB: INSERT course_versions (v1 DRAFT)
     R->>DB: UPDATE courses.current_draft_version_id
-    R->>DB: INSERT course_collaborators (OWNER)
-    R->>R: loadCourseDetail → requireCourseAccess (courses + collaborators JOIN)
+    R->>R: loadCourseDetail → requireCourseAction (Authorizer, owner synthesized)
     R->>DB: COMMIT
     R-->>S: *CourseDetail
     S-->>H: *CourseDetail

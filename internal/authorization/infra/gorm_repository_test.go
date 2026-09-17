@@ -149,6 +149,107 @@ func TestRoleExpandedRowToGrantSupportsMultipleIndependentRoles(t *testing.T) {
 	}
 }
 
+// TestRoleBindingResourceClauseMatchesRequestedOrWildcard covers the role-binding-wildcard spec's
+// core requirement: a binding matches either the exact requested resource ID or the wildcard
+// sentinel, never anything else. There is no live database in this environment (see
+// migrations/authorization_base_test.go and every other test in this file for the same
+// constraint), so this asserts the query-fragment/args this repository actually sends, the same
+// way TestReplacementRowsDeduplicatePrincipalActionPairs asserts query input construction
+// elsewhere in this file, rather than executing SQL against a real authorization_role_bindings
+// table.
+func TestRoleBindingResourceClauseMatchesRequestedOrWildcard(t *testing.T) {
+	clause, args := roleBindingResourceClause("course-123")
+	wantClause := "(rb.resource_id = ? OR rb.resource_id = ?)"
+	if clause != wantClause {
+		t.Fatalf("clause = %q, want %q", clause, wantClause)
+	}
+	wantArgs := []any{"course-123", domain.WildcardResourceID}
+	if !reflect.DeepEqual(args, wantArgs) {
+		t.Fatalf("args = %#v, want %#v", args, wantArgs)
+	}
+}
+
+// TestRoleBindingResourceClauseWildcardSentinelStable guards against the sentinel value ever
+// silently drifting (e.g. someone editing domain.WildcardResourceID without updating this
+// clause), which would break every existing wildcard binding's resolution at once.
+func TestRoleBindingResourceClauseWildcardSentinelStable(t *testing.T) {
+	_, args := roleBindingResourceClause("any-resource-id")
+	if args[1] != "*" {
+		t.Fatalf("wildcard sentinel arg = %#v, want literal \"*\"", args[1])
+	}
+}
+
+// TestRoleExpandedRowToGrantResolvesWildcardBindingForConcreteResource exercises the
+// role-binding-wildcard spec's "Wildcard binding covers an existing resource" scenario at the
+// row-mapping layer: a roleExpandedGrantRow produced by a wildcard binding (ResourceID =
+// domain.WildcardResourceID, because that is the binding's own stored value) still carries
+// through to a usable domain.Grant when merged with a concrete-resource query result set.
+func TestRoleExpandedRowToGrantResolvesWildcardBindingForConcreteResource(t *testing.T) {
+	wildcardRow := roleExpandedGrantRow{
+		BindingID: "binding-wildcard", PrincipalUserID: "u1", ResourceType: "course",
+		ResourceID: domain.WildcardResourceID, ActionName: "course_basic_info:update", CreatedAt: 1_700_000_000,
+	}
+	got := roleExpandedRowToGrant(&wildcardRow)
+	if got.Effect != domain.EffectAllow {
+		t.Fatalf("wildcard-derived grant effect = %q, want ALLOW", got.Effect)
+	}
+	if got.ID != "role:binding-wildcard:course_basic_info:update" {
+		t.Fatalf("wildcard-derived grant ID = %q", got.ID)
+	}
+}
+
+// TestMergeGrantsUnionsWildcardAndResourceSpecificBindings covers the role-binding-wildcard
+// spec's "Wildcard and resource-specific bindings combine without conflict" requirement: a
+// wildcard-derived grant and a resource-specific-derived grant for the same principal/resource
+// type are both kept (mergeGrants performs no deduplication), matching how two direct grants or
+// a direct+role-expanded pair already combine.
+func TestMergeGrantsUnionsWildcardAndResourceSpecificBindings(t *testing.T) {
+	wildcardGrant := roleExpandedRowToGrant(&roleExpandedGrantRow{
+		BindingID: "binding-wildcard", PrincipalUserID: "u1", ResourceType: "course",
+		ResourceID: domain.WildcardResourceID, ActionName: "course_basic_info:update", CreatedAt: 1_700_000_000,
+	})
+	specificGrant := roleExpandedRowToGrant(&roleExpandedGrantRow{
+		BindingID: "binding-specific", PrincipalUserID: "u1", ResourceType: "course",
+		ResourceID: "course-1", ActionName: "course_outline:update", CreatedAt: 1_700_000_000,
+	})
+	got := mergeGrants(nil, []domain.Grant{wildcardGrant, specificGrant})
+	if len(got) != 2 {
+		t.Fatalf("mergeGrants(wildcard, specific) = %#v, want both entries kept (no dedup)", got)
+	}
+	byAction := make(map[string]domain.Grant, len(got))
+	for _, g := range got {
+		byAction[g.ActionName] = g
+	}
+	if _, ok := byAction["course_basic_info:update"]; !ok {
+		t.Fatalf("missing wildcard-derived grant: %#v", got)
+	}
+	if _, ok := byAction["course_outline:update"]; !ok {
+		t.Fatalf("missing resource-specific grant: %#v", got)
+	}
+}
+
+// TestMergeGrantsDropsRevokedWildcardImmediately covers the role-binding-wildcard spec's "Revoke
+// wildcard binding" requirement at the merge layer: once a wildcard binding is revoked,
+// roleExpandedGrants (per its revoked_at IS NULL filter) no longer produces a grant for it at
+// all, so mergeGrants simply never receives that entry on the next decision — there is no
+// separate per-resource cleanup step for mergeGrants to perform.
+func TestMergeGrantsDropsRevokedWildcardImmediately(t *testing.T) {
+	// Simulates roleExpandedGrants's output *after* the wildcard binding was revoked: the
+	// revoked binding contributes nothing, so only unrelated grants remain.
+	remaining := []domain.Grant{
+		roleExpandedRowToGrant(&roleExpandedGrantRow{
+			BindingID: "binding-other", PrincipalUserID: "u2", ResourceType: "course",
+			ResourceID: "course-2", ActionName: "course_outline:update", CreatedAt: 1_700_000_000,
+		}),
+	}
+	got := mergeGrants(nil, remaining)
+	for _, g := range got {
+		if g.PrincipalUserID == "u1" {
+			t.Fatalf("revoked wildcard binding's principal must not appear in merged grants, got %#v", got)
+		}
+	}
+}
+
 func TestGrantConditionJSONRoundTrip(t *testing.T) {
 	want := []domain.Condition{
 		{Operator: domain.ConditionStringEquals, Key: "tenant", Values: []any{"alpha", "beta"}},

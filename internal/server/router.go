@@ -89,8 +89,8 @@ func mountAPITree(apiRoot *gin.RouterGroup, svc *Services, h *Handlers) {
 	authdelivery.RegisterRoutes(authen, nil, h.Auth, svc.RBAC)
 	taxdelivery.RegisterRoutes(authen, h.Taxonomy, svc.RBAC)
 	mediadelivery.RegisterRoutes(authen, h.Media, svc.RBAC)
-	coursedelivery.RegisterRoutes(authen, h.Course, svc.RBAC)
-	instdelivery.RegisterRoutes(authen, h.Instructor, svc.RBAC)
+	coursedelivery.RegisterRoutes(authen, notAuthen, h.Course, svc.RBAC)
+	instdelivery.RegisterRoutes(authen, notAuthen, h.Instructor, svc.RBAC)
 
 	// --- /api/internal-v1 (internal API key required) ---
 	internalV1 := apiRoot.Group("/internal-v1")

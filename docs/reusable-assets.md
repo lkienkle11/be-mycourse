@@ -819,7 +819,18 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Dependencies: Redis client injected into `AuthService`.
 - Current Usage: `internal/auth/application/service.go`, `internal/auth/application/service_session.go`.
 - Reuse Opportunity:
-  - Reuse pattern for read-heavy course catalog/progress reads later.
+  - Reused (2026-09-27) — see the next asset below.
+
+### Asset: Generic JSON cache-aside helper
+- Name: `GetJSON[T any]`, `SetJSON[T any]`
+- Type: Util/Helper
+- Path: `internal/shared/cache/json_cache.go`
+- Purpose: Generic, type-safe cache-aside get/set for read-heavy public list endpoints, following the same fail-open (`cache.RedisAvailable()`-guarded) contract as the auth cache above, but with no per-request validation logic (unlike auth's `/me` cache) so it needs no per-caller wrapper functions.
+- Scope: Public, non-personalized list reads.
+- Dependencies: `internal/shared/cache.Redis`.
+- Current Usage: `internal/course/application/service_catalog.go` (`mycourse:catalog:trending_courses:limit:{n}`, 5 min TTL), `internal/instructor/application/service_catalog.go` (`mycourse:catalog:popular_instructors:limit:{n}`, 5 min TTL) — see `docs/requirements.md` NFR-1.3.
+- Reuse Opportunity:
+  - Reuse for any future public, non-personalized list read before adding another bespoke cache-aside implementation.
 
 ### Asset: Core taxonomy entities (pure shared types)
 - Name: `CourseLevel`, `Category`, `Tag`
@@ -1135,6 +1146,6 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Phase 09-12: reuse auth/session + permission resolution functions and middleware gates; add domain-specific shared helpers where duplication appears.
 
 
-## Public SEO cache pattern pointer (take-note, 2026-07-25)
+## Public SEO cache pattern (implemented 2026-09-27)
 
-Auth `/me` cache-aside and `internal/shared/ratelimit/` (+ NFR-1.1) are the patterns to extend for a future public catalogue cache and crawler tiers. Course public cache is **not** implemented. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).
+Course/instructor public catalogue caching is now implemented via the new **Generic JSON cache-aside helper** asset above (`internal/shared/cache/json_cache.go`), extending the auth `/me` cache-aside pattern rather than inventing a new mechanism, and the existing `internal/shared/ratelimit/` (NFR-1.1) unauthenticated tier rather than a new crawler-specific tier. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).

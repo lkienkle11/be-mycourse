@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-07-06 — Admin application list always excludes approved; `status=approved` returns HTTP 400; use instructor profiles for approved instructors._
+_Last audited: 2026-09-27 — added public `GET /catalog/instructors/popular` (`openspec/changes/add-home-catalog-apis`), no new permission. Prior: Admin application list always excludes approved; `status=approved` returns HTTP 400; use instructor profiles for approved instructors (2026-07-06)._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / resubmit / approve / reject / return), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -246,6 +246,12 @@ Responses **also** include `is_disabled`, `email_confirmed`, `banned_until` (Uni
 ## API endpoints (`/api/v1`)
 
 All routes require `Authorization: Bearer <token>` unless noted.
+
+### Public catalog (no auth)
+
+| Method | Path | Permission | Notes |
+|--------|------|-----------|-------|
+| GET | `/catalog/instructors/popular` | none (public) | `limit` (default 4, max 12); ranked by published-course count desc, tie-broken by recency; excludes non-instructors, disabled/soft-deleted/banned accounts. Response is `domain.PopularInstructor` (`user_id`, `display_name`, `avatar`, `subtitle` = `instructor_profiles.current_job_title`, `course_count`) — not the roster/profile shape. |
 
 ### Roster (`instructor_roster:*`)
 

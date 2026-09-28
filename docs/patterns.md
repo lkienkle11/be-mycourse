@@ -349,6 +349,6 @@ Minimum checklist when behavior or API **does** change:
 6. `ruby scripts/generate-apidog-postman.rb` (if request/response contracts changed)
 
 
-## Public SEO DTO pattern (take-note, 2026-07-25)
+## Public SEO DTO pattern (implemented 2026-09-27)
 
-Prefer published-only projections and existing rate-limit tiers over inventing parallel auth/quota stacks. Notes: [`security-public-seo-notes.md`](./security-public-seo-notes.md).
+This pattern is now implemented by `openspec/changes/add-home-catalog-apis`: `domain.TrendingCourseItem` and `domain.PopularInstructor` are published-only projections — hand-built, separate from `CourseListItem`/`RosterMember` (which are shared by several unrelated authenticated endpoints) — and their public routes (`GET /catalog/courses/trending`, `GET /catalog/instructors/popular`) reuse the existing `/api/v1` unauthenticated rate-limit tier and the existing Redis client rather than a parallel auth/quota stack. Use these two types as the reference example for any future public DTO. Notes: [`security-public-seo-notes.md`](./security-public-seo-notes.md).

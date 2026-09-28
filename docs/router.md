@@ -75,6 +75,8 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req / 1 min)
 | POST | `/api/v1/auth/google/mobile` | Google native mobile sign-in (ID token) — registered only when `OAuthGoogleConfigured()` |
 | POST | `/api/v1/auth/x` | X OAuth2 PKCE sign-in (code + code_verifier); registered only when `OAuthXConfigured()` |
 | POST | `/api/v1/auth/discord` | Discord OAuth2 sign-in (authorization code); registered only when `OAuthDiscordConfigured()` |
+| GET | `/api/v1/catalog/courses/trending` | Public trending courses list (query `limit`, default 8, max 24) |
+| GET | `/api/v1/catalog/instructors/popular` | Public popular instructors list (query `limit`, default 4, max 12) |
 
 ---
 
@@ -201,6 +203,7 @@ Instructor expertise/application/profile chip endpoints accept optional `locale`
 | POST | `/api/v1/course-admin/courses/:courseId/restore` | `course_trash:restore` (P65) | Restore course from trash |
 | DELETE | `/api/v1/course-admin/courses/:courseId/permanent` | `course_trash:delete` (P66) | Permanently delete trashed course |
 | GET | `/api/v1/learner-courses` | `course:read` | List published learner catalog |
+| GET | `/api/v1/learner-courses/continue` | `course:read` | List caller's enrolled courses ordered by most-recent learning activity (query `limit`, default 4, max 10) |
 | GET | `/api/v1/learner-courses/:courseId` | `course:read` | Get learning course detail |
 | POST | `/api/v1/learner-courses/:courseId/enroll` | `course:read` | Enroll learner |
 | GET | `/api/v1/learner-courses/:courseId/progress` | `course:read` | Get learner progress |

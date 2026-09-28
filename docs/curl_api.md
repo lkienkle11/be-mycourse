@@ -2009,6 +2009,22 @@ Approve/reject routes: see **`docs/router.md`** and **`docs/modules/course.md`**
 
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
 
+### 14.8 Home page catalog APIs (`openspec/changes/add-home-catalog-apis`)
+
+Two public (no-auth) catalog endpoints plus one authenticated continue-learning endpoint. No DB migration beyond 3 new indexes (`migrations/000038_home_catalog_indexes`). Full contract: **`docs/modules/course.md`**, **`docs/modules/instructor.md`**.
+
+```bash
+# Public — trending courses (no Authorization header)
+curl -sS "{{BASE_URL}}/api/v1/catalog/courses/trending?limit=8"
+
+# Public — popular instructors (no Authorization header)
+curl -sS "{{BASE_URL}}/api/v1/catalog/instructors/popular?limit=4"
+
+# Authenticated — caller's own in-progress courses (course:read)
+curl -sS "{{BASE_URL}}/api/v1/learner-courses/continue?limit=4" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
 ---
 
 ## 15. Webhooks (`/api/v1/webhook/*`)

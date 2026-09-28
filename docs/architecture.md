@@ -159,7 +159,7 @@ main.go
 |-------|-----------|---------|
 | `/api/system` | `BeforeInterceptor`, `RateLimitSystemIP(10,3)`, `RequireSystemAccessToken` | Privileged operators: RBAC sync, scheduler control |
 | `/api/v1` (no-filter) | none (mounts before `BeforeInterceptor`) | Webhook callbacks that bypass JWT |
-| `/api/v1` unauthenticated | `BeforeInterceptor`, `RateLimitLocal(60,1)` | Register, login, confirm, refresh |
+| `/api/v1` unauthenticated | `BeforeInterceptor`, `RateLimitLocal(60,1)` | Register, login, confirm, refresh; sub-group `/catalog` (trending courses, popular instructors) shares this same tier — no separate rate-limit budget |
 | `/api/v1` authenticated | `BeforeInterceptor`, `RateLimitLocal(120,1)`, `AuthJWT` | Protected user endpoints |
 | `/api/internal-v1` | `RateLimitLocal(60,1)`, `BeforeInterceptor`, `RequireInternalAPIKey` | Internal RBAC administration |
 
@@ -210,6 +210,6 @@ MCP resource `gitnexus://repo/be-mycourse/context` lists current graph stats and
 | [`docs/modules/instructor.md`](modules/instructor.md) | Instructor management deep-dive |
 
 
-## Public read-model vs learner APIs (take-note, 2026-07-25)
+## Public read-model vs learner APIs (2026-09-27)
 
-A future public SEO/storefront read-model is distinct from authenticated learner APIs. Public GETs must not rely on Bearer/cookie session. Flag any docs that drift toward “Bearer-only public catalogue” — cookie auth remains the app default for private routes. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).
+The public SEO/storefront read-model anticipated here now exists at `/api/v1/catalog/*` (`GET /catalog/courses/trending`, `GET /catalog/instructors/popular` — `openspec/changes/add-home-catalog-apis`), distinct from authenticated learner APIs. These public GETs carry no Bearer/cookie session requirement and no auth middleware at all — cookie auth remains the app default for private routes. See [`security-public-seo-notes.md`](./security-public-seo-notes.md) for the full public-surface contract.

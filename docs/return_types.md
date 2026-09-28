@@ -458,6 +458,8 @@ type ListPermissionsParams struct {
 | Outline CRUD / reorder | `CreateSection`, `UpdateSection`, `DeleteSection`, `ReorderSections`, lesson/sub-lesson variants | Entity or `[]Section`; draft/lease/lock errors |
 | Review | `SubmitForReview`, `ReopenDraft`, `ListPendingReviews`, `ApproveDraft`, `RejectDraft` | `*CourseDetail` or `[]CourseListItem` |
 | Learner | `ListPublishedCourses`, `GetLearningCourse`, `Enroll`, `GetProgress`, `SaveProgress` | Catalog / detail / enrollment / progress types |
+| Catalog (public) | `ListTrendingCourses(ctx, limit int) ([]TrendingCourseItem, error)` | `[]TrendingCourseItem`; cache-aside (5 min TTL, `mycourse:catalog:trending_courses:limit:{n}`) |
+| Continue learning | `ListContinueLearning(ctx, userID string, limit int) ([]ContinueLearningItem, error)` | `[]ContinueLearningItem`; not cached (per-user) |
 
 **Key domain types** (`internal/course/domain`):
 
@@ -500,6 +502,36 @@ type CourseListItem struct {
 
 **`CourseListItem.owner_display_name`:** populated on `GET /course-admin/courses`, `GET /course-admin/courses/trash`, and `GET /course-reviews/pending` only. Instructor (`GET /courses/my`) and learner catalog lists omit this field.
 
+**`TrendingCourseItem` / `ContinueLearningItem`** (`openspec/changes/add-home-catalog-apis`) — deliberately separate from `CourseListItem`, not an extension of it (avoids leaking fields into unrelated authenticated responses):
+
+```go
+type TrendingCourseItem struct {
+    ID               string `json:"id"`
+    Slug             string `json:"slug"`
+    Title            string `json:"title"`
+    ShortDescription string `json:"short_description"`
+    ThumbnailURL     string `json:"thumbnail_url,omitempty"`
+    OwnerDisplayName string `json:"owner_display_name,omitempty"`
+    CreatedAt        int64  `json:"created_at"`
+}
+
+type ContinueLearningItem struct {
+    CourseID            string  `json:"course_id"`
+    Slug                string  `json:"slug"`
+    Title               string  `json:"title"`
+    ThumbnailURL        string  `json:"thumbnail_url,omitempty"`
+    OwnerDisplayName    string  `json:"owner_display_name,omitempty"`
+    CompletedSubLessons int     `json:"completed_sub_lessons"`
+    TotalSubLessons     int     `json:"total_sub_lessons"`
+    ProgressPercent     float64 `json:"progress_percent"`
+    LastActivityAt      int64   `json:"last_activity_at"`
+}
+```
+
+**`CompletedSubLessons`/`TotalSubLessons` count every sub-lesson in the outline** (`course_sections → course_lessons → course_sub_lessons`), **not only `VIDEO`-kind ones** — a course's outline legitimately mixes `VIDEO`/`QUIZ`/`TEXT` sub-lessons under one course, so progress must reflect all of them (product decision, `openspec/changes/add-home-catalog-apis`; the Figma mock's "X/Y Videos Completed" label only happened to show video-only example courses).
+
+Both are returned directly from their handlers via `response.OK(c, "ok", rows)` — no separate delivery-layer DTO, matching this module's existing `listPublishedCourses`/`listPendingReviews`/`listAdminCourses` convention.
+
 **Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses` and `course_versions`. No collaborator row is inserted: ownership is `courses.owner_user_id` itself, synthesized by `CoursePolicyProvider` (see `docs/modules/authorization.md`), never a stored `authorization_role_bindings` row.
 
 **Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH (except optional `preview_video_file_id`); handler passes trimmed pointers. When `title` is set, service slugifies via `courseTitleAndSlug` (≥5 non-whitespace) and `ensureUniqueCourseSlug` (excluding current course).
@@ -517,8 +549,21 @@ type CourseListItem struct {
 | Profiles | `ListProfiles`, `GetProfileByUserID`, `UpsertProfile`, `DeleteProfile` | `*Profile`, lists |
 | Expertise | `ListExpertiseTopics/Skills`, `AddExpertiseTopic/Skill`, deletes | `ExpertiseTopic` / `ExpertiseSkill` — junction fields + joined taxonomy `name`, `slug` (snake_case JSON) |
 | Tickets | `ListTickets`, `GetTicket`, `CreateTicket`, `CloseTicket`, message list/add | `*Ticket`, `[]TicketMessage` |
+| Catalog (public) | `ListPopularInstructors(ctx, limit int) ([]PopularInstructor, error)` | `[]PopularInstructor`; cache-aside (5 min TTL, `mycourse:catalog:popular_instructors:limit:{n}`) |
 
 Details: **`docs/modules/instructor.md`**.
+
+**`PopularInstructor`** (`openspec/changes/add-home-catalog-apis`) — tag-free domain struct (matching `RosterMember`'s convention); JSON tags live on the delivery-layer `popularInstructorResponse` DTO:
+
+```go
+type PopularInstructor struct {
+    UserID      string
+    DisplayName string
+    AvatarURL   string
+    Subtitle    string // instructor_profiles.current_job_title
+    CourseCount int64
+}
+```
 
 **Expertise HTTP JSON (`domain.ExpertiseTopic` / `domain.ExpertiseSkill`):**
 

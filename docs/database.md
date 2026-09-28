@@ -835,6 +835,7 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000035 | `authorization_role_binding_wildcard` | `CHECK` constraint on `authorization_role_bindings.resource_id` enforcing the reserved wildcard sentinel `'*'` (meaning "every resource of this binding's `resource_type`") or a UUID-shaped string — no schema change beyond the constraint |
 | 000036 | `backfill_course_collaborator_role_bindings` | One-time, dev-only backfill: one `authorization_role_bindings` row per active EDITOR `course_collaborators` row (OWNER-role rows excluded — owner access is synthesized from `courses.owner_user_id`, never a stored binding) |
 | 000037 | `drop_course_collaborators` | Drops `course_collaborators` once Course fully moved onto the role gate (reads, writes, and the legacy data importer) — see `openspec/changes/replace-course-collaborator-with-role-gate` |
+| 000038 | `home_catalog_indexes` | Index-only, no schema change: `idx_courses_published_created_at`, `idx_courses_owner_published_created_at`, `idx_course_enrollments_user_active` — for the public trending-courses/popular-instructors catalog and continue-learning endpoints, see `openspec/changes/add-home-catalog-apis` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -966,6 +967,8 @@ The grant and role-binding tables have no polymorphic FK to domain resources; ea
 | `course_edit_leases` | Resource-level edit leases for `OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON` |
 | `course_enrollments` | Learner-course membership and the learner's active approved version |
 | `course_progress_items` | Stable-content-keyed progress items so approved version switches can carry progress forward |
+
+**Migration `000038` (index-only, no schema change):** adds `idx_courses_published_created_at` (`courses.created_at DESC`, partial: published/non-trashed), `idx_courses_owner_published_created_at` (`courses.owner_user_id, created_at DESC`, same partial filter), and `idx_course_enrollments_user_active` (`course_enrollments.user_id`, partial: `deleted_at IS NULL`) — for the public trending-courses/popular-instructors catalog and the continue-learning endpoint (`openspec/changes/add-home-catalog-apis`).
 
 API and module behavior: **`docs/modules/course.md`**.
 

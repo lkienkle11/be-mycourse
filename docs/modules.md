@@ -180,7 +180,7 @@ Privileged operations for system administrators.
 ## Planned But Not Implemented
 
 - Standalone payment / checkout bounded context
-- Public anonymous course storefront routes
+- Public anonymous course storefront routes — **partially implemented** (2026-09-27): `GET /catalog/courses/trending` and `GET /catalog/instructors/popular` exist (no auth, `openspec/changes/add-home-catalog-apis`); price/discount/rating fields remain planned pending the payment bounded context above
 - Separate dedicated lesson or enrollment bounded contexts (today both live under `internal/course/`)
 
 ---
@@ -224,6 +224,6 @@ go test ./...
 ```
 
 
-### Public SEO / storefront take-note (2026-07-25)
+### Public SEO / storefront (2026-09-27)
 
-Anonymous public catalogue remains **Planned**. Intent and reusable assets (B1–B10): [`security-public-seo-notes.md`](./security-public-seo-notes.md). No BE code in the FE SEO foundation phase.
+Anonymous public catalogue — course + instructor listing — is now **implemented** (`openspec/changes/add-home-catalog-apis`; see "Planned But Not Implemented" above). Payment/checkout, and therefore price/discount/rating storefront fields, remain planned. Reusable-asset checklist and status (B1–B10): [`security-public-seo-notes.md`](./security-public-seo-notes.md).

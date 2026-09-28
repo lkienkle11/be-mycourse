@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-09-12 (collaborator membership moved from `course_collaborators` onto `internal/authorization`'s resource-scoped role gate — `openspec/changes/replace-course-collaborator-with-role-gate`; `course_collaborators` is dropped). Prior: course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads (2026-06-17); outline reorder write-path performance, batch media meta query, lease read-after-write removal; read-path batching/parallelism (2026-06-16)._
+_Last audited: 2026-09-27 (`GET /learner-courses/continue` and the public `GET /catalog/courses/trending` added — `openspec/changes/add-home-catalog-apis`). Prior: collaborator membership moved from `course_collaborators` onto `internal/authorization`'s resource-scoped role gate — `openspec/changes/replace-course-collaborator-with-role-gate`; `course_collaborators` is dropped (2026-09-12). Prior: course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads (2026-06-17); outline reorder write-path performance, batch media meta query, lease read-after-write removal; read-path batching/parallelism (2026-06-16)._
 
 ## Overview
 
@@ -248,12 +248,19 @@ Admin / sysadmin course catalog routes (P62–P66):
 Learner routes:
 
 - `GET /api/v1/learner-courses`
+- `GET /api/v1/learner-courses/continue` — caller's own enrolled courses ordered by most-recent learning activity (`limit`, default 4, max 10); see `docs/modules/enrollment.md`
 - `GET /api/v1/learner-courses/:courseId`
 - `POST /api/v1/learner-courses/:courseId/enroll`
 - `GET /api/v1/learner-courses/:courseId/progress`
 - `POST /api/v1/learner-courses/:courseId/progress`
 
+Public catalog routes (no auth):
+
+- `GET /api/v1/catalog/courses/trending` — published courses ordered by `created_at DESC` (`limit`, default 8, max 24); published-only projection (`domain.TrendingCourseItem`), no draft/collaborator/review fields
+
 ## Permissions
+
+The public catalog route (`GET /catalog/courses/trending`) requires no permission — it carries no auth middleware at all. `GET /learner-courses/continue` reuses `course:read`, same as every other `learner-courses*` route; no new permission was added.
 
 The module reuses the existing permission catalog:
 
@@ -361,6 +368,6 @@ Measured warm reorder (2 sub-lessons, remote PostgreSQL): **~935ms–990ms** (do
 **Frontend pairing:** `mergeReorderedLessons` / `mergeReorderedSections` in `fe-mycourse/src/lib/utils/course.ts` preserve nested `sub_lessons` / `lessons` when reorder API returns partial trees.
 
 
-## Public SEO take-note (2026-07-25)
+## Public catalogue (2026-09-27)
 
-`learner-courses*` endpoints are **authenticated** (`course:read`). There is no public anonymous catalogue yet. Future public DTO work must reuse published-only semantics — see [`../security-public-seo-notes.md`](../security-public-seo-notes.md).
+A public, unauthenticated trending-courses catalogue now exists at `GET /api/v1/catalog/courses/trending` (`internal/course/delivery/handler_catalog.go`, `internal/course/infra/repo_catalog.go`) — a published-only projection (`domain.TrendingCourseItem`), distinct from the authenticated `learner-courses*` DTOs and reusing published-only semantics as anticipated. `learner-courses*` itself remains authenticated by design (`course:read`) — see [`../security-public-seo-notes.md`](../security-public-seo-notes.md) for the full public-surface contract (rate limiting, caching, CORS).

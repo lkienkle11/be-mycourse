@@ -2971,12 +2971,42 @@ paths:
         "200":
           description: Deleted
 
+  /api/v1/catalog/courses/trending:
+    get:
+      tags: [Course]
+      summary: Public trending courses list (no auth)
+      description: Published, non-trashed courses ordered by created_at desc. Published-only projection — no draft, collaborator, or review-workflow fields.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 8, maximum: 24 }
+      responses:
+        "200":
+          description: OK
+
   /api/v1/learner-courses:
     get:
       tags: [Course]
       summary: List published courses for learners
       security:
         - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/learner-courses/continue:
+    get:
+      tags: [Course]
+      summary: List caller's own enrolled courses ordered by most-recent learning activity
+      description: Falls back to enrollment time when the learner has not started any lesson yet. Each item includes a completed/total sub-lesson count (every kind — VIDEO/QUIZ/TEXT — not video-only).
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 4, maximum: 10 }
       responses:
         "200":
           description: OK
@@ -3047,6 +3077,20 @@ paths:
       responses:
         "200":
           description: Updated
+
+  /api/v1/catalog/instructors/popular:
+    get:
+      tags: [Instructor]
+      summary: Public popular instructors list (no auth)
+      description: Instructors ranked by published-course count desc, tie-broken by recency. Excludes non-instructors and disabled/soft-deleted/banned accounts.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 4, maximum: 12 }
+      responses:
+        "200":
+          description: OK
 
   /api/v1/instructors:
     get:

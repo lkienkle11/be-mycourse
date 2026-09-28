@@ -1,0 +1,42 @@
+## Why
+
+The FE team is building the Home page (`fe-mycourse`: public `/` and authenticated `/home`) and needs 3 sections backed by real data: a "Complete your Course" (continue-learning) list, a "Trending Course" list, and a "Popular Instructor" list. Today none of these can be served: `docs/modules/course.md` (line 366) and `docs/security-public-seo-notes.md` (B1/B2) already document the exact gap — `learner-courses*` is authenticated-only and there is no anonymous course catalogue, and no endpoint anywhere lists a learner's own enrollments across courses or ranks instructors by activity. Trending Course and Popular Instructor must be reachable **without login** (the public `/` page has no session), which additionally requires abuse hardening (rate limit, circuit breaker, cache) that the two new public routes don't yet have wired to them.
+
+## What Changes
+
+- Add `GET /api/v1/catalog/courses/trending` (public, no auth) — published courses ordered by `created_at DESC`, `limit` query param (default 8, max 24). Reuses the existing `ListPublishedCourses` query shape (`internal/course/infra/repo_learner.go:15-45`) but fixes its `ORDER BY c.id DESC` (not actually recency, since `id` is a random UUID) and adds the owner-name join already defined but unused by that query (`courseListOwnerUserJoin`, `repos.go:236-238`).
+- Add `GET /api/v1/catalog/instructors/popular` (public, no auth) — instructors ranked by published-course count desc, tie-broken by most recent course, `limit` query param (default 4, max 12). Subtitle field is `instructor_profiles.current_job_title` (confirmed non-empty for every approved instructor via the application-submit validator, `internal/instructor/application/validate_profile.go:120-122`) — not the `headline` column, which `docs/modules/instructor.md` (line 148) documents as no longer collected.
+- Add `GET /api/v1/learner-courses/continue` (authenticated, reuses existing `course:read` permission) — the caller's enrolled courses ordered by most-recent learning activity (`MAX(course_progress_items.last_interacted_at)`, falling back to `course_enrollments.created_at` when the learner hasn't started any lesson yet), each with a completed/total **sub-lesson** count (every kind — VIDEO/QUIZ/TEXT — not video-only, since a course's outline legitimately mixes content kinds; corrected from an initial VIDEO-only draft after user review — see `design.md`). `limit` query param (default 4, max 10).
+- Change `coursedelivery.RegisterRoutes` and `instdelivery.RegisterRoutes` signatures from `(rg *gin.RouterGroup, ...)` to `(authen, notAuthen *gin.RouterGroup, ...)`, mirroring the pattern `authdelivery.RegisterRoutes` already uses (`internal/auth/delivery/routes.go:16-21`, nil-guarded per group). Both call sites (`internal/server/router.go:92-93`) update accordingly. This is an internal Go signature change only — no external route paths or behavior change for any existing endpoint.
+- Add a new `catalog := notAuthen.Group("/catalog")` mount in `internal/server/router.go` — a URL-namespacing sub-group only, inheriting the parent `notAuthen` group's existing `RateLimitLocal(60, 1)` (documented as **NFR-1.1**, `docs/requirements.md`) rather than introducing a second, parallel rate-limit tier — matches this repo's own documented public-SEO intent (`docs/patterns.md` "Public SEO DTO pattern" take-note: "prefer existing rate-limit tiers over inventing parallel auth/quota stacks"). The global `CircuitBreakerMiddleware()` (`router.go:48`) already covers every route including these.
+- Add a small generic Redis cache-aside helper (`internal/shared/cache/json_cache.go`) modeled on the existing `/me` cache-aside (`internal/auth/application/service_cache.go`), used by the trending-courses and popular-instructors services only (5 min TTL, fail-open when Redis is unavailable — same convention as everywhere else `cache.RedisAvailable()` is used). Continue-learning is per-user and not cached.
+- **No column/table migration** — every field needed already exists: `courses.created_at`, `course_versions.short_description`, `course_enrollments.created_at`, `course_progress_items.last_interacted_at`/`content_type`/`status`, `instructor_profiles.current_job_title`, `users.display_name`/`avatar_file_id`. Price/discount/badges and learner star-rating/review are explicitly deferred (no payment or review schema exists anywhere in the codebase today) — confirmed with the user and out of scope for this change.
+- **One index-only migration** (`migrations/000038_home_catalog_indexes.{up,down}.sql`), required by `.ai/skills/postgresql-optimization`: `courses` has no index at all on `created_at` (only `uix_courses_slug_active` and `idx_courses_owner_active`), so `ORDER BY created_at DESC` for trending and the `GROUP BY owner_user_id` count for popular instructors would both force a sequential scan as the table grows; `course_enrollments` has no index on `user_id` alone (only the composite unique `(course_id, user_id)`, which doesn't serve a `WHERE user_id = ?` lookup efficiently). See `design.md` Decision #7 for the exact `CREATE INDEX` statements.
+
+## Capabilities
+
+### New Capabilities
+- `course/trending-catalog`: a public, unauthenticated endpoint lists published courses ordered by creation recency, with instructor name and short description, protected by rate limiting and a short-TTL cache.
+- `course/continue-learning`: an authenticated endpoint lists the caller's own enrolled courses ordered by most-recent learning activity (falling back to enrollment time), each annotated with a completed/total sub-lesson progress count (all kinds — video, quiz, text).
+- `instructor/popular-catalog`: a public, unauthenticated endpoint ranks instructors by number of published courses (tie-broken by recency), returning name, avatar, and current job title as a subtitle, protected by rate limiting and a short-TTL cache.
+
+### Modified Capabilities
+(none — no existing capability's requirements change; `ListPublishedCourses` and every other existing endpoint keep their current behavior unchanged)
+
+## Impact
+
+- `internal/course/domain/course.go`: new `TrendingCourseItem`, `ContinueLearningItem` structs; 2 new `Repository` interface methods.
+- `internal/course/infra/repo_catalog.go` (new), `internal/course/infra/repo_learner.go` (add method): new SQL.
+- `internal/course/application/service_catalog.go` (new): cache-aside wrapper for trending courses.
+- `internal/course/delivery/{dto.go,handler_catalog.go (new),handler_learner.go,routes.go}`: new response DTOs, handlers, route registration signature change.
+- `internal/instructor/domain/{instructor.go,repository.go}`: new `PopularInstructor` struct; new `CatalogRepository` sub-interface.
+- `internal/instructor/application/{service_application_test.go,service_roster_test.go}`: **found during apply** — adding `CatalogRepository` broke 2 existing test fakes (`appTestRepo`, `rosterBulkTestRepo`) that implement the full `domain.Repository` interface; fixed with a trivial stub `ListPopularInstructors` method on each. Not in the original impact list (the original grep-based "no mocks" check missed these).
+- `internal/instructor/infra/repo_catalog.go` (new): new SQL.
+- `internal/instructor/application/service_catalog.go` (new): cache-aside wrapper.
+- `internal/instructor/delivery/{dto.go,handler_public.go (new),routes.go}`: new response DTO, handler, route registration signature change.
+- `internal/shared/cache/json_cache.go` (new): generic cache-aside helper.
+- `internal/shared/utils/query_limit.go` (new): `ClampQueryLimit` — shared by both modules' new handlers, added once rather than duplicated (verified no equivalent helper exists today).
+- `internal/server/router.go`: new `/catalog` public group + updated `RegisterRoutes` call sites (verified via `gitnexus_impact` + manual grep: exactly 1 caller each, `router.go:92` and `router.go:93`; no test mocks implement either `Repository` interface).
+- `migrations/000038_home_catalog_indexes.{up,down}.sql` (new): 3 `CREATE INDEX` statements, no column/table changes — see `design.md` Decision #7.
+- Docs: `docs/modules/course.md`, `docs/modules/instructor.md`, `docs/modules/enrollment.md`, `docs/api_swagger.yaml` (+ `ruby generate-apidog-postman.rb` regeneration) — full list finalized in `design.md` after the exhaustive docs scan.
+- No changes to `fe-mycourse`, no DB migration, no new permission constants (2 new routes are public/unauthenticated; continue-learning reuses `course:read`).

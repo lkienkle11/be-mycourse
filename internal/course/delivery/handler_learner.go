@@ -16,6 +16,20 @@ func (h *Handler) listPublishedCourses(c *gin.Context) {
 	response.OK(c, "ok", rows)
 }
 
+const (
+	continueLearningDefaultLimit = 4
+	continueLearningMaxLimit     = 10
+)
+
+func (h *Handler) getContinueLearning(c *gin.Context) {
+	limit := utils.ClampQueryLimit(c.DefaultQuery("limit", ""), continueLearningDefaultLimit, continueLearningMaxLimit)
+	rows, err := h.svc.ListContinueLearning(c.Request.Context(), utils.CurrentUserID(c), limit)
+	if mapCourseError(c, err) {
+		return
+	}
+	response.OK(c, "ok", rows)
+}
+
 func (h *Handler) getLearningCourse(c *gin.Context) {
 	h.courseOK(c, "ok", func(courseID string) (any, error) {
 		return h.svc.GetLearningCourse(c.Request.Context(), courseID, utils.CurrentUserID(c))

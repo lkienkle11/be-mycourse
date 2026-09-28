@@ -125,6 +125,9 @@ func (r *appTestRepo) AddMessage(context.Context, string, string, string) (*doma
 	return &domain.TicketMessage{}, nil
 }
 func (r *appTestRepo) WipeInstructorScopedData(context.Context, string) error { return nil }
+func (r *appTestRepo) ListPopularInstructors(context.Context, int) ([]domain.PopularInstructor, error) {
+	return nil, nil
+}
 
 type appTestPerms struct{ blocked bool }
 

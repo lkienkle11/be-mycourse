@@ -37,6 +37,7 @@ var defaultMessages = map[int]string{
 	NotFound:        "Resource not found",
 	Conflict:        "Conflict",
 	TooManyRequests: "Too many requests",
+	SlugConflict:    "Slug already exists",
 
 	EmailAlreadyExists:  "Email address is already registered",
 	InvalidCredentials:  "Invalid email or password",

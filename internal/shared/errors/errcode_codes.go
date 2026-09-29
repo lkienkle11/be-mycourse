@@ -34,6 +34,7 @@ const (
 	NotFound        = 3004
 	Conflict        = 3005
 	TooManyRequests = 3006
+	SlugConflict    = 3007
 
 	// Auth (4xxx)
 	EmailAlreadyExists           = 4001

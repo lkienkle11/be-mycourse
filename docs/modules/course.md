@@ -38,7 +38,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql` (courses, version
 
 - `courses` is the stable root record and stores:
   - `owner_user_id`
-  - `slug` (derived from `title` via `utils.SlugifyName` on create and when `title` changes on `PATCH /basic-info`; not accepted from clients; globally unique among active rows — colliding base slugs get `-2`, `-3`, … suffixes)
+  - `slug` (globally unique among active rows, `chk_courses_slug_format` CHECK-enforced ASCII `a-z0-9-` format). On create: optional client input — a manual value is validated and used if free, or rejected with a `SlugConflictError` + `recommended_slug` if taken; an omitted/empty value auto-generates from `title` via `github.com/gosimple/slug`, falling back to `course-{randomSuffix}` when transliteration yields nothing usable. On update (`PATCH /basic-info`): an independent, PATCH-omittable field — omitted leaves it unchanged (title no longer touches slug at all), a new value equal to the current one is a no-op, and a new value colliding with another course is auto-resolved directly with a random suffix (no confirmation step). Collision suffixes are always random alphanumeric (`crypto/rand`, 7 chars ×7 attempts, then 8×7, 9×7, …), never the old numeric `-2`, `-3`, … scheme. See `openspec/changes/rework-course-slug-management`.
   - `current_published_version_id`
   - `current_draft_version_id`
 - `course_versions` stores the editable and published snapshots:
@@ -84,7 +84,7 @@ Editable mutations (`ensureEditableDraft`) allow only `DRAFT` status (`IN_REVIEW
 - Course is registered as an `internal/authorization` `PolicyProvider` (`CoursePolicyProvider`, `internal/course/application/authorization_policy.go`). Every access check goes through one seam — `requireCourseAction` (`internal/course/infra/repo_access.go`) calling `Authorizer.Authorize` — which never compares a role name string; `requireCourseAccess`/`requireEditorAccess`/`requireOwnerAccess` are thin, differently-named wrappers around that one seam, kept for call-site readability. A course collaborator's actions come from an active `EDITOR` `authorization_role_bindings` row (`resource_type = "course"`), not a Course-owned table — see `docs/modules/authorization.md`'s "Registered providers" for the full action list and role-to-action mapping.
 - Optimistic locking:
   - mutable versioned rows carry `row_version` (starts at `1` on create — GORM must set `RowVersion: 1` explicitly because zero-value inserts override the column `DEFAULT 1`)
-  - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success; accepts `title` (server recomputes `courses.slug` with the same uniqueness rules as create)
+  - `PATCH /basic-info` requires `expected_row_version >= 1` and increments `row_version` on success; accepts `title` (no longer touches `slug`) and an independent, optional `slug` field (omitted = unchanged; explicit empty/whitespace = `400`; new value auto-resolved on collision with a random suffix, no confirmation step)
   - stale saves return a conflict (`ErrCourseOptimisticLock`)
 - Resource leases:
   - stored in `course_edit_leases`
@@ -210,8 +210,8 @@ Routes are registered from `internal/course/delivery/routes.go` through `interna
 Instructor / collaborator routes:
 
 - `GET /api/v1/courses/my`
-- `POST /api/v1/courses` — body `{ "title" }` only (`nonwhitespace_min=5`, max 255); slug is computed server-side from `title` via `SlugifyName`. When the base slug is already used by another active course, the server allocates the next free variant (`base`, then `base-2`, `base-3`, …) so each active course has a globally unique slug (`uix_courses_slug_active`).
-- `PATCH /api/v1/courses/:courseId/basic-info` — all listed fields required on save except `preview_video_file_id` (optional UUID): `title` (≥5 non-whitespace, server slugify), `short_description` (≥20), `about_course` (Delta JSON, ≥30 non-whitespace text), `thumbnail_file_id`, `course_level_id`, `course_topic_id`, `tag_ids` (≥1), `skill_ids` (≥1), `outcome_ids` (exactly 1), `expected_row_version`.
+- `POST /api/v1/courses` — body `title` (required, `nonwhitespace_min=5`, max 255) plus optional `slug` (`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, max 255). Omitted/empty `slug` auto-generates from `title` via `github.com/gosimple/slug` (falls back to `course-{randomSuffix}` if nothing transliterates). A manually supplied `slug` already used by another active course is rejected (`409`/`SlugConflict`) with a `recommended_slug` suggestion — never silently auto-suffixed. `uix_courses_slug_active` and `chk_courses_slug_format` remain the DB-level source of truth.
+- `PATCH /api/v1/courses/:courseId/basic-info` — all listed fields required on save except `preview_video_file_id` and `slug` (both optional): `title` (≥5 non-whitespace; no longer affects `slug`), `short_description` (≥20), `about_course` (Delta JSON, ≥30 non-whitespace text), `thumbnail_file_id`, `course_level_id`, `course_topic_id`, `tag_ids` (≥1), `skill_ids` (≥1), `outcome_ids` (exactly 1), `expected_row_version`. `slug`, when present, is independent of `title`: omitted from the request leaves it unchanged; `null`/`""`/whitespace is a `400`; a new value equal to the current slug is a no-op; a new value colliding with another course is auto-resolved server-side with a random suffix (no confirmation step) and the response reflects the actual final value.
 - `GET /api/v1/courses/:courseId`
 - `POST /api/v1/courses/:courseId/draft/prepare`
 - `PATCH /api/v1/courses/:courseId/basic-info`
@@ -310,7 +310,7 @@ Previous closeout (2026-06-15): migration **`000022_course_sub_lesson_estimated_
 
 `POST /api/v1/courses` persists everything in one DB transaction (`GormRepository.CreateCourse`):
 
-1. Insert `courses` (`owner_user_id`, server-computed `slug`, UUID v7 `id` via `gormx.EnsureStringID` before GORM `Create`)
+1. Insert `courses` (`owner_user_id`, resolved `slug` — manual if supplied and free, otherwise auto-generated from `title` — UUID v7 `id` via `gormx.EnsureStringID` before GORM `Create`)
 2. Insert initial `course_versions` row (`version_no = 1`, `status = DRAFT`, trimmed `title`)
 3. Set `courses.current_draft_version_id`
 4. Reload detail via `loadCourseDetail` → `requireCourseAccess`

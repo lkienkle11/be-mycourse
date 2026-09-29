@@ -24,7 +24,7 @@ Do **not** invent new permissions, rate-limit quotas, or DTO fields in this note
 | B5 | Rate limit | `internal/shared/ratelimit/` + NFR-1.1 | Extend existing tiers for crawler traffic — do not invent a parallel quota system. |
 | B6 | Auth / CORS / cookie | `router.go`, `auth_jwt.go`, `csrf.go` | Public GET must stay cookie/Bearer-free for CDN cache; CORS must match FE origin. |
 | B7 | Field matrix | [`return_types.md`](./return_types.md) | Future public DTO ≠ full `CourseDetail`; cite learner vs admin field differences. |
-| B8 | Slug uniqueness | `ensureUniqueCourseSlug` | Canonical slug future; no public resolve-by-slug yet. |
+| B8 | Slug uniqueness | `internal/shared/slug` (`RetryWithSuffix`) + `internal/course/infra/slug.go` (`courseSlugAvailable`) | Canonical slug future; no public resolve-by-slug yet. `ensureUniqueCourseSlug` (numeric-suffix algorithm) was removed and replaced by a random-suffix algorithm in `openspec/changes/rework-course-slug-management`. |
 | B9 | Media visibility | `canViewMediaFile` + `thumbnail_url` | OG images only from published public media. |
 | B10 | `/me` cache-aside | auth `service_cache.go` | **Extended** — new generic `internal/shared/cache/json_cache.go` (`GetJSON`/`SetJSON`) follows the same fail-open, TTL-based pattern, used by the trending-courses and popular-instructors catalog services (5 min TTL each). |
 

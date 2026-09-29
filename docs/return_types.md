@@ -449,7 +449,7 @@ type ListPermissionsParams struct {
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `CreateCourse` | `CreateCourse(ctx, CreateCourseInput) (*CourseDetail, error)` | `*CourseDetail` on success; `ErrCourseInvalidSlug`; repo errors |
+| `CreateCourse` | `CreateCourse(ctx, CreateCourseInput) (*CourseDetail, error)` | `*CourseDetail` on success; `ErrCourseTitleTooShort`, `ErrCourseInvalidSlug` (manual slug fails format); `*domain.SlugConflictError` (manual slug taken — carries `RecommendedSlug`); repo errors |
 | `ListEditableCourses` | `ListEditableCourses(ctx, userID string) ([]CourseListItem, error)` | `[]CourseListItem` |
 | `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID string, includeDraft, includeOutline bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
 | `UpdateBasicInfo` | `UpdateBasicInfo(ctx, courseID, actorUserID string, UpdateBasicInfoInput) (*CourseDetail, error)` | `*CourseDetail`; optimistic lock / validation errors |
@@ -532,9 +532,9 @@ type ContinueLearningItem struct {
 
 Both are returned directly from their handlers via `response.OK(c, "ok", rows)` — no separate delivery-layer DTO, matching this module's existing `listPublishedCourses`/`listPendingReviews`/`listAdminCourses` convention.
 
-**Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses` and `course_versions`. No collaborator row is inserted: ownership is `courses.owner_user_id` itself, synthesized by `CoursePolicyProvider` (see `docs/modules/authorization.md`), never a stored `authorization_role_bindings` row.
+**Create input:** service layer accepts `{ title, slug? }` and passes `CreateCourseInput{ ActorUserID, Title, Slug }` to the repository — `Slug` is either the caller's manually supplied, already format-validated value, or `""` meaning "auto-generate." Repository logic (`internal/course/infra/slug.go`, `repo_instructor.go`): a non-empty manual slug is checked for availability and used as-is if free, or returns `*domain.SlugConflictError{RecommendedSlug}` if taken (never silently substituted); an empty slug derives a base from `title` via `github.com/gosimple/slug` (falling back to `course-{randomSuffix}` if transliteration yields nothing usable) and resolves any collision with `internal/shared/slug.RetryWithSuffix` (random alphanumeric suffix, escalating length: 7 chars ×7 attempts, then 8×7, 9×7, …) — replacing the old `base`, `base-2`, `base-3`, … numeric-suffix algorithm. UUID v7 ids are then assigned via `gormx.EnsureStringID` before inserting `courses` and `course_versions`. No collaborator row is inserted: ownership is `courses.owner_user_id` itself, synthesized by `CoursePolicyProvider` (see `docs/modules/authorization.md`), never a stored `authorization_role_bindings` row.
 
-**Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH (except optional `preview_video_file_id`); handler passes trimmed pointers. When `title` is set, service slugifies via `courseTitleAndSlug` (≥5 non-whitespace) and `ensureUniqueCourseSlug` (excluding current course).
+**Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH except `preview_video_file_id` and `slug`, both optional; handler passes trimmed pointers. `title` is validated (≥5 non-whitespace via `validateCourseTitle`) but no longer affects `slug` in any way. `Slug *string` is independent: `nil` (field omitted) means leave the stored slug unchanged; a non-nil value has already been trimmed and format-validated by the delivery handler (an explicit empty/whitespace value is rejected as `400` before reaching the service). The repository skips all slug work when the new value equals the current slug (no false self-conflict), otherwise resolves any collision directly via `internal/shared/slug.RetryWithSuffix` (random suffix, no confirmation step) and persists the actual final slug, which the response reflects.
 
 **Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, `ErrCourseTitleTooShort`, `ErrCoursePreviewNotAllowedForQuiz`, `ErrCourseQuizSingleChoiceMultipleCorrect`, …).
 
@@ -819,14 +819,15 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 **Auth:** Bearer JWT + `course:create`
 
-**Request body:** `{ "title": string }` (required, 1–255 chars). Slug is server-computed; not in request.
+**Request body:** `title` (required, 1–255 chars, `nonwhitespace_min=5`) plus optional `slug` (string, `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, max 255). Omit/empty `slug` to auto-generate from `title`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 201 | 0 | `domain.CourseDetail` — `slug` is globally unique among active courses (`uix_courses_slug_active`; duplicate titles get `-2`, `-3`, … suffixes) |
-| 400 | 3001 | `null` — empty slug after slugify |
+| 201 | 0 | `domain.CourseDetail` — `slug` is globally unique among active courses (`uix_courses_slug_active`); collisions on an auto-generated or accepted-recommendation slug are resolved with a random suffix, not `-2`, `-3`, … |
+| 400 | 3001 | `null` — manually supplied `slug` fails format validation |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` — missing permission |
+| 409 | 3007 | `{ "recommended_slug": string }` — manually supplied `slug` already exists |
 | 500 | 9001 | `null` |
 
 ---

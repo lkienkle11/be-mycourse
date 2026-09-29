@@ -12,8 +12,15 @@ import (
 	"mycourse-io-be/internal/course/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	"mycourse-io-be/internal/shared/timex"
 )
+
+// courseSlugCreateRetry bounds the outer retry loop CreateCourse uses when a
+// concurrent writer wins the race on a candidate slug (raised from 3 to 5:
+// random-suffix collisions can need more attempts under contention than the
+// old deterministic numeric scheme did).
+const courseSlugCreateRetry = 5
 
 // ListEditableCourses reads the principal's own active course-scoped role bindings through
 // RoleBindingService.List (the one sanctioned read path for authorization_role_bindings — never
@@ -95,11 +102,11 @@ func (r *GormRepository) CreateCourse(ctx context.Context, in domain.CreateCours
 func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
 	var courseID string
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		slug, err := ensureUniqueCourseSlug(ctx, tx, in.Slug, nil)
+		finalSlug, err := resolveCreateSlug(ctx, tx, in)
 		if err != nil {
-			return err
+			return err // may be *domain.SlugConflictError — propagated as-is, not wrapped
 		}
-		course := &courseRow{OwnerUserID: in.ActorUserID, Slug: slug}
+		course := &courseRow{OwnerUserID: in.ActorUserID, Slug: finalSlug}
 		if err := touchCreateCourseEntity(ctx, tx, &course.CreatedAt, &course.UpdatedAt, course); err != nil {
 			return err
 		}
@@ -123,6 +130,74 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 		return nil, err
 	}
 	return r.loadCourseDetail(ctx, r.db, courseID, in.ActorUserID, true, true)
+}
+
+// resolveCreateSlug implements the create-time slug branch: a non-empty
+// in.Slug (manual, already format-validated by the service layer) is checked
+// for availability and used as-is, or the whole operation fails with
+// *domain.SlugConflictError (no silent auto-suffix on a caller's own
+// explicit choice — see specs/course/slug-management/spec.md). An empty
+// in.Slug (auto-generate) derives a base from the title via gosimple/slug and
+// resolves any collision with a random suffix via sharedslug.RetryWithSuffix.
+// Lives in repo_instructor.go (not slug.go) because it orchestrates courseRow
+// writes/reads directly; slug.go holds only the smaller, more reusable
+// primitives (generateAutoSlugBase, courseSlugAvailable). Every
+// RetryWithSuffix call builds its candidate via buildSuffixedCandidate
+// (slug.go), which truncates the base to leave room for the suffix within
+// domain.MaxSlugLen and errors out instead of producing an invalid
+// leading-hyphen candidate if no room remains at all.
+func resolveCreateSlug(ctx context.Context, tx *gorm.DB, in domain.CreateCourseInput) (string, error) {
+	if in.Slug != "" {
+		available, err := courseSlugAvailable(ctx, tx, in.Slug, nil)
+		if err != nil {
+			return "", err
+		}
+		if available {
+			return in.Slug, nil
+		}
+		// Treated exactly like any other manual-slug conflict, including on the
+		// round trip where the caller resubmits create with this exact
+		// recommended value: if a concurrent writer took it in the meantime
+		// (astronomically rare given the suffix's keyspace), the resubmission is
+		// itself just another manual slug and gets its own fresh
+		// SlugConflictError + a new recommendation — no special-cased "never
+		// conflict twice" bypass.
+		recommended, err := sharedslug.RetryWithSuffix(func(suffix string) (string, bool, error) {
+			candidate, err := buildSuffixedCandidate(in.Slug, suffix)
+			if err != nil {
+				return "", false, err
+			}
+			ok, err := courseSlugAvailable(ctx, tx, candidate, nil)
+			return candidate, ok, err
+		})
+		if err != nil {
+			return "", err
+		}
+		return "", &domain.SlugConflictError{RecommendedSlug: recommended}
+	}
+	base, mustSuffix := generateAutoSlugBase(in.Title) // already truncated to domain.MaxSlugLen internally
+	if !mustSuffix {
+		available, err := courseSlugAvailable(ctx, tx, base, nil)
+		if err != nil {
+			return "", err
+		}
+		if available {
+			return base, nil
+		}
+	}
+	// write-attempt-based collision resolution below relies on the OUTER
+	// CreateCourse retry loop + isCourseSlugDuplicateKey to catch a race this
+	// SELECT-based accept callback missed — this accept is only the
+	// UX-fast-path, not the safety net (see the "Slug uniqueness is enforced
+	// at the database" spec requirement).
+	return sharedslug.RetryWithSuffix(func(suffix string) (string, bool, error) {
+		candidate, err := buildSuffixedCandidate(base, suffix)
+		if err != nil {
+			return "", false, err
+		}
+		ok, err := courseSlugAvailable(ctx, tx, candidate, nil)
+		return candidate, ok, err
+	})
 }
 
 func (r *GormRepository) GetCourseDetail(ctx context.Context, courseID string, userID string, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
@@ -184,17 +259,7 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 		if err := r.replaceVersionRefs(ctx, tx, version.ID, in.TagIDs, in.SkillIDs, in.OutcomeIDs); err != nil {
 			return err
 		}
-		if in.Slug != nil {
-			slug, err := ensureUniqueCourseSlug(ctx, tx, *in.Slug, &access.ID)
-			if err != nil {
-				return err
-			}
-			if err := tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
-				Updates(map[string]any{"slug": slug, "updated_at": timex.NowUnix()}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return r.applyUpdateSlugWithRetry(ctx, tx, access, in.Slug)
 	})
 	if stderrors.Is(err, apperrors.ErrMediaOptimisticLock) {
 		return nil, domain.ErrCourseOptimisticLock
@@ -203,6 +268,63 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 		return nil, err
 	}
 	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
+}
+
+// applyUpdateSlugWithRetry closes a pre-existing race-safety gap:
+// UpdateBasicInfo previously resolved a new slug and wrote it exactly once
+// with no retry-on-duplicate-key, unlike CreateCourse. Scoped to only the
+// slug write sub-step (not the whole surrounding transaction) so a slug-only
+// collision retry does not re-validate/re-write the unrelated metadata fields
+// already committed earlier in the same transaction.
+func (r *GormRepository) applyUpdateSlugWithRetry(ctx context.Context, tx *gorm.DB, access *courseAccess, newSlugInput *string) error {
+	if newSlugInput == nil {
+		return nil // omitted — do not touch courses.slug at all
+	}
+	newSlug := *newSlugInput
+	if newSlug == access.Slug {
+		return nil // no-op: identical to current slug, never a self-conflict
+	}
+	const updateSlugRetry = 5 // mirrors courseSlugCreateRetry; same tuning rationale
+	var lastErr error
+	for range updateSlugRetry {
+		finalSlug, err := resolveUpdateSlug(ctx, tx, newSlug, access.ID)
+		if err != nil {
+			return err
+		}
+		writeErr := tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
+			Updates(map[string]any{"slug": finalSlug, "updated_at": timex.NowUnix()}).Error
+		if writeErr == nil {
+			return nil
+		}
+		if !isCourseSlugDuplicateKey(writeErr) {
+			return writeErr
+		}
+		lastErr = writeErr // a concurrent writer won the race on finalSlug — retry with a fresh suffix
+	}
+	return lastErr
+}
+
+// resolveUpdateSlug implements the update-time slug branch — no
+// *domain.SlugConflictError path exists here (update auto-resolves directly,
+// unlike create's manual-conflict-returns-a-recommendation behavior).
+// Builds via buildSuffixedCandidate for the same VARCHAR(255) overflow
+// guard as resolveCreateSlug.
+func resolveUpdateSlug(ctx context.Context, tx *gorm.DB, newSlug string, excludeCourseID string) (string, error) {
+	available, err := courseSlugAvailable(ctx, tx, newSlug, &excludeCourseID)
+	if err != nil {
+		return "", err
+	}
+	if available {
+		return newSlug, nil
+	}
+	return sharedslug.RetryWithSuffix(func(suffix string) (string, bool, error) {
+		candidate, err := buildSuffixedCandidate(newSlug, suffix)
+		if err != nil {
+			return "", false, err
+		}
+		ok, err := courseSlugAvailable(ctx, tx, candidate, &excludeCourseID)
+		return candidate, ok, err
+	})
 }
 
 // DeleteCourse revokes every role binding on the course (via RevokeResource, as part of the same

@@ -23,6 +23,14 @@ const (
 	ProgressStatusNotStarted = "NOT_STARTED"
 	ProgressStatusInProgress = "IN_PROGRESS"
 	ProgressStatusCompleted  = "COMPLETED"
+
+	// MaxSlugLen mirrors the courses.slug VARCHAR(255) column limit
+	// (migrations/000016_course_management.up.sql). Single source of truth
+	// shared by the create DTO's validate tag, the manual-slug format check
+	// (application + delivery layers), and the infra-layer suffix truncation
+	// — code-review found create and update enforcing this inconsistently
+	// (update had no length check at all) when it was duplicated ad hoc.
+	MaxSlugLen = 255
 )
 
 type Course struct {
@@ -324,7 +332,7 @@ type Repository interface {
 
 type CreateCourseInput struct {
 	ActorUserID string
-	Slug        string
+	Slug        string // "" means auto-generate from Title; a non-empty value is the caller's manual choice (already trimmed+format-validated by the application layer)
 	Title       string
 }
 
@@ -332,7 +340,7 @@ type UpdateBasicInfoInput struct {
 	ActorUserID        string
 	ExpectedRowVersion int64
 	Title              *string
-	Slug               *string // application layer only; derived from Title via SlugifyName
+	Slug               *string // nil means "do not change courses.slug"; non-nil is a new value already trimmed+format-validated by the delivery layer — no longer derived from Title
 	ShortDescription   *string
 	AboutCourse        *string
 	ThumbnailFileID    *string

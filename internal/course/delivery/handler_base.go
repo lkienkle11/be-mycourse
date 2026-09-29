@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -24,6 +25,17 @@ func NewHandler(svc *application.CourseService) *Handler { return &Handler{svc: 
 func mapCourseError(c *gin.Context, err error) bool {
 	if err == nil {
 		return false
+	}
+	// Typed-error check first — SlugConflictError carries a dynamic
+	// RecommendedSlug field that a sentinel-identity switch (below) cannot
+	// express. Mirrors the existing internal/shared/errors.RegistrationEmailRateLimitedError
+	// precedent (also a typed error checked with errors.As at its own call site).
+	var slugConflict *domain.SlugConflictError
+	if errors.As(err, &slugConflict) {
+		response.Fail(c, http.StatusConflict, apperrors.SlugConflict,
+			apperrors.DefaultMessage(apperrors.SlugConflict),
+			gin.H{"recommended_slug": slugConflict.RecommendedSlug})
+		return true
 	}
 	switch err {
 	case domain.ErrCourseNotFound, domain.ErrCourseVersionNotFound, domain.ErrCourseEnrollmentNotFound:

@@ -3,24 +3,27 @@ package delivery
 import (
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/utils"
+	"mycourse-io-be/internal/shared/validate"
 )
 
 type createCourseRequest struct {
 	Title string `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
+	Slug  string `json:"slug" validate:"omitempty,max=255"` // no format validator tag here — sharedslug.ValidateManualFormat is called directly in CourseService.CreateCourse; a whitespace-only value must reach that trim, not be rejected here by a tag that can't distinguish it from a real value
 }
 
 type updateBasicInfoRequest struct {
-	ExpectedRowVersion int64    `json:"expected_row_version" validate:"required,min=1"`
-	Title              string   `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
-	ShortDescription   string   `json:"short_description" validate:"required,nonwhitespace_min=20,max=500"`
-	AboutCourse        string   `json:"about_course" validate:"required,delta_nonwhitespace_min=30"`
-	ThumbnailFileID    string   `json:"thumbnail_file_id" validate:"required,uuid"`
-	PreviewVideoFileID *string  `json:"preview_video_file_id" validate:"omitempty,uuid"`
-	CourseLevelID      string   `json:"course_level_id" validate:"required,uuid"`
-	CourseTopicID      string   `json:"course_topic_id" validate:"required,uuid"`
-	TagIDs             []string `json:"tag_ids" validate:"required,min=1,dive,uuid"`
-	SkillIDs           []string `json:"skill_ids" validate:"required,min=1,dive,uuid"`
-	OutcomeIDs         []string `json:"outcome_ids" validate:"required,len=1,dive,uuid"`
+	ExpectedRowVersion int64                     `json:"expected_row_version" validate:"required,min=1"`
+	Title              string                    `json:"title" validate:"required,nonwhitespace_min=5,max=255"`
+	Slug               validate.Optional[string] `json:"slug"` // NOT *string: encoding/json sets a *string field to nil for BOTH an omitted key and an explicit JSON null (verified empirically) — validate.Optional distinguishes them via UnmarshalJSON, which only runs when the key is present at all. No validate tag: the explicit nil/empty/format check happens in Go in updateBasicInfo (handler_instructor.go).
+	ShortDescription   string                    `json:"short_description" validate:"required,nonwhitespace_min=20,max=500"`
+	AboutCourse        string                    `json:"about_course" validate:"required,delta_nonwhitespace_min=30"`
+	ThumbnailFileID    string                    `json:"thumbnail_file_id" validate:"required,uuid"`
+	PreviewVideoFileID *string                   `json:"preview_video_file_id" validate:"omitempty,uuid"`
+	CourseLevelID      string                    `json:"course_level_id" validate:"required,uuid"`
+	CourseTopicID      string                    `json:"course_topic_id" validate:"required,uuid"`
+	TagIDs             []string                  `json:"tag_ids" validate:"required,min=1,dive,uuid"`
+	SkillIDs           []string                  `json:"skill_ids" validate:"required,min=1,dive,uuid"`
+	OutcomeIDs         []string                  `json:"outcome_ids" validate:"required,len=1,dive,uuid"`
 }
 
 // Role only ever accepts EDITOR: the canonical owner's access is synthesized from

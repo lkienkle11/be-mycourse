@@ -75,6 +75,8 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req / 1 min)
 | POST | `/api/v1/auth/google/mobile` | Google native mobile sign-in (ID token) — registered only when `OAuthGoogleConfigured()` |
 | POST | `/api/v1/auth/x` | X OAuth2 PKCE sign-in (code + code_verifier); registered only when `OAuthXConfigured()` |
 | POST | `/api/v1/auth/discord` | Discord OAuth2 sign-in (authorization code); registered only when `OAuthDiscordConfigured()` |
+| GET | `/api/v1/catalog/courses/trending` | Public trending courses list (query `limit`, default 8, max 24) |
+| GET | `/api/v1/catalog/instructors/popular` | Public popular instructors list (query `limit`, default 4, max 12) |
 
 ---
 
@@ -168,7 +170,7 @@ Instructor expertise/application/profile chip endpoints accept optional `locale`
 | POST | `/api/v1/courses` | `course:create` | Create course root |
 | GET | `/api/v1/courses/:courseId` | `course_instructor:read` | Get course detail; query `include_outline` (default `true`, `false` skips outline) |
 | POST | `/api/v1/courses/:courseId/draft/prepare` | `course:update` | Ensure one active draft (**owner-only** in repo) |
-| PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info (`title` → server slugify updates `courses.slug`) |
+| PATCH | `/api/v1/courses/:courseId/basic-info` | `course:update` | Update draft basic info (optional independent `slug` field, PATCH-omit semantics — `title` no longer affects `slug`) |
 | DELETE | `/api/v1/courses/:courseId` | `course:delete` | Delete course (owner-only in service) |
 | GET | `/api/v1/courses/:courseId/collaborators` | `course_instructor:read` | List collaborators (paginated; query `page`, `per_page`, optional `search` on display_name/email) |
 | GET | `/api/v1/courses/:courseId/instructor-candidates` | `course_collaborator_candidate:read` (P67) | List instructor candidates for picker (paginated; **owner-only** in repo; excludes existing collaborators) |
@@ -201,6 +203,7 @@ Instructor expertise/application/profile chip endpoints accept optional `locale`
 | POST | `/api/v1/course-admin/courses/:courseId/restore` | `course_trash:restore` (P65) | Restore course from trash |
 | DELETE | `/api/v1/course-admin/courses/:courseId/permanent` | `course_trash:delete` (P66) | Permanently delete trashed course |
 | GET | `/api/v1/learner-courses` | `course:read` | List published learner catalog |
+| GET | `/api/v1/learner-courses/continue` | `course:read` | List caller's enrolled courses ordered by most-recent learning activity (query `limit`, default 4, max 10) |
 | GET | `/api/v1/learner-courses/:courseId` | `course:read` | Get learning course detail |
 | POST | `/api/v1/learner-courses/:courseId/enroll` | `course:read` | Enroll learner |
 | GET | `/api/v1/learner-courses/:courseId/progress` | `course:read` | Get learner progress |

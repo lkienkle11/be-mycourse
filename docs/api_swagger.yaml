@@ -178,6 +178,15 @@ components:
         code: { type: integer, example: 0 }
         message: { type: string }
         data: {}
+    SlugConflictResponse:
+      type: object
+      properties:
+        code: { type: integer, example: 3007 }
+        message: { type: string, example: Slug already exists }
+        data:
+          type: object
+          properties:
+            recommended_slug: { type: string, example: golang-course-x7k92ab }
     EnvelopeHealth:
       type: object
       properties:
@@ -2196,10 +2205,21 @@ paths:
               required: [title]
               properties:
                 title: { type: string, minLength: 1, maxLength: 255 }
-              description: Course slug is computed server-side from title (utils.SlugifyName). Request fails only when slugify yields an empty string.
+                slug:
+                  type: string
+                  pattern: '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'
+                  maxLength: 255
+                  description: Optional. Omit or send empty to auto-generate from title. A value that collides with another active course's slug is rejected (see 409) instead of being created.
+              description: slug is optional — when omitted or empty, one is auto-generated from title (transliterated to ASCII, falling back to a random suffix if the title has no transliterable characters). A manually supplied slug must match the pattern and must not already be taken by another active course.
       responses:
         "201":
           description: Created
+        "409":
+          description: Manually supplied slug already exists (app code 3007)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlugConflictResponse"
 
   /api/v1/courses/{courseId}:
     parameters:
@@ -2256,10 +2276,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [expected_row_version]
+              required: [expected_row_version, title]
               properties:
                 expected_row_version:
                   { type: integer, format: int64, minimum: 1 }
+                title: { type: string, minLength: 1, maxLength: 255 }
+                slug:
+                  type: string
+                  pattern: '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'
+                  maxLength: 255
+                  description: Optional, PATCH-omit semantics — deliberately NOT `nullable` (this field must never accept a JSON null as a valid value, unlike a true optional/nullable field). Omit this property entirely from the request body to leave the current slug unchanged (title no longer affects slug). Sending it as null, empty, or whitespace-only is a 400 validation error, not an accepted value. A value equal to the current slug is a no-op. A value colliding with another active course's slug is auto-resolved with a random suffix (no confirmation step) — the response always reflects the actual final slug.
                 short_description: { type: string }
                 about_course: { type: string }
                 thumbnail_file_id: { type: string, format: uuid }
@@ -2971,12 +2997,42 @@ paths:
         "200":
           description: Deleted
 
+  /api/v1/catalog/courses/trending:
+    get:
+      tags: [Course]
+      summary: Public trending courses list (no auth)
+      description: Published, non-trashed courses ordered by created_at desc. Published-only projection — no draft, collaborator, or review-workflow fields.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 8, maximum: 24 }
+      responses:
+        "200":
+          description: OK
+
   /api/v1/learner-courses:
     get:
       tags: [Course]
       summary: List published courses for learners
       security:
         - bearerJwt: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/learner-courses/continue:
+    get:
+      tags: [Course]
+      summary: List caller's own enrolled courses ordered by most-recent learning activity
+      description: Falls back to enrollment time when the learner has not started any lesson yet. Each item includes a completed/total sub-lesson count (every kind — VIDEO/QUIZ/TEXT — not video-only).
+      security:
+        - bearerJwt: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 4, maximum: 10 }
       responses:
         "200":
           description: OK
@@ -3047,6 +3103,20 @@ paths:
       responses:
         "200":
           description: Updated
+
+  /api/v1/catalog/instructors/popular:
+    get:
+      tags: [Instructor]
+      summary: Public popular instructors list (no auth)
+      description: Instructors ranked by published-course count desc, tie-broken by recency. Excludes non-instructors and disabled/soft-deleted/banned accounts.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 4, maximum: 12 }
+      responses:
+        "200":
+          description: OK
 
   /api/v1/instructors:
     get:

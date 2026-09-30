@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/course/domain"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	"mycourse-io-be/internal/shared/utils"
 )
 
@@ -16,31 +17,41 @@ func NewCourseService(repo domain.Repository) *CourseService {
 	return &CourseService{repo: repo}
 }
 
-func courseTitleAndSlug(title string) (string, string, error) {
+// validateCourseTitle replaces courseTitleAndSlug: title validation only now
+// — slug is no longer derived from title at all (manual-or-empty, handled
+// separately in CreateCourse/UpdateBasicInfo below).
+func validateCourseTitle(title string) (string, error) {
 	title = strings.TrimSpace(title)
 	if utils.CountNonWhitespace(title) < 5 {
-		return "", "", domain.ErrCourseTitleTooShort
+		return "", domain.ErrCourseTitleTooShort
 	}
-	slug := utils.SlugifyName(title)
-	if len(slug) < 1 {
-		return "", "", domain.ErrCourseInvalidSlug
-	}
-	return title, slug, nil
+	return title, nil
 }
 
 func (s *CourseService) ListEditableCourses(ctx context.Context, userID string) ([]domain.CourseListItem, error) {
 	return s.repo.ListEditableCourses(ctx, userID)
 }
 
+// CreateCourse no longer derives Slug from Title. An optional manual Slug is
+// format-validated here (fast fail, no DB call); "" is passed through
+// unchanged to the repo, which treats it as "auto-generate."
 func (s *CourseService) CreateCourse(ctx context.Context, in domain.CreateCourseInput) (*domain.CourseDetail, error) {
-	title, slug, err := courseTitleAndSlug(in.Title)
+	title, err := validateCourseTitle(in.Title)
 	if err != nil {
 		return nil, err
+	}
+	manualSlug := ""
+	if trimmed := strings.TrimSpace(in.Slug); trimmed != "" {
+		validated, ok := sharedslug.ValidateManualFormat(trimmed, domain.MaxSlugLen)
+		if !ok {
+			return nil, domain.ErrCourseInvalidSlug
+		}
+		manualSlug = validated
 	}
 	return s.repo.CreateCourse(ctx, domain.CreateCourseInput{
 		ActorUserID: in.ActorUserID,
 		Title:       title,
-		Slug:        slug,
+		Slug:        manualSlug,
 	})
 }
 
@@ -52,14 +63,16 @@ func (s *CourseService) PrepareDraft(ctx context.Context, courseID string, actor
 	return s.repo.PrepareDraft(ctx, courseID, actorUserID)
 }
 
+// UpdateBasicInfo validates Title only when present; Slug is passed through
+// untouched (already trimmed+format-validated by the delivery layer) — the
+// old "recompute slug whenever title is set" behavior is removed entirely.
 func (s *CourseService) UpdateBasicInfo(ctx context.Context, courseID string, actorUserID string, in domain.UpdateBasicInfoInput) (*domain.CourseDetail, error) {
 	if in.Title != nil {
-		title, slug, err := courseTitleAndSlug(*in.Title)
+		title, err := validateCourseTitle(*in.Title)
 		if err != nil {
 			return nil, err
 		}
 		in.Title = &title
-		in.Slug = &slug
 	}
 	return s.repo.UpdateBasicInfo(ctx, courseID, actorUserID, in)
 }

@@ -10,6 +10,7 @@ type Repository interface {
 	ExpertiseRepository
 	TicketRepository
 	InstructorDataRepository
+	CatalogRepository
 }
 
 type ApplicationRepository interface {
@@ -66,4 +67,8 @@ type TicketRepository interface {
 
 type InstructorDataRepository interface {
 	WipeInstructorScopedData(ctx context.Context, userID string) error
+}
+
+type CatalogRepository interface {
+	ListPopularInstructors(ctx context.Context, limit int) ([]PopularInstructor, error)
 }

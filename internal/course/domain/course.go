@@ -23,6 +23,14 @@ const (
 	ProgressStatusNotStarted = "NOT_STARTED"
 	ProgressStatusInProgress = "IN_PROGRESS"
 	ProgressStatusCompleted  = "COMPLETED"
+
+	// MaxSlugLen mirrors the courses.slug VARCHAR(255) column limit
+	// (migrations/000016_course_management.up.sql). Single source of truth
+	// shared by the create DTO's validate tag, the manual-slug format check
+	// (application + delivery layers), and the infra-layer suffix truncation
+	// — code-review found create and update enforcing this inconsistently
+	// (update had no length check at all) when it was duplicated ad hoc.
+	MaxSlugLen = 255
 )
 
 type Course struct {
@@ -243,6 +251,39 @@ type CourseProgress struct {
 	Items      []ProgressItem `json:"items"`
 }
 
+// TrendingCourseItem is the published-only projection served by the public
+// trending-courses catalog endpoint. It intentionally does not embed Course
+// or CourseListItem — see openspec/changes/add-home-catalog-apis/design.md
+// Decision #4 (avoids leaking draft/collaborator/review fields into a public
+// response, and avoids widening the blast radius of CourseListItem, which is
+// shared by several unrelated authenticated endpoints).
+type TrendingCourseItem struct {
+	ID               string `json:"id"`
+	Slug             string `json:"slug"`
+	Title            string `json:"title"`
+	ShortDescription string `json:"short_description"`
+	ThumbnailURL     string `json:"thumbnail_url,omitempty"`
+	OwnerDisplayName string `json:"owner_display_name,omitempty"`
+	CreatedAt        int64  `json:"created_at"`
+}
+
+// ContinueLearningItem is the authenticated learner's own in-progress course
+// projection served by the continue-learning endpoint. Progress counts every
+// sub-lesson in the outline (Section -> Lesson -> Sub-lesson: VIDEO/QUIZ/TEXT
+// alike) — not just VIDEO kind — since a course's outline legitimately mixes
+// content kinds under one course (product decision, openspec/changes/add-home-catalog-apis).
+type ContinueLearningItem struct {
+	CourseID            string  `json:"course_id"`
+	Slug                string  `json:"slug"`
+	Title               string  `json:"title"`
+	ThumbnailURL        string  `json:"thumbnail_url,omitempty"`
+	OwnerDisplayName    string  `json:"owner_display_name,omitempty"`
+	CompletedSubLessons int     `json:"completed_sub_lessons"`
+	TotalSubLessons     int     `json:"total_sub_lessons"`
+	ProgressPercent     float64 `json:"progress_percent"`
+	LastActivityAt      int64   `json:"last_activity_at"`
+}
+
 type Repository interface {
 	ListEditableCourses(ctx context.Context, userID string) ([]CourseListItem, error)
 	CreateCourse(ctx context.Context, in CreateCourseInput) (*CourseDetail, error)
@@ -285,11 +326,13 @@ type Repository interface {
 	Enroll(ctx context.Context, courseID string, userID string) (*Enrollment, error)
 	GetProgress(ctx context.Context, courseID string, userID string) (*CourseProgress, error)
 	SaveProgress(ctx context.Context, courseID string, userID string, in SaveProgressInput) (*CourseProgress, error)
+	ListTrendingCourses(ctx context.Context, limit int) ([]TrendingCourseItem, error)
+	ListContinueLearning(ctx context.Context, userID string, limit int) ([]ContinueLearningItem, error)
 }
 
 type CreateCourseInput struct {
 	ActorUserID string
-	Slug        string
+	Slug        string // "" means auto-generate from Title; a non-empty value is the caller's manual choice (already trimmed+format-validated by the application layer)
 	Title       string
 }
 
@@ -297,7 +340,7 @@ type UpdateBasicInfoInput struct {
 	ActorUserID        string
 	ExpectedRowVersion int64
 	Title              *string
-	Slug               *string // application layer only; derived from Title via SlugifyName
+	Slug               *string // nil means "do not change courses.slug"; non-nil is a new value already trimmed+format-validated by the delivery layer — no longer derived from Title
 	ShortDescription   *string
 	AboutCourse        *string
 	ThumbnailFileID    *string

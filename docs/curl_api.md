@@ -1733,7 +1733,7 @@ Requires migration **`000016_course_management`** (or `MIGRATE=1`) and permissio
 
 **`POST /api/v1/courses`** — permission `course:create`
 
-Request body: `{ "title": string }` only. Slug is computed server-side from `title` via `utils.SlugifyName` (not accepted from clients).
+Request body: `title` (required, `nonwhitespace_min=5`, max 255) plus an optional `slug` (string, `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, max 255). Omit `slug` (or send `""`/whitespace) to auto-generate one from `title` via `github.com/gosimple/slug` (falls back to `course-{randomSuffix}` if the title has no transliterable characters, e.g. emoji-only). A manually supplied `slug` that is already taken by another active course is rejected with `409`/`3007` and a `data.recommended_slug` suggestion instead of being created — see the response table below.
 
 ```bash
 curl -sS -X POST "{{BASE_URL}}/api/v1/courses" \
@@ -1742,13 +1742,34 @@ curl -sS -X POST "{{BASE_URL}}/api/v1/courses" \
   -d '{"title":"Introduction to Go"}'
 ```
 
+With a manual slug:
+
+```bash
+curl -sS -X POST "{{BASE_URL}}/api/v1/courses" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Introduction to Go","slug":"golang-course"}'
+```
+
+On conflict (`golang-course` already taken):
+
+```json
+{
+  "code": 3007,
+  "message": "Slug already exists",
+  "data": {
+    "recommended_slug": "golang-course-x7k92ab"
+  }
+}
+```
+
 | HTTP | `code` | Notes |
 |------|--------|-------|
-| 201 | 0 | `data` = `CourseDetail` (draft v1, owner collaborator, empty outline) |
-| 400 | 3001 | Empty slug after slugify (`invalid slug`) |
+| 201 | 0 | `data` = `CourseDetail` (draft v1, owner collaborator, empty outline); `data.course.slug` is the actual final slug stored — always trust the response, not the request |
+| 400 | 3001 | Manually supplied `slug` fails format validation (not `a-z0-9-`, or starts/ends with `-`) |
 | 401 | 3002 | Missing/invalid JWT |
 | 403 | 3003 | Missing `course:create` |
-| 409 | 3005 | Duplicate slug (unique constraint) |
+| 409 | 3007 | Manually supplied `slug` already exists — `data.recommended_slug` suggests an available alternative (requested slug + random suffix); resubmit create with the accepted or a different slug |
 | 500 | 9001 | Internal error |
 
 Example success (truncated):
@@ -1820,13 +1841,22 @@ Success `data`: `CourseDetail` with `live_version`, `draft_version`, optional `l
 
 **`PATCH /api/v1/courses/:courseId/basic-info`** — permission `course:update`
 
-Request body: `expected_row_version` (required, `>= 1`) plus required metadata fields (`title` ≥5 non-whitespace, server slugify; `short_description`, `about_course`, `thumbnail_file_id`, `course_level_id`, `course_topic_id`, `tag_ids`, `skill_ids`, `outcome_ids`). `preview_video_file_id` is optional.
+Request body: `expected_row_version` (required, `>= 1`) plus required metadata fields (`title` ≥5 non-whitespace; `short_description`, `about_course`, `thumbnail_file_id`, `course_level_id`, `course_topic_id`, `tag_ids`, `skill_ids`, `outcome_ids`). `preview_video_file_id` and `slug` are optional: `slug` uses PATCH-omit semantics — omit the field entirely to leave the course's slug unchanged (even when `title` changes; `title` no longer affects `slug` at all), send a new valid value to change it, or send `null`/`""`/whitespace to get a `400` validation error (explicit empty is invalid on update, unlike on create). A new slug identical to the current one is a no-op, not a conflict. A new slug that collides with another active course is auto-resolved server-side with a random suffix (no confirmation step, unlike create) — the response's `slug` field always reflects the actual final value.
 
 ```bash
 curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"expected_row_version":1,"title":"Introduction to Go","short_description":"Short blurb"}'
+```
+
+Changing the slug in the same call:
+
+```bash
+curl -sS -X PATCH "{{BASE_URL}}/api/v1/courses/{{courseId}}/basic-info" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"expected_row_version":1,"title":"Introduction to Go","short_description":"Short blurb","slug":"advanced-golang"}'
 ```
 
 Other instructor routes (outline CRUD/reorder, leases, review submit/reopen/prepare) follow the same Bearer + permission pattern — see **`docs/router.md`**. **Owner-only** in repo (not route permission): `POST …/draft/prepare`, `POST …/submit-review`, `POST …/reopen-draft` (`EDITOR` → HTTP 403 / code `3003`).
@@ -2008,6 +2038,22 @@ curl -sS '{{BASE_URL}}/api/v1/course-reviews/pending' \
 Approve/reject routes: see **`docs/router.md`** and **`docs/modules/course.md`**.
 
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
+
+### 14.8 Home page catalog APIs (`openspec/changes/add-home-catalog-apis`)
+
+Two public (no-auth) catalog endpoints plus one authenticated continue-learning endpoint. No DB migration beyond 3 new indexes (`migrations/000038_home_catalog_indexes`). Full contract: **`docs/modules/course.md`**, **`docs/modules/instructor.md`**.
+
+```bash
+# Public — trending courses (no Authorization header)
+curl -sS "{{BASE_URL}}/api/v1/catalog/courses/trending?limit=8"
+
+# Public — popular instructors (no Authorization header)
+curl -sS "{{BASE_URL}}/api/v1/catalog/instructors/popular?limit=4"
+
+# Authenticated — caller's own in-progress courses (course:read)
+curl -sS "{{BASE_URL}}/api/v1/learner-courses/continue?limit=4" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # Security / public SEO notes (BE take-note)
 
-_Last audited: 2026-07-25. **No BE code** in this phase — documentation intent only._
+_Last audited: 2026-09-27 — `openspec/changes/add-home-catalog-apis` implemented the course + instructor public catalog (B1, B2, B10 below); see that update per-row. Prior: 2026-07-25 (documentation intent only, no BE code at that time)._
 
 Companion to FE foundation docs:
 
@@ -9,7 +9,7 @@ Companion to FE foundation docs:
 
 ## Intent
 
-Future public SEO / storefront read APIs (if product approves them) must expose **published-only** data suitable for crawlers and OG/JSON-LD. Today there is **no** anonymous public course catalogue. Learner catalogue endpoints require authentication.
+Public SEO / storefront read APIs must expose **published-only** data suitable for crawlers and OG/JSON-LD. As of 2026-09-27, `GET /catalog/courses/trending` and `GET /catalog/instructors/popular` implement this for course and instructor listings (no auth). Learner catalogue endpoints (`learner-courses*`) still require authentication by design — only the 2 catalog routes above are public.
 
 Do **not** invent new permissions, rate-limit quotas, or DTO fields in this note. Extend existing assets when implementation is approved.
 
@@ -17,16 +17,16 @@ Do **not** invent new permissions, rate-limit quotas, or DTO fields in this note
 
 | # | Asset | Where | Notes for future public SEO |
 | --- | --- | --- | --- |
-| B1 | Gap: public storefront | [`modules.md`](./modules.md) Planned | No anonymous storefront routes yet. |
-| B2 | Published list filter | `ListPublishedCourses` in learner course repo | Future public list DTO should reuse published semantics, not draft/admin shapes. |
+| B1 | Gap: public storefront | [`modules.md`](./modules.md) | **Implemented** — `GET /catalog/courses/trending`, `GET /catalog/instructors/popular` (no auth). Payment/checkout, and price/rating fields, remain planned. |
+| B2 | Published list filter | `internal/course/infra/repo_catalog.go`'s `ListTrendingCourses` | **Implemented** — reuses `ListPublishedCourses`'s published/non-trashed filter shape, adds its own `TrendingCourseItem` published-only projection (not `CourseDetail`/`CourseListItem`). |
 | B3 | Preview filter | `filterPreviewOutline` | Teaser SEO outline vs full authenticated outline. |
-| B4 | Publish path | `ApproveDraft`; `TopicCoursePublished` (not emitted yet) | Future cache invalidation hook when FE registers public cache profiles. |
+| B4 | Publish path | `ApproveDraft`; `TopicCoursePublished` (not emitted yet) | Still **not implemented** — the new trending-courses/popular-instructors caches (B10) rely on their 5 min TTL only, not a publish-triggered invalidation hook. Future cache invalidation hook when FE registers public cache profiles. |
 | B5 | Rate limit | `internal/shared/ratelimit/` + NFR-1.1 | Extend existing tiers for crawler traffic — do not invent a parallel quota system. |
 | B6 | Auth / CORS / cookie | `router.go`, `auth_jwt.go`, `csrf.go` | Public GET must stay cookie/Bearer-free for CDN cache; CORS must match FE origin. |
 | B7 | Field matrix | [`return_types.md`](./return_types.md) | Future public DTO ≠ full `CourseDetail`; cite learner vs admin field differences. |
-| B8 | Slug uniqueness | `ensureUniqueCourseSlug` | Canonical slug future; no public resolve-by-slug yet. |
+| B8 | Slug uniqueness | `internal/shared/slug` (`RetryWithSuffix`) + `internal/course/infra/slug.go` (`courseSlugAvailable`) | Canonical slug future; no public resolve-by-slug yet. `ensureUniqueCourseSlug` (numeric-suffix algorithm) was removed and replaced by a random-suffix algorithm in `openspec/changes/rework-course-slug-management`. |
 | B9 | Media visibility | `canViewMediaFile` + `thumbnail_url` | OG images only from published public media. |
-| B10 | `/me` cache-aside | auth `service_cache.go` | Pattern reference for a future catalogue cache — not implemented for courses. |
+| B10 | `/me` cache-aside | auth `service_cache.go` | **Extended** — new generic `internal/shared/cache/json_cache.go` (`GetJSON`/`SetJSON`) follows the same fail-open, TTL-based pattern, used by the trending-courses and popular-instructors catalog services (5 min TTL each). |
 
 ## Security expectations for a future public surface
 

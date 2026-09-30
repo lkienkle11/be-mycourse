@@ -33,6 +33,7 @@
    - [FR-9 Lesson Management](#fr-9-lesson-management)
    - [FR-10 Enrollment](#fr-10-enrollment)
    - [FR-11 Media Upload Gateway](#fr-11-media-upload-gateway)
+   - [FR-12 Home Page Catalog APIs](#fr-12-home-page-catalog-apis)
 2. [Non-Functional Requirements](#non-functional-requirements)
    - [NFR-1 Performance & Availability](#nfr-1-performance--availability)
    - [NFR-2 Security](#nfr-2-security)
@@ -459,6 +460,17 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 
 ---
 
+### FR-12 Home Page Catalog APIs
+
+> **Status: Implemented.** See `docs/modules/course.md`, `docs/modules/instructor.md`, `openspec/changes/add-home-catalog-apis`.
+
+- The system **MUST** expose `GET /api/v1/catalog/courses/trending` (no auth) returning published, non-trashed courses ordered by `created_at DESC`, as a published-only projection (no draft/collaborator/review/pricing/rating fields).
+- The system **MUST** expose `GET /api/v1/catalog/instructors/popular` (no auth) returning currently-active instructors ranked by published-course count desc, tie-broken by recency, excluding non-instructors and disabled/soft-deleted/banned accounts.
+- The system **MUST** expose `GET /api/v1/learner-courses/continue` (authenticated, `course:read`) returning the caller's enrolled courses ordered by most-recent learning activity, falling back to enrollment time when the learner has not started any lesson yet.
+- All 3 endpoints **MUST** accept an optional `limit` query parameter with a documented default and maximum (8/24 trending, 4/12 popular, 4/10 continue-learning).
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1 Performance & Availability
@@ -477,6 +489,8 @@ The system **MUST** enforce per-IP rate limits at the middleware layer:
 
 Rate-limit overrides can be set per IP via `middleware.SetSystemRateLimitOverride`.  
 Exceeded HTTP limits return `HTTP 429` with app code `3006 TooManyRequests`.
+
+The public `/api/v1/catalog/*` routes (`GET /catalog/courses/trending`, `GET /catalog/instructors/popular`) share the `/api/v1` unauthenticated row above — no separate rate-limit tier was added for them (`openspec/changes/add-home-catalog-apis`).
 
 #### NFR-1.1b Circuit Breaker
 
@@ -498,6 +512,8 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
   - `mycourse:user:me:{user_id}` — 1 minute (profile + permissions)
   - `mycourse:auth:login:invalid:{normalized_email}` — 1 minute (negative cache when active-user lookup not found)
   - `mycourse:auth:login:user_by_email:{normalized_email}` — 30 seconds (plain user ID string)
+  - `mycourse:catalog:trending_courses:limit:{n}` — 5 minutes (public trending courses list)
+  - `mycourse:catalog:popular_instructors:limit:{n}` — 5 minutes (public popular instructors list)
 - If Redis is unavailable, all cache helpers degrade gracefully to no-ops.
 
 #### NFR-1.4 Session Limits
@@ -623,6 +639,6 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
   - `ecosystem.config.cjs` **MUST** cap crash loops with `min_uptime` and `max_restarts: 3` for every PM2 app entry (dev, staging, prod).
 
 
-## Future NFR — public SEO payloads (take-note, 2026-07-25)
+## Public SEO payloads (2026-09-27)
 
-When a public storefront exists: responses MUST be published-only and MUST NOT include PII, enrollment, progress, or draft/review fields. This note does not change existing MUST requirements. Details: [`security-public-seo-notes.md`](./security-public-seo-notes.md).
+The public storefront now exists (FR-12): `GET /catalog/courses/trending` and `GET /catalog/instructors/popular` responses are published-only and do not include PII, enrollment, progress, or draft/review fields (`domain.TrendingCourseItem`/`domain.PopularInstructor`). Details: [`security-public-seo-notes.md`](./security-public-seo-notes.md).

@@ -21,7 +21,7 @@ var (
 	ErrCourseOwnerCannotBeRemoved            = errors.New("course owner cannot be removed from collaborators")
 	ErrCourseEnrollmentNotFound              = errors.New("course enrollment not found")
 	ErrCourseProgressVersionAbsent           = errors.New("course version for learner progress is not available")
-	ErrCourseInvalidSlug                     = errors.New("course title must produce a non-empty slug")
+	ErrCourseInvalidSlug                     = errors.New("course slug is invalid")
 	ErrCourseTitleTooShort                   = errors.New("course title must contain at least 5 non-whitespace characters")
 	ErrCoursePreviewNotAllowedForQuiz        = errors.New("quiz lesson items cannot be marked as preview")
 	ErrCourseQuizSingleChoiceMultipleCorrect = errors.New("single-choice quiz must have exactly one correct answer")
@@ -34,3 +34,16 @@ var (
 	ErrCourseNotTrashed                      = errors.New("course is not in trash")
 	ErrCourseTrashNotEligible                = errors.New("only approved courses that are not rejected in the current version can be moved to trash")
 )
+
+// SlugConflictError is returned when a manually supplied slug on create
+// already belongs to another active course. RecommendedSlug is confirmed
+// available at the time this error is constructed — but the update flow
+// (which never returns this error type at all, see
+// specs/course/slug-management/spec.md) and the create-confirm resubmission
+// both re-check availability at write time, never trusting a SELECT result
+// as still valid forever.
+type SlugConflictError struct {
+	RecommendedSlug string
+}
+
+func (e *SlugConflictError) Error() string { return "course slug already exists" }

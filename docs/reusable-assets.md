@@ -557,10 +557,10 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Type: Function (util)
 - Path: `internal/shared/utils/slug.go`
 - Purpose: Build URL slug from display name — mirrors FE `slugifyName` / `generateSlug` (trim, lowercase, strip accents, `đ/Đ -> d`, spaces/underscores → `-`, Unicode letters/numbers only, collapse dashes).
-- Scope: Taxonomy create/update (root slug + tree nodes via `NormalizeTreeSlugs`), course create/update (`title` → `courses.slug`).
+- Scope: Taxonomy create/update only (root slug + tree nodes via `NormalizeTreeSlugs`). **No longer used by course** (see `openspec/changes/rework-course-slug-management`) — course now uses `github.com/gosimple/slug` for auto-generation from title, because `SlugifyName` keeps any surviving Unicode letter after diacritic-stripping (ASCII-safe for Vietnamese, not for Chinese/Japanese/Thai/Korean/Russian), while `gosimple/slug` has real transliteration tables for those scripts. Taxonomy is unaffected and intentionally still never accepts a client-supplied slug — this divergence is scoped to course only, not a repo-wide policy change.
 - Dependencies: `golang.org/x/text/unicode/norm`, Go `unicode`.
-- Current Usage: `internal/taxonomy/application/service.go`, `internal/shared/taxonomy/tree_slug.go`, `internal/course/application/service.go`.
-- Reuse: Never accept client-provided slug on write — always derive with `SlugifyName`.
+- Current Usage: `internal/taxonomy/application/service.go`, `internal/shared/taxonomy/tree_slug.go`.
+- Reuse: Taxonomy — never accept client-provided slug on write, always derive with `SlugifyName`. Course — see the new `internal/shared/slug` + `github.com/gosimple/slug` asset entries below instead; do not call `SlugifyName` from course code.
 
 ### Asset: Text rules validators (utils + validate)
 - Name: `CountNonWhitespace`, `CountDeltaNonWhitespace`, `nonwhitespace_min`, `delta_nonwhitespace_min`
@@ -568,7 +568,7 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Path: `internal/shared/utils/text_rules.go`, `internal/shared/validate/text_rules.go`
 - Purpose: Count visible characters (Unicode whitespace excluded) for plain strings and Quill Delta JSON; register custom `go-playground/validator` tags used by course delivery DTOs.
 - Scope: Course field validation (title, descriptions, about-course Delta); reuse for any future rich-text or min-length rules.
-- Current Usage: `internal/course/delivery/dto.go`, `courseTitleAndSlug` in `internal/course/application/service.go`.
+- Current Usage: `internal/course/delivery/dto.go`, `validateCourseTitle` in `internal/course/application/service.go` (renamed from `courseTitleAndSlug` — slug derivation moved out of this function, see `openspec/changes/rework-course-slug-management`).
 
 ### Asset: CountDeltaRunes (utils)
 - Name: `CountDeltaRunes`
@@ -585,14 +585,24 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Purpose: Count Unicode code points via `utf8.RuneCountInString`. Use for instructor application profile plain-text length contracts shared with FE (`unicodeCodePointLength`). Prefer over `len(string)` (UTF-8 bytes). Also the building block inside `CountDeltaRunes` for Delta string inserts.
 - Scope: Instructor application `teaching_content_ideas` in `validateSubmitProfileFields` (plain string). Do **not** replace `CountNonWhitespace` (course visible-char rules). Do **not** use for `bio` length (use `CountDeltaRunes`).
 
-### Asset: ensureUniqueCourseSlug (course infra)
-- Name: `ensureUniqueCourseSlug`
+### Asset: slug (shared)
+- Name: `ValidateManualFormat`, `GenerateRandomSuffix`, `RetryWithSuffix`
+- Type: Package (`internal/shared/slug`)
+- Path: `internal/shared/slug/format.go`, `internal/shared/slug/suffix.go`
+- Purpose: Domain-agnostic slug primitives — format validation (`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, no leading/trailing hyphen), `crypto/rand`-based random alphanumeric suffix generation, and an escalating-retry helper (`RetryWithSuffix`) that tries a 7-char suffix ×7 attempts, then 8×7, 9×7, … until a caller-supplied `accept` callback reports success. No GORM/HTTP/course imports — `accept` is the caller's own source of truth (a SELECT-based pre-check or the actual write attempt), so this package has no opinion on how uniqueness is actually enforced.
+- Scope: Any domain needing a validated, collision-safe slug. Introduced by, and currently used only by, course (`openspec/changes/rework-course-slug-management`) — written generically so a future taxonomy/media/instructor slug feature can reuse it without modification.
+- Dependencies: Go stdlib only (`regexp`, `strings`, `crypto/rand`, `io`).
+- Current Usage: `internal/course/infra/slug.go`, `internal/course/application/service.go`, `internal/course/delivery/handler_instructor.go`.
+- Reuse: Prefer this over writing a new domain-specific slug-collision algorithm; this is the shared primitive layer taxonomy/media/instructor should build on when they add their own slug features.
+
+### Asset: Course slug orchestration (course infra)
+- Name: `generateAutoSlugBase`, `courseSlugAvailable`
 - Type: Function (repo helper)
-- Path: `internal/course/infra/repo_helpers.go`
-- Purpose: After `SlugifyName`, allocate the first free slug among `base`, `base-2`, `base-3`, … for active `courses` rows (`uix_courses_slug_active`). **One** indexed query loads sibling slugs (`slug = base OR slug LIKE base-%`, filtered to numeric suffixes in Go); suffix pick is in-memory (not per-candidate DB round-trips). Used on create and when `title` changes on `PATCH /basic-info` (excludes current course id on update).
+- Path: `internal/course/infra/slug.go`
+- Purpose: Course-specific slug orchestration built on top of `internal/shared/slug` and `github.com/gosimple/slug`. `generateAutoSlugBase(title)` transliterates `title` via `gosimple/slug` for auto-generation (falls back to base `"course"`, always suffixed, when transliteration yields nothing usable — e.g. an emoji-only title). `courseSlugAvailable(ctx, db, slug, excludeCourseID)` checks uniqueness among active `courses` rows, optionally excluding one course id (used on update so resubmitting the current slug is never treated as a self-collision). Collision resolution uses `sharedslug.RetryWithSuffix` (random suffix, escalating length: 7×7, 8×7, 9×7, …) — replaces the old `base`, `base-2`, `base-3`, … numeric-suffix algorithm entirely (`ensureUniqueCourseSlug` and its helpers were removed, not deprecated in place).
 - Scope: Course module only — do not duplicate slug-collision logic in handlers or FE.
-- Dependencies: GORM, `courses` table, `domain.ErrCourseInvalidSlug`.
-- Current Usage: `CreateCourse`, `UpdateBasicInfo` in `internal/course/infra/repo_instructor.go`.
+- Dependencies: `internal/shared/slug`, `github.com/gosimple/slug`, GORM, `courses` table.
+- Current Usage: `createCourseOnce`/`resolveCreateSlug`, `UpdateBasicInfo`/`applyUpdateSlugWithRetry`/`resolveUpdateSlug` in `internal/course/infra/repo_instructor.go`.
 
 ### Asset: Outline reorder helper (`reorderStableIDRows`)
 - Name: `reorderStableIDRows`, `applyStableIDReorderRowMeta`, `tableNameForModel`, `buildStableIDOrderIndexCase`
@@ -819,7 +829,18 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Dependencies: Redis client injected into `AuthService`.
 - Current Usage: `internal/auth/application/service.go`, `internal/auth/application/service_session.go`.
 - Reuse Opportunity:
-  - Reuse pattern for read-heavy course catalog/progress reads later.
+  - Reused (2026-09-27) — see the next asset below.
+
+### Asset: Generic JSON cache-aside helper
+- Name: `GetJSON[T any]`, `SetJSON[T any]`
+- Type: Util/Helper
+- Path: `internal/shared/cache/json_cache.go`
+- Purpose: Generic, type-safe cache-aside get/set for read-heavy public list endpoints, following the same fail-open (`cache.RedisAvailable()`-guarded) contract as the auth cache above, but with no per-request validation logic (unlike auth's `/me` cache) so it needs no per-caller wrapper functions.
+- Scope: Public, non-personalized list reads.
+- Dependencies: `internal/shared/cache.Redis`.
+- Current Usage: `internal/course/application/service_catalog.go` (`mycourse:catalog:trending_courses:limit:{n}`, 5 min TTL), `internal/instructor/application/service_catalog.go` (`mycourse:catalog:popular_instructors:limit:{n}`, 5 min TTL) — see `docs/requirements.md` NFR-1.3.
+- Reuse Opportunity:
+  - Reuse for any future public, non-personalized list read before adding another bespoke cache-aside implementation.
 
 ### Asset: Core taxonomy entities (pure shared types)
 - Name: `CourseLevel`, `Category`, `Tag`
@@ -1135,6 +1156,6 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Phase 09-12: reuse auth/session + permission resolution functions and middleware gates; add domain-specific shared helpers where duplication appears.
 
 
-## Public SEO cache pattern pointer (take-note, 2026-07-25)
+## Public SEO cache pattern (implemented 2026-09-27)
 
-Auth `/me` cache-aside and `internal/shared/ratelimit/` (+ NFR-1.1) are the patterns to extend for a future public catalogue cache and crawler tiers. Course public cache is **not** implemented. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).
+Course/instructor public catalogue caching is now implemented via the new **Generic JSON cache-aside helper** asset above (`internal/shared/cache/json_cache.go`), extending the auth `/me` cache-aside pattern rather than inventing a new mechanism, and the existing `internal/shared/ratelimit/` (NFR-1.1) unauthenticated tier rather than a new crawler-specific tier. See [`security-public-seo-notes.md`](./security-public-seo-notes.md).

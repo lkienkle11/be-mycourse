@@ -109,6 +109,9 @@ func (r rosterBulkTestRepo) AddMessage(context.Context, string, string, string) 
 	return nil, nil
 }
 func (r rosterBulkTestRepo) WipeInstructorScopedData(context.Context, string) error { return nil }
+func (r rosterBulkTestRepo) ListPopularInstructors(context.Context, int) ([]domain.PopularInstructor, error) {
+	return nil, nil
+}
 
 type rosterBulkTestRoleMgr struct{}
 

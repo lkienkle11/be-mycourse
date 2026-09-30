@@ -20,7 +20,7 @@
 
 ## Implemented Endpoint Inventory
 
-For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/course.md`](modules/course.md)** — versioned authoring, review, learner progress; **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, multilingual hybrid (`locale` / `view=edit`), **`internal/shared/taxonomy`** + **`internal/shared/i18n`**; **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise (taxonomy chips + `locale`), tickets (migration **`000029`**). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
+For **route-level detail** (handlers, contracts, shared packages): **[`docs/modules/course.md`](modules/course.md)** — versioned authoring, review, learner progress, public trending-courses catalog (`GET /catalog/courses/trending`, no auth); **[`docs/modules/taxonomy.md`](modules/taxonomy.md)** — topics, outcomes, skills, tags, course levels, multilingual hybrid (`locale` / `view=edit`), **`internal/shared/taxonomy`** + **`internal/shared/i18n`**; **[`docs/modules/media.md`](modules/media.md)** — files/videos, webhooks, media application/infra helpers; **[`docs/modules/instructor.md`](modules/instructor.md)** — roster, applications, profiles, expertise (taxonomy chips + `locale`), tickets (migration **`000029`**), public popular-instructors catalog (`GET /catalog/instructors/popular`, no auth). **`docs/return_types.md`** and **`docs/api_swagger.yaml`** mirror JSON shapes where listed.
 
 ### `/api/system`
 - System token: obtain via CLI (`CLI_SYSTEM_LOGIN=1 go run .` — JWT on stdout); set `SYSTEM_TOKEN` for HTTP calls.
@@ -115,10 +115,10 @@ For **route-level detail** (handlers, contracts, shared packages): **[`docs/modu
 
 ## Gaps vs Planned E-learning Domains
 - Taxonomy, Media, Instructor, and Course domains are implemented on `/api/v1`.
-- Standalone payment/checkout and anonymous storefront flows are still planned.
+- Standalone payment/checkout flows are still planned. A minimal anonymous storefront now exists (course + instructor catalogs, see below) — pricing/rating fields remain out of scope pending a payment system.
 - Lesson/enrollment docs remain as compatibility docs because behavior is currently embedded in `internal/course/`.
 
 
-## Public SEO / storefront gap (take-note)
+## Public SEO / storefront (2026-09-27)
 
-No anonymous public course storefront routes. Learner course APIs require auth. Planning notes: [`security-public-seo-notes.md`](./security-public-seo-notes.md).
+Anonymous public catalog routes now exist: `GET /catalog/courses/trending` and `GET /catalog/instructors/popular` (no auth, `openspec/changes/add-home-catalog-apis`). Authenticated `learner-courses*`/`instructors*` routes are unaffected. Design notes and the reusable-asset checklist this closed: [`security-public-seo-notes.md`](./security-public-seo-notes.md).

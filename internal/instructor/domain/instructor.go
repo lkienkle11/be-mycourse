@@ -163,6 +163,17 @@ type RosterMember struct {
 	AvatarFileID string
 }
 
+// PopularInstructor is the public projection served by the popular
+// instructors catalog endpoint (tag-free, matching RosterMember's
+// convention — JSON tags live on the delivery-layer response DTO).
+type PopularInstructor struct {
+	UserID      string
+	DisplayName string
+	AvatarURL   string
+	Subtitle    string // instructor_profiles.current_job_title
+	CourseCount int64
+}
+
 // ExpertiseTopic links an instructor user to a course topic.
 type ExpertiseTopic struct {
 	ID             string `json:"id"`

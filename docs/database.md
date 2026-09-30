@@ -835,6 +835,9 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000035 | `authorization_role_binding_wildcard` | `CHECK` constraint on `authorization_role_bindings.resource_id` enforcing the reserved wildcard sentinel `'*'` (meaning "every resource of this binding's `resource_type`") or a UUID-shaped string — no schema change beyond the constraint |
 | 000036 | `backfill_course_collaborator_role_bindings` | One-time, dev-only backfill: one `authorization_role_bindings` row per active EDITOR `course_collaborators` row (OWNER-role rows excluded — owner access is synthesized from `courses.owner_user_id`, never a stored binding) |
 | 000037 | `drop_course_collaborators` | Drops `course_collaborators` once Course fully moved onto the role gate (reads, writes, and the legacy data importer) — see `openspec/changes/replace-course-collaborator-with-role-gate` |
+| 000038 | `home_catalog_indexes` | Index-only, no schema change: `idx_courses_published_created_at`, `idx_courses_owner_published_created_at`, `idx_course_enrollments_user_active` — for the public trending-courses/popular-instructors catalog and continue-learning endpoints, see `openspec/changes/add-home-catalog-apis` |
+| 000039 | `backfill_course_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `courses.slug` value that would violate the new format check (idempotent; no-op `down.sql` — original non-conforming values are not recoverable), see `openspec/changes/rework-course-slug-management` |
+| 000040 | `course_slug_check_constraint` | Adds `chk_courses_slug_format` CHECK constraint on `courses.slug` (`slug <> '' AND slug ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`); `uix_courses_slug_active`/`NOT NULL` unchanged, see `openspec/changes/rework-course-slug-management` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -966,6 +969,26 @@ The grant and role-binding tables have no polymorphic FK to domain resources; ea
 | `course_edit_leases` | Resource-level edit leases for `OUTLINE_ROOT`, `SECTION`, `LESSON`, `SUB_LESSON` |
 | `course_enrollments` | Learner-course membership and the learner's active approved version |
 | `course_progress_items` | Stable-content-keyed progress items so approved version switches can carry progress forward |
+
+### `courses`
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `UUID` | PK | |
+| `owner_user_id` | `UUID` | NOT NULL, FK → `users(id)` | Canonical ownership; synthesized as the `OWNER` role by `CoursePolicyProvider`, never a stored `authorization_role_bindings` row |
+| `slug` | `VARCHAR(255)` | NOT NULL, UNIQUE (`uix_courses_slug_active`, partial where `deleted_at IS NULL`), CHECK `chk_courses_slug_format` (`slug <> '' AND slug ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`, added in migration `000040`) | URL-safe identifier; optional manual input on create (auto-generated from title if omitted) or update (PATCH-omittable — unchanged if the field is absent from the request); see `openspec/changes/rework-course-slug-management` |
+| `current_published_version_id` | `UUID` | nullable, FK → `course_versions(id)` | Learner-facing published snapshot |
+| `current_draft_version_id` | `UUID` | nullable, FK → `course_versions(id)` | Instructor-facing editable snapshot |
+| `trashed_at` | `BIGINT` | nullable | Unix epoch seconds; in trash when set (distinct from `deleted_at`) |
+| `created_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
+| `deleted_at` | `BIGINT` | nullable | Soft delete (Unix epoch seconds) |
+
+**Indexes:** `uix_courses_slug_active` (partial unique on `slug` where `deleted_at IS NULL`); see `migrations/000038_home_catalog_indexes` for the additional `idx_courses_published_created_at`/`idx_courses_owner_published_created_at` pair.
+
+**`chk_courses_slug_format` (migration `000040`):** database-level backstop so `courses.slug` can never be `NULL`, empty, or malformed even if application-layer validation has a bug. Migration `000039_backfill_course_slug_ascii` runs first to regenerate any pre-existing non-conforming row (e.g. a non-ASCII slug from the pre-`000040` version of `utils.SlugifyName`) so `000040` cannot fail to apply.
+
+**Migration `000038` (index-only, no schema change):** adds `idx_courses_published_created_at` (`courses.created_at DESC`, partial: published/non-trashed), `idx_courses_owner_published_created_at` (`courses.owner_user_id, created_at DESC`, same partial filter), and `idx_course_enrollments_user_active` (`course_enrollments.user_id`, partial: `deleted_at IS NULL`) — for the public trending-courses/popular-instructors catalog and the continue-learning endpoint (`openspec/changes/add-home-catalog-apis`).
 
 API and module behavior: **`docs/modules/course.md`**.
 

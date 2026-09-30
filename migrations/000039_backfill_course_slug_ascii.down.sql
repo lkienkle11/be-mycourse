@@ -1,0 +1,2 @@
+-- Data backfill is not safely reversible: the original non-conforming slug
+-- values are not recoverable once regenerated.

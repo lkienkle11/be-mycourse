@@ -1,6 +1,6 @@
 # Enrollment Module
 
-_Last audited: 2026-06-07._
+_Last audited: 2026-09-27 — added `GET /learner-courses/continue` (`openspec/changes/add-home-catalog-apis`). Prior: 2026-06-07._
 
 There is no standalone `internal/enrollment/` package yet.
 
@@ -24,6 +24,8 @@ Enrollment and learner progress are currently implemented inside `internal/cours
 - learner progress is read / saved via:
   - `GET /api/v1/learner-courses/:courseId/progress`
   - `POST /api/v1/learner-courses/:courseId/progress`
+- the caller's own in-progress courses, ordered by most-recent learning activity, are read via:
+  - `GET /api/v1/learner-courses/continue` (`limit`, default 4, max 10) — orders by `MAX(course_progress_items.last_interacted_at)` per enrollment, falling back to `course_enrollments.created_at` when the learner hasn't started any lesson yet; each item includes a completed/total **sub-lesson** count (every kind — `VIDEO`/`QUIZ`/`TEXT` — not video-only, since a course's outline legitimately mixes content kinds), derived from `course_sub_lessons` (the authoritative outline) joined by `stable_id`, not from the client-supplied `course_progress_items.content_type` (see `internal/course/infra/repo_learner.go`'s `continueLearningQuery`)
 
 ## Version-switch behavior
 

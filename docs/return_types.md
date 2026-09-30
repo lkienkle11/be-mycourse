@@ -449,7 +449,7 @@ type ListPermissionsParams struct {
 
 | Function | Signature | Return Types |
 |----------|-----------|--------------|
-| `CreateCourse` | `CreateCourse(ctx, CreateCourseInput) (*CourseDetail, error)` | `*CourseDetail` on success; `ErrCourseInvalidSlug`; repo errors |
+| `CreateCourse` | `CreateCourse(ctx, CreateCourseInput) (*CourseDetail, error)` | `*CourseDetail` on success; `ErrCourseTitleTooShort`, `ErrCourseInvalidSlug` (manual slug fails format); `*domain.SlugConflictError` (manual slug taken — carries `RecommendedSlug`); repo errors |
 | `ListEditableCourses` | `ListEditableCourses(ctx, userID string) ([]CourseListItem, error)` | `[]CourseListItem` |
 | `GetCourseDetail` | `GetCourseDetail(ctx, courseID, userID string, includeDraft, includeOutline bool) (*CourseDetail, error)` | `*CourseDetail`; `ErrCourseNotFound`, `ErrCourseCollaboratorAccess` |
 | `UpdateBasicInfo` | `UpdateBasicInfo(ctx, courseID, actorUserID string, UpdateBasicInfoInput) (*CourseDetail, error)` | `*CourseDetail`; optimistic lock / validation errors |
@@ -458,6 +458,8 @@ type ListPermissionsParams struct {
 | Outline CRUD / reorder | `CreateSection`, `UpdateSection`, `DeleteSection`, `ReorderSections`, lesson/sub-lesson variants | Entity or `[]Section`; draft/lease/lock errors |
 | Review | `SubmitForReview`, `ReopenDraft`, `ListPendingReviews`, `ApproveDraft`, `RejectDraft` | `*CourseDetail` or `[]CourseListItem` |
 | Learner | `ListPublishedCourses`, `GetLearningCourse`, `Enroll`, `GetProgress`, `SaveProgress` | Catalog / detail / enrollment / progress types |
+| Catalog (public) | `ListTrendingCourses(ctx, limit int) ([]TrendingCourseItem, error)` | `[]TrendingCourseItem`; cache-aside (5 min TTL, `mycourse:catalog:trending_courses:limit:{n}`) |
+| Continue learning | `ListContinueLearning(ctx, userID string, limit int) ([]ContinueLearningItem, error)` | `[]ContinueLearningItem`; not cached (per-user) |
 
 **Key domain types** (`internal/course/domain`):
 
@@ -500,9 +502,39 @@ type CourseListItem struct {
 
 **`CourseListItem.owner_display_name`:** populated on `GET /course-admin/courses`, `GET /course-admin/courses/trash`, and `GET /course-reviews/pending` only. Instructor (`GET /courses/my`) and learner catalog lists omit this field.
 
-**Create input:** service layer accepts `{ title }`, slugifies title, passes `CreateCourseInput{ ActorUserID, Title, Slug }` to repository. Repository calls `ensureUniqueCourseSlug` (`base`, `base-2`, …) then assigns UUID v7 ids via `gormx.EnsureStringID` before inserting `courses` and `course_versions`. No collaborator row is inserted: ownership is `courses.owner_user_id` itself, synthesized by `CoursePolicyProvider` (see `docs/modules/authorization.md`), never a stored `authorization_role_bindings` row.
+**`TrendingCourseItem` / `ContinueLearningItem`** (`openspec/changes/add-home-catalog-apis`) — deliberately separate from `CourseListItem`, not an extension of it (avoids leaking fields into unrelated authenticated responses):
 
-**Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH (except optional `preview_video_file_id`); handler passes trimmed pointers. When `title` is set, service slugifies via `courseTitleAndSlug` (≥5 non-whitespace) and `ensureUniqueCourseSlug` (excluding current course).
+```go
+type TrendingCourseItem struct {
+    ID               string `json:"id"`
+    Slug             string `json:"slug"`
+    Title            string `json:"title"`
+    ShortDescription string `json:"short_description"`
+    ThumbnailURL     string `json:"thumbnail_url,omitempty"`
+    OwnerDisplayName string `json:"owner_display_name,omitempty"`
+    CreatedAt        int64  `json:"created_at"`
+}
+
+type ContinueLearningItem struct {
+    CourseID            string  `json:"course_id"`
+    Slug                string  `json:"slug"`
+    Title               string  `json:"title"`
+    ThumbnailURL        string  `json:"thumbnail_url,omitempty"`
+    OwnerDisplayName    string  `json:"owner_display_name,omitempty"`
+    CompletedSubLessons int     `json:"completed_sub_lessons"`
+    TotalSubLessons     int     `json:"total_sub_lessons"`
+    ProgressPercent     float64 `json:"progress_percent"`
+    LastActivityAt      int64   `json:"last_activity_at"`
+}
+```
+
+**`CompletedSubLessons`/`TotalSubLessons` count every sub-lesson in the outline** (`course_sections → course_lessons → course_sub_lessons`), **not only `VIDEO`-kind ones** — a course's outline legitimately mixes `VIDEO`/`QUIZ`/`TEXT` sub-lessons under one course, so progress must reflect all of them (product decision, `openspec/changes/add-home-catalog-apis`; the Figma mock's "X/Y Videos Completed" label only happened to show video-only example courses).
+
+Both are returned directly from their handlers via `response.OK(c, "ok", rows)` — no separate delivery-layer DTO, matching this module's existing `listPublishedCourses`/`listPendingReviews`/`listAdminCourses` convention.
+
+**Create input:** service layer accepts `{ title, slug? }` and passes `CreateCourseInput{ ActorUserID, Title, Slug }` to the repository — `Slug` is either the caller's manually supplied, already format-validated value, or `""` meaning "auto-generate." Repository logic (`internal/course/infra/slug.go`, `repo_instructor.go`): a non-empty manual slug is checked for availability and used as-is if free, or returns `*domain.SlugConflictError{RecommendedSlug}` if taken (never silently substituted); an empty slug derives a base from `title` via `github.com/gosimple/slug` (falling back to `course-{randomSuffix}` if transliteration yields nothing usable) and resolves any collision with `internal/shared/slug.RetryWithSuffix` (random alphanumeric suffix, escalating length: 7 chars ×7 attempts, then 8×7, 9×7, …) — replacing the old `base`, `base-2`, `base-3`, … numeric-suffix algorithm. UUID v7 ids are then assigned via `gormx.EnsureStringID` before inserting `courses` and `course_versions`. No collaborator row is inserted: ownership is `courses.owner_user_id` itself, synthesized by `CoursePolicyProvider` (see `docs/modules/authorization.md`), never a stored `authorization_role_bindings` row.
+
+**Update basic info input:** `UpdateBasicInfoInput` carries `expected_row_version` and draft metadata fields. Delivery layer requires all basic-info fields on PATCH except `preview_video_file_id` and `slug`, both optional; handler passes trimmed pointers. `title` is validated (≥5 non-whitespace via `validateCourseTitle`) but no longer affects `slug` in any way. `Slug *string` is independent: `nil` (field omitted) means leave the stored slug unchanged; a non-nil value has already been trimmed and format-validated by the delivery handler (an explicit empty/whitespace value is rejected as `400` before reaching the service). The repository skips all slug work when the new value equals the current slug (no false self-conflict), otherwise resolves any collision directly via `internal/shared/slug.RetryWithSuffix` (random suffix, no confirmation step) and persists the actual final slug, which the response reflects.
 
 **Sentinel errors:** `internal/course/domain/errors.go` (`ErrCourseNotFound`, `ErrCourseCollaboratorAccess`, `ErrCourseOptimisticLock`, `ErrCourseTitleTooShort`, `ErrCoursePreviewNotAllowedForQuiz`, `ErrCourseQuizSingleChoiceMultipleCorrect`, …).
 
@@ -517,8 +549,21 @@ type CourseListItem struct {
 | Profiles | `ListProfiles`, `GetProfileByUserID`, `UpsertProfile`, `DeleteProfile` | `*Profile`, lists |
 | Expertise | `ListExpertiseTopics/Skills`, `AddExpertiseTopic/Skill`, deletes | `ExpertiseTopic` / `ExpertiseSkill` — junction fields + joined taxonomy `name`, `slug` (snake_case JSON) |
 | Tickets | `ListTickets`, `GetTicket`, `CreateTicket`, `CloseTicket`, message list/add | `*Ticket`, `[]TicketMessage` |
+| Catalog (public) | `ListPopularInstructors(ctx, limit int) ([]PopularInstructor, error)` | `[]PopularInstructor`; cache-aside (5 min TTL, `mycourse:catalog:popular_instructors:limit:{n}`) |
 
 Details: **`docs/modules/instructor.md`**.
+
+**`PopularInstructor`** (`openspec/changes/add-home-catalog-apis`) — tag-free domain struct (matching `RosterMember`'s convention); JSON tags live on the delivery-layer `popularInstructorResponse` DTO:
+
+```go
+type PopularInstructor struct {
+    UserID      string
+    DisplayName string
+    AvatarURL   string
+    Subtitle    string // instructor_profiles.current_job_title
+    CourseCount int64
+}
+```
 
 **Expertise HTTP JSON (`domain.ExpertiseTopic` / `domain.ExpertiseSkill`):**
 
@@ -774,14 +819,15 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 **Auth:** Bearer JWT + `course:create`
 
-**Request body:** `{ "title": string }` (required, 1–255 chars). Slug is server-computed; not in request.
+**Request body:** `title` (required, 1–255 chars, `nonwhitespace_min=5`) plus optional `slug` (string, `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, max 255). Omit/empty `slug` to auto-generate from `title`.
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 201 | 0 | `domain.CourseDetail` — `slug` is globally unique among active courses (`uix_courses_slug_active`; duplicate titles get `-2`, `-3`, … suffixes) |
-| 400 | 3001 | `null` — empty slug after slugify |
+| 201 | 0 | `domain.CourseDetail` — `slug` is globally unique among active courses (`uix_courses_slug_active`); collisions on an auto-generated or accepted-recommendation slug are resolved with a random suffix, not `-2`, `-3`, … |
+| 400 | 3001 | `null` — manually supplied `slug` fails format validation |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` — missing permission |
+| 409 | 3007 | `{ "recommended_slug": string }` — manually supplied `slug` already exists |
 | 500 | 9001 | `null` |
 
 ---

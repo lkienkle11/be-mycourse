@@ -8,8 +8,21 @@ import (
 	"mycourse-io-be/internal/shared/utils"
 )
 
-// RegisterRoutes mounts instructor management APIs on rg.
-func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
+// RegisterRoutes mounts instructor management APIs. authen holds the existing
+// authenticated routes (unchanged); notAuthen, when non-nil, additionally
+// mounts the public catalog route (see openspec/changes/add-home-catalog-apis)
+// — mirrors internal/auth/delivery/routes.go's nil-guarded public/authenticated split.
+func RegisterRoutes(authen, notAuthen *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
+	if authen != nil {
+		registerInstructorAuthenticatedRoutes(authen, h, pc)
+	}
+	if notAuthen != nil {
+		catalog := notAuthen.Group("/catalog/instructors")
+		catalog.GET("/popular", h.listPopularInstructors)
+	}
+}
+
+func registerInstructorAuthenticatedRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
 	instructors := rg.Group("/instructors")
 	instructors.GET("", utils.RoutePermission(pc, constants.AllPermissions.InstructorRosterRead), h.listRoster)
 	instructors.GET("/roster-candidates", utils.RoutePermission(pc, constants.AllPermissions.InstructorRosterCreate), h.listRosterCandidates)

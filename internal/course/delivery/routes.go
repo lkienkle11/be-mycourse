@@ -8,7 +8,21 @@ import (
 	"mycourse-io-be/internal/shared/utils"
 )
 
-func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
+// RegisterRoutes mounts course APIs. authen holds the existing authenticated
+// routes (unchanged); notAuthen, when non-nil, additionally mounts the public
+// catalog routes (see openspec/changes/add-home-catalog-apis) — mirrors
+// internal/auth/delivery/routes.go's nil-guarded public/authenticated split.
+func RegisterRoutes(authen, notAuthen *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
+	if authen != nil {
+		registerCourseAuthenticatedRoutes(authen, h, pc)
+	}
+	if notAuthen != nil {
+		catalog := notAuthen.Group("/catalog/courses")
+		catalog.GET("/trending", h.listTrendingCourses)
+	}
+}
+
+func registerCourseAuthenticatedRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
 	courses := rg.Group("/courses")
 	courses.GET("/my", utils.RoutePermission(pc, constants.AllPermissions.CourseInstructorRead), h.listEditableCourses)
 	courses.POST("", utils.RoutePermission(pc, constants.AllPermissions.CourseCreate), h.createCourse)
@@ -22,6 +36,32 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 	courses.POST("/:courseId/collaborators/bulk", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.addCollaboratorsBulk)
 	courses.DELETE("/:courseId/collaborators/:userId", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.removeCollaborator)
 
+	registerCourseOutlineRoutes(courses, h, pc)
+
+	courses.POST("/:courseId/submit-review", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.submitForReview)
+	courses.POST("/:courseId/reopen-draft", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.reopenDraft)
+	courses.GET("/:courseId/review-history", utils.RoutePermission(pc, constants.AllPermissions.CourseInstructorRead), h.listReviewHistory)
+
+	reviews := rg.Group("/course-reviews")
+	reviews.GET("/pending", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewRead), h.listPendingReviews)
+	reviews.POST("/:courseId/approve", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewApprove), h.approveDraft)
+	reviews.POST("/:courseId/reject", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewReject), h.rejectDraft)
+
+	registerCourseAdminRoutes(rg, h, pc)
+
+	learner := rg.Group("/learner-courses")
+	learner.GET("", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.listPublishedCourses)
+	learner.GET("/continue", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.getContinueLearning)
+	learner.GET("/:courseId", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.getLearningCourse)
+	learner.POST("/:courseId/enroll", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.enroll)
+	learner.GET("/:courseId/progress", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.getProgress)
+	learner.POST("/:courseId/progress", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.saveProgress)
+}
+
+// registerCourseOutlineRoutes was split out of registerCourseAuthenticatedRoutes
+// to stay under the linter's function-length limit (funlen) after adding the
+// /learner-courses/continue route — no behavior change.
+func registerCourseOutlineRoutes(courses *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {
 	courses.POST("/:courseId/sections", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.createSection)
 	courses.PATCH("/:courseId/sections/:sectionId", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.updateSection)
 	courses.DELETE("/:courseId/sections/:sectionId", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.deleteSection)
@@ -40,24 +80,6 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChe
 	courses.POST("/:courseId/leases/acquire", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.acquireLease)
 	courses.POST("/:courseId/leases/heartbeat", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.heartbeatLease)
 	courses.POST("/:courseId/leases/release", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.releaseLease)
-
-	courses.POST("/:courseId/submit-review", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.submitForReview)
-	courses.POST("/:courseId/reopen-draft", utils.RoutePermission(pc, constants.AllPermissions.CourseUpdate), h.reopenDraft)
-	courses.GET("/:courseId/review-history", utils.RoutePermission(pc, constants.AllPermissions.CourseInstructorRead), h.listReviewHistory)
-
-	reviews := rg.Group("/course-reviews")
-	reviews.GET("/pending", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewRead), h.listPendingReviews)
-	reviews.POST("/:courseId/approve", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewApprove), h.approveDraft)
-	reviews.POST("/:courseId/reject", utils.RoutePermission(pc, constants.AllPermissions.CourseReviewReject), h.rejectDraft)
-
-	registerCourseAdminRoutes(rg, h, pc)
-
-	learner := rg.Group("/learner-courses")
-	learner.GET("", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.listPublishedCourses)
-	learner.GET("/:courseId", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.getLearningCourse)
-	learner.POST("/:courseId/enroll", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.enroll)
-	learner.GET("/:courseId/progress", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.getProgress)
-	learner.POST("/:courseId/progress", utils.RoutePermission(pc, constants.AllPermissions.CourseRead), h.saveProgress)
 }
 
 func registerCourseAdminRoutes(rg *gin.RouterGroup, h *Handler, pc middleware.PermissionChecker) {

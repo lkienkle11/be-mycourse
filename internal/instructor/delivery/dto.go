@@ -154,6 +154,14 @@ type rosterResponse struct {
 	AvatarURL string `json:"avatar"`
 }
 
+type popularInstructorResponse struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar,omitempty"`
+	Subtitle    string `json:"subtitle,omitempty"`
+	CourseCount int64  `json:"course_count"`
+}
+
 type rosterCandidateResponse struct {
 	UserID       string `json:"user_id"`
 	DisplayName  string `json:"display_name"`
@@ -216,6 +224,13 @@ type contactAdminRequest struct {
 func toRosterResponse(m domain.RosterMember) rosterResponse {
 	return rosterResponse{
 		ID: m.UserID, FullName: m.FullName, Email: m.Email, Phone: m.Phone, AvatarURL: m.AvatarURL,
+	}
+}
+
+func toPopularInstructorResponse(p domain.PopularInstructor) popularInstructorResponse {
+	return popularInstructorResponse{
+		UserID: p.UserID, DisplayName: p.DisplayName, AvatarURL: p.AvatarURL,
+		Subtitle: p.Subtitle, CourseCount: p.CourseCount,
 	}
 }
 

@@ -1,0 +1,3 @@
+-- Data backfill is not safely reversible: the original non-conforming slug
+-- values are not recoverable once regenerated. Matches courses' own
+-- 000039_backfill_course_slug_ascii.down.sql precedent.

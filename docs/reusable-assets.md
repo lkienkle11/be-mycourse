@@ -557,10 +557,10 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Type: Function (util)
 - Path: `internal/shared/utils/slug.go`
 - Purpose: Build URL slug from display name — mirrors FE `slugifyName` / `generateSlug` (trim, lowercase, strip accents, `đ/Đ -> d`, spaces/underscores → `-`, Unicode letters/numbers only, collapse dashes).
-- Scope: Taxonomy create/update only (root slug + tree nodes via `NormalizeTreeSlugs`). **No longer used by course** (see `openspec/changes/rework-course-slug-management`) — course now uses `github.com/gosimple/slug` for auto-generation from title, because `SlugifyName` keeps any surviving Unicode letter after diacritic-stripping (ASCII-safe for Vietnamese, not for Chinese/Japanese/Thai/Korean/Russian), while `gosimple/slug` has real transliteration tables for those scripts. Taxonomy is unaffected and intentionally still never accepts a client-supplied slug — this divergence is scoped to course only, not a repo-wide policy change.
+- Scope: Taxonomy auto-generate fallback only (root slug + tree nodes). **Not used by course** (see `openspec/changes/rework-course-slug-management`) — course uses `github.com/gosimple/slug` instead, because `SlugifyName` keeps any surviving Unicode letter after diacritic-stripping (ASCII-safe for Vietnamese, not for Chinese/Japanese/Thai/Korean/Russian). Taxonomy keeps `SlugifyName` unchanged for its own auto-generate derivation (see `openspec/changes/unify-taxonomy-slug-management`), but as of that change taxonomy **does** accept a client-supplied manual slug on create/update, format-validated by `internal/shared/slug.ValidateManualFormat` the same way course does — `SlugifyName`'s output is now only the *default* when no manual slug is supplied, and is itself wrapped by a new ASCII-fallback (see `internal/taxonomy/infra/slug.go`'s `generateAutoTaxonomySlugBase` and `internal/shared/taxonomy/tree_write.go`'s `generateAutoNodeSlugBase`) that falls back to a random-suffixed literal prefix (`topic-`/`skill-`/`tag-`/`level-`/`node-`) when `SlugifyName`'s non-ASCII passthrough would violate the format regex.
 - Dependencies: `golang.org/x/text/unicode/norm`, Go `unicode`.
-- Current Usage: `internal/taxonomy/application/service.go`, `internal/shared/taxonomy/tree_slug.go`.
-- Reuse: Taxonomy — never accept client-provided slug on write, always derive with `SlugifyName`. Course — see the new `internal/shared/slug` + `github.com/gosimple/slug` asset entries below instead; do not call `SlugifyName` from course code.
+- Current Usage: `internal/taxonomy/application/service.go` (renamed helper, see D5 below), `internal/shared/taxonomy/tree_slug.go`, `internal/taxonomy/infra/slug.go`, `internal/shared/taxonomy/tree_write.go`.
+- Reuse: Taxonomy — use only as the auto-generate fallback when no manual slug is supplied; never call `SlugifyName` directly on a client-supplied slug value (format validation goes through `internal/shared/slug.ValidateManualFormat` instead). Course — see the `internal/shared/slug` + `github.com/gosimple/slug` asset entries below; do not call `SlugifyName` from course code.
 
 ### Asset: Text rules validators (utils + validate)
 - Name: `CountNonWhitespace`, `CountDeltaNonWhitespace`, `nonwhitespace_min`, `delta_nonwhitespace_min`
@@ -586,23 +586,42 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Scope: Instructor application `teaching_content_ideas` in `validateSubmitProfileFields` (plain string). Do **not** replace `CountNonWhitespace` (course visible-char rules). Do **not** use for `bio` length (use `CountDeltaRunes`).
 
 ### Asset: slug (shared)
-- Name: `ValidateManualFormat`, `GenerateRandomSuffix`, `RetryWithSuffix`
+- Name: `ValidateManualFormat`, `GenerateRandomSuffix`, `RetryWithSuffix`, `TruncateToLen`, `TruncateForSuffix`
 - Type: Package (`internal/shared/slug`)
 - Path: `internal/shared/slug/format.go`, `internal/shared/slug/suffix.go`
-- Purpose: Domain-agnostic slug primitives — format validation (`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, no leading/trailing hyphen), `crypto/rand`-based random alphanumeric suffix generation, and an escalating-retry helper (`RetryWithSuffix`) that tries a 7-char suffix ×7 attempts, then 8×7, 9×7, … until a caller-supplied `accept` callback reports success. No GORM/HTTP/course imports — `accept` is the caller's own source of truth (a SELECT-based pre-check or the actual write attempt), so this package has no opinion on how uniqueness is actually enforced.
-- Scope: Any domain needing a validated, collision-safe slug. Introduced by, and currently used only by, course (`openspec/changes/rework-course-slug-management`) — written generically so a future taxonomy/media/instructor slug feature can reuse it without modification.
-- Dependencies: Go stdlib only (`regexp`, `strings`, `crypto/rand`, `io`).
-- Current Usage: `internal/course/infra/slug.go`, `internal/course/application/service.go`, `internal/course/delivery/handler_instructor.go`.
-- Reuse: Prefer this over writing a new domain-specific slug-collision algorithm; this is the shared primitive layer taxonomy/media/instructor should build on when they add their own slug features.
+- Purpose: Domain-agnostic slug primitives — format validation (`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, no leading/trailing hyphen, caller-supplied max length), `crypto/rand`-based random alphanumeric suffix generation, and an escalating-retry helper (`RetryWithSuffix`) that tries a 7-char suffix ×7 attempts, then 8×7, 9×7, … until a caller-supplied `build` callback reports success. No GORM/HTTP/course imports — the caller owns uniqueness enforcement (a SELECT-based pre-check or the actual write attempt), so this package has no opinion on how it's checked.
+- Scope: Any domain needing a validated, collision-safe slug. Introduced by course (`openspec/changes/rework-course-slug-management`), written generically, and unchanged when taxonomy became its second consumer (`openspec/changes/unify-taxonomy-slug-management`) — no modification to this package was needed.
+- Dependencies: Go stdlib only (`regexp`, `strings`, `crypto/rand`, `io`, `unicode/utf8`).
+- Current Usage: `internal/course/infra/slug.go`, `internal/course/application/service.go`, `internal/course/delivery/handler_instructor.go`, `internal/taxonomy/infra/slug.go` (new), `internal/shared/taxonomy/tree_write.go` (new).
+- Reuse: Prefer this over writing a new domain-specific slug-collision algorithm; this is the shared primitive layer any future slug feature (e.g. instructor slug) should build on.
 
 ### Asset: Course slug orchestration (course infra)
 - Name: `generateAutoSlugBase`, `courseSlugAvailable`
 - Type: Function (repo helper)
 - Path: `internal/course/infra/slug.go`
 - Purpose: Course-specific slug orchestration built on top of `internal/shared/slug` and `github.com/gosimple/slug`. `generateAutoSlugBase(title)` transliterates `title` via `gosimple/slug` for auto-generation (falls back to base `"course"`, always suffixed, when transliteration yields nothing usable — e.g. an emoji-only title). `courseSlugAvailable(ctx, db, slug, excludeCourseID)` checks uniqueness among active `courses` rows, optionally excluding one course id (used on update so resubmitting the current slug is never treated as a self-collision). Collision resolution uses `sharedslug.RetryWithSuffix` (random suffix, escalating length: 7×7, 8×7, 9×7, …) — replaces the old `base`, `base-2`, `base-3`, … numeric-suffix algorithm entirely (`ensureUniqueCourseSlug` and its helpers were removed, not deprecated in place).
-- Scope: Course module only — do not duplicate slug-collision logic in handlers or FE.
+- Scope: Course module only — do not duplicate slug-collision logic in handlers or FE. Taxonomy's equivalent orchestration is a separate, generic-over-row-type asset — see "Taxonomy slug orchestration" below; the two are intentionally parallel, not shared, since course has one table and taxonomy has four sharing one shape.
 - Dependencies: `internal/shared/slug`, `github.com/gosimple/slug`, GORM, `courses` table.
-- Current Usage: `createCourseOnce`/`resolveCreateSlug`, `UpdateBasicInfo`/`applyUpdateSlugWithRetry`/`resolveUpdateSlug` in `internal/course/infra/repo_instructor.go`.
+- Current Usage: `createCourseOnce`/`resolveCreateSlug`, `UpdateBasicInfo`/`applyUpdateSlugWithRetry`/`resolveUpdateSlug` in `internal/course/infra/repo_instructor.go`. `applyUpdateSlugWithRetry`'s retry loop is implemented via the shared `internal/shared/gormx.RetryInSavepoint` helper (see that asset entry) as of `openspec/changes/unify-taxonomy-slug-management` — a pre-existing bug (retrying a write on the same aborted Postgres transaction after a duplicate-key error, instead of using a SAVEPOINT) was found and fixed there.
+
+### Asset: Taxonomy slug orchestration (taxonomy infra)
+- Name: `taxonomySlugAvailable[R]`, `isTaxonomySlugDuplicateKey`, `generateAutoTaxonomySlugBase`, `buildTaxonomySuffixedCandidate`, `resolveTaxonomyCreateSlug[R]`, `resolveTaxonomyUpdateSlug[R]`
+- Type: Functions (repo helper, generic over GORM row type)
+- Path: `internal/taxonomy/infra/slug.go`
+- Purpose: Taxonomy's equivalent of course's slug orchestration, generalized over the 4 taxonomy root row types (`courseTopicRow`, `courseSkillRow`, `tagRow`, `courseLevelRow` — all share the same `slug`/`deleted_at` shape) instead of 4 near-identical copies. `generateAutoTaxonomySlugBase(name, fallbackPrefix)` derives from `utils.SlugifyName` (unchanged — see that asset above) with an ASCII-fallback to a random-suffixed literal prefix. `resolveTaxonomyCreateSlug`/`resolveTaxonomyUpdateSlug` mirror course's `resolveCreateSlug`/`resolveUpdateSlug` exactly (manual conflict on create → typed `domain.SlugConflictError` + recommendation; any conflict on update → silent auto-resolve via `sharedslug.RetryWithSuffix`).
+- Scope: Taxonomy module only (`course_topics`, `course_skills`, `tags`, `course_levels`) — do not duplicate slug-collision logic in handlers/service or FE.
+- Dependencies: `internal/shared/slug`, `internal/shared/utils.SlugifyName`, GORM, `internal/shared/gormx.RetryInSavepoint` (update-retry only).
+- Current Usage: `GormCourseTopicRepository.Create/Save`, `GormCourseSkillRepository.Create/Save`, `createWithNameTranslations`/`saveSlugStatusEntity` in `internal/taxonomy/infra/{repos.go,repos_mappers.go}` — see `openspec/changes/unify-taxonomy-slug-management`.
+
+### Asset: RetryInSavepoint (gormx transactional retry)
+- Name: `RetryInSavepoint`
+- Type: Function (`internal/shared/gormx`)
+- Path: `internal/shared/gormx/retry_savepoint.go`
+- Purpose: Retry a write inside an already-open GORM transaction after a recoverable error (e.g. a unique-key violation), using `tx.SavePoint`/`tx.RollbackTo` instead of retrying directly on the same `*gorm.DB`. PostgreSQL aborts the *entire* surrounding transaction on any statement error — retrying a write on the same tx without a savepoint means every attempt after the first fails with a generic "current transaction is aborted" error, never actually retrying. Found as a real, shipped bug in course's `applyUpdateSlugWithRetry` (`internal/course/infra/repo_instructor.go`) and fixed by extracting this helper — introduced in `openspec/changes/unify-taxonomy-slug-management`, used by both the course fix and taxonomy's new update-slug retry logic so the savepoint-retry pattern exists exactly once.
+- Scope: Any transactional write that needs to retry a recoverable failure (currently: slug-collision retries) without aborting the whole surrounding transaction.
+- Dependencies: `gorm.io/gorm` (`SavePoint`/`RollbackTo` — requires a `SavePointerDialectorInterface`-supporting driver; `gorm.io/driver/postgres` supports it).
+- Current Usage: `internal/course/infra/repo_instructor.go` (`applyUpdateSlugWithRetry`), `internal/taxonomy/infra/repos.go` (`Save` for topic/skill), `internal/taxonomy/infra/repos.go`'s `saveSlugStatusEntity` (tag/course level update).
+- Reuse: Any future domain adding its own slug (or other unique-constraint) retry-on-update logic must use this instead of re-deriving the same savepoint pattern.
 
 ### Asset: Outline reorder helper (`reorderStableIDRows`)
 - Name: `reorderStableIDRows`, `applyStableIDReorderRowMeta`, `tableNameForModel`, `buildStableIDOrderIndexCase`
@@ -776,13 +795,13 @@ Business constants, permissions, Redis key prefixes, LavinMQ topic routing keys,
 - Reuse: Add new picker endpoints by composing `UserPickerSelectSQL` + role/join predicates, not duplicating count/list/search logic.
 
 ### Asset: Taxonomy tree + description validators
-- Name: `TreeNode`, `NormalizeTreeSlugs`, `ValidateTree`, `ValidateDescriptionParagraphs`
+- Name: `TreeNode`, `PrepareTreeForWriteWithSlugPolicy`, `ResolveTreeSlugs`, `BuildNodeIndexByID`, `ValidateTree`, `ValidateDescriptionParagraphs`
 - Type: Package (`internal/shared/taxonomy`)
 - Path: `internal/shared/taxonomy/`
-- Purpose: JSONB tree shape `{ id, name, slug, translations?, children[] }` — per-node `translations` map for multilingual names; normalize slugs from **canonical** node `name`; validate nested trees (`child_topics`, `children`) including non-empty translation names (1–255) and outcome description arrays.
+- Purpose: JSONB tree shape `{ id, name, slug, translations?, children[] }` — per-node `translations` map for multilingual names; validate nested trees (`child_topics`, `children`) including non-empty translation names (1–255) and outcome description arrays. `PrepareTreeForWriteWithSlugPolicy` (`tree_resolve.go`) is the sole write-path entry point: syncs each node's canonical↔`en` translation, ensures an `en` translation exists, then resolves slugs via `ResolveTreeSlugs` (`tree_write.go`) — given the incoming tree (already carrying either an empty `Slug` or a delivery-validated manual value — see `internal/taxonomy/delivery/dto.go`'s `TreeNodeInput`) and `oldByID` (built by `BuildNodeIndexByID` from the previously-persisted tree), it preserves an existing node's slug when empty+recognized-by-id, auto-generates for new/unrecognized nodes, uses a manual value as-is, and silently auto-resolves (random suffix) any in-tree slug collision. The old `NormalizeTreeSlugs`/`PrepareTreeForWrite` (unconditional recompute-from-name on every write, the exact behavior `openspec/changes/unify-taxonomy-slug-management` fixes) were **deleted**, not kept unused — a code-review pass confirmed zero remaining callers once every write path switched to the function above, and dead code whose only purpose was the just-fixed bug would invite a future caller to reintroduce it by mistake.
 - Scope: `internal/taxonomy` application + infra layers.
-- Current Usage: `internal/taxonomy/application/service.go`, `internal/taxonomy/infra/jsonb_types.go`, domain/DTO types embedding `TreeNode`.
-- Reuse: Do not invent a second tree node type or strip `translations` on write/read paths that need them.
+- Current Usage: `internal/taxonomy/application/service.go` (`resolveTreeForCreate`/`resolveTreeForUpdate` call `PrepareTreeForWriteWithSlugPolicy`), `internal/taxonomy/delivery/handler_helpers.go`'s `toDomainTreeNodes` (converts `TreeNodeInput` → `TreeNode`), `internal/taxonomy/infra/jsonb_types.go`, domain/DTO types embedding `TreeNode`.
+- Reuse: Do not invent a second tree node type or strip `translations` on write/read paths that need them. Do not reintroduce an unconditional recompute-from-name slug helper — use `PrepareTreeForWriteWithSlugPolicy`/`ResolveTreeSlugs` for any write path.
 
 ### Asset: auth/infra.CheckPassword (bcrypt verify)
 - Name: `CheckPassword`

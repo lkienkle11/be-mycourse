@@ -751,6 +751,7 @@ components:
           vi: { name: Người mới }
       properties:
         name: { type: string, maxLength: 255, description: Canonical name; mirrors translations.en when only one side set }
+        slug: { type: string, maxLength: 255, pattern: '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$', description: "Optional. Omit or send empty to auto-generate from name. A value that collides with another active level's slug is rejected (see 409) instead of being created." }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
         translations:
           type: object
@@ -759,12 +760,13 @@ components:
             properties:
               name: { type: string, maxLength: 255 }
       description: >
-        Slug is computed server-side from canonical name (utils.SlugifyName); not accepted on write.
+        Omitted/empty slug auto-generates from canonical name (utils.SlugifyName, ASCII-fallback to a random-suffixed prefix). A manually supplied slug already taken by another active level is rejected (409 / app code 3007) with a recommended_slug.
         Canonical vs translations.en mismatch → 4xx.
     UpdateCourseLevelRequest:
       type: object
       properties:
         name: { type: string }
+        slug: { type: string, nullable: true, maxLength: 255, description: "Omit to leave unchanged (independent of name, even when name changes). null/empty/whitespace → 400. A new value colliding with another active level is auto-resolved server-side with a random suffix (no confirmation step)." }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
         translations:
           type: object
@@ -776,7 +778,7 @@ components:
           type: integer
           format: int64
           description: Required for optimistic lock; stale → 409 Conflict (app code 3005)
-      description: When canonical name changes, slug is recomputed server-side.
+      description: Slug is independent of name — omitted field means unchanged, even when name changes.
     MediaFilePublic:
       type: object
       description: Public subset of a media_files row (`internal/media/delivery` DTO)
@@ -826,7 +828,7 @@ components:
         slug:
           type: string
           maxLength: 255
-          description: Response only; computed server-side from canonical name on write (omit in create/update body).
+          description: Optional on write — omit to auto-generate (new node) or preserve the existing node's slug by id (existing node); a manual value is validated and, if it collides with another node's slug in the same tree, silently auto-resolved with a random suffix. Explicit null/empty on an existing node is rejected (400, identifies the node).
         translations:
           type: object
           additionalProperties:
@@ -855,6 +857,7 @@ components:
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255, pattern: '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$', description: "Optional. Omit or send empty to auto-generate from name. A value that collides with another active topic's slug is rejected (see 409) instead of being created." }
         image_file_id: { type: string, format: uuid }
         translations:
           type: object
@@ -867,7 +870,7 @@ components:
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-      description: Slug is computed server-side from canonical name; not accepted on write.
+      description: Omitted/empty slug auto-generates from canonical name; a manually supplied slug already taken by another active topic is rejected (409 / app code 3007) with a recommended_slug.
     UpdateCourseTopicRequest:
       type: object
       example:
@@ -876,6 +879,7 @@ components:
         child_topics: []
       properties:
         name: { type: string }
+        slug: { type: string, nullable: true, maxLength: 255, description: "Omit to leave unchanged (independent of name). null/empty/whitespace → 400. A new value colliding with another active topic is auto-resolved server-side with a random suffix." }
         image_file_id: { type: string, format: uuid }
         translations:
           type: object
@@ -892,6 +896,7 @@ components:
           type: integer
           format: int64
           description: Optimistic lock; stale → 409 / app code 3005
+      description: Slug is independent of name — omitted field means unchanged, even when name changes.
     CreateCourseOutcomeRequest:
       type: object
       example:
@@ -971,6 +976,7 @@ components:
         status: ACTIVE
       properties:
         name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255, pattern: '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$', description: "Optional. Omit or send empty to auto-generate from name. A value that collides with another active skill's slug is rejected (see 409) instead of being created." }
         translations:
           type: object
           additionalProperties:
@@ -982,7 +988,7 @@ components:
           items:
             $ref: "#/components/schemas/TreeNode"
         status: { type: string, enum: [ACTIVE, INACTIVE] }
-      description: Slug is computed server-side from canonical name; not accepted on write.
+      description: Omitted/empty slug auto-generates from canonical name; a manually supplied slug already taken by another active skill is rejected (409 / app code 3007) with a recommended_slug.
     UpdateCourseSkillRequest:
       type: object
       example:
@@ -990,6 +996,7 @@ components:
         expected_row_version: 1
       properties:
         name: { type: string }
+        slug: { type: string, nullable: true, maxLength: 255, description: "Omit to leave unchanged (independent of name). null/empty/whitespace → 400. A new value colliding with another active skill is auto-resolved server-side with a random suffix." }
         translations:
           type: object
           additionalProperties:
@@ -1004,6 +1011,7 @@ components:
         expected_row_version:
           type: integer
           format: int64
+      description: Slug is independent of name — omitted field means unchanged, even when name changes.
     CreateTagRequest:
       type: object
       example:
@@ -1013,6 +1021,7 @@ components:
           en: { name: React }
       properties:
         name: { type: string, maxLength: 255 }
+        slug: { type: string, maxLength: 255, pattern: '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$', description: "Optional. Omit or send empty to auto-generate from name. A value that collides with another active tag's slug is rejected (see 409) instead of being created." }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
         translations:
           type: object
@@ -1020,11 +1029,12 @@ components:
             type: object
             properties:
               name: { type: string }
-      description: Slug is computed server-side from canonical name; not accepted on write.
+      description: Omitted/empty slug auto-generates from canonical name; a manually supplied slug already taken by another active tag is rejected (409 / app code 3007) with a recommended_slug.
     UpdateTagRequest:
       type: object
       properties:
         name: { type: string }
+        slug: { type: string, nullable: true, maxLength: 255, description: "Omit to leave unchanged (independent of name). null/empty/whitespace → 400. A new value colliding with another active tag is auto-resolved server-side with a random suffix." }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
         translations:
           type: object
@@ -1035,6 +1045,7 @@ components:
         expected_row_version:
           type: integer
           format: int64
+      description: Slug is independent of name — omitted field means unchanged, even when name changes.
     BunnyVideoWebhookRequest:
       type: object
       required: [VideoLibraryId, VideoGuid, Status]
@@ -1439,6 +1450,12 @@ paths:
       responses:
         "201":
           description: Created
+        "409":
+          description: Manually supplied slug already exists (app code 3007)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlugConflictResponse"
 
   /api/v1/taxonomy/levels/full:
     get:
@@ -1552,6 +1569,12 @@ paths:
       responses:
         "201":
           description: Created
+        "409":
+          description: Manually supplied slug already exists (app code 3007)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlugConflictResponse"
 
   /api/v1/taxonomy/topics/full:
     get:
@@ -1782,6 +1805,12 @@ paths:
       responses:
         "201":
           description: Created
+        "409":
+          description: Manually supplied slug already exists (app code 3007)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlugConflictResponse"
 
   /api/v1/taxonomy/skills/full:
     get:
@@ -1897,6 +1926,12 @@ paths:
       responses:
         "201":
           description: Created
+        "409":
+          description: Manually supplied slug already exists (app code 3007)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlugConflictResponse"
 
   /api/v1/taxonomy/tags/full:
     get:

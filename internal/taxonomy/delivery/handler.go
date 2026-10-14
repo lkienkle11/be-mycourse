@@ -44,9 +44,14 @@ func (h *Handler) createTopic(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
+	childTopics, err := toDomainTreeNodes(req.ChildTopics)
+	if err != nil {
+		_ = mapTaxonomyMutationError(c, err, true)
+		return
+	}
 	in := domain.CreateCourseTopicInput{
-		ActorID: utils.CurrentUserID(c), Name: req.Name,
-		Status: req.Status, ImageFileID: req.ImageFileID, ChildTopics: req.ChildTopics,
+		ActorID: utils.CurrentUserID(c), Name: req.Name, Slug: req.Slug,
+		Status: req.Status, ImageFileID: req.ImageFileID, ChildTopics: childTopics,
 		Translations: req.Translations,
 	}
 	row, err := h.svc.CreateTopic(c.Request.Context(), in)
@@ -67,9 +72,18 @@ func (h *Handler) updateTopic(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
+	var childTopics *[]taxpkg.TreeNode
+	if req.ChildTopics != nil {
+		converted, err := toDomainTreeNodes(*req.ChildTopics)
+		if err != nil {
+			_ = mapTaxonomyMutationError(c, err, true)
+			return
+		}
+		childTopics = &converted
+	}
 	in := domain.UpdateCourseTopicInput{
-		Name: req.Name, Status: req.Status,
-		ImageFileID: req.ImageFileID, ChildTopics: req.ChildTopics,
+		Name: req.Name, Slug: req.Slug, Status: req.Status,
+		ImageFileID: req.ImageFileID, ChildTopics: childTopics,
 		Translations: req.Translations, ExpectedRowVersion: req.ExpectedRowVersion,
 	}
 	row, err := h.svc.UpdateTopic(c.Request.Context(), id, in)
@@ -102,11 +116,11 @@ func (h *Handler) getCourseOutcome(c *gin.Context) {
 }
 
 func (h *Handler) createCourseOutcome(c *gin.Context) {
-	createTaxonomyMutation(c, h.svc.CreateCourseOutcome, courseOutcomeInputFromCreate, toCourseOutcomeResponse, true)
+	createTaxonomyMutation(c, h.svc.CreateCourseOutcome, courseOutcomeInputFromCreateOK, toCourseOutcomeResponse, true)
 }
 
 func (h *Handler) updateCourseOutcome(c *gin.Context) {
-	updateTaxonomyMutation(c, h.svc.UpdateCourseOutcome, courseOutcomeInputFromUpdate, toCourseOutcomeResponse, true)
+	updateTaxonomyMutation(c, h.svc.UpdateCourseOutcome, courseOutcomeInputFromUpdateOK, toCourseOutcomeResponse, true)
 }
 
 func (h *Handler) deleteCourseOutcome(c *gin.Context) {
@@ -162,11 +176,11 @@ func (h *Handler) getTag(c *gin.Context) {
 }
 
 func (h *Handler) createTag(c *gin.Context) {
-	createTaxonomyMutation(c, h.svc.CreateTag, slugStatusInputFromCreate, slugStatusResponseFromTag, false)
+	createTaxonomyMutation(c, h.svc.CreateTag, slugStatusInputFromCreateOK, slugStatusResponseFromTag, false)
 }
 
 func (h *Handler) updateTag(c *gin.Context) {
-	updateSlugStatusTaxonomy[UpdateTagRequest, domain.Tag](c, h.svc.UpdateTag, slugStatusInputFromUpdate, slugStatusResponseFromTag)
+	updateSlugStatusTaxonomy[UpdateTagRequest, domain.Tag](c, h.svc.UpdateTag, slugStatusInputFromUpdateOK, slugStatusResponseFromTag)
 }
 
 func (h *Handler) deleteTag(c *gin.Context) {
@@ -192,11 +206,11 @@ func (h *Handler) getCourseLevel(c *gin.Context) {
 }
 
 func (h *Handler) createCourseLevel(c *gin.Context) {
-	createTaxonomyMutation(c, h.svc.CreateCourseLevel, slugStatusInputFromCreate, slugStatusResponseFromCourseLevel, false)
+	createTaxonomyMutation(c, h.svc.CreateCourseLevel, slugStatusInputFromCreateOK, slugStatusResponseFromCourseLevel, false)
 }
 
 func (h *Handler) updateCourseLevel(c *gin.Context) {
-	updateSlugStatusTaxonomy[UpdateCourseLevelRequest, domain.CourseLevel](c, h.svc.UpdateCourseLevel, slugStatusInputFromUpdate, slugStatusResponseFromCourseLevel)
+	updateSlugStatusTaxonomy[UpdateCourseLevelRequest, domain.CourseLevel](c, h.svc.UpdateCourseLevel, slugStatusInputFromUpdateOK, slugStatusResponseFromCourseLevel)
 }
 
 func (h *Handler) deleteCourseLevel(c *gin.Context) {

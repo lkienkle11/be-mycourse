@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -11,12 +12,58 @@ import (
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/httpx"
 	"mycourse-io-be/internal/shared/response"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
 	"mycourse-io-be/internal/taxonomy/application"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
+
+// toDomainTreeNodes converts the write-path DTO tree into the shared
+// read/write taxpkg.TreeNode shape, resolving each node's Optional[string]
+// Slug into a plain string per this design's carrier convention: "" means
+// "no manual slug for this node" (auto-generate or preserve-by-id, resolved
+// later by taxpkg.ResolveTreeSlugs), a non-empty value is an already-trimmed
+// +format-validated manual value. An explicit null/empty node slug is
+// rejected immediately, identifying the offending node by id (or "(new
+// node)" when id is blank), matching the root-level explicit
+// empty-slug-on-update rejection.
+func toDomainTreeNodes(in []TreeNodeInput) ([]taxpkg.TreeNode, error) {
+	out := make([]taxpkg.TreeNode, len(in))
+	for i, n := range in {
+		slug := ""
+		if n.Slug.Set {
+			trimmed := strings.TrimSpace(n.Slug.Value)
+			if trimmed == "" {
+				return nil, stderrors.Join(application.ErrTaxonomyValidation,
+					fmt.Errorf("tree node %q has an explicit empty slug", nodeLabel(n.ID)))
+			}
+			validated, ok := sharedslug.ValidateManualFormat(trimmed, taxpkg.DefaultMaxSlugLen)
+			if !ok {
+				return nil, stderrors.Join(application.ErrTaxonomyValidation,
+					fmt.Errorf("tree node %q has an invalid slug format", nodeLabel(n.ID)))
+			}
+			slug = validated
+		}
+		children, err := toDomainTreeNodes(n.Children)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = taxpkg.TreeNode{
+			ID: n.ID, Name: n.Name, Slug: slug,
+			Translations: n.Translations, Children: children,
+		}
+	}
+	return out, nil
+}
+
+func nodeLabel(id string) string {
+	if strings.TrimSpace(id) == "" {
+		return "(new node)"
+	}
+	return id
+}
 
 func listTaxonomyItems[TRow any, TResp any](
 	c *gin.Context,
@@ -84,6 +131,13 @@ func mapTaxonomyMutationError(c *gin.Context, err error, withProfileMedia bool) 
 	if err == nil {
 		return nil
 	}
+	var slugConflict *domain.SlugConflictError
+	if stderrors.As(err, &slugConflict) {
+		response.Fail(c, http.StatusConflict, apperrors.SlugConflict,
+			apperrors.DefaultMessage(apperrors.SlugConflict),
+			gin.H{"recommended_slug": slugConflict.RecommendedSlug})
+		return err
+	}
 	if stderrors.Is(err, apperrors.ErrNotFound) {
 		response.Fail(c, http.StatusNotFound, apperrors.NotFound, "not found", nil)
 		return err
@@ -111,7 +165,7 @@ func mapTaxonomyMutationError(c *gin.Context, err error, withProfileMedia bool) 
 func updateSlugStatusTaxonomy[Req any, Row any](
 	c *gin.Context,
 	updateFn func(context.Context, string, domain.UpdateTagInput) (*Row, error),
-	toInput func(Req) domain.UpdateTagInput,
+	toInput func(Req) (domain.UpdateTagInput, error),
 	toResponse func(Row) SlugStatusResponse,
 ) {
 	updateTaxonomyMutation(c, updateFn, toInput, toResponse, false)
@@ -160,29 +214,57 @@ func courseOutcomeInputFromUpdate(req UpdateCourseOutcomeRequest) domain.UpdateC
 	}
 }
 
-func courseSkillInputFromCreate(req CreateCourseSkillRequest, actorID string) domain.CreateCourseSkillInput {
-	return domain.CreateCourseSkillInput{
-		ActorID: actorID, Name: req.Name, Status: req.Status, Children: req.Children,
-		Translations: req.Translations,
-	}
+func courseOutcomeInputFromCreateOK(req CreateCourseOutcomeRequest, actorID string) (domain.CreateCourseOutcomeInput, error) {
+	return courseOutcomeInputFromCreate(req, actorID), nil
 }
 
-func courseSkillInputFromUpdate(req UpdateCourseSkillRequest) domain.UpdateCourseSkillInput {
-	return domain.UpdateCourseSkillInput{
-		Name: req.Name, Status: req.Status, Children: req.Children,
-		Translations: req.Translations, ExpectedRowVersion: req.ExpectedRowVersion,
+func courseOutcomeInputFromUpdateOK(req UpdateCourseOutcomeRequest) (domain.UpdateCourseOutcomeInput, error) {
+	return courseOutcomeInputFromUpdate(req), nil
+}
+
+func courseSkillInputFromCreate(req CreateCourseSkillRequest, actorID string) (domain.CreateCourseSkillInput, error) {
+	children, err := toDomainTreeNodes(req.Children)
+	if err != nil {
+		return domain.CreateCourseSkillInput{}, err
 	}
+	return domain.CreateCourseSkillInput{
+		ActorID: actorID, Name: req.Name, Slug: req.Slug, Status: req.Status, Children: children,
+		Translations: req.Translations,
+	}, nil
+}
+
+func courseSkillInputFromUpdate(req UpdateCourseSkillRequest) (domain.UpdateCourseSkillInput, error) {
+	var children *[]taxpkg.TreeNode
+	if req.Children != nil {
+		converted, err := toDomainTreeNodes(*req.Children)
+		if err != nil {
+			return domain.UpdateCourseSkillInput{}, err
+		}
+		children = &converted
+	}
+	return domain.UpdateCourseSkillInput{
+		Name: req.Name, Slug: req.Slug, Status: req.Status, Children: children,
+		Translations: req.Translations, ExpectedRowVersion: req.ExpectedRowVersion,
+	}, nil
 }
 
 func slugStatusInputFromCreate(req CreateTagRequest, actorID string) domain.CreateTagInput {
-	return domain.CreateTagInput{ActorID: actorID, Name: req.Name, Status: req.Status, Translations: req.Translations}
+	return domain.CreateTagInput{ActorID: actorID, Name: req.Name, Slug: req.Slug, Status: req.Status, Translations: req.Translations}
+}
+
+func slugStatusInputFromCreateOK(req CreateTagRequest, actorID string) (domain.CreateTagInput, error) {
+	return slugStatusInputFromCreate(req, actorID), nil
 }
 
 func slugStatusInputFromUpdate(req UpdateTagRequest) domain.UpdateTagInput {
 	return domain.UpdateTagInput{
-		Name: req.Name, Status: req.Status, Translations: req.Translations,
+		Name: req.Name, Slug: req.Slug, Status: req.Status, Translations: req.Translations,
 		ExpectedRowVersion: req.ExpectedRowVersion,
 	}
+}
+
+func slugStatusInputFromUpdateOK(req UpdateTagRequest) (domain.UpdateTagInput, error) {
+	return slugStatusInputFromUpdate(req), nil
 }
 
 func slugStatusResponseFromTag(t domain.Tag) SlugStatusResponse {
@@ -209,7 +291,7 @@ func slugStatusResponseFromCourseLevel(cl domain.CourseLevel) SlugStatusResponse
 func updateTaxonomyMutation[Req any, In any, Row any, Resp any](
 	c *gin.Context,
 	updateFn func(context.Context, string, In) (*Row, error),
-	toInput func(Req) In,
+	toInput func(Req) (In, error),
 	toResponse func(Row) Resp,
 	withProfileMedia bool,
 ) {
@@ -223,7 +305,12 @@ func updateTaxonomyMutation[Req any, In any, Row any, Resp any](
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	row, err := updateFn(c.Request.Context(), id, toInput(req))
+	in, err := toInput(req)
+	if err != nil {
+		_ = mapTaxonomyMutationError(c, err, withProfileMedia)
+		return
+	}
+	row, err := updateFn(c.Request.Context(), id, in)
 	if err := mapTaxonomyMutationError(c, err, withProfileMedia); err != nil {
 		return
 	}
@@ -233,7 +320,7 @@ func updateTaxonomyMutation[Req any, In any, Row any, Resp any](
 func createTaxonomyMutation[Req any, In any, Row any, Resp any](
 	c *gin.Context,
 	createFn func(context.Context, In) (*Row, error),
-	toInput func(Req, string) In,
+	toInput func(Req, string) (In, error),
 	toResponse func(Row) Resp,
 	withProfileMedia bool,
 ) {
@@ -242,7 +329,11 @@ func createTaxonomyMutation[Req any, In any, Row any, Resp any](
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	in := toInput(req, utils.CurrentUserID(c))
+	in, err := toInput(req, utils.CurrentUserID(c))
+	if err != nil {
+		_ = mapTaxonomyMutationError(c, err, withProfileMedia)
+		return
+	}
 	row, err := createFn(c.Request.Context(), in)
 	if err := mapTaxonomyMutationError(c, err, withProfileMedia); err != nil {
 		return

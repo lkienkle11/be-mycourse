@@ -231,21 +231,6 @@ func syncOutcomeDescription(en *domain.OutcomeTranslation, desc []string) ([]str
 	return canonDesc, nil
 }
 
-func prepareTreeWrite(nodes []taxpkg.TreeNode) ([]taxpkg.TreeNode, error) {
-	if nodes == nil {
-		return nil, nil
-	}
-	canonized, err := canonicalizeTreeLocales(nodes)
-	if err != nil {
-		return nil, err
-	}
-	out, conflict := taxpkg.PrepareTreeForWrite(canonized)
-	if conflict {
-		return nil, domain.ErrTaxonomyCanonicalConflict
-	}
-	return out, nil
-}
-
 func canonicalizeTreeLocales(nodes []taxpkg.TreeNode) ([]taxpkg.TreeNode, error) {
 	if len(nodes) == 0 {
 		return nodes, nil

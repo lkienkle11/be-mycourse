@@ -275,7 +275,14 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 // with no retry-on-duplicate-key, unlike CreateCourse. Scoped to only the
 // slug write sub-step (not the whole surrounding transaction) so a slug-only
 // collision retry does not re-validate/re-write the unrelated metadata fields
-// already committed earlier in the same transaction.
+// already committed earlier in the same transaction. Uses
+// gormx.RetryInSavepoint: an earlier version of this function retried the
+// write on the same *gorm.DB with no SAVEPOINT, which cannot actually
+// recover from a real collision because Postgres aborts the whole
+// surrounding transaction on the first duplicate-key error — every
+// subsequent statement, including the "retry," then failed immediately with
+// a generic "current transaction is aborted" error instead of ever
+// resolving the collision.
 func (r *GormRepository) applyUpdateSlugWithRetry(ctx context.Context, tx *gorm.DB, access *courseAccess, newSlugInput *string) error {
 	if newSlugInput == nil {
 		return nil // omitted — do not touch courses.slug at all
@@ -285,23 +292,14 @@ func (r *GormRepository) applyUpdateSlugWithRetry(ctx context.Context, tx *gorm.
 		return nil // no-op: identical to current slug, never a self-conflict
 	}
 	const updateSlugRetry = 5 // mirrors courseSlugCreateRetry; same tuning rationale
-	var lastErr error
-	for range updateSlugRetry {
+	return gormx.RetryInSavepoint(tx, "course_slug_update_retry", updateSlugRetry, isCourseSlugDuplicateKey, func() error {
 		finalSlug, err := resolveUpdateSlug(ctx, tx, newSlug, access.ID)
 		if err != nil {
 			return err
 		}
-		writeErr := tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
+		return tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
 			Updates(map[string]any{"slug": finalSlug, "updated_at": timex.NowUnix()}).Error
-		if writeErr == nil {
-			return nil
-		}
-		if !isCourseSlugDuplicateKey(writeErr) {
-			return writeErr
-		}
-		lastErr = writeErr // a concurrent writer won the race on finalSlug — retry with a fresh suffix
-	}
-	return lastErr
+	})
 }
 
 // resolveUpdateSlug implements the update-time slug branch — no

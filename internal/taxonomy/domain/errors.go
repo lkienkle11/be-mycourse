@@ -8,3 +8,14 @@ var (
 	// ErrTaxonomyCanonicalConflict is returned when canonical text disagrees with translations.en.
 	ErrTaxonomyCanonicalConflict = errors.New("canonical field conflicts with translations.en")
 )
+
+// SlugConflictError is returned when a manually supplied slug on create
+// already belongs to another active row of the same taxonomy entity type.
+// Mirrors internal/course/domain.SlugConflictError: RecommendedSlug is
+// confirmed available at construction time, but every write path re-checks
+// at write time regardless (see internal/taxonomy/infra/slug.go).
+type SlugConflictError struct {
+	RecommendedSlug string
+}
+
+func (e *SlugConflictError) Error() string { return "taxonomy slug already exists" }

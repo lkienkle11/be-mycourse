@@ -215,9 +215,9 @@ Register **static** paths (`/full`, `/:id/hard`) **before** generic `/:id` route
 - Soft delete: `gormx.SoftDeleteWithAudit` sets `deleted_at` and `updated_at`.
 - Hard delete: GORM `db.Delete(&row{}, id)`; side effects (e.g. orphan image cleanup) **only** on hard delete.
 
-#### Slug uniqueness (taxonomy)
+#### Slug uniqueness (course, taxonomy, users)
 
-Partial unique index `WHERE deleted_at IS NULL` (migration **`000012`**) so slugs can be re-created after soft delete.
+Partial unique index `WHERE deleted_at IS NULL` (course: migration `000016`; taxonomy: migration **`000012`**; users: `uix_users_slug_active`, migration `000043`) so slugs can be re-created after soft delete. Resolution is owned once by `internal/shared/slug` (`ResolveCreate`, `ResolveUpdate`, `ParseManual`, `ParseUpdateInput`, `RetryWithSuffix`); each module supplies only an `AvailableFunc` (typically `gormslug.AvailableIn`) and its unique-index names for `gormslug.IsDuplicate`. A write that can lose a unique-index race to a concurrent request runs inside `gormx.RetryInSavepoint` (inside an open transaction) and re-resolves the slug on each attempt. Manual create conflicts surface as `slug.ConflictError` and are mapped to 409 `SlugConflict` (3007, `recommended_slug`) by `response.FailIfSlugConflict`; update conflicts are auto-suffixed and never 409. User slugs additionally reject reserved words (`slug.IsReserved`) and permanently reserve former slugs in `user_slug_history`.
 
 #### Optimistic lock + translation sync (taxonomy)
 
@@ -234,7 +234,7 @@ Mirror the **course** pattern (`expected_row_version` on write, bump `row_versio
 | Locale key collision | Two raw keys that canonicalize to the same BCP47 tag with **different** translation payloads → **4xx**; do not overwrite nondeterministically |
 | Non-`en` translation content | After canonicalize, every kept name/short/description must meet the same length/paragraph limits as canonical; fail → **4xx** taxonomy validation (not DB) |
 | Locale length | Canonicalized locale must be ≤ **16** chars (schema `VARCHAR(16)`) → **4xx** before DB |
-| Slug | Independent of `name`/translations — omitted on update leaves it unchanged even when `name` changes; manual value validated + collision auto-resolved (random suffix); auto-generate from canonical `name` only when no manual slug is supplied on create (see `openspec/changes/unify-taxonomy-slug-management`) |
+| Slug | Independent of `name`/translations — omitted on update leaves it unchanged even when `name` changes; manual value validated + collision auto-resolved (random suffix) through the shared `slug.ResolveUpdate`; auto-generate from canonical `name` only when no manual slug is supplied on create (`slug.ResolveCreate`) (see `openspec/changes/unify-taxonomy-slug-management`) |
 
 Details: `docs/modules/taxonomy.md` § Multilingual contract.
 

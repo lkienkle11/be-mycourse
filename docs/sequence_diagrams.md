@@ -97,7 +97,7 @@ sequenceDiagram
     C->>H: POST /api/v1/courses { title, slug? }
     H->>S: CreateCourse(actorUserID, title, slug)
     S->>R: CreateCourse(input)
-    R->>R: resolveCreateSlug (manual slug check, or gosimple/slug auto-generate + collision retry)
+    R->>R: resolveCreateSlug (shared slug.ResolveCreate: manual slug check, or gosimple/slug auto-generate + collision retry)
     R->>DB: BEGIN
     R->>DB: INSERT courses (owner_user_id, resolved slug)
     R->>DB: INSERT course_versions (v1 DRAFT)
@@ -182,7 +182,7 @@ sequenceDiagram
 
 ## 2. User Registration
 
-**Description:** `POST /api/v1/auth/register` — validates input; creates pending user or updates unconfirmed same email; enforces `registration_email_send_total` (max 15 successful sends) and Redis sliding window (5 per 4h per user id); sends confirmation email via Brevo.
+**Description:** `POST /api/v1/auth/register` — validates input; creates pending user or updates unconfirmed same email; enforces `registration_email_send_total` (max 15 successful sends) and Redis sliding window (5 per 4h per user id); sends confirmation email via Brevo. A newly created user row also receives its public `users.slug`, auto-generated from `display_name` through `internal/shared/slug` (unchanged when an unconfirmed pending user is updated).
 
 ```mermaid
 sequenceDiagram

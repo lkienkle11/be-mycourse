@@ -137,6 +137,7 @@ type MeResponse struct {
     UserCode       string             `json:"user_code"` // ULID string
     Email          string             `json:"email"`
     DisplayName    string             `json:"display_name"`
+    Slug           string             `json:"slug"`            // users.slug; "" while a legacy user is not backfilled
     Avatar         *MediaFilePublic   `json:"avatar,omitempty"`
     EmailConfirmed bool               `json:"email_confirmed"`
     IsDisabled     bool               `json:"is_disabled"`
@@ -154,6 +155,7 @@ type MeResponse struct {
   "user_code":       "01JX7H3DV5D5P2A3C7M9QW6R1N",
   "email":           "user@example.com",
   "display_name":    "Alice",
+  "slug":            "alice",
   "email_confirmed": true,
   "is_disabled":     false,
   "created_at":      1713456789,
@@ -163,6 +165,10 @@ type MeResponse struct {
 ```
 
 `roles` is always a non-null array ordered `sysadmin`, `admin`, `instructor`, `learner`, followed stably by unknown role names. It is a display projection only; `permissions` remains authoritative for access control.
+
+`slug` is the user's public slug (`users.slug`, max 255, format `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`), auto-generated from `display_name` at register and OAuth sign-up (`user-{7 random chars}` when the name is empty or untransliterable; `{base}-{7 random chars}` on collision or reserved base, the suffix growing to 8, 9, … after 7 failed attempts at a length). It is `""` only while a legacy user has not been backfilled (`CLI_BACKFILL_USER_SLUGS=1 go run .`).
+
+**`PATCH /api/v1/me`** body `UpdateMeRequest`: `avatar_file_id` (optional uuid, `""` removes) and optional `slug`. Omitted `slug` leaves it unchanged; explicit `null`, `""` or whitespace → `400`; invalid format or reserved word → `400` (`ValidationFailed`); the current value is a no-op; a slug held by another active user or a former slug of another user is silently auto-suffixed (never `409`) and the response returns the stored slug. The previous slug is kept in `user_slug_history`; a user may return to their own former slug. A slug-only body is allowed. The `200` response is `dto.MeResponse`.
 
 ### `services.TokenPairResult`
 
@@ -471,6 +477,7 @@ type Collaborator struct {
     Email        string   `json:"email"`
     AvatarFileID string   `json:"avatar_file_id,omitempty"`
     AvatarURL    string   `json:"avatar_url,omitempty"`
+    Slug         string   `json:"slug"` // collaborator's user slug
 }
 
 type CourseDetail struct {
@@ -486,6 +493,7 @@ type CourseDetail struct {
 type CourseListItem struct {
     Course
     OwnerDisplayName   string `json:"owner_display_name,omitempty"` // admin catalog, trash, review queue only; from users.display_name
+    OwnerSlug          string `json:"owner_slug,omitempty"`         // owner's users.slug; populated alongside owner_display_name
     Title              string `json:"title"`
     ReviewStatus       string `json:"review_status"`
     VersionID          string `json:"version_id,omitempty"`
@@ -500,7 +508,7 @@ type CourseListItem struct {
 }
 ```
 
-**`CourseListItem.owner_display_name`:** populated on `GET /course-admin/courses`, `GET /course-admin/courses/trash`, and `GET /course-reviews/pending` only. Instructor (`GET /courses/my`) and learner catalog lists omit this field.
+**`CourseListItem.owner_display_name` / `owner_slug`:** populated on `GET /course-admin/courses`, `GET /course-admin/courses/trash`, and `GET /course-reviews/pending` only (both are `omitempty`). Instructor (`GET /courses/my`) and learner catalog lists omit them. `owner_slug` is the owner's `users.slug`.
 
 **`TrendingCourseItem` / `ContinueLearningItem`** (`openspec/changes/add-home-catalog-apis`) — deliberately separate from `CourseListItem`, not an extension of it (avoids leaking fields into unrelated authenticated responses):
 
@@ -512,6 +520,7 @@ type TrendingCourseItem struct {
     ShortDescription string `json:"short_description"`
     ThumbnailURL     string `json:"thumbnail_url,omitempty"`
     OwnerDisplayName string `json:"owner_display_name,omitempty"`
+    OwnerSlug        string `json:"owner_slug,omitempty"`
     CreatedAt        int64  `json:"created_at"`
 }
 
@@ -521,6 +530,7 @@ type ContinueLearningItem struct {
     Title               string  `json:"title"`
     ThumbnailURL        string  `json:"thumbnail_url,omitempty"`
     OwnerDisplayName    string  `json:"owner_display_name,omitempty"`
+    OwnerSlug           string  `json:"owner_slug,omitempty"`
     CompletedSubLessons int     `json:"completed_sub_lessons"`
     TotalSubLessons     int     `json:"total_sub_lessons"`
     ProgressPercent     float64 `json:"progress_percent"`
@@ -559,6 +569,7 @@ Details: **`docs/modules/instructor.md`**.
 type PopularInstructor struct {
     UserID      string
     DisplayName string
+    Slug        string // users.slug
     AvatarURL   string
     Subtitle    string // instructor_profiles.current_job_title
     CourseCount int64
@@ -782,6 +793,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
   "user_code":       "01JX7H3DV5D5P2A3C7M9QW6R1N",
   "email":           "user@example.com",
   "display_name":    "Alice",
+  "slug":            "alice",
   "email_confirmed": true,
   "is_disabled":     false,
   "created_at":      1713456789,
@@ -838,7 +850,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `[]domain.CourseListItem` (no `owner_display_name`) |
+| 200 | 0 | `[]domain.CourseListItem` (no `owner_display_name` / `owner_slug`) |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` |
 | 500 | 9001 | `null` |
@@ -851,7 +863,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name`) |
+| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name` / `owner_slug`) |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` |
 | 500 | 9001 | `null` |
@@ -864,7 +876,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name`) |
+| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name` / `owner_slug`) |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` |
 | 500 | 9001 | `null` |
@@ -877,7 +889,7 @@ All endpoints return `application/json`. The outer envelope is always `Response`
 
 | Status | `code` | `data` |
 |--------|--------|--------|
-| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name`) |
+| 200 | 0 | `[]domain.CourseListItem` (includes `owner_display_name` / `owner_slug`) |
 | 401 | 3002 | `null` |
 | 403 | 3003 | `null` |
 | 500 | 9001 | `null` |

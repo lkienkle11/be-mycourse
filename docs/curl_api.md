@@ -594,6 +594,7 @@ curl -X GET {{BASE_URL}}/api/v1/me \
     "user_code":       "01960000-0000-7000-0000-000000000001",
     "email":           "alice@example.com",
     "display_name":    "Alice",
+    "slug":            "alice",
     "email_confirmed": true,
     "is_disabled":     false,
     "created_at":      1713456789,
@@ -605,6 +606,8 @@ curl -X GET {{BASE_URL}}/api/v1/me \
 
 > `created_at` is a Unix epoch **integer** (seconds).
 
+> `slug` is the user's public slug, auto-generated from `display_name` at sign-up (`""` only while a legacy user is not backfilled; operators run `CLI_BACKFILL_USER_SLUGS=1 go run .`).
+
 > `permissions` is a sorted array of `permission_name` strings.
 
 > `roles` is always a non-null array. Known role names are ordered `sysadmin`, `admin`, `instructor`, `learner`; unknown names follow in their original order. These raw names are for display only—authorization remains permission-based. Successful role or direct-permission assignment/removal invalidates the cached profile, so the next request observes the current RBAC projection without waiting for the one-minute TTL. Existing JWT permissions still change only after token refresh or expiry.
@@ -615,13 +618,15 @@ curl -X GET {{BASE_URL}}/api/v1/me \
 
 ### 3.2 Patch My Profile
 
-**`PATCH /api/v1/me`** — body: `{ "avatar_file_id": "<uuid of media_files row>" }`. Use **`""`** to clear. Upload an image via **`POST /api/v1/media/files`** first, then pass the returned **`id`**.
+**`PATCH /api/v1/me`** — body: `{ "avatar_file_id": "<uuid of media_files row>", "slug": "<new-slug>" }`; both fields are optional and a slug-only body is allowed. Use **`avatar_file_id: ""`** to clear the avatar. Upload an image via **`POST /api/v1/media/files`** first, then pass the returned **`id`**.
+
+**`slug`** rules: omitted = unchanged; explicit `null`, `""` or whitespace → `400`; must match `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` (max 255) and must not be a reserved word (`admin`, `api`, `me`, `users`, …) → `400` (`ValidationFailed`); the current value is a no-op. A slug taken by another active user, or a former slug of another user, is silently auto-suffixed (never `409`) — the response `data.slug` is the stored value. The old slug is kept forever in `user_slug_history`, and a user may return to their own former slug.
 
 ```bash
 curl -X PATCH {{BASE_URL}}/api/v1/me \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"avatar_file_id":"550e8400-e29b-41d4-a716-446655440000"}'
+  -d '{"avatar_file_id":"550e8400-e29b-41d4-a716-446655440000","slug":"alice-nguyen"}'
 ```
 
 **Error examples:**
@@ -644,7 +649,7 @@ curl -X DELETE {{BASE_URL}}/api/v1/me \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-**`DELETE /api/v1/me/hard`** — permanent row removal (same permission as soft delete; no extra permission).
+**`DELETE /api/v1/me/hard`** — permanent row removal (same permission as soft delete; no extra permission). The user's `user_slug_history` rows are removed with the user (cascade), so their former slugs become assignable again; a soft delete keeps them reserved.
 
 ```bash
 curl -X DELETE {{BASE_URL}}/api/v1/me/hard \
@@ -1562,7 +1567,7 @@ Allowed `search_by` values:
 
 **Outcome translations:** any locale entry that has data must include non-empty `short_description`. Sending only `description[]` (or empty `short_description` with non-empty description) → **4xx** validation (no silent drop).
 
-**Soft delete (migration `000012`):** Default `GET /taxonomy/{resource}` returns only active rows (`deleted_at IS NULL`). `GET /taxonomy/{resource}/full` includes soft-deleted rows. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE /taxonomy/{resource}/:id/hard` permanently removes the row. Topics/outcomes hard-delete enqueues orphan image cleanup. See **`docs/patterns.md`** (CRUD soft delete). Multilingual schema: migration **`000032`** (shipped in source; apply on deploy) — see `docs/database.md`. Outcome localized reads resolve **whole** translation rows (no mixed-locale short/description). Write locales must canonicalize to ≤16 chars.
+**Soft delete (migration `000012`):** Default `GET /taxonomy/{resource}` returns only active rows (`deleted_at IS NULL`). `GET /taxonomy/{resource}/full` includes soft-deleted rows. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE /taxonomy/{resource}/:id/hard` permanently removes the row (the row must still be active: a row that was already soft-deleted is not found by the pre-delete image lookup and the call fails with `500`). Topics/outcomes hard-delete enqueues orphan image cleanup. See **`docs/patterns.md`** (CRUD soft delete). Multilingual schema: migration **`000032`** (shipped in source; apply on deploy) — see `docs/database.md`. Outcome localized reads resolve **whole** translation rows (no mixed-locale short/description). Write locales must canonicalize to ≤16 chars.
 
 ### 12.1 Course levels
 
@@ -1711,6 +1716,7 @@ Requires `MIGRATE=1` (or applied `000013_instructor_management.up.sql`) and sync
 
 Identity fields for application/profile responses:
 - `full_name` (user display name)
+- `slug` (user slug, `users.slug`; also on roster items, `POST /instructors/bulk` added members, and `GET /instructors/roster-candidates` items)
 - `avatar` (hydrated URL; empty when no avatar is linked)
 
 ```bash
@@ -1869,7 +1875,7 @@ Other instructor routes (outline CRUD/reorder, leases, review submit/reopen/prep
 
 **`GET /api/v1/courses/:courseId/collaborators`** — permission `course_instructor:read`
 
-Query: `page`, `per_page`, optional `search` (ILIKE `display_name` / `email`). Course detail (`GET …/:courseId`) still embeds the full collaborator array via `loadCollaborators`.
+Query: `page`, `per_page`, optional `search` (ILIKE `display_name` / `email`). Each item includes the collaborator's user `slug`. Course detail (`GET …/:courseId`) still embeds the full collaborator array via `loadCollaborators`.
 
 ```bash
 curl -sS "{{BASE_URL}}/api/v1/courses/{{courseId}}/collaborators?page=1&per_page=20&search=alice" \
@@ -1878,7 +1884,7 @@ curl -sS "{{BASE_URL}}/api/v1/courses/{{courseId}}/collaborators?page=1&per_page
 
 ### 14.4b List instructor candidates (picker)
 
-**`GET /api/v1/courses/:courseId/instructor-candidates`** — permission `course_collaborator_candidate:read` (P67). **Owner-only** in repository (`requireOwnerAccess`). Requires migrations **`000027`** / **`000028`** (or `MIGRATE=1`).
+**`GET /api/v1/courses/:courseId/instructor-candidates`** — permission `course_collaborator_candidate:read` (P67). **Owner-only** in repository (`requireOwnerAccess`). Requires migrations **`000027`** / **`000028`** (or `MIGRATE=1`). Each item includes the candidate's user `slug`.
 
 ```bash
 curl -sS "{{BASE_URL}}/api/v1/courses/{{courseId}}/instructor-candidates?page=1&per_page=20&search=go" \
@@ -1985,7 +1991,7 @@ Full semantics: **`docs/modules/course.md`** → Estimated duration.
 
 Requires migrations **`000023_course_trash`** and **`000024_course_admin_permissions`** (or `MIGRATE=1`). Granular permissions **P59–P66** (not shell `admin:modify`). Use `Authorization: Bearer $ACCESS_TOKEN` from `POST /api/v1/auth/login` with an account granted the required permissions.
 
-**List response shape:** `GET /course-admin/courses` and `GET /course-admin/courses/trash` both return `[]CourseListItem`. Each item includes embedded course fields (`owner_user_id`, …) plus list metadata. Admin/review list queries also join `users.display_name` as **`owner_display_name`** (same source as `Collaborator.display_name`; omitted when empty). Instructor/learner list endpoints (`GET /courses/my`, `GET /learner-courses`) do not populate `owner_display_name`.
+**List response shape:** `GET /course-admin/courses` and `GET /course-admin/courses/trash` both return `[]CourseListItem`. Each item includes embedded course fields (`owner_user_id`, …) plus list metadata. Admin/review list queries also join `users.display_name` as **`owner_display_name`** (same source as `Collaborator.display_name`; omitted when empty) and `users.slug` as **`owner_slug`** (omitted when empty). Instructor/learner list endpoints (`GET /courses/my`, `GET /learner-courses`) do not populate `owner_display_name`.
 
 **List approved published courses** (excludes trash and draft-only courses):
 
@@ -2039,7 +2045,7 @@ curl -sS '{{BASE_URL}}/api/v1/course-reviews/pending' \
   -H 'Accept: application/json'
 ```
 
-Approve/reject routes: see **`docs/router.md`** and **`docs/modules/course.md`**.
+Approve/reject routes: see **`docs/router.md`** and **`docs/modules/course.md`**. `POST /api/v1/course-reviews/:courseId/approve` and `.../reject` return the course detail for the reviewer without requiring the reviewer to be a collaborator of the course (`collaborator_role` is empty for a non-collaborator reviewer); a previous version loaded the detail through the collaborator gate after committing the decision and answered `403` even though the decision had been applied.
 
 Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`course:read`).
 
@@ -2048,13 +2054,13 @@ Learner catalog/progress routes live under **`/api/v1/learner-courses/*`** (`cou
 Two public (no-auth) catalog endpoints plus one authenticated continue-learning endpoint. No DB migration beyond 3 new indexes (`migrations/000038_home_catalog_indexes`). Full contract: **`docs/modules/course.md`**, **`docs/modules/instructor.md`**.
 
 ```bash
-# Public — trending courses (no Authorization header)
+# Public — trending courses (no Authorization header; items may include `owner_slug`)
 curl -sS "{{BASE_URL}}/api/v1/catalog/courses/trending?limit=8"
 
-# Public — popular instructors (no Authorization header)
+# Public — popular instructors (no Authorization header; items include user `slug`)
 curl -sS "{{BASE_URL}}/api/v1/catalog/instructors/popular?limit=4"
 
-# Authenticated — caller's own in-progress courses (course:read)
+# Authenticated — caller's own in-progress courses (course:read; items may include `owner_slug`)
 curl -sS "{{BASE_URL}}/api/v1/learner-courses/continue?limit=4" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```

@@ -85,11 +85,12 @@ Cross-cutting concerns that are not domain-specific:
 | `internal/shared/errors/` | Shared `ErrXXX` sentinel vars and error codes |
 | `internal/shared/constants/` | Cross-domain constants (PostgreSQL default schema `PostgresSchemaDefault`, dbschema table names, error messages, media limits, permission IDs, register HTTP headers, LavinMQ topic routing keys, rate-limit keys) |
 | `internal/shared/utils/` | Generic utilities (image encode, random, fingerprint, normalization/set helpers) |
-| `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `TouchCreatedUpdated`, `ScopeActiveOnly`, `SoftDeleteWithAudit`, `DefaultConfig`, `NewSQLLogger`) — see **`docs/patterns.md`** |
+| `internal/shared/gormx/` | Shared GORM helpers (`FirstWhere`, `CreateAndThen`, `TouchCreatedUpdated`, `ScopeActiveOnly`, `SoftDeleteWithAudit`, `RetryInSavepoint`, `IsUniqueViolation`, `DefaultConfig`, `NewSQLLogger`) — see **`docs/patterns.md`** |
 | `internal/shared/timex/` | Unix epoch second helpers for audit columns (`NowUnix`, `PtrUnix`) |
 | `internal/shared/cryptox/` | Shared HMAC/JWT helpers (used by auth/system infra) |
 | `internal/shared/httpx/` | Shared HTTP handler helpers (`ListPaginated`) |
 | `internal/shared/taxonomy/` | Taxonomy JSONB tree nodes (`translations` map) and validators (used by `internal/taxonomy`) |
+| `internal/shared/slug/` (+ `slug/gormslug/`) | Single owner of slug resolution (`ResolveCreate`/`ResolveUpdate`, input parsing, reserved words, random-suffix retry, GORM availability + duplicate detection) shared by course, taxonomy and users — see **`docs/reusable-assets.md`** |
 | `internal/shared/i18n/` | Content locale canonicalize / negotiate / resolve (taxonomy + chip reads; not email `mailtmpl`) |
 | `internal/shared/httperr/` | Global Gin error middleware, panic recovery, `HTTPError` helpers |
 | `internal/shared/parsebool/` | Loose boolean parsing for env vars and YAML flags |

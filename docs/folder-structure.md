@@ -182,6 +182,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 | `token/` | JWT sign/parse for access and refresh tokens |
 | `validate/` | Validator setup, error flattening for Gin binding |
 | `taxonomy/` | `TreeNode` (incl. per-node `translations`), `ValidateTree`, `ValidateDescriptionParagraphs` |
+| `slug/` | Single owner of slug resolution: `ResolveCreate`, `ResolveUpdate`, `ParseManual`, `ParseUpdateInput`, `IsReserved`, `RetryWithSuffix`, `GenerateAutoSlugBase`, `Kind`; `slug/gormslug/` holds `AvailableIn`, `IsDuplicate`, `RetryAttempts`. Used by course, taxonomy and users |
 | `i18n/` | Content-locale helpers (`CanonicalizeLocale`, `NegotiateReadLocale`, `ResolveText`) — separate from `mailtmpl` email locale |
 | `httperr/` | `Middleware`, `Recovery`, `HTTPError`, `Abort` |
 | `parsebool/` | `Loose`, `EnvEnabled` — env/YAML boolean strings |
@@ -196,7 +197,7 @@ Wiring: `internal/server/wire_instructor.go`, `wire_instructor_adapters.go`, `wi
 
 ### `internal/appcli/`
 
-CLI flows for system administration: register privileged user (`CLI_REGISTER_NEW_SYSTEM_USER=1`), obtain system JWT (`CLI_SYSTEM_LOGIN=1`), and restore legacy SQL dumps into the UUID-v7 schema (`CLI_IMPORT_LEGACY_DATA=1` + `CLI_IMPORT_LEGACY_DATA_DUMP=/absolute/path/backup-*.sql`). Import logic lives in `import_legacy_data*.go` (parse INSERT statements, remap numeric ids → UUID v7, ULID `user_code`, write `*.idmap.json` beside the dump). `cli_guard.go` enforces circuit breaker + file-backed rate limit (5 ops / 3 min) before credential prompts. Machine enrollment + OS fingerprint live in `internal/shared/machineidentity/` (imported by register/login/guard).
+CLI flows for system administration: register privileged user (`CLI_REGISTER_NEW_SYSTEM_USER=1`), obtain system JWT (`CLI_SYSTEM_LOGIN=1`), and backfill missing user slugs (`CLI_BACKFILL_USER_SLUGS=1`, `backfill_user_slugs.go`), and restore legacy SQL dumps into the UUID-v7 schema (`CLI_IMPORT_LEGACY_DATA=1` + `CLI_IMPORT_LEGACY_DATA_DUMP=/absolute/path/backup-*.sql`). Import logic lives in `import_legacy_data*.go` (parse INSERT statements, remap numeric ids → UUID v7, ULID `user_code`, write `*.idmap.json` beside the dump). `cli_guard.go` enforces circuit breaker + file-backed rate limit (5 ops / 3 min) before credential prompts. Machine enrollment + OS fingerprint live in `internal/shared/machineidentity/` (imported by register/login/guard).
 
 ### `internal/server/`
 

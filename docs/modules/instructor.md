@@ -1,6 +1,6 @@
 # Instructor management module
 
-_Last audited: 2026-09-27 — added public `GET /catalog/instructors/popular` (`openspec/changes/add-home-catalog-apis`), no new permission. Prior: Admin application list always excludes approved; `status=approved` returns HTTP 400; use instructor profiles for approved instructors (2026-07-06)._
+_Last audited: 2026-10-15 — identity payloads (popular instructors, roster, roster-candidates, application/profile responses) now carry the user's public `slug` (`openspec/changes/add-user-slug-management`). Prior: public `GET /catalog/instructors/popular` (2026-09-27, `openspec/changes/add-home-catalog-apis`); admin application list always excludes approved, `status=approved` returns HTTP 400, use instructor profiles for approved instructors (2026-07-06)._
 
 The instructor module (`internal/instructor/`) manages the **instructor roster**, **applications** (submit / resubmit / approve / reject / return), **profiles**, **expertise** (topic/skill junctions), and **support tickets**. It uses **additive RBAC**: assigning the `instructor` role does **not** remove `learner`.
 
@@ -53,6 +53,7 @@ Registered in `internal/server/router.go`: `instdelivery.RegisterRoutes(authen, 
 | Table | Purpose |
 |-------|---------|
 | `users.phone` | `VARCHAR(32)` on roster list |
+| `users.slug` | Public user slug (see `docs/modules/auth.md`); projected as `slug` in every identity payload below |
 | `instructor_applications` | One active row per user; inline profile snapshot + review state machine columns |
 | `instructor_application_topics` | Application-scoped topic snapshot (`application_id`, `topic_id`) — migration **`000029`** |
 | `instructor_application_skills` | Application-scoped skill snapshot (`application_id`, `skill_id`) — migration **`000029`** |
@@ -232,9 +233,9 @@ Responses **also** include `is_disabled`, `email_confirmed`, `banned_until` (Uni
 
 | Action | RBAC / behaviour |
 |--------|------------------|
-| Roster candidates picker | Eligible users (#2 + #3) without `instructor` / `sysadmin` / `admin` role |
+| Roster candidates picker | Eligible users (#2 + #3) without `instructor` / `sysadmin` / `admin` role; items include `slug` |
 | Add roster (bulk) | User must exist, pass #2 + #3, must not have `sysadmin` or `admin` role; assigns `instructor` role only — **learner kept**; ineligible users return in `failed[]` |
-| List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` and **excluding** inactive (#2) users |
+| List roster | Users with `instructor` role **excluding** `sysadmin` / `admin` and **excluding** inactive (#2) users; items include `slug` |
 | Approve application | Applicant must pass #2 + #3 before snapshot copy; HTTP `400` if ineligible |
 | Reject application | Applicant must pass #2 + #3 before rejection history write; HTTP `400` if ineligible |
 | Remove roster | `RemoveRole(instructor)` only; wipe instructor-scoped rows |
@@ -251,7 +252,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 
 | Method | Path | Permission | Notes |
 |--------|------|-----------|-------|
-| GET | `/catalog/instructors/popular` | none (public) | `limit` (default 4, max 12); ranked by published-course count desc, tie-broken by recency; excludes non-instructors, disabled/soft-deleted/banned accounts. Response is `domain.PopularInstructor` (`user_id`, `display_name`, `avatar`, `subtitle` = `instructor_profiles.current_job_title`, `course_count`) — not the roster/profile shape. |
+| GET | `/catalog/instructors/popular` | none (public) | `limit` (default 4, max 12); ranked by published-course count desc, tie-broken by recency; excludes non-instructors, disabled/soft-deleted/banned accounts. Response is `domain.PopularInstructor` (`user_id`, `slug`, `display_name`, `avatar`, `subtitle` = `instructor_profiles.current_job_title`, `course_count`) — not the roster/profile shape. |
 
 ### Roster (`instructor_roster:*`)
 
@@ -277,7 +278,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 
 **`GET /me` response groups** (see `docs/api_swagger.yaml`):
 
-- Identity: `user_id`, `display_name`, `email`, `avatar`
+- Identity: `user_id`, `slug`, `display_name`, `email`, `avatar`
 - Review: `review_status`, `can_resubmit`, `rejection_count`, `submitted_at`, `review_due_at`, `returned_at`, `rejection_reason` (latest)
 - `latest_submission.profile` — full profile snapshot including company fields and `years_of_experience` enum code
 - `latest_submission.topic_ids`, `latest_submission.skill_ids`

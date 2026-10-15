@@ -26,8 +26,9 @@ Handles user lifecycle and session management.
 
 **Capabilities:**
 - Register (pending user + confirmation email via Brevo)
+- Public user slug (`users.slug`): auto-generated at register/OAuth sign-up, changed only via `PATCH /me`, former slugs reserved in `user_slug_history`; operator backfill `CLI_BACKFILL_USER_SLUGS=1`
 - Login / email confirmation / token refresh
-- `GET /me` (profile + effective permissions + display-only ordered raw role names), `PATCH /me`, `DELETE /me` (soft), `DELETE /me/hard`
+- `GET /me` (profile + effective permissions + display-only ordered raw role names), `PATCH /me` (`avatar_file_id`, `slug`), `DELETE /me` (soft), `DELETE /me/hard`
 - `GET /me/permissions`
 - User access guards via `application/service_access.go` (`checkUserAccessible`: deleted / disabled / `banned_until`)
 - Stateful JWT sessions backed by PostgreSQL JSONB
@@ -93,7 +94,7 @@ Reference data for classifying course content.
 
 **Capabilities:**
 - **Course topics**, **outcomes**, **skills**, **levels**, **tags** — CRUD with soft delete (`DELETE /:id`), hard delete (`DELETE /:id/hard`), list including deleted (`GET /full`)
-- Partial unique slug indexes among active rows only (re-create slug after soft delete)
+- Partial unique slug indexes among active rows only (re-create slug after soft delete); slug resolution delegated to `internal/shared/slug`
 - Optional topic/outcome images linked to `media_files`; orphan cleanup on hard delete only
 - List query `include_images=false` skips image URL hydration (picker UIs)
 
@@ -199,6 +200,7 @@ Not a business module — provides cross-cutting concerns consumed by all domain
 - `brevo/` — Brevo SMTP client
 - `mailtmpl/` — email templates
 - `validate/` — request validation
+- `slug/` (+ `slug/gormslug/`) — shared slug resolution for course, taxonomy and users
 - `machineidentity/` — enrollment file + OS fingerprint for system CLI machine binding
 - `utils/` — image encoding, content fingerprint (SHA-256), random
 - `errors/` — shared sentinel errors

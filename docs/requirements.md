@@ -55,6 +55,7 @@
 - When the email exists but `email_confirmed` is false, the system **MUST** treat the request as a **resend / update pending** flow: update password hash, display name, and confirmation token, then apply the same confirmation-email policies as for a new user.
 - The system **MUST** bcrypt-hash the password before persisting it.
 - The system **MUST** generate a UUIDv7 `user_code` for the new user before insert.
+- The system **MUST** assign a public `users.slug` when the user row is first created (register and OAuth sign-up), auto-generated from `display_name` (lowercase ASCII transliteration; fallback `user-{7 chars}`); a collision or reserved word is resolved with a random suffix. Pending-user updates and later `display_name` changes **MUST NOT** change the slug.
 - The system **MUST** generate a UUID confirmation token, persist it in `users.confirmation_token`, and send a confirmation email via Brevo to the provided email address.
 - The system **MUST** persist **`users.registration_email_send_total`**: increment only after each **successful** Brevo send while pending; cap at **15** — if the next send would exceed the cap, the system **MUST** hard-delete the pending user and return **`410`** with app code **`4009`** RegistrationAbandoned.
 - The system **MUST** enforce a Redis-backed sliding window of **5** successful confirmation emails per **`users.id`** per **4 hours**; when exceeded the system **MUST** return **`429`** with app code **`4010`**, **`Retry-After`**, and **`X-Mycourse-Register-Retry-After`** (seconds until retry).
@@ -165,7 +166,7 @@
 
 #### FR-2.1 Get My Profile (`GET /api/v1/me`)
 
-- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), `permissions` (sorted `permission_name` strings from RBAC union of role + direct grants), and `roles` (raw display-only role names).
+- The system **MUST** return the authenticated user's non-sensitive profile: `user_id`, `user_code`, `email`, `display_name`, `slug` (public user slug; omitted/empty only for legacy rows not yet backfilled), optional nested **`avatar`** (`dto.MediaFilePublic` when `avatar_file_id` is set), `email_confirmed`, `is_disabled`, `created_at` (Unix epoch), `permissions` (sorted `permission_name` strings from RBAC union of role + direct grants), and `roles` (raw display-only role names).
 - `roles` **MUST** be a non-null array ordered `sysadmin`, `admin`, `instructor`, `learner`, with unknown names following in their original RBAC order. The system **MUST NOT** use this projection for authorization; `permissions` remains authoritative.
 - Sensitive fields (`hash_password`, `confirmation_token`, `confirmation_sent_at`, `refresh_token_session`) **MUST NOT** be returned.
 - The system **SHOULD** serve the response from Redis cache (`mycourse:user:me:{user_id}`, TTL 1 min) on cache hit, except when the cached payload has `email_confirmed=true` and `permissions=[]` (stale legacy state) or lacks the `roles` field — then the system **MUST** bypass cache and rebuild. An explicit `roles: []` is a valid current cache hit.
@@ -189,6 +190,7 @@
 - The system **MUST** accept partial updates with optional **`avatar_file_id`** (UUID of an existing **`media_files`** row suitable as a raster image). Empty string **MUST** clear the FK.
 - The system **MUST** validate the file (kind **FILE**, status **READY**, image MIME or common raster extension) and **MUST NOT** accept arbitrary URLs from the client to set storage.
 - On success the system **MUST** invalidate the Redis `/me` cache entry for that user.
+- The body **MAY** include **`slug`**. Omitted key leaves the slug unchanged; `null`, empty, malformed (`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, max 255) or reserved values **MUST** return HTTP **400** / `2001`. A value already used (or reserved as a former slug) **MUST NOT** return 409: the system auto-suffixes it and returns the stored slug. The previous slug **MUST** be recorded in `user_slug_history` in the same transaction and stays reserved permanently (released only on hard delete). Resolution is owned by `internal/shared/slug`.
 - Invalid file id **MUST** return HTTP **400** with application code **2001** (`ValidationFailed`) and **`ErrInvalidProfileMediaFile`** semantics.
 - Same **`checkUserAccessible`** guards as FR-2.1 (`4005` / `4012` / `404`).
 
@@ -466,6 +468,7 @@ Response shapes (envelope `data`): effective permission codes use **`{ "permissi
 
 - The system **MUST** expose `GET /api/v1/catalog/courses/trending` (no auth) returning published, non-trashed courses ordered by `created_at DESC`, as a published-only projection (no draft/collaborator/review/pricing/rating fields).
 - The system **MUST** expose `GET /api/v1/catalog/instructors/popular` (no auth) returning currently-active instructors ranked by published-course count desc, tie-broken by recency, excluding non-instructors and disabled/soft-deleted/banned accounts.
+- Public DTOs **MUST** expose the public user slug additively: `slug` on popular instructors (and on instructor application/profile, roster, candidates, collaborators, `/me`), and `owner_slug` on trending, continue-learning and course list items. `user_id` is unchanged and no new routes are added.
 - The system **MUST** expose `GET /api/v1/learner-courses/continue` (authenticated, `course:read`) returning the caller's enrolled courses ordered by most-recent learning activity, falling back to enrollment time when the learner has not started any lesson yet.
 - All 3 endpoints **MUST** accept an optional `limit` query parameter with a documented default and maximum (8/24 trending, 4/12 popular, 4/10 continue-learning).
 
@@ -608,7 +611,7 @@ All responses **MUST** be gzip-compressed by default (via `gin-contrib/gzip` at 
 
 - Cross-feature generic logic/functions (e.g. parse/url/normalize/general transformers) **MUST** be implemented under `pkg/logic/utils`.
 - Feature-specific logic tied to **media** (resolver, metadata, multipart bind, orphan URL policy, …) **MUST** live under **`internal/media/`** layers. Taxonomy tree/description validation **MUST** live in **`internal/shared/taxonomy`** and be consumed by **`internal/taxonomy`**.
-- For functions created inside `application/` or `infra/`: if the logic is standalone or expected to be reused across modules, extract to **`internal/shared/utils`** (generic), **`internal/shared/taxonomy`** (taxonomy JSONB), or the owning domain’s `application`/`infra` package, as appropriate.
+- For functions created inside `application/` or `infra/`: if the logic is standalone or expected to be reused across modules, extract to **`internal/shared/utils`** (generic), **`internal/shared/taxonomy`** (taxonomy JSONB), **`internal/shared/slug`** (slug resolution for course/taxonomy/users), or the owning domain’s `application`/`infra` package, as appropriate.
 
 #### NFR-3.3 Structured Logging
 

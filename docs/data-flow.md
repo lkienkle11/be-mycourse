@@ -62,7 +62,7 @@ POST /api/v1/auth/google | /google/onetap | /google/mobile | /x | /discord   (pu
             ├─ Google/Discord: verified-email merge; pending register → confirm + password_set_at=NOW()
             ├─ X: no auto-merge on existing email → 4019; no email → 4017
             ├─ Discord: no email → 4025; unverified email → 4024
-            ├─ New user: OAuthAccountWriter.CreateUserWithIdentityAndLearnerRole (bcrypt random hash, password_set_at=NULL)
+            ├─ New user: OAuthAccountWriter.CreateUserWithIdentityAndLearnerRole (bcrypt random hash, password_set_at=NULL; users.slug generated from display_name inside the same transaction under a SAVEPOINT retry via shared/slug + gormx.RetryInSavepoint — email unique violations are not swallowed by the slug retry)
             ├─ Retry ≤3 on unique (provider, provider_sub) race → else 4015
             └─ issueTokenPair (same session/cookies as login; remember_me per channel)
 ```
@@ -130,6 +130,22 @@ GET /api/v1/me (JWT required)
 ```
 
 Successful internal RBAC role or direct-permission assignment/removal deletes `mycourse:user:me:{user_id}` after persistence, so the next `GET /me` reloads the effective roles and permissions. Permission middleware never reads the role projection. A permission already embedded in the current JWT remains authoritative until token refresh or expiry.
+
+### PATCH /me (avatar, slug)
+
+```
+PATCH /api/v1/me (JWT required)
+  └─ internal/auth/delivery/handler.go (PatchMe)
+       ├─ sharedslug.ParseUpdateInput(set, value, 255) → 400 on null/empty/invalid/reserved
+       └─ AuthService.UpdateMe
+            ├─ sharedslug.IsReserved check BEFORE any write (rejected slug never half-applies avatar)
+            ├─ avatar_file_id validation + update
+            ├─ UserRepository.ChangeSlug (when slug differs): one transaction —
+            │    resolve via shared/slug.ResolveUpdate (taken / reserved / former slug → auto-suffix, never 409),
+            │    record old slug in user_slug_history (reserved forever), update users.slug,
+            │    RetryInSavepoint on unique-index race
+            └─ delCachedMe(userID)
+```
 
 ### DELETE /me (soft) and DELETE /me/hard
 
@@ -230,6 +246,7 @@ POST/PATCH /api/v1/courses/*  (JWT + course:update)
   └─ internal/course/delivery/*
        └─ CourseService (application)
             ├─ validate collaborator/owner access in repo layer
+            ├─ slug (create/update-basic-info): shared/slug.ResolveCreate/ResolveUpdate + gormslug.AvailableIn; manual create conflict → 409 SlugConflict (3007)
             ├─ mutate draft version rows with row_version checks
             ├─ maintain stable_id for outline resources
             └─ persist version-scoped sections/lessons/sub-lessons

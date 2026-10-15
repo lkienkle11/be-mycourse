@@ -1,6 +1,6 @@
 # Course Module
 
-_Last audited: 2026-09-27 (`GET /learner-courses/continue` and the public `GET /catalog/courses/trending` added — `openspec/changes/add-home-catalog-apis`). Prior: collaborator membership moved from `course_collaborators` onto `internal/authorization`'s resource-scoped role gate — `openspec/changes/replace-course-collaborator-with-role-gate`; `course_collaborators` is dropped (2026-09-12). Prior: course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads (2026-06-17); outline reorder write-path performance, batch media meta query, lease read-after-write removal; read-path batching/parallelism (2026-06-16)._
+_Last audited: 2026-10-15 (course list/trending/continue-learning items now carry `owner_slug`, collaborator and instructor-candidate payloads carry the user `slug`; slug logic shared with users and taxonomy — `openspec/changes/add-user-slug-management`). Prior: 2026-09-27 (`GET /learner-courses/continue` and the public `GET /catalog/courses/trending` added — `openspec/changes/add-home-catalog-apis`). Prior: collaborator membership moved from `course_collaborators` onto `internal/authorization`'s resource-scoped role gate — `openspec/changes/replace-course-collaborator-with-role-gate`; `course_collaborators` is dropped (2026-09-12). Prior: course version numbering on reject/reopen, reorder nested hydration, `last_rejection_reason`, transaction-safe outline reads (2026-06-17); outline reorder write-path performance, batch media meta query, lease read-after-write removal; read-path batching/parallelism (2026-06-16)._
 
 ## Overview
 
@@ -38,7 +38,7 @@ Migration: `migrations/000016_course_management.{up,down}.sql` (courses, version
 
 - `courses` is the stable root record and stores:
   - `owner_user_id`
-  - `slug` (globally unique among active rows, `chk_courses_slug_format` CHECK-enforced ASCII `a-z0-9-` format). On create: optional client input — a manual value is validated and used if free, or rejected with a `SlugConflictError` + `recommended_slug` if taken; an omitted/empty value auto-generates from `title` via `github.com/gosimple/slug`, falling back to `course-{randomSuffix}` when transliteration yields nothing usable. On update (`PATCH /basic-info`): an independent, PATCH-omittable field — omitted leaves it unchanged (title no longer touches slug at all), a new value equal to the current one is a no-op, and a new value colliding with another course is auto-resolved directly with a random suffix (no confirmation step). Collision suffixes are always random alphanumeric (`crypto/rand`, 7 chars ×7 attempts, then 8×7, 9×7, …), never the old numeric `-2`, `-3`, … scheme. See `openspec/changes/rework-course-slug-management`.
+  - `slug` (globally unique among active rows, `chk_courses_slug_format` CHECK-enforced ASCII `a-z0-9-` format). On create: optional client input — a manual value is validated and used if free, or rejected with a `SlugConflictError` + `recommended_slug` if taken; an omitted/empty value auto-generates from `title` through the shared `internal/shared/slug.ResolveCreate` (gosimple transliteration), falling back to `course-{randomSuffix}` when transliteration yields nothing usable. On update (`PATCH /basic-info`): an independent, PATCH-omittable field — omitted leaves it unchanged (title no longer touches slug at all), a new value equal to the current one is a no-op, and a new value colliding with another course is auto-resolved directly with a random suffix (no confirmation step). Collision suffixes are always random alphanumeric (`crypto/rand`, 7 chars ×7 attempts, then 8×7, 9×7, …), never the old numeric `-2`, `-3`, … scheme. See `openspec/changes/rework-course-slug-management`.
   - `current_published_version_id`
   - `current_draft_version_id`
 - `course_versions` stores the editable and published snapshots:
@@ -231,7 +231,7 @@ Instructor / collaborator routes:
 Admin / sysadmin review routes (P59–P61):
 
 - `GET /api/v1/course-reviews/pending` — `course_review:read` (P59); `[]CourseListItem` includes `owner_display_name`
-- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60); body `{ "approval_note": "..." }` (`nonwhitespace_min=5`, `max=500`); sets `current_published_version_id` to submitted version, persists `approval_note`, clears draft pointer
+- `POST /api/v1/course-reviews/:courseId/approve` — `course_review:approve` (P60); body `{ "approval_note": "..." }` (`nonwhitespace_min=5`, `max=500`); sets `current_published_version_id` to submitted version, persists `approval_note`, clears draft pointer The response detail is loaded for the reviewer through `loadCourseDetailForReviewer` (no collaborator gate; `collaborator_role` empty), so approve/reject by a non-collaborator admin returns `200` instead of `403` after the decision is committed.
 - `POST /api/v1/course-reviews/:courseId/reject` — `course_review:reject` (P61); body `{ "reason": "..." }` (`nonwhitespace_min=5`, `max=500`); marks submitted version `REJECTED`, forks new `DRAFT` at `max + 1`
 - `GET /api/v1/courses/:courseId/review-history` — `course:instructor_read`; editor access; paginated `APPROVED`/`REJECTED` rows from `course_versions` (`page`, `per_page`, optional `status`)
 
@@ -319,7 +319,7 @@ No collaborator row is written for the owner: ownership is `courses.owner_user_i
 
 List endpoints (`GET /courses/my`, learner catalog, pending reviews) use a flat `courseListScanRow` for GORM `Raw().Scan` — embedded `courseRow` is not populated by GORM for joined list queries; rows are mapped back through `asCourseRow()` → `toCourse()`.
 
-Admin catalog and review queue list endpoints (`GET /course-admin/courses`, `GET /course-admin/courses/trash`, `GET /course-reviews/pending`) join `users` on `courses.owner_user_id` and include `owner_display_name` (from `users.display_name`, same convention as `Collaborator.display_name`) on each `CourseListItem` alongside `owner_user_id`.
+Admin catalog and review queue list endpoints (`GET /course-admin/courses`, `GET /course-admin/courses/trash`, `GET /course-reviews/pending`) join `users` on `courses.owner_user_id` and include `owner_display_name` (from `users.display_name`, same convention as `Collaborator.display_name`) and `owner_slug` (from `users.slug`) on each `CourseListItem` alongside `owner_user_id`. `TrendingCourseItem` and `ContinueLearningItem` also carry `owner_slug`; collaborators and instructor candidates carry the user's `slug` (the profile projection reuses `userpicker.UserPickerSelectSQL`).
 
 Successful response: HTTP **201**, envelope `data` = `domain.CourseDetail` (course root, `collaborator_role`, empty outline, draft version v1, collaborators list including owner).
 

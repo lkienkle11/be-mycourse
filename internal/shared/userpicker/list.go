@@ -16,6 +16,7 @@ type Row struct {
 	Email        string `gorm:"column:email"`
 	AvatarFileID string `gorm:"column:avatar_file_id"`
 	AvatarURL    string `gorm:"column:avatar_url"`
+	Slug         string `gorm:"column:slug"`
 }
 
 // ListFilter drives pagination and search for user-picker queries.
@@ -64,7 +65,8 @@ SELECT
     COALESCE(u.display_name, '') AS display_name,
     COALESCE(u.email, '') AS email,
     COALESCE(u.avatar_file_id::text, '') AS avatar_file_id,
-    COALESCE(m.url, '') AS avatar_url
+    COALESCE(m.url, '') AS avatar_url,
+    COALESCE(u.slug, '') AS slug
 FROM %s u
 LEFT JOIN media_files m
     ON m.id = u.avatar_file_id AND m.deleted_at IS NULL`, usersTable)

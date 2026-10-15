@@ -14,7 +14,7 @@ import (
 
 const adminCoursePublishedListSelect = `
     ` + courseListBaseColumns + `,
-    ` + courseListOwnerDisplayNameColumn + `,
+    ` + courseListOwnerColumns + `,
     'ADMIN' AS role,
     pv.title AS title,
     pv.status AS review_status,

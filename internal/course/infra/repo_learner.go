@@ -58,7 +58,7 @@ ORDER BY c.id DESC`
 const continueLearningQuery = `
 SELECT c.id, c.slug, cv.title,
     COALESCE(pm.url, '') AS thumbnail_url,
-    COALESCE(ou.display_name, '') AS owner_display_name,
+    ` + courseListOwnerColumns + `,
     COALESCE(prog2.completed_sub_lessons, 0) AS completed_sub_lessons,
     COALESCE(prog2.total_sub_lessons, 0) AS total_sub_lessons,
     COALESCE(prog.last_interacted_at, e.created_at) AS last_activity_at
@@ -66,7 +66,7 @@ FROM course_enrollments e
 INNER JOIN courses c ON c.id = e.course_id AND c.deleted_at IS NULL
 INNER JOIN course_versions cv ON cv.id = e.current_version_id AND cv.deleted_at IS NULL
 LEFT JOIN media_files pm ON pm.id = cv.thumbnail_file_id AND pm.deleted_at IS NULL
-LEFT JOIN users ou ON ou.id = c.owner_user_id AND ou.deleted_at IS NULL
+` + courseListOwnerUserJoin + `
 LEFT JOIN LATERAL (
     SELECT MAX(last_interacted_at) AS last_interacted_at
     FROM course_progress_items
@@ -94,6 +94,7 @@ type continueLearningScanRow struct {
 	Title               string `gorm:"column:title"`
 	ThumbnailURL        string `gorm:"column:thumbnail_url"`
 	OwnerDisplayName    string `gorm:"column:owner_display_name"`
+	OwnerSlug           string `gorm:"column:owner_slug"`
 	CompletedSubLessons int    `gorm:"column:completed_sub_lessons"`
 	TotalSubLessons     int    `gorm:"column:total_sub_lessons"`
 	LastActivityAt      int64  `gorm:"column:last_activity_at"`
@@ -110,6 +111,7 @@ func (row *continueLearningScanRow) toDomain() domain.ContinueLearningItem {
 		Title:               row.Title,
 		ThumbnailURL:        row.ThumbnailURL,
 		OwnerDisplayName:    row.OwnerDisplayName,
+		OwnerSlug:           row.OwnerSlug,
 		CompletedSubLessons: row.CompletedSubLessons,
 		TotalSubLessons:     row.TotalSubLessons,
 		ProgressPercent:     percent,

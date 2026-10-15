@@ -25,6 +25,7 @@ func (rosterUserRoleRow) TableName() string { return constants.TableRBACUserRole
 type rosterUserRow struct {
 	ID           string `gorm:"column:id"`
 	DisplayName  string `gorm:"column:display_name"`
+	Slug         string `gorm:"column:slug"`
 	Email        string `gorm:"column:email"`
 	Phone        string `gorm:"column:phone"`
 	AvatarFileID string `gorm:"column:avatar_file_id"`
@@ -36,7 +37,7 @@ func (r *GormRepository) loadRosterUsersByIDs(
 	userIDs []string,
 ) (map[string]rosterUserRow, error) {
 	rows, err := gormx.FindActiveByIDs[rosterUserRow](ctx, db, constants.TableAppUsers,
-		`id, display_name, email, COALESCE(phone, '') AS phone,
+		`id, display_name, COALESCE(slug, '') AS slug, email, COALESCE(phone, '') AS phone,
 COALESCE(avatar_file_id::text, '') AS avatar_file_id`, userIDs)
 	if err != nil {
 		return nil, err
@@ -158,7 +159,7 @@ func buildRosterMembersFromUsers(
 			continue
 		}
 		member := domain.RosterMember{
-			UserID: u.ID, FullName: u.DisplayName, Email: u.Email, Phone: u.Phone,
+			UserID: u.ID, FullName: u.DisplayName, Slug: u.Slug, Email: u.Email, Phone: u.Phone,
 		}
 		if u.AvatarFileID != "" {
 			member.AvatarFileID = u.AvatarFileID

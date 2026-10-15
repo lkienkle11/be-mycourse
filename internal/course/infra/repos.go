@@ -233,6 +233,16 @@ const courseListBaseColumns = `c.id, c.owner_user_id, c.slug, c.current_publishe
 
 const courseListOwnerDisplayNameColumn = `COALESCE(ou.display_name, '') AS owner_display_name`
 
+// courseListOwnerSlugColumn selects the owner's user slug next to the display
+// name, from the same courseListOwnerUserJoin alias.
+const courseListOwnerSlugColumn = `COALESCE(ou.slug, '') AS owner_slug`
+
+// courseListOwnerColumns is the owner identity projection shared by every
+// owner-bearing course query (admin list, review queue, trending, continue
+// learning) so display name and slug can never be selected separately.
+const courseListOwnerColumns = courseListOwnerDisplayNameColumn + `,
+    ` + courseListOwnerSlugColumn
+
 const courseListOwnerUserJoin = `
 LEFT JOIN users ou
     ON ou.id = c.owner_user_id AND ou.deleted_at IS NULL`
@@ -248,6 +258,7 @@ type courseListScanRow struct {
 	DeletedAt                 *int64  `gorm:"column:deleted_at"`
 	TrashedAt                 *int64  `gorm:"column:trashed_at"`
 	OwnerDisplayName          string  `gorm:"column:owner_display_name"`
+	OwnerSlug                 string  `gorm:"column:owner_slug"`
 	Role                      string  `gorm:"column:role"`
 	Title                     string  `gorm:"column:title"`
 	ReviewStatus              string  `gorm:"column:review_status"`
@@ -529,6 +540,7 @@ func toCourseListItem(row *courseListScanRow) domain.CourseListItem {
 	return domain.CourseListItem{
 		Course:             toCourse(&cr),
 		OwnerDisplayName:   row.OwnerDisplayName,
+		OwnerSlug:          row.OwnerSlug,
 		Title:              row.Title,
 		ReviewStatus:       row.ReviewStatus,
 		VersionID:          row.VersionID,

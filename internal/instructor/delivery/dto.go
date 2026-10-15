@@ -149,6 +149,7 @@ func (b profileBody) toPayload() domain.ProfilePayload {
 type rosterResponse struct {
 	ID        string `json:"id"`
 	FullName  string `json:"full_name"`
+	Slug      string `json:"slug"`
 	Email     string `json:"email"`
 	Phone     string `json:"phone"`
 	AvatarURL string `json:"avatar"`
@@ -157,6 +158,7 @@ type rosterResponse struct {
 type popularInstructorResponse struct {
 	UserID      string `json:"user_id"`
 	DisplayName string `json:"display_name"`
+	Slug        string `json:"slug"`
 	AvatarURL   string `json:"avatar,omitempty"`
 	Subtitle    string `json:"subtitle,omitempty"`
 	CourseCount int64  `json:"course_count"`
@@ -165,6 +167,7 @@ type popularInstructorResponse struct {
 type rosterCandidateResponse struct {
 	UserID       string `json:"user_id"`
 	DisplayName  string `json:"display_name"`
+	Slug         string `json:"slug"`
 	Email        string `json:"email"`
 	AvatarFileID string `json:"avatar_file_id,omitempty"`
 	AvatarURL    string `json:"avatar_url,omitempty"`
@@ -193,6 +196,7 @@ type applicationMeResponse struct {
 	ID               string                    `json:"id"`
 	UserID           string                    `json:"user_id"`
 	DisplayName      string                    `json:"display_name"`
+	Slug             string                    `json:"slug"`
 	Email            string                    `json:"email"`
 	Avatar           string                    `json:"avatar"`
 	IsDisabled       bool                      `json:"is_disabled"`
@@ -223,20 +227,20 @@ type contactAdminRequest struct {
 
 func toRosterResponse(m domain.RosterMember) rosterResponse {
 	return rosterResponse{
-		ID: m.UserID, FullName: m.FullName, Email: m.Email, Phone: m.Phone, AvatarURL: m.AvatarURL,
+		ID: m.UserID, FullName: m.FullName, Slug: m.Slug, Email: m.Email, Phone: m.Phone, AvatarURL: m.AvatarURL,
 	}
 }
 
 func toPopularInstructorResponse(p domain.PopularInstructor) popularInstructorResponse {
 	return popularInstructorResponse{
-		UserID: p.UserID, DisplayName: p.DisplayName, AvatarURL: p.AvatarURL,
+		UserID: p.UserID, DisplayName: p.DisplayName, Slug: p.Slug, AvatarURL: p.AvatarURL,
 		Subtitle: p.Subtitle, CourseCount: p.CourseCount,
 	}
 }
 
 func toRosterCandidateResponse(c domain.RosterCandidate) rosterCandidateResponse {
 	return rosterCandidateResponse{
-		UserID: c.UserID, DisplayName: c.DisplayName, Email: c.Email,
+		UserID: c.UserID, DisplayName: c.DisplayName, Slug: c.Slug, Email: c.Email,
 		AvatarFileID: c.AvatarFileID, AvatarURL: c.AvatarURL,
 	}
 }
@@ -262,7 +266,7 @@ func profileToResponse(row domain.Profile) applicationResponse {
 		profile.IntroVideoFile = mediaFileFromDomain(row.IntroVideoFile)
 	}
 	return applicationResponse{applicationMeResponse: applicationMeResponse{
-		ID: row.ID, UserID: row.UserID, DisplayName: row.FullName, Email: row.Email, Avatar: row.AvatarURL,
+		ID: row.ID, UserID: row.UserID, DisplayName: row.FullName, Slug: row.Slug, Email: row.Email, Avatar: row.AvatarURL,
 		IsDisabled: row.IsDisabled, EmailConfirmed: row.EmailConfirmed,
 		ReviewStatus:     "managed",
 		LatestSubmission: latestSubmissionResponse{Profile: profile},
@@ -303,7 +307,7 @@ func toApplicationMeResponse(a domain.Application) applicationMeResponse {
 		displayName = a.FullName
 	}
 	resp := applicationMeResponse{
-		ID: a.ID, UserID: a.UserID, DisplayName: displayName, Email: a.Email, Avatar: a.AvatarURL,
+		ID: a.ID, UserID: a.UserID, DisplayName: displayName, Slug: a.Slug, Email: a.Email, Avatar: a.AvatarURL,
 		IsDisabled: a.IsDisabled, EmailConfirmed: a.EmailConfirmed, BannedUntil: a.BannedUntil, IsBanned: a.IsBanned,
 		ReviewStatus: a.ReviewStatus, CanResubmit: a.CanResubmit(), RejectionCount: a.RejectionCount,
 		RejectionReason: a.RejectionReason, SubmittedAt: a.SubmittedAt, ReviewDueAt: a.ReviewDueAt,

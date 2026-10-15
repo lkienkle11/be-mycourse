@@ -11,6 +11,7 @@ import (
 
 	"mycourse-io-be/internal/course/domain"
 	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/slug/gormslug"
 	"mycourse-io-be/internal/shared/timex"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
@@ -288,13 +289,12 @@ func deleteChildrenThenRow(ctx context.Context, tx *gorm.DB, column string, chil
 	return tx.WithContext(ctx).Where("id = ?", rowID).Delete(model).Error
 }
 
+// courseSlugIndexNames are the unique indexes whose violation means a course
+// slug race (the partial unique index from migration 000016).
+var courseSlugIndexNames = []string{"uix_courses_slug_active", "courses_slug"}
+
 func isCourseSlugDuplicateKey(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "duplicate key") &&
-		(strings.Contains(msg, "uix_courses_slug_active") || strings.Contains(msg, "courses_slug"))
+	return gormslug.IsDuplicate(err, courseSlugIndexNames...)
 }
 
 // reorderStableIDRows assigns order_index for active rows scoped by scopeQuery/scopeValue.

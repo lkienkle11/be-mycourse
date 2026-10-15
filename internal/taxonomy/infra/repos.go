@@ -12,6 +12,7 @@ import (
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
 	sharedslug "mycourse-io-be/internal/shared/slug"
+	"mycourse-io-be/internal/shared/slug/gormslug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
@@ -208,7 +209,7 @@ func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTo
 			return err
 		}
 		model := &courseTopicRow{}
-		return gormx.RetryInSavepoint(tx, "course_topic_slug_retry", taxonomySlugRetryAttempts, isTaxonomySlugDuplicateKey, func() error {
+		return gormx.RetryInSavepoint(tx, "course_topic_slug_retry", gormslug.RetryAttempts, isTaxonomySlugDuplicateKey, func() error {
 			finalSlug, err := resolveTaxonomyUpdateSlug(ctx, tx, model, t.Slug, t.ID)
 			if err != nil {
 				return err
@@ -238,7 +239,7 @@ func (r *GormCourseTopicRepository) SoftDelete(ctx context.Context, id string) e
 }
 
 func (r *GormCourseTopicRepository) HardDelete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&courseTopicRow{}, id).Error
+	return gormx.HardDeleteByID(ctx, r.db, &courseTopicRow{}, id)
 }
 
 // --- GormCourseOutcomeRepository ---------------------------------------------
@@ -315,7 +316,7 @@ func (r *GormCourseOutcomeRepository) SoftDelete(ctx context.Context, id string)
 }
 
 func (r *GormCourseOutcomeRepository) HardDelete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&courseOutcomeRow{}, id).Error
+	return gormx.HardDeleteByID(ctx, r.db, &courseOutcomeRow{}, id)
 }
 
 // --- GormCourseSkillRepository -----------------------------------------------
@@ -359,7 +360,7 @@ func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSk
 			return err
 		}
 		model := &courseSkillRow{}
-		return gormx.RetryInSavepoint(tx, "course_skill_slug_retry", taxonomySlugRetryAttempts, isTaxonomySlugDuplicateKey, func() error {
+		return gormx.RetryInSavepoint(tx, "course_skill_slug_retry", gormslug.RetryAttempts, isTaxonomySlugDuplicateKey, func() error {
 			finalSlug, err := resolveTaxonomyUpdateSlug(ctx, tx, model, s.Slug, s.ID)
 			if err != nil {
 				return err
@@ -389,7 +390,7 @@ func (r *GormCourseSkillRepository) SoftDelete(ctx context.Context, id string) e
 }
 
 func (r *GormCourseSkillRepository) HardDelete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&courseSkillRow{}, id).Error
+	return gormx.HardDeleteByID(ctx, r.db, &courseSkillRow{}, id)
 }
 
 // --- GormTagRepository -------------------------------------------------------
@@ -441,7 +442,7 @@ func (r *GormTagRepository) SoftDelete(ctx context.Context, id string) error {
 }
 
 func (r *GormTagRepository) HardDelete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&tagRow{}, id).Error
+	return gormx.HardDeleteByID(ctx, r.db, &tagRow{}, id)
 }
 
 // --- GormCourseLevelRepository -----------------------------------------------
@@ -492,7 +493,7 @@ func (r *GormCourseLevelRepository) SoftDelete(ctx context.Context, id string) e
 }
 
 func (r *GormCourseLevelRepository) HardDelete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&courseLevelRow{}, id).Error
+	return gormx.HardDeleteByID(ctx, r.db, &courseLevelRow{}, id)
 }
 
 type slugStatusSaveArgs[R any] struct {
@@ -511,7 +512,7 @@ type slugStatusSaveArgs[R any] struct {
 
 func saveSlugStatusEntity[R any](ctx context.Context, db *gorm.DB, args slugStatusSaveArgs[R]) error {
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return gormx.RetryInSavepoint(tx, "taxonomy_slug_status_retry", taxonomySlugRetryAttempts, isTaxonomySlugDuplicateKey, func() error {
+		return gormx.RetryInSavepoint(tx, "taxonomy_slug_status_retry", gormslug.RetryAttempts, isTaxonomySlugDuplicateKey, func() error {
 			finalSlug, err := resolveTaxonomyUpdateSlug(ctx, tx, args.Model, args.Slug, args.ID)
 			if err != nil {
 				return err

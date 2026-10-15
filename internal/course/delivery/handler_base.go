@@ -2,7 +2,6 @@ package delivery
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -30,11 +29,7 @@ func mapCourseError(c *gin.Context, err error) bool {
 	// RecommendedSlug field that a sentinel-identity switch (below) cannot
 	// express. Mirrors the existing internal/shared/errors.RegistrationEmailRateLimitedError
 	// precedent (also a typed error checked with errors.As at its own call site).
-	var slugConflict *domain.SlugConflictError
-	if errors.As(err, &slugConflict) {
-		response.Fail(c, http.StatusConflict, apperrors.SlugConflict,
-			apperrors.DefaultMessage(apperrors.SlugConflict),
-			gin.H{"recommended_slug": slugConflict.RecommendedSlug})
+	if response.FailIfSlugConflict(c, err) {
 		return true
 	}
 	switch err {

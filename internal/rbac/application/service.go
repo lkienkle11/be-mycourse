@@ -9,6 +9,7 @@ import (
 
 	"mycourse-io-be/internal/rbac/domain"
 	apperrors "mycourse-io-be/internal/shared/errors"
+	"mycourse-io-be/internal/shared/gormx"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 )
 
@@ -264,7 +265,7 @@ func (s *RBACService) SeedDefaultPermissionsAndRoles(ctx context.Context, seedPe
 		}
 		for _, rd := range roles {
 			r := &domain.Role{Name: rd.name, Description: rd.desc}
-			if err := s.roleRepo.Create(ctx, r); err != nil && !isDuplicateError(err) {
+			if err := s.roleRepo.Create(ctx, r); err != nil && !gormx.IsUniqueViolation(err) {
 				return err
 			}
 		}
@@ -295,12 +296,4 @@ func (s *RBACService) UserHasAllPermissions(userID string, requiredActions []str
 		}
 	}
 	return true, "", nil
-}
-
-func isDuplicateError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "UNIQUE constraint")
 }

@@ -9,6 +9,7 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/gormx"
 	sharedslug "mycourse-io-be/internal/shared/slug"
+	"mycourse-io-be/internal/shared/slug/gormslug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
@@ -196,7 +197,7 @@ type createNameTranslationArgs[Row any, Domain any] struct {
 	Name         string                // base for auto-generate
 	SlugPrefix   sharedslug.Kind       // auto-generation fallback kind (topic/skill/tag/level)
 	SetSlug      func(*Domain, string) // writes the resolved slug onto Entity before ToRow runs
-	NewRow       func() *Row           // a fresh zero-value Row, used only as taxonomySlugAvailable's Model argument (GORM needs a typed pointer to infer the table)
+	NewRow       func() *Row           // a fresh zero-value Row, used only as the shared availability check's model argument (GORM needs a typed pointer to infer the table)
 }
 
 // createWithNameTranslations retries the whole create transaction fresh on
@@ -212,7 +213,7 @@ func createWithNameTranslations[Row any, Domain any](
 	args createNameTranslationArgs[Row, Domain],
 ) error {
 	var lastErr error
-	for range taxonomySlugRetryAttempts {
+	for range gormslug.RetryAttempts {
 		lastErr = createWithNameTranslationsOnce(ctx, db, args)
 		if lastErr == nil || !isTaxonomySlugDuplicateKey(lastErr) {
 			return lastErr
@@ -230,7 +231,10 @@ func createWithNameTranslationsOnce[Row any, Domain any](
 		if *args.RowVersion == 0 {
 			*args.RowVersion = 1
 		}
-		slug, conflict, err := resolveTaxonomyCreateSlug(ctx, tx, args.NewRow(), args.ManualSlug, args.Name, args.SlugPrefix)
+		slug, conflict, err := sharedslug.ResolveCreate(
+			args.ManualSlug, args.Name, args.SlugPrefix, maxTaxonomySlugLen,
+			gormslug.AvailableIn(ctx, tx, args.NewRow, nil),
+		)
 		if err != nil {
 			return err
 		}

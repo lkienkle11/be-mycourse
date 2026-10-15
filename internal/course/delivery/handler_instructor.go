@@ -49,24 +49,13 @@ func (h *Handler) prepareDraft(c *gin.Context) {
 
 func (h *Handler) updateBasicInfo(c *gin.Context) {
 	courseBodyOK(h, c, "updated", func(courseID string, req *updateBasicInfoRequest) (any, error) {
-		var slugInput *string
-		if req.Slug.Set {
-			trimmed := strings.TrimSpace(req.Slug.Value)
-			if trimmed == "" {
-				return nil, domain.ErrCourseInvalidSlug // explicit null/empty/whitespace on update -> reject
-			}
-			validated, ok := sharedslug.ValidateManualFormat(trimmed, domain.MaxSlugLen)
-			if !ok {
-				return nil, domain.ErrCourseInvalidSlug
-			}
-			slugInput = &validated
+		// slugInput is nil when req.Slug was omitted: the repo layer treats nil as
+		// "do not touch courses.slug". An explicit null, empty or malformed value is
+		// rejected by the shared parser.
+		slugInput, slugErr := sharedslug.ParseUpdateInput(req.Slug.Set, req.Slug.Value, domain.MaxSlugLen)
+		if slugErr != nil {
+			return nil, domain.ErrCourseInvalidSlug
 		}
-		// slugInput stays nil when req.Slug.Set is false (field omitted) — the
-		// repo layer treats nil as "do not touch courses.slug". req.Slug.Set is
-		// true for BOTH an explicit JSON null and an explicit value (validate.Optional
-		// distinguishes "omitted" from "present", not "null" from "non-null" —
-		// this endpoint treats explicit null the same as explicit empty/whitespace,
-		// both rejected above, so no further distinction is needed here).
 		title := strings.TrimSpace(req.Title)
 		shortDescription := strings.TrimSpace(req.ShortDescription)
 		aboutCourse := strings.TrimSpace(req.AboutCourse)

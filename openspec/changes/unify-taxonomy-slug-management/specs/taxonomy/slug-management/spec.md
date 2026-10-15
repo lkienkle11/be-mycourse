@@ -34,7 +34,7 @@ The create endpoint for a course level, course topic, course skill, or tag SHALL
 - **THEN** the system trims it before validation and does not otherwise alter its characters
 
 ### Requirement: Auto-generated slug derives from name
-When no manual slug is supplied on create, the system SHALL derive a base slug from the entity's `name` using the existing name-to-slug transliteration already used by this module. If the transliterated result is empty or does not satisfy the slug format (for example, a name using a script this transliteration cannot represent in ASCII), the system SHALL fall back to a purely random slug prefixed by the entity kind (`level-{randomSuffix}`, `topic-{randomSuffix}`, `skill-{randomSuffix}`, or `tag-{randomSuffix}`).
+When no manual slug is supplied on create, the system SHALL derive a base slug from the entity's `name` using the same shared name-to-slug transliteration mechanism already used for course slugs, consistent with the standard established for course. If the transliterated result is empty or does not satisfy the slug format (for example, a name using a script this transliteration cannot represent in ASCII), the system SHALL fall back to a purely random slug prefixed by the entity kind (`level-{randomSuffix}`, `topic-{randomSuffix}`, `skill-{randomSuffix}`, or `tag-{randomSuffix}`).
 
 #### Scenario: Name transliterates successfully
 - **WHEN** a course topic is created with name "Lập trình Golang" and no manual slug

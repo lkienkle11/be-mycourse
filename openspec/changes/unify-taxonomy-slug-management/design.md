@@ -116,6 +116,8 @@ No other line in this file changes. No spec-level behavior changes — `specs/co
 
 ### D2 — New `internal/taxonomy/infra/slug.go`
 
+**SUPERSEDED in part by D12**: `generateAutoTaxonomySlugBase` (shown below, deriving from `utils.SlugifyName`) and the `fallbackPrefix string` parameter on `resolveTaxonomyCreateSlug` were removed/retyped during a second code-review round. Shown here for historical context only — see D12 for the final signature (`kind sharedslug.Kind`) and the shared `sharedslug.GenerateAutoSlugBase` it now calls instead.
+
 Mirrors `internal/course/infra/slug.go`, generalized over the 4 taxonomy row types via a Go type parameter (this codebase already uses generics for taxonomy repo code — `slugStatusEntityRepo[T]`, `listHydratedWithImagesArgs[R,D]` — so this is consistent style, not a new pattern):
 ```go
 package infra
@@ -1175,6 +1177,8 @@ Response DTOs (`CourseTopicResponse.ChildTopics []taxpkg.TreeNode`, `CourseSkill
 
 **SUPERSEDED in part by D11**: `PrepareTreeForWrite` was removed entirely during the code-review round (confirmed zero remaining callers), not kept "unchanged" as this section originally described. Shown here for historical context only — see D11 for the final file content.
 
+**SUPERSEDED in part by D12**: `generateAutoNodeSlugBase` (shown below, deriving from `utils.SlugifyName`) was removed, and `ResolveTreeSlugs`/`resolveTreeSlugsWalk`/`resolveOneNodeSlug`/`PrepareTreeForWriteWithSlugPolicy`'s `fallbackPrefix string` parameter was retyped to `kind sharedslug.Kind`, during a second code-review round. Shown here for historical context only — see D12 for the final signatures and the shared `sharedslug.GenerateAutoSlugBase` call they now make instead.
+
 `internal/shared/taxonomy/tree_resolve.go` — one new function appended (everything else in this file — `ResolveNodeName`, `ResolveTreeNames`, `EnsureEnTranslation`, `SyncCanonicalAndEn`, `PrepareTreeForWrite`, `syncTreeCanonicalAndEn`, `cloneNodeTranslations` — is unchanged, not repeated):
 ```go
 // PrepareTreeForWriteWithSlugPolicy mirrors PrepareTreeForWrite's
@@ -1711,6 +1715,58 @@ Fix: **deleted**, not deprecated in place — `internal/shared/taxonomy/tree_slu
 
 **Verification**: both fixes covered by the existing test suite (no behavior change for any currently-exercised path — `resolveTreeFieldForUpdate` is a pure refactor, and the dead-code removal has no runtime effect by definition). Full gate chain (`gofmt`, `go vet`, `go test` ×full suite, `golangci-lint`, `check-layout`, `check-architecture`, `check-dupl`, `build-nocgo`, `build`) re-run clean after both fixes — `check-dupl` specifically confirms the `dupl` clone pair the review found is gone (0 clone groups).
 
+### D12 — Second code-review round: unify auto-generation onto `gosimple/slug`, retire `utils.SlugifyName`
+
+Raised by the user during a post-apply Q&A session: this change's own Goals state taxonomy slug management should be "giống course slug" (consistent with course), but D2/D7 as originally shipped had taxonomy and tree nodes deriving auto-generated slugs via `internal/shared/utils.SlugifyName` (plus a new ASCII-fallback wrapper), while course derives via `github.com/gosimple/slug` — two different transliteration mechanisms for what the docs already described as "the same auto-generation behavior." `SlugifyName` keeps any surviving Unicode letter after diacritic-stripping (ASCII-safe for Vietnamese, not for Chinese/Japanese/Thai/Korean/Russian — course's own `repo_slug_test.go` already demonstrates `gosimple/slug` handles these correctly via `gosimple/unidecode`'s transliteration tables), so the divergence was a real, if narrow, correctness/consistency gap, not merely a style difference.
+
+**Fix — one shared primitive for every entity, parameterized by kind, not three near-identical copies:**
+
+New `internal/shared/slug/autobase.go`:
+```go
+package slug
+
+import gosimpleslug "github.com/gosimple/slug"
+
+type Kind string
+
+const (
+	KindCourse      Kind = "course"
+	KindCourseLevel Kind = "level"
+	KindCourseTopic Kind = "topic"
+	KindCourseSkill Kind = "skill"
+	KindTag         Kind = "tag"
+	KindTreeNode    Kind = "node"
+)
+
+func GenerateAutoSlugBase(name string, maxLen int, kind Kind) (base string, mustSuffix bool) {
+	candidate := gosimpleslug.Make(name)
+	candidate = TruncateToLen(candidate, maxLen)
+	if trimmed, ok := ValidateManualFormat(candidate, maxLen); ok {
+		return trimmed, false
+	}
+	return string(kind), true
+}
+```
+
+This single function replaces:
+- `internal/course/infra/slug.go`'s `generateAutoSlugBase(title string)` — **deleted**; `repo_instructor.go`'s `resolveCreateSlug` now calls `sharedslug.GenerateAutoSlugBase(in.Title, domain.MaxSlugLen, sharedslug.KindCourse)` directly.
+- `internal/taxonomy/infra/slug.go`'s `generateAutoTaxonomySlugBase(name, fallbackPrefix string)` — **deleted**; `resolveTaxonomyCreateSlug[R]`'s signature changes from `(..., manualSlug, name, fallbackPrefix string)` to `(..., manualSlug, name string, kind sharedslug.Kind)`, calling `sharedslug.GenerateAutoSlugBase(name, maxTaxonomySlugLen, kind)`. `createNameTranslationArgs.SlugPrefix` (`repos_mappers.go`) retypes from `string` to `sharedslug.Kind`; its 4 call sites in `repos.go` change from string literals (`"topic"`/`"skill"`/`"tag"`/`"level"`) to the typed constants (`sharedslug.KindCourseTopic`/`KindCourseSkill`/`KindTag`/`KindCourseLevel`).
+- `internal/shared/taxonomy/tree_write.go`'s `generateAutoNodeSlugBase(name, fallbackPrefix string)` — **deleted**; `resolveOneNodeSlug` calls `sharedslug.GenerateAutoSlugBase(n.Name, DefaultMaxSlugLen, kind)` directly. `ResolveTreeSlugs`/`resolveTreeSlugsWalk`/`resolveOneNodeSlug`/`tree_resolve.go`'s `PrepareTreeForWriteWithSlugPolicy` all retype their `fallbackPrefix string` parameter to `kind sharedslug.Kind`; `service.go`'s `resolveTreeForWrite` call site changes from the string literal `"node"` to `sharedslug.KindTreeNode`.
+
+`internal/shared/utils/slug.go` (`SlugifyName`) and `internal/shared/utils/slug_test.go` are **deleted entirely** — `grep -rn "SlugifyName"` confirmed taxonomy (root + tree node) was its only remaining caller anywhere in the codebase once the above call sites switched to `sharedslug.GenerateAutoSlugBase`.
+
+**Test consolidation** (same "reuse/extend, don't duplicate" principle applied to tests): the per-context `TestGenerateAutoSlugBaseFrom...`/`TestGenerateAutoTaxonomySlugBaseFrom...` tests in `internal/course/infra/repo_slug_test.go` and `internal/taxonomy/infra/slug_test.go` are replaced by one shared `internal/shared/slug/autobase_test.go`, covering normal-name, non-Latin transliteration (Chinese + Vietnamese), per-`Kind` emoji-only fallback (all 6 kinds), and truncation — each former per-context test file keeps only what's still specific to it (`isCourseSlugDuplicateKey`/`isTaxonomySlugDuplicateKey`, `buildSuffixedCandidate`/`buildTaxonomySuffixedCandidate`).
+
+**This resolves the "Risks / Trade-offs" entry above** about `generateAutoNodeSlugBase` duplicating `generateAutoTaxonomySlugBase`'s derivation logic — that duplication (and the parallel one with course's own former `generateAutoSlugBase`) no longer exists; all 3 call the same shared function.
+
+**Specs updated to match** (both were accurate to the original D2/D7 implementation but, per the user, did not reflect the actual intent that taxonomy be consistent with course here):
+- `specs/taxonomy/slug-management/spec.md`'s "Auto-generated slug derives from name" requirement: "using the existing name-to-slug transliteration already used by this module" → "using the same shared name-to-slug transliteration mechanism already used for course slugs, consistent with the standard established for course."
+- `specs/taxonomy/tree-slug-management/spec.md`'s "Node creation accepts an optional manual slug" scenario: "reusing the same name-to-slug transliteration and ASCII-fallback rule as taxonomy root entities" → "reusing the same shared name-to-slug transliteration mechanism as taxonomy root entities and course slugs."
+
+**Not changed by this round** (confirmed still correct, no update needed): every CREATE/UPDATE conflict-handling rule (manual conflict on create → `SlugConflictError`+recommendation; any conflict on update → silent auto-resolve; in-tree node conflicts always auto-resolve regardless of create/update, per the explicit "consistent with taxonomy root's update-time auto-resolve behavior" requirement) — verified by re-reading `specs/taxonomy/tree-slug-management/spec.md`'s "In-tree node slug conflict is auto-resolved" requirement against the actual code (`resolveTreeForCreate`/`resolveTreeForUpdate` both routing through the same always-auto-resolve `ResolveTreeSlugs`), which match exactly; this was raised and investigated as a possible gap in the same Q&A session and confirmed to be working as originally specified, not a bug.
+
+**Verification**: `go build ./...`, `go vet ./...`, `gofmt -l .` (empty), and `go test ./internal/shared/slug/... ./internal/shared/taxonomy/... ./internal/course/infra/... ./internal/taxonomy/...` all clean after the refactor.
+
 ### Documentation updates
 
 Full file-by-file audit performed via a dedicated research pass reading every file live (not from memory), covering every doc file that matched a repo-wide `taxonomy`/`slug` grep. Summary of disposition (exact literal OLD/NEW text for every file needing a change is tracked in `tasks.md`'s documentation section, reproduced there in full so `/opsx:apply` can apply each block directly):
@@ -1722,7 +1778,7 @@ Full file-by-file audit performed via a dedicated research pass reading every fi
 ## Risks / Trade-offs
 
 - **[Risk] Always-resolve-on-update runs one extra SELECT per taxonomy update, even when slug is untouched** → **Mitigation**: accepted deliberately (D2) — taxonomy writes are low-frequency admin operations, and the alternative (threading a "was slug touched" flag through repository interfaces shared with slug-less `CourseOutcome`) is a larger, more invasive change for a negligible performance cost.
-- **[Risk] `ResolveTreeSlugs`'s auto-generate fallback (`generateAutoNodeSlugBase`) duplicates 4 lines of derivation logic already in `internal/taxonomy/infra/slug.go`'s `generateAutoTaxonomySlugBase`** → **Mitigation**: `internal/shared/taxonomy` cannot import `internal/taxonomy/infra` (would invert the module dependency direction this codebase already enforces — confirmed via `docs/reusable-assets.md`'s own architecture note on bounded-context layering). Both copies call the same two underlying primitives (`utils.SlugifyName`, `internal/shared/slug`) — the *algorithm* is not duplicated, only a short call sequence gluing two existing primitives together. Documented explicitly in D7's code comment so a future reader does not mistake this for careless copy-paste.
+- **[Risk, RESOLVED by D12] `ResolveTreeSlugs`'s auto-generate fallback (`generateAutoNodeSlugBase`) duplicates 4 lines of derivation logic already in `internal/taxonomy/infra/slug.go`'s `generateAutoTaxonomySlugBase`** → originally mitigated by arguing the duplication was only a short call sequence, not an algorithm (`internal/shared/taxonomy` cannot import `internal/taxonomy/infra`, so the two copies could not literally share a function). D12 removes the risk entirely instead of mitigating it: both functions (and course's own equivalent) were deleted in favor of one shared `internal/shared/slug.GenerateAutoSlugBase`, which `internal/shared/taxonomy` can import without inverting any module dependency direction (`internal/shared/slug` sits below both `internal/shared/taxonomy` and `internal/taxonomy/infra` in the layering, unlike `internal/taxonomy/infra` itself).
 - **[Risk] In-tree collision auto-resolution changes a manually-chosen slug without telling the client, for BOTH a genuinely-new node and an explicitly-renamed existing node** → **Mitigation**: this is the explicit, confirmed product decision (matches taxonomy root's own update-conflict behavior); the response always returns the actual final slug (spec requirement), so the client can detect and display the change even without an error.
 - **[Risk] The 2 new migrations' exact numbers (`000041`/`000042` as drafted here) may be stale by the time `/opsx:apply` runs**, if another change lands a migration first → **Mitigation**: `tasks.md` requires re-running the `ls migrations/*.up.sql | ... | tail -1` check immediately before creating the migration files, not trusting this design doc's hardcoded numbers.
 - **[Risk] `docs/sequence_diagrams.md`'s `SlugifyName(title)` fix is a pre-existing staleness from a prior change (`rework-course-slug-management`), not something this change's own design introduced** → **Mitigation**: flagged explicitly as opportunistic (found while doing this change's own doc sweep of the same file), not silently bundled in as if it were new; safe to include since it's a pure doc correction with no code/behavior implication.

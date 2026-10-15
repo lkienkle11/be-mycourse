@@ -20,7 +20,7 @@ When a tree node is submitted without a corresponding existing node (a brand-new
 
 #### Scenario: New node slug omitted
 - **WHEN** a caller adds a new tree node with a `name` but no `slug`
-- **THEN** the system auto-generates the new node's slug from its `name`, reusing the same name-to-slug transliteration and ASCII-fallback rule as taxonomy root entities, prefixed `node-{randomSuffix}` when the name yields no usable ASCII slug
+- **THEN** the system auto-generates the new node's slug from its `name`, reusing the same shared name-to-slug transliteration mechanism as taxonomy root entities and course slugs, prefixed `node-{randomSuffix}` when the name yields no usable ASCII slug
 
 ### Requirement: Existing node slug is preserved when omitted
 When a write includes a tree node whose `id` matches a node already present in the entity's currently stored tree, and that write's node object omits the `slug` field, the system SHALL preserve that node's existing slug unchanged — including when the write changes that node's `name`, when the write changes unrelated fields on the entity (status, other nodes), or when the write is a metadata-only update that reloads the tree without the caller ever supplying it in the request body.

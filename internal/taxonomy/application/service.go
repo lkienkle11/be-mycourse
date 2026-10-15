@@ -6,8 +6,8 @@ import (
 	"errors"
 	"strings"
 
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
-	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
 
@@ -74,11 +74,12 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 	if err != nil {
 		return nil, err
 	}
-	childTopics, err := prepareTreeWrite(in.ChildTopics)
+	manualSlug, err := validateManualTaxonomySlug(in.Slug)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateChildTopics(childTopics); err != nil {
+	childTopics, err := resolveTreeForCreate(in.ChildTopics)
+	if err != nil {
 		return nil, err
 	}
 	fileID := strings.TrimSpace(in.ImageFileID)
@@ -87,9 +88,9 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 			return nil, err
 		}
 	}
-	_, _, st := trimmedTaxonomyFields(name, in.Status)
+	_, st := trimmedNameAndStatus(name, in.Status)
 	t := &domain.CourseTopic{
-		Name: name, Slug: slugFromName(name), Status: st, ChildTopics: childTopics,
+		Name: name, Slug: manualSlug, Status: st, ChildTopics: childTopics,
 		Translations: tr, RowVersion: 1,
 		CreatedBy: stringPtrIfNotBlank(in.ActorID),
 	}
@@ -97,7 +98,7 @@ func (s *TaxonomyService) CreateTopic(ctx context.Context, in domain.CreateCours
 		t.ImageFileID = &fileID
 	}
 	if err := s.topicRepo.Create(ctx, t); err != nil {
-		return nil, err
+		return nil, err // may be *domain.SlugConflictError — propagated as-is, mapped at delivery
 	}
 	return s.topicRepo.GetDetail(ctx, t.ID, "", true)
 }
@@ -138,8 +139,17 @@ func applyCourseTopicUpdate(row *domain.CourseTopic, in domain.UpdateCourseTopic
 	if err != nil {
 		return err
 	}
+	slugInput, err := resolveTaxonomySlugInput(in.Slug)
+	if err != nil {
+		return err
+	}
 	row.Name = name
-	row.Slug = slugFromName(name)
+	// Slug is independent of name as of the taxonomy slug unification: only
+	// touched when slugInput is non-nil (an explicit new value); omitted
+	// leaves row.Slug exactly as GetDetail loaded it.
+	if slugInput != nil {
+		row.Slug = *slugInput
+	}
 	row.Translations = tr
 	if in.Status != nil {
 		v := strings.ToUpper(strings.TrimSpace(*in.Status))
@@ -151,27 +161,27 @@ func applyCourseTopicUpdate(row *domain.CourseTopic, in domain.UpdateCourseTopic
 }
 
 func applyCourseTopicChildren(row *domain.CourseTopic, childTopics *[]taxpkg.TreeNode) error {
-	if childTopics == nil {
-		// Omitted tree: still prepare + ValidateTree (UUID/dup/depth/translation names).
-		normalized, err := prepareTreeWrite(row.ChildTopics)
-		if err != nil {
-			return err
-		}
-		if err := validateChildTopics(normalized); err != nil {
-			return err
-		}
-		row.ChildTopics = normalized
-		return nil
-	}
-	normalized, err := prepareTreeWrite(*childTopics)
+	resolved, err := resolveTreeFieldForUpdate(row.ChildTopics, childTopics)
 	if err != nil {
 		return err
 	}
-	if err := validateChildTopics(normalized); err != nil {
-		return err
-	}
-	row.ChildTopics = normalized
+	row.ChildTopics = resolved
 	return nil
+}
+
+// resolveTreeFieldForUpdate resolves a tree field's node slugs for update,
+// shared by applyCourseTopicChildren (CourseTopic.ChildTopics) and
+// UpdateCourseSkill (CourseSkill.Children) — both entities have an
+// independent tree field with identical "omitted → preserve from current,
+// provided → use incoming" semantics, differing only in which struct field
+// holds the tree, which the caller already resolves before calling in.
+func resolveTreeFieldForUpdate(current []taxpkg.TreeNode, incoming *[]taxpkg.TreeNode) ([]taxpkg.TreeNode, error) {
+	oldByID := taxpkg.BuildNodeIndexByID(current)
+	source := current
+	if incoming != nil {
+		source = *incoming
+	}
+	return resolveTreeForUpdate(source, oldByID)
 }
 
 func (s *TaxonomyService) DeleteTopic(ctx context.Context, id string) error {
@@ -333,16 +343,17 @@ func (s *TaxonomyService) CreateCourseSkill(ctx context.Context, in domain.Creat
 	if err != nil {
 		return nil, err
 	}
-	children, err := prepareTreeWrite(in.Children)
+	manualSlug, err := validateManualTaxonomySlug(in.Slug)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateChildren(children); err != nil {
+	children, err := resolveTreeForCreate(in.Children)
+	if err != nil {
 		return nil, err
 	}
-	_, _, st := trimmedTaxonomyFields(name, in.Status)
+	_, st := trimmedNameAndStatus(name, in.Status)
 	sk := &domain.CourseSkill{
-		Name: name, Slug: slugFromName(name), Status: st, Children: children,
+		Name: name, Slug: manualSlug, Status: st, Children: children,
 		Translations: tr, RowVersion: 1,
 		CreatedBy: stringPtrIfNotBlank(in.ActorID),
 	}
@@ -373,8 +384,14 @@ func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id string, in d
 	if err != nil {
 		return nil, err
 	}
+	slugInput, err := resolveTaxonomySlugInput(in.Slug)
+	if err != nil {
+		return nil, err
+	}
 	row.Name = name
-	row.Slug = slugFromName(name)
+	if slugInput != nil {
+		row.Slug = *slugInput
+	}
 	row.Translations = tr
 	if in.Status != nil {
 		v := strings.ToUpper(strings.TrimSpace(*in.Status))
@@ -382,26 +399,11 @@ func (s *TaxonomyService) UpdateCourseSkill(ctx context.Context, id string, in d
 			row.Status = v
 		}
 	}
-	if in.Children != nil {
-		normalized, err := prepareTreeWrite(*in.Children)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateChildren(normalized); err != nil {
-			return nil, err
-		}
-		row.Children = normalized
-	} else {
-		// Omitted tree: still prepare + ValidateTree (UUID/dup/depth/translation names).
-		normalized, err := prepareTreeWrite(row.Children)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateChildren(normalized); err != nil {
-			return nil, err
-		}
-		row.Children = normalized
+	resolved, err := resolveTreeFieldForUpdate(row.Children, in.Children)
+	if err != nil {
+		return nil, err
 	}
+	row.Children = resolved
 	if err := s.skillRepo.Save(ctx, row, in.ExpectedRowVersion); err != nil {
 		return nil, err
 	}
@@ -483,19 +485,50 @@ func (s *TaxonomyService) HardDeleteCourseLevel(ctx context.Context, id string) 
 // ErrTaxonomyValidation is returned when tree or description payload fails validation.
 var ErrTaxonomyValidation = errors.New("taxonomy validation failed")
 
-func validateChildTopics(nodes []taxpkg.TreeNode) error {
+// validateResolvedTree replaces the old validateChildTopics/validateChildren
+// (identical wrappers that re-ran taxpkg.NormalizeTreeSlugs internally on
+// already-normalized input from prepareTreeWrite before validating — a
+// harmless but wasted double-normalize). Now that resolveTreeForCreate/
+// resolveTreeForUpdate produce final, already-resolved slugs directly, no
+// second normalize pass is needed here.
+func validateResolvedTree(nodes []taxpkg.TreeNode) error {
 	if nodes == nil {
 		return nil
 	}
-	nodes = taxpkg.NormalizeTreeSlugs(nodes)
 	if err := taxpkg.ValidateTree(nodes, taxpkg.ValidateTreeOpts{}); err != nil {
 		return errors.Join(ErrTaxonomyValidation, err)
 	}
 	return nil
 }
 
-func validateChildren(nodes []taxpkg.TreeNode) error {
-	return validateChildTopics(nodes)
+// resolveTreeForCreate resolves slugs for a brand-new tree (create path —
+// no prior tree exists, so every node is "new" for preserve-by-id purposes).
+func resolveTreeForCreate(nodes []taxpkg.TreeNode) ([]taxpkg.TreeNode, error) {
+	return resolveTreeForWrite(nodes, nil)
+}
+
+// resolveTreeForUpdate resolves slugs for an update, given the entity's
+// previously-stored tree (oldByID) for preserve-by-id lookups.
+func resolveTreeForUpdate(nodes []taxpkg.TreeNode, oldByID map[string]taxpkg.TreeNode) ([]taxpkg.TreeNode, error) {
+	return resolveTreeForWrite(nodes, oldByID)
+}
+
+func resolveTreeForWrite(nodes []taxpkg.TreeNode, oldByID map[string]taxpkg.TreeNode) ([]taxpkg.TreeNode, error) {
+	canonized, err := canonicalizeTreeLocales(nodes)
+	if err != nil {
+		return nil, err
+	}
+	resolved, conflict, err := taxpkg.PrepareTreeForWriteWithSlugPolicy(canonized, oldByID, sharedslug.KindTreeNode)
+	if err != nil {
+		return nil, err
+	}
+	if conflict {
+		return nil, domain.ErrTaxonomyCanonicalConflict
+	}
+	if err := validateResolvedTree(resolved); err != nil {
+		return nil, err
+	}
+	return resolved, nil
 }
 
 func validateOutcomePayload(short string, desc []string) error {
@@ -530,18 +563,16 @@ func (s *TaxonomyService) mutateImageFileID(ctx context.Context, dst **string, i
 	return nil
 }
 
-func trimmedTaxonomyFields(name, status string) (string, string, string) {
+// trimmedNameAndStatus replaces the old trimmedTaxonomyFields, which also
+// returned a synchronously-computed slug — slug resolution now requires DB
+// access and lives in the infra layer (internal/taxonomy/infra/slug.go).
+func trimmedNameAndStatus(name, status string) (string, string) {
 	n := strings.TrimSpace(name)
-	sl := slugFromName(n)
 	st := strings.ToUpper(strings.TrimSpace(status))
 	if st == "" {
 		st = "ACTIVE"
 	}
-	return n, sl, st
-}
-
-func slugFromName(name string) string {
-	return strings.TrimSpace(utils.SlugifyName(name))
+	return n, st
 }
 
 func imageFileIDStr(p *string) string {

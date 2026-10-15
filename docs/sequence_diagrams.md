@@ -94,12 +94,12 @@ sequenceDiagram
     participant R as course/infra.GormRepository
     participant DB as PostgreSQL
 
-    C->>H: POST /api/v1/courses { title }
-    H->>S: CreateCourse(actorUserID, title)
-    S->>S: SlugifyName(title)
+    C->>H: POST /api/v1/courses { title, slug? }
+    H->>S: CreateCourse(actorUserID, title, slug)
     S->>R: CreateCourse(input)
+    R->>R: resolveCreateSlug (manual slug check, or gosimple/slug auto-generate + collision retry)
     R->>DB: BEGIN
-    R->>DB: INSERT courses (owner_user_id)
+    R->>DB: INSERT courses (owner_user_id, resolved slug)
     R->>DB: INSERT course_versions (v1 DRAFT)
     R->>DB: UPDATE courses.current_draft_version_id
     R->>R: loadCourseDetail → requireCourseAction (Authorizer, owner synthesized)

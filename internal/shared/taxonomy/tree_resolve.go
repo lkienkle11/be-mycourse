@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/shared/i18n"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 )
 
 // ResolveNodeName applies locale fallback on a single tree node (exact → base → en → canonical name).
@@ -85,17 +86,29 @@ func SyncCanonicalAndEn(canonicalName string, translations map[string]NodeTransl
 	}
 }
 
-// PrepareTreeForWrite syncs each node's canonical↔en, ensures en translation, then slugifies.
-// Returns conflict=true when any node has canonical/en mismatch.
-func PrepareTreeForWrite(nodes []TreeNode) (out []TreeNode, conflict bool) {
+// PrepareTreeForWriteWithSlugPolicy mirrors the old (now-removed)
+// PrepareTreeForWrite's locale-sync steps (SyncCanonicalAndEn +
+// EnsureEnTranslation) but resolves slugs via ResolveTreeSlugs (tree_write.go
+// — preserve-by-id / manual / auto-generate / in-tree collision auto-resolve)
+// instead of NormalizeTreeSlugs's unconditional recompute-from-name.
+// PrepareTreeForWrite and NormalizeTreeSlugs were deleted (not kept
+// unused) once a code review confirmed every call site had already
+// switched to this function — keeping dead code whose entire purpose was
+// the just-fixed "slug always recomputed from name" behavior would only
+// invite a future caller to resurrect that bug by mistake.
+func PrepareTreeForWriteWithSlugPolicy(nodes []TreeNode, oldByID map[string]TreeNode, kind sharedslug.Kind) (out []TreeNode, conflict bool, err error) {
 	if nodes == nil {
-		return nil, false
+		return nil, false, nil
 	}
 	synced, conflict := syncTreeCanonicalAndEn(nodes)
 	if conflict {
-		return nil, true
+		return nil, true, nil
 	}
-	return NormalizeTreeSlugs(EnsureEnTranslation(synced)), false
+	resolved, err := ResolveTreeSlugs(EnsureEnTranslation(synced), oldByID, kind)
+	if err != nil {
+		return nil, false, err
+	}
+	return resolved, false, nil
 }
 
 func syncTreeCanonicalAndEn(nodes []TreeNode) ([]TreeNode, bool) {

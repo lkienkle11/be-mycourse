@@ -1,7 +1,27 @@
 // Package delivery contains the TAXONOMY bounded-context HTTP delivery layer.
 package delivery
 
-import taxpkg "mycourse-io-be/internal/shared/taxonomy"
+import (
+	taxpkg "mycourse-io-be/internal/shared/taxonomy"
+	"mycourse-io-be/internal/shared/validate"
+)
+
+// TreeNodeInput is the write-path counterpart of taxpkg.TreeNode: Slug uses
+// validate.Optional[string] instead of a plain string so the delivery layer
+// can distinguish "omitted for this node" (Set=false — preserve by id on
+// update, or auto-generate for a new node) from "explicit null/empty for
+// this node" (Set=true, Value=="" — rejected, see toDomainTreeNodes in
+// handler_helpers.go) from "explicit manual value" (Set=true, Value!="") —
+// something a plain string on a JSON array element cannot express. Used
+// ONLY in Create/Update request bodies; taxpkg.TreeNode (unchanged) remains
+// the read/response type.
+type TreeNodeInput struct {
+	ID           string                            `json:"id"`
+	Name         string                            `json:"name"`
+	Slug         validate.Optional[string]         `json:"slug"`
+	Translations map[string]taxpkg.NodeTranslation `json:"translations"`
+	Children     []TreeNodeInput                   `json:"children"`
+}
 
 // TaxonomyBaseFilter is the shared pagination/search query params for taxonomy list endpoints.
 type TaxonomyBaseFilter struct {
@@ -42,8 +62,9 @@ func (f TaxonomyBaseFilter) getPerPage() int {
 // CreateCourseTopicRequest is the JSON body for creating a course topic.
 type CreateCourseTopicRequest struct {
 	Name         string                            `json:"name" validate:"omitempty,min=1,max=255"`
+	Slug         string                            `json:"slug" validate:"omitempty,max=255"`
 	ImageFileID  string                            `json:"image_file_id" validate:"omitempty,uuid"`
-	ChildTopics  []taxpkg.TreeNode                 `json:"child_topics"`
+	ChildTopics  []TreeNodeInput                   `json:"child_topics"`
 	Status       string                            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 	Translations map[string]taxpkg.NodeTranslation `json:"translations"`
 }
@@ -51,8 +72,9 @@ type CreateCourseTopicRequest struct {
 // UpdateCourseTopicRequest is the JSON body for updating a course topic.
 type UpdateCourseTopicRequest struct {
 	Name               *string                           `json:"name" validate:"omitempty,min=1,max=255"`
+	Slug               validate.Optional[string]         `json:"slug"`
 	ImageFileID        *string                           `json:"image_file_id" validate:"omitempty,uuid"`
-	ChildTopics        *[]taxpkg.TreeNode                `json:"child_topics"`
+	ChildTopics        *[]TreeNodeInput                  `json:"child_topics"`
 	Status             *string                           `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 	Translations       map[string]taxpkg.NodeTranslation `json:"translations"`
 	ExpectedRowVersion int64                             `json:"expected_row_version" validate:"required,min=1"`
@@ -86,7 +108,8 @@ type UpdateCourseOutcomeRequest struct {
 // CreateCourseSkillRequest is the JSON body for creating a course skill.
 type CreateCourseSkillRequest struct {
 	Name         string                            `json:"name" validate:"omitempty,min=1,max=255"`
-	Children     []taxpkg.TreeNode                 `json:"children"`
+	Slug         string                            `json:"slug" validate:"omitempty,max=255"`
+	Children     []TreeNodeInput                   `json:"children"`
 	Status       string                            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 	Translations map[string]taxpkg.NodeTranslation `json:"translations"`
 }
@@ -94,7 +117,8 @@ type CreateCourseSkillRequest struct {
 // UpdateCourseSkillRequest is the JSON body for updating a course skill.
 type UpdateCourseSkillRequest struct {
 	Name               *string                           `json:"name" validate:"omitempty,min=1,max=255"`
-	Children           *[]taxpkg.TreeNode                `json:"children"`
+	Slug               validate.Optional[string]         `json:"slug"`
+	Children           *[]TreeNodeInput                  `json:"children"`
 	Status             *string                           `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 	Translations       map[string]taxpkg.NodeTranslation `json:"translations"`
 	ExpectedRowVersion int64                             `json:"expected_row_version" validate:"required,min=1"`
@@ -103,6 +127,7 @@ type UpdateCourseSkillRequest struct {
 // CreateTagRequest is the JSON body for creating a tag.
 type CreateTagRequest struct {
 	Name         string                            `json:"name" validate:"omitempty,min=1,max=255"`
+	Slug         string                            `json:"slug" validate:"omitempty,max=255"`
 	Status       string                            `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 	Translations map[string]taxpkg.NodeTranslation `json:"translations"`
 }
@@ -110,6 +135,7 @@ type CreateTagRequest struct {
 // UpdateTagRequest is the JSON body for updating a tag.
 type UpdateTagRequest struct {
 	Name               *string                           `json:"name" validate:"omitempty,min=1,max=255"`
+	Slug               validate.Optional[string]         `json:"slug"`
 	Status             *string                           `json:"status" validate:"omitempty,oneof=ACTIVE INACTIVE"`
 	Translations       map[string]taxpkg.NodeTranslation `json:"translations"`
 	ExpectedRowVersion int64                             `json:"expected_row_version" validate:"required,min=1"`

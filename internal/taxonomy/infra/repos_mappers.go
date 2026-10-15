@@ -8,6 +8,7 @@ import (
 
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/gormx"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
@@ -191,9 +192,36 @@ type createNameTranslationArgs[Row any, Domain any] struct {
 	Table        string
 	FKCol        string
 	Translations map[string]taxpkg.NodeTranslation
+	ManualSlug   string                // "" = auto-generate from Name
+	Name         string                // base for auto-generate
+	SlugPrefix   sharedslug.Kind       // auto-generation fallback kind (topic/skill/tag/level)
+	SetSlug      func(*Domain, string) // writes the resolved slug onto Entity before ToRow runs
+	NewRow       func() *Row           // a fresh zero-value Row, used only as taxonomySlugAvailable's Model argument (GORM needs a typed pointer to infer the table)
 }
 
+// createWithNameTranslations retries the whole create transaction fresh on
+// a slug duplicate-key race (mirrors internal/course/infra/repo_instructor.go's
+// CreateCourse/createCourseOnce split) — each attempt opens a brand-new
+// transaction, so it never hits the aborted-transaction problem a
+// same-transaction retry would (see internal/shared/gormx.RetryInSavepoint's
+// doc comment for that failure mode, which affects updates, not this
+// fresh-transaction-per-attempt create path).
 func createWithNameTranslations[Row any, Domain any](
+	ctx context.Context,
+	db *gorm.DB,
+	args createNameTranslationArgs[Row, Domain],
+) error {
+	var lastErr error
+	for range taxonomySlugRetryAttempts {
+		lastErr = createWithNameTranslationsOnce(ctx, db, args)
+		if lastErr == nil || !isTaxonomySlugDuplicateKey(lastErr) {
+			return lastErr
+		}
+	}
+	return lastErr
+}
+
+func createWithNameTranslationsOnce[Row any, Domain any](
 	ctx context.Context,
 	db *gorm.DB,
 	args createNameTranslationArgs[Row, Domain],
@@ -202,6 +230,14 @@ func createWithNameTranslations[Row any, Domain any](
 		if *args.RowVersion == 0 {
 			*args.RowVersion = 1
 		}
+		slug, conflict, err := resolveTaxonomyCreateSlug(ctx, tx, args.NewRow(), args.ManualSlug, args.Name, args.SlugPrefix)
+		if err != nil {
+			return err
+		}
+		if conflict != nil {
+			return conflict // *domain.SlugConflictError — propagated as-is, mapped at delivery
+		}
+		args.SetSlug(args.Entity, slug)
 		if err := createTaxonomyDomain(ctx, tx, args.Entity, args.ToRow, args.EntityID, args.CreatedAt, args.UpdatedAt, args.Meta); err != nil {
 			return err
 		}

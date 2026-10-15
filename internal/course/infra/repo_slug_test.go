@@ -18,49 +18,11 @@ func TestIsCourseSlugDuplicateKey(t *testing.T) {
 	}
 }
 
-func TestGenerateAutoSlugBaseFromNormalTitle(t *testing.T) {
-	base, mustSuffix := generateAutoSlugBase("Introduction to Go")
-	if mustSuffix {
-		t.Fatalf("mustSuffix = true, want false for a normal English title")
-	}
-	if base == "" {
-		t.Fatal("expected a non-empty base slug")
-	}
-	if strings.ContainsAny(base, " _") {
-		t.Fatalf("base %q contains characters that should have been transliterated away", base)
-	}
-}
-
-func TestGenerateAutoSlugBaseTransliteratesNonLatinTitle(t *testing.T) {
-	// gosimple/slug (backed by gosimple/unidecode) transliterates CJK/Cyrillic/
-	// Thai to ASCII rather than passing it through raw or dropping it.
-	base, mustSuffix := generateAutoSlugBase("影師")
-	if mustSuffix {
-		t.Fatalf("mustSuffix = true for a transliterable Chinese title, base=%q", base)
-	}
-	for _, r := range base {
-		if r > 127 {
-			t.Fatalf("base %q contains non-ASCII rune %q — transliteration should have produced pure ASCII", base, r)
-		}
-	}
-}
-
-func TestGenerateAutoSlugBaseFallsBackOnEmojiOnlyTitle(t *testing.T) {
-	base, mustSuffix := generateAutoSlugBase("🔥🔥🔥")
-	if !mustSuffix {
-		t.Fatalf("mustSuffix = false, want true for an emoji-only title with nothing to transliterate")
-	}
-	if base != "course" {
-		t.Fatalf("base = %q, want \"course\" fallback", base)
-	}
-}
-
-func TestGenerateAutoSlugBaseTruncatesLongTitle(t *testing.T) {
-	base, _ := generateAutoSlugBase(strings.Repeat("influencer marketing strategy ", 20)) // well over 255 chars once transliterated
-	if len(base) > domain.MaxSlugLen {
-		t.Fatalf("base length %d exceeds domain.MaxSlugLen %d", len(base), domain.MaxSlugLen)
-	}
-}
+// generateAutoSlugBase was unified into internal/shared/slug.GenerateAutoSlugBase
+// (see internal/shared/slug/autobase_test.go for its "normal title" /
+// "non-Latin transliteration" / "emoji-only fallback" / "truncation" coverage,
+// now shared across course, taxonomy root entities, and tree nodes instead of
+// duplicated per bounded context).
 
 func TestBuildSuffixedCandidateNeverExceedsMaxSlugLen(t *testing.T) {
 	base := strings.Repeat("a", domain.MaxSlugLen) // already at the limit, alone

@@ -141,10 +141,11 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 // resolves any collision with a random suffix via sharedslug.RetryWithSuffix.
 // Lives in repo_instructor.go (not slug.go) because it orchestrates courseRow
 // writes/reads directly; slug.go holds only the smaller, more reusable
-// primitives (generateAutoSlugBase, courseSlugAvailable). Every
-// RetryWithSuffix call builds its candidate via buildSuffixedCandidate
-// (slug.go), which truncates the base to leave room for the suffix within
-// domain.MaxSlugLen and errors out instead of producing an invalid
+// primitive courseSlugAvailable (auto-generation itself now lives in the
+// shared sharedslug.GenerateAutoSlugBase, used by every slugged entity in
+// this codebase). Every RetryWithSuffix call builds its candidate via
+// buildSuffixedCandidate (slug.go), which truncates the base to leave room
+// for the suffix within domain.MaxSlugLen and errors out instead of producing an invalid
 // leading-hyphen candidate if no room remains at all.
 func resolveCreateSlug(ctx context.Context, tx *gorm.DB, in domain.CreateCourseInput) (string, error) {
 	if in.Slug != "" {
@@ -175,7 +176,7 @@ func resolveCreateSlug(ctx context.Context, tx *gorm.DB, in domain.CreateCourseI
 		}
 		return "", &domain.SlugConflictError{RecommendedSlug: recommended}
 	}
-	base, mustSuffix := generateAutoSlugBase(in.Title) // already truncated to domain.MaxSlugLen internally
+	base, mustSuffix := sharedslug.GenerateAutoSlugBase(in.Title, domain.MaxSlugLen, sharedslug.KindCourse) // already truncated to domain.MaxSlugLen internally
 	if !mustSuffix {
 		available, err := courseSlugAvailable(ctx, tx, base, nil)
 		if err != nil {
@@ -275,7 +276,14 @@ func (r *GormRepository) UpdateBasicInfo(ctx context.Context, courseID string, a
 // with no retry-on-duplicate-key, unlike CreateCourse. Scoped to only the
 // slug write sub-step (not the whole surrounding transaction) so a slug-only
 // collision retry does not re-validate/re-write the unrelated metadata fields
-// already committed earlier in the same transaction.
+// already committed earlier in the same transaction. Uses
+// gormx.RetryInSavepoint: an earlier version of this function retried the
+// write on the same *gorm.DB with no SAVEPOINT, which cannot actually
+// recover from a real collision because Postgres aborts the whole
+// surrounding transaction on the first duplicate-key error — every
+// subsequent statement, including the "retry," then failed immediately with
+// a generic "current transaction is aborted" error instead of ever
+// resolving the collision.
 func (r *GormRepository) applyUpdateSlugWithRetry(ctx context.Context, tx *gorm.DB, access *courseAccess, newSlugInput *string) error {
 	if newSlugInput == nil {
 		return nil // omitted — do not touch courses.slug at all
@@ -285,23 +293,14 @@ func (r *GormRepository) applyUpdateSlugWithRetry(ctx context.Context, tx *gorm.
 		return nil // no-op: identical to current slug, never a self-conflict
 	}
 	const updateSlugRetry = 5 // mirrors courseSlugCreateRetry; same tuning rationale
-	var lastErr error
-	for range updateSlugRetry {
+	return gormx.RetryInSavepoint(tx, "course_slug_update_retry", updateSlugRetry, isCourseSlugDuplicateKey, func() error {
 		finalSlug, err := resolveUpdateSlug(ctx, tx, newSlug, access.ID)
 		if err != nil {
 			return err
 		}
-		writeErr := tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
+		return tx.Model(&courseRow{}).Where("id = ? AND deleted_at IS NULL", access.ID).
 			Updates(map[string]any{"slug": finalSlug, "updated_at": timex.NowUnix()}).Error
-		if writeErr == nil {
-			return nil
-		}
-		if !isCourseSlugDuplicateKey(writeErr) {
-			return writeErr
-		}
-		lastErr = writeErr // a concurrent writer won the race on finalSlug — retry with a fresh suffix
-	}
-	return lastErr
+	})
 }
 
 // resolveUpdateSlug implements the update-time slug branch — no

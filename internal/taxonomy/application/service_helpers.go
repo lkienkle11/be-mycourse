@@ -37,7 +37,7 @@ type slugStatusEntityRepo[T any] struct {
 
 func createSlugStatusEntity[T any](
 	ctx context.Context,
-	name, status string,
+	name, status, manualSlug string,
 	actorID string,
 	translations map[string]taxpkg.NodeTranslation,
 	repo slugStatusEntityRepo[T],
@@ -46,8 +46,8 @@ func createSlugStatusEntity[T any](
 	if err != nil {
 		return nil, err
 	}
-	_, sl, st := trimmedTaxonomyFields(n, status)
-	entity := repo.build(n, sl, st, stringPtrIfNotBlank(actorID), tr)
+	_, st := trimmedNameAndStatus(n, status)
+	entity := repo.build(n, manualSlug, st, stringPtrIfNotBlank(actorID), tr) // manualSlug passed as the "sl" build param — repo.Create (infra) resolves it into the final slug
 	if err := repo.create(ctx, entity); err != nil {
 		return nil, err
 	}
@@ -69,7 +69,11 @@ func courseLevelID(cl *domain.CourseLevel) string { return cl.ID }
 type slugStatusCreator[T any] = slugStatusEntityRepo[T]
 
 func createSlugStatusFromInput[T any](ctx context.Context, in domain.CreateTagInput, c slugStatusCreator[T]) (*T, error) {
-	return createSlugStatusEntity(ctx, in.Name, in.Status, in.ActorID, in.Translations, c)
+	manualSlug, err := validateManualTaxonomySlug(in.Slug)
+	if err != nil {
+		return nil, err
+	}
+	return createSlugStatusEntity(ctx, in.Name, in.Status, manualSlug, in.ActorID, in.Translations, c)
 }
 
 func (s *TaxonomyService) tagCreator() slugStatusCreator[domain.Tag] {
@@ -122,6 +126,10 @@ func applySlugStatusFields(
 	if err != nil {
 		return err
 	}
+	slugInput, err := resolveTaxonomySlugInput(in.Slug)
+	if err != nil {
+		return err
+	}
 	nextStatus := *status
 	if in.Status != nil {
 		v := strings.ToUpper(strings.TrimSpace(*in.Status))
@@ -130,7 +138,9 @@ func applySlugStatusFields(
 		}
 	}
 	*name = syncedName
-	*slug = slugFromName(syncedName)
+	if slugInput != nil { // omitted (slugInput == nil) leaves *slug exactly as loaded — independent of name
+		*slug = *slugInput
+	}
 	*status = nextStatus
 	*translations = tr
 	return nil

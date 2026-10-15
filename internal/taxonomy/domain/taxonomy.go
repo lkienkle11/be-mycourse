@@ -3,6 +3,7 @@ package domain
 
 import (
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
+	"mycourse-io-be/internal/shared/validate"
 )
 
 // OutcomeTranslation is the per-locale payload for course outcome translations.
@@ -121,6 +122,7 @@ type TaxonomyFilter struct {
 type CreateCourseTopicInput struct {
 	ActorID      string
 	Name         string
+	Slug         string // "" means auto-generate from Name; a non-empty value is the caller's manual choice (already trimmed+format-validated by the application layer)
 	Status       string
 	ImageFileID  string
 	ChildTopics  []taxpkg.TreeNode
@@ -130,6 +132,7 @@ type CreateCourseTopicInput struct {
 // UpdateCourseTopicInput carries partial-update data for a course topic.
 type UpdateCourseTopicInput struct {
 	Name               *string
+	Slug               validate.Optional[string] // not Set means "do not change slug"; Set+non-empty is a new value already trimmed+format-validated by the application layer; Set+empty is rejected before this type is even populated
 	Status             *string
 	ImageFileID        *string
 	ChildTopics        *[]taxpkg.TreeNode
@@ -161,6 +164,7 @@ type UpdateCourseOutcomeInput struct {
 type CreateCourseSkillInput struct {
 	ActorID      string
 	Name         string
+	Slug         string // same semantics as CreateCourseTopicInput.Slug
 	Status       string
 	Children     []taxpkg.TreeNode
 	Translations map[string]taxpkg.NodeTranslation
@@ -169,6 +173,7 @@ type CreateCourseSkillInput struct {
 // UpdateCourseSkillInput carries partial-update data for a course skill.
 type UpdateCourseSkillInput struct {
 	Name               *string
+	Slug               validate.Optional[string] // same semantics as UpdateCourseTopicInput.Slug
 	Status             *string
 	Children           *[]taxpkg.TreeNode
 	Translations       map[string]taxpkg.NodeTranslation
@@ -179,6 +184,7 @@ type UpdateCourseSkillInput struct {
 type CreateTagInput struct {
 	ActorID      string
 	Name         string
+	Slug         string // same semantics as CreateCourseTopicInput.Slug
 	Status       string
 	Translations map[string]taxpkg.NodeTranslation
 }
@@ -186,6 +192,7 @@ type CreateTagInput struct {
 // UpdateTagInput carries partial-update data for a tag.
 type UpdateTagInput struct {
 	Name               *string
+	Slug               validate.Optional[string] // same semantics as UpdateCourseTopicInput.Slug
 	Status             *string
 	Translations       map[string]taxpkg.NodeTranslation
 	ExpectedRowVersion int64

@@ -1576,9 +1576,9 @@ Allowed `search_by` values:
 | DELETE | `/api/v1/taxonomy/levels/:id` |
 | DELETE | `/api/v1/taxonomy/levels/:id/hard` |
 
-**Create body:** `{ "name"?, "translations"?, "status"? }` — slug from canonical `name`.
+**Create body:** `{ "name"?, "slug"?, "translations"?, "status"? }` — omit/empty `slug` auto-generates from canonical `name`; a manual value already taken by another active level is rejected `409`/`3007` with `data.recommended_slug`.
 
-**Update body:** partial + `expected_row_version` + optional `translations`.
+**Update body:** partial + `expected_row_version` + optional `translations` + optional `slug` (PATCH-omittable — omitted leaves it unchanged even if `name` changes; `null`/empty/whitespace → `400`; a new value colliding with another active level is auto-resolved server-side with a random suffix).
 
 ```bash
 # List localized
@@ -1596,9 +1596,9 @@ curl -X GET "{{BASE_URL}}/api/v1/taxonomy/levels/{id}?view=edit" \
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/levels \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Beginner","translations":{"en":{"name":"Beginner"},"vi":{"name":"Người mới"}},"status":"ACTIVE"}'
+  -d '{"name":"Beginner","slug":"beginner-level","translations":{"en":{"name":"Beginner"},"vi":{"name":"Người mới"}},"status":"ACTIVE"}'
 
-# Update (optimistic lock)
+# Update (optimistic lock) — slug omitted here, so it stays unchanged even though name changes
 curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/{id} \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -1617,15 +1617,15 @@ curl -X PATCH {{BASE_URL}}/api/v1/taxonomy/levels/{id} \
 | DELETE | `/api/v1/taxonomy/topics/:id` |
 | DELETE | `/api/v1/taxonomy/topics/:id/hard` |
 
-**Create body:** `{ "name"?, "translations"?, "image_file_id"?, "child_topics"?, "status"? }` — slug from canonical `name`. Optional **`image_file_id`**. **`child_topics`** nodes: `{ "id", "name", "translations"?, "children" }` (UUID ids, max depth 12, max 100 nodes).
+**Create body:** `{ "name"?, "slug"?, "translations"?, "image_file_id"?, "child_topics"?, "status"? }` — omit/empty `slug` auto-generates from canonical `name`; a manual value already taken by another active topic is rejected `409`/`3007` with `data.recommended_slug`. Optional **`image_file_id`**. **`child_topics`** nodes: `{ "id", "name", "slug"?, "translations"?, "children" }` — node `slug` optional: omit to preserve (existing node, matched by `id`) or auto-generate (new node); a manual value colliding with another node's slug in the same tree is silently auto-resolved with a random suffix (UUID ids, max depth 12, max 100 nodes).
 
-**Update body:** partial fields + `expected_row_version` + optional `translations` / `child_topics`.
+**Update body:** partial fields + `expected_row_version` + optional `translations` / `child_topics` + optional `slug` (PATCH-omittable — same rule as levels).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/topics \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Math","image_file_id":"550e8400-e29b-41d4-a716-446655440000","child_topics":[],"status":"ACTIVE"}'
+  -d '{"name":"Math","slug":"mathematics","image_file_id":"550e8400-e29b-41d4-a716-446655440000","child_topics":[],"status":"ACTIVE"}'
 ```
 
 ### 12.3 Course outcomes
@@ -1661,13 +1661,15 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/outcomes \
 | DELETE | `/api/v1/taxonomy/skills/:id` |
 | DELETE | `/api/v1/taxonomy/skills/:id/hard` |
 
-**Create body:** `{ "name", "children"?, "status"? }` — slug server-computed; `children` uses the same input tree shape as `child_topics`.
+**Create body:** `{ "name", "slug"?, "children"?, "status"? }` — omit/empty `slug` auto-generates from `name`; a manual value already taken by another active skill is rejected `409`/`3007` with `data.recommended_slug`; `children` uses the same input tree shape as `child_topics` (node `slug` optional, same preserve/auto-generate/auto-resolve rules).
+
+**Update body:** partial fields + `expected_row_version` + optional `translations` / `children` + optional `slug` (PATCH-omittable — same rule as levels).
 
 ```bash
 curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Problem solving","children":[],"status":"ACTIVE"}'
+  -d '{"name":"Problem solving","slug":"problem-solving","children":[],"status":"ACTIVE"}'
 ```
 
 ### 12.5 Tags
@@ -1682,7 +1684,9 @@ curl -X POST {{BASE_URL}}/api/v1/taxonomy/skills \
 | DELETE | `/api/v1/taxonomy/tags/:id` |
 | DELETE | `/api/v1/taxonomy/tags/:id/hard` |
 
-**Create body:** `{ "name", "status"? }` — slug server-computed from `name`.
+**Create body:** `{ "name", "slug"?, "status"? }` — omit/empty `slug` auto-generates from `name`; a manual value already taken by another active tag is rejected `409`/`3007` with `data.recommended_slug`.
+
+**Update body:** partial fields + `expected_row_version` + optional `translations` + optional `slug` (PATCH-omittable — same rule as levels).
 
 ```bash
 curl -X GET "{{BASE_URL}}/api/v1/taxonomy/tags?search_by=slug&search_value=react&status=ACTIVE" \

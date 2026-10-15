@@ -438,7 +438,7 @@ Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_u
 
 **GORM models:** `internal/taxonomy/infra/repos.go` (`courseTopicRow`, `courseOutcomeRow`, `courseSkillRow`, `tagRow`, `courseLevelRow` + translation rows).
 
-**Soft delete:** default list/get exclude rows where `deleted_at IS NOT NULL`. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE .../:id/hard` permanently removes the row. Slug columns use partial unique indexes (`uix_*_slug_active`) so slugs can be reused after soft delete.
+**Soft delete:** default list/get exclude rows where `deleted_at IS NOT NULL`. `DELETE /taxonomy/{resource}/:id` soft-deletes; `DELETE .../:id/hard` permanently removes the row. Slug columns use partial unique indexes (`uix_*_slug_active`) so slugs can be reused after soft delete. As of `openspec/changes/unify-taxonomy-slug-management`, each of the 4 slug-bearing tables also has a table-wide `chk_<table>_slug_format` CHECK constraint (applies regardless of `deleted_at` — unlike the partial unique index) — see the per-table sections below and the migrations table.
 
 **Hybrid localization:**
 
@@ -475,7 +475,7 @@ Helpers live in `internal/shared/i18n` (`CanonicalizeLocale` for write; `Negotia
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | Canonical name (SoT for slug / search phase 1) |
-| `slug` | `VARCHAR(255)` | NOT NULL | URL-safe identifier; unique among active rows (`uix_course_levels_slug_active`); **not** localized |
+| `slug` | `VARCHAR(255)` | NOT NULL, CHECK `chk_course_levels_slug_format` (`slug <> '' AND slug ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`, added in migration `000042`) | URL-safe identifier; unique among active rows (`uix_course_levels_slug_active`); **not** localized; optional manual input on create/update as of `openspec/changes/unify-taxonomy-slug-management` |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock (mirror course/media); bumped on every successful write |
 | `created_by` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | |
@@ -495,7 +495,7 @@ Renamed from `categories` in migration `000009` (IDs preserved).
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | Canonical name |
-| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_topics_slug_active`); **not** localized |
+| `slug` | `VARCHAR(255)` | NOT NULL, CHECK `chk_course_topics_slug_format` (added in migration `000042`) | Unique among active rows (`uix_course_topics_slug_active`); **not** localized; optional manual input on create/update as of `openspec/changes/unify-taxonomy-slug-management` |
 | `image_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Topic image |
 | `child_topics` | `JSONB` | NOT NULL DEFAULT `'[]'` | Nested tree: `{ id, name, slug, translations?, children[] }` |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
@@ -553,7 +553,7 @@ Migration backfill: for each node with non-empty `name`, ensure `translations.en
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | Canonical name |
-| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_course_skills_slug_active`); **not** localized |
+| `slug` | `VARCHAR(255)` | NOT NULL, CHECK `chk_course_skills_slug_format` (added in migration `000042`) | Unique among active rows (`uix_course_skills_slug_active`); **not** localized; optional manual input on create/update as of `openspec/changes/unify-taxonomy-slug-management` |
 | `children` | `JSONB` | NOT NULL DEFAULT `'[]'` | Skill tree (same node shape as `child_topics`, including `translations`) |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock |
@@ -572,7 +572,7 @@ Migration backfill: for each node with non-empty `name`, ensure `translations.en
 |--------|------|-------------|-------------|
 | `id` | `UUID` | PK | |
 | `name` | `VARCHAR(255)` | NOT NULL | Canonical name |
-| `slug` | `VARCHAR(255)` | NOT NULL | Unique among active rows (`uix_tags_slug_active`); **not** localized |
+| `slug` | `VARCHAR(255)` | NOT NULL, CHECK `chk_tags_slug_format` (added in migration `000042`) | Unique among active rows (`uix_tags_slug_active`); **not** localized; optional manual input on create/update as of `openspec/changes/unify-taxonomy-slug-management` |
 | `status` | `taxonomy_status` | NOT NULL DEFAULT `ACTIVE` | |
 | `row_version` | `BIGINT` | NOT NULL DEFAULT `1` | Optimistic lock |
 | `created_by` | `UUID` | nullable, FK → `users(id)` ON DELETE SET NULL | |
@@ -838,6 +838,8 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000038 | `home_catalog_indexes` | Index-only, no schema change: `idx_courses_published_created_at`, `idx_courses_owner_published_created_at`, `idx_course_enrollments_user_active` — for the public trending-courses/popular-instructors catalog and continue-learning endpoints, see `openspec/changes/add-home-catalog-apis` |
 | 000039 | `backfill_course_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `courses.slug` value that would violate the new format check (idempotent; no-op `down.sql` — original non-conforming values are not recoverable), see `openspec/changes/rework-course-slug-management` |
 | 000040 | `course_slug_check_constraint` | Adds `chk_courses_slug_format` CHECK constraint on `courses.slug` (`slug <> '' AND slug ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`); `uix_courses_slug_active`/`NOT NULL` unchanged, see `openspec/changes/rework-course-slug-management` |
+| 000041 | `backfill_taxonomy_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `course_levels.slug`/`course_topics.slug`/`course_skills.slug`/`tags.slug` value that would violate the new format check, scanning **all** rows including soft-deleted (idempotent; no-op `down.sql`), see `openspec/changes/unify-taxonomy-slug-management` |
+| 000042 | `taxonomy_slug_check_constraints` | Adds `chk_course_levels_slug_format`, `chk_course_topics_slug_format`, `chk_course_skills_slug_format`, `chk_tags_slug_format` CHECK constraints (same regex as `chk_courses_slug_format`); existing `uix_*_slug_active`/`NOT NULL` unchanged, see `openspec/changes/unify-taxonomy-slug-management` |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 

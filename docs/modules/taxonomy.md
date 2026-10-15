@@ -25,28 +25,33 @@ internal/taxonomy/
 │   └── repository.go        # Repository interfaces (incl. generic list patterns)
 ├── application/
 │   ├── service.go           # TaxonomyService use-cases
-│   └── service_helpers.go   # Shared create/update/delete, slug+status entities, orphan image hook
+│   ├── service_helpers.go   # Shared create/update/delete, slug+status entities, orphan image hook
+│   └── slug.go              # validateManualTaxonomySlug, resolveTaxonomySlugInput (Optional[string] interpretation)
 ├── infra/
 │   ├── repos.go             # GORM repositories (topics, outcomes, skills, tags, levels)
 │   ├── repos_crud_helper.go # Shared list/create/get helpers; taxonomyListTotal skip-count
+│   ├── slug.go              # Slug orchestration (manual/auto, collision retry) — mirrors internal/course/infra/slug.go
 │   └── jsonb_types.go       # JSONB scanners for tree nodes and description arrays
 └── delivery/
     ├── handler.go           # Thin handlers per resource
-    ├── handler_helpers.go   # listTaxonomyItems, mapTaxonomyMutationError (incl. 409/3005)
+    ├── handler_helpers.go   # listTaxonomyItems, mapTaxonomyMutationError (incl. 409/3005/3007), toDomainTreeNodes
     ├── routes.go
-    └── dto.go
+    └── dto.go               # incl. TreeNodeInput (write-path tree node with Optional[string] slug)
 
 internal/shared/taxonomy/
 ├── tree_node.go             # TreeNode JSON shape (+ translations map)
-├── tree_slug.go             # NormalizeTreeSlugs — derive slug from canonical name
+├── tree_resolve.go          # PrepareTreeForWriteWithSlugPolicy (sole write-path entry point; old unconditional-recompute NormalizeTreeSlugs/PrepareTreeForWrite deleted as dead code)
+├── tree_write.go            # ResolveTreeSlugs, BuildNodeIndexByID — preserve-by-id / manual / auto-generate / in-tree collision auto-resolve
 ├── tree_validate.go         # Depth, node count, UUID id, duplicate slug checks
 └── description_validate.go  # Outcome description paragraph limits
 
 internal/shared/i18n/        # Content locale helpers (NOT mailtmpl email locale)
 ├── locale.go                # CanonicalizeLocale (write), NegotiateReadLocale / ResolveText (read)
 
-internal/shared/utils/
-└── slug.go                  # SlugifyName — shared slug algorithm (matches FE slugifyName)
+internal/shared/slug/
+├── autobase.go              # GenerateAutoSlugBase(name, maxLen, Kind) — shared auto-generate base, course/level/topic/skill/tag/node
+├── format.go                # ValidateManualFormat
+└── suffix.go                # GenerateRandomSuffix, RetryWithSuffix, TruncateToLen, TruncateForSuffix
 ```
 
 List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (same pattern as media list).
@@ -55,7 +60,7 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 
 | Need | Reuse / extend | Do not create |
 |------|----------------|---------------|
-| Slug | `utils.SlugifyName` + `tree_slug.go` | Second slug util |
+| Slug | `internal/shared/slug.GenerateAutoSlugBase` (auto-generate base, same gosimple/slug mechanism as course, parameterized by `Kind`) + `internal/shared/slug` (format/collision, shared with course) + `internal/taxonomy/infra/slug.go` (root orchestration) + `internal/shared/taxonomy/tree_write.go` (node orchestration) — manual input accepted on create/update as of `openspec/changes/unify-taxonomy-slug-management` | Second slug format/collision/auto-generate util (one shared `internal/shared/slug` package for every slugged entity) |
 | Tree validate | `tree_validate.go` / `description_validate.go` | Parallel validators |
 | List/get infra | `taxonomyList` / `taxonomyGetByID` in `repos_crud_helper.go` | New get-by-id repo from scratch |
 | Optimistic lock | Course `optimisticUpdate` + `expected_row_version` → HTTP 409 + app code **3005** | `expected_updated_at` |
@@ -86,7 +91,7 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 
 After every successful write: `canonical text == en translation text` (assert in service/tests). Persist both in one transaction.
 
-**Slug:** regenerate only from **canonical `name`** when that name changes (`SlugifyName`). Do not regenerate slug when only non-`en` translations change. Updating `en` name mirrors canonical → slug may regenerate.
+**Slug:** independent of `name`/translations as of `openspec/changes/unify-taxonomy-slug-management` — an update that omits the `slug` field leaves the stored slug unchanged, **even when `name` (or `en` translation, which mirrors to canonical) changes**. A manual `slug` value is validated (`internal/shared/slug.ValidateManualFormat`) and used if free; a colliding value is silently auto-resolved with a random suffix (mirrors course's update behavior). Auto-generation from canonical `name` (`internal/shared/slug.GenerateAutoSlugBase`, the same gosimple/slug-backed mechanism course uses, with a random-suffixed literal prefix per `Kind` when the name has nothing transliterable to ASCII) only happens on **create** when no manual slug is supplied.
 
 ### Locale: write vs read (separate APIs)
 
@@ -192,9 +197,9 @@ Pattern mirrors course `include_outline` / taxonomy `include_images` optional fl
 | DELETE | `/taxonomy/topics/:id` | `topic:delete` | Soft-delete topic |
 | DELETE | `/taxonomy/topics/:id/hard` | `topic:delete` | Hard-delete topic (+ orphan image cleanup) |
 
-**Create / update body:** canonical `name` and/or `translations` map; optional `status`, `image_file_id`, `child_topics` (tree with optional per-node `translations`); **`expected_row_version`** on update; **`slug` not accepted on write** — derived from canonical `name` via `utils.SlugifyName`.
+**Create / update body:** canonical `name` and/or `translations` map; optional `status`, `image_file_id`, `child_topics` (tree with optional per-node `translations`); **`expected_row_version`** on update; optional **`slug`** — on create, omit/empty auto-generates from canonical `name`; a manual value taken by another active row → `409`/`SlugConflict` (`3007`) + `recommended_slug` (never silently substituted). On update, `slug` is PATCH-omittable: omitted leaves it unchanged (independent of `name`); `null`/empty/whitespace → `400`; same value → no-op; a new value colliding with another active row is auto-resolved server-side with a random suffix (no confirmation step, unlike create). See `openspec/changes/unify-taxonomy-slug-management`.
 
-**Tree nodes:** `TreeNode` = `{ id, name, slug, translations?, children[] }`. Max depth **12**, max **100** nodes per tree. Slug from canonical node `name`.
+**Tree nodes:** `TreeNode` = `{ id, name, slug, translations?, children[] }`. Max depth **12**, max **100** nodes per tree. Node `slug` is optional on write: omitted preserves the existing node's slug (matched by `id`) when updating, or auto-generates from the node's canonical `name` when the node is new; a manual value is validated and, if it collides with another node's slug **within the same tree**, silently auto-resolved with a random suffix. Uniqueness is enforced within one tree (one `child_topics`/`children` JSONB blob), not globally across rows. See `openspec/changes/unify-taxonomy-slug-management`.
 
 ### Course Outcomes / Skills / Levels / Tags
 
@@ -209,13 +214,13 @@ Same list `/full` / **GET `/:id`** / POST / PATCH / soft+hard DELETE pattern wit
 
 Outcome body: canonical `short_description` / `description[]` and/or per-locale translations; image; status; `expected_row_version` on update. Per-locale outcome translations that are present in the payload must include non-empty `short_description` (partial description-only → **4xx**). On update, submitted `translations` map replaces the full set of locales (missing keys are deleted in the same transaction).
 
-Skill body: canonical `name` and/or translations; optional `children` tree; status; `expected_row_version` on update.
+Skill body: canonical `name` and/or translations; optional `slug` (same manual-or-auto rule as topics); optional `children` tree (same node-slug rules as `child_topics`); status; `expected_row_version` on update. Tag/Level body: canonical `name` and/or translations; optional `slug` (same manual-or-auto rule); status; `expected_row_version` on update.
 
-**Soft delete:** `deleted_at` Unix seconds. Default list/get exclude soft-deleted. Slug uniqueness among active rows only (partial unique index).
+**Soft delete:** `deleted_at` Unix seconds. Default list/get exclude soft-deleted. Slug uniqueness among active rows only (partial unique index). Each of the 4 root tables also has a table-wide `chk_<table>_slug_format` CHECK constraint (applies regardless of `deleted_at`) as of `openspec/changes/unify-taxonomy-slug-management`.
 
 **List performance:** `taxonomyList` Find-first; `taxonomyListTotal` skips `COUNT(*)` when `len(rows) < per_page`. Topics/outcomes hydrate `image_file_url` unless `include_images=false`.
 
-**Mutation errors:** validation → 4xx / `2001` or `3001`; canonical↔`en` conflict → 4xx; stale `expected_row_version` → **409 / 3005** via `mapTaxonomyMutationError`.
+**Mutation errors:** validation → 4xx / `2001` or `3001`; canonical↔`en` conflict → 4xx; stale `expected_row_version` → **409 / 3005**; manual slug taken on create → **409 / `SlugConflict` (3007)** + `data.recommended_slug`; invalid manual slug format (create or update) → **400**; via `mapTaxonomyMutationError`.
 
 ---
 
@@ -259,5 +264,7 @@ Skill body: canonical `name` and/or translations; optional `children` tree; stat
 | `000009` | Rename `categories` → `course_topics`, add `child_topics`, tables `course_outcomes` / `course_skills`, permissions P18–P37 |
 | `000012` | Soft delete + partial unique slug indexes |
 | `000032` | Five `*_translations` tables + `en` backfill; JSONB tree `translations.en` patch (**fail-fast** if non-null tree is not a JSON array / invalid nodes; implemented as `LANGUAGE sql` recursive function compatible with golang-migrate `;` splitting); `row_version` on five taxonomy roots (mirror `000020`). **Shipped in source**; apply on deploy before enabling localized reads/writes. |
+| `000041` | Backfill non-ASCII/malformed slugs on `course_levels`/`course_topics`/`course_skills`/`tags` (all rows, including soft-deleted) so the `000042` CHECK constraints can apply cleanly |
+| `000042` | `chk_course_levels_slug_format`, `chk_course_topics_slug_format`, `chk_course_skills_slug_format`, `chk_tags_slug_format` CHECK constraints (same regex as `courses`' `chk_courses_slug_format`) — see `openspec/changes/unify-taxonomy-slug-management` |
 
 See `docs/database.md` § Taxonomy for full schema.

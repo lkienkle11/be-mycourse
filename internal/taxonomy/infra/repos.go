@@ -11,6 +11,7 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
@@ -183,11 +184,17 @@ func (r *GormCourseTopicRepository) GetByID(ctx context.Context, id string) (*do
 }
 
 func (r *GormCourseTopicRepository) Create(ctx context.Context, t *domain.CourseTopic) error {
-	return createWithNameTranslations(ctx, r.db, createNameTranslationArgs[courseTopicRow, domain.CourseTopic]{
-		Entity: t, RowVersion: &t.RowVersion, ToRow: courseTopicToRow,
-		EntityID: &t.ID, CreatedAt: &t.CreatedAt, UpdatedAt: &t.UpdatedAt, Meta: metaCourseTopicRow,
-		Table: constants.TableTaxonomyCourseTopicTranslations, FKCol: "topic_id", Translations: t.Translations,
-	})
+	args := createNameTranslationArgs[courseTopicRow, domain.CourseTopic]{Entity: t}
+	args.RowVersion = &t.RowVersion
+	args.ToRow = courseTopicToRow
+	args.EntityID, args.CreatedAt, args.UpdatedAt = &t.ID, &t.CreatedAt, &t.UpdatedAt
+	args.Meta = metaCourseTopicRow
+	args.Table, args.FKCol = constants.TableTaxonomyCourseTopicTranslations, "topic_id"
+	args.Translations = t.Translations
+	args.ManualSlug, args.Name, args.SlugPrefix = t.Slug, t.Name, sharedslug.KindCourseTopic
+	args.SetSlug = func(e *domain.CourseTopic, s string) { e.Slug = s }
+	args.NewRow = func() *courseTopicRow { return &courseTopicRow{} }
+	return createWithNameTranslations(ctx, r.db, args)
 }
 
 func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTopic, expectedRowVersion int64) error {
@@ -200,21 +207,29 @@ func (r *GormCourseTopicRepository) Save(ctx context.Context, t *domain.CourseTo
 		if err != nil {
 			return err
 		}
-		updates := map[string]any{
-			"name": t.Name, "slug": t.Slug, "status": t.Status,
-			"image_file_id": t.ImageFileID, "child_topics": childVal,
-		}
-		if err := gormx.OptimisticUpdate(ctx, tx, &courseTopicRow{}, t.ID, expectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
-			return err
-		}
-		if err := upsertNameTranslations(ctx, tx, constants.TableTaxonomyCourseTopicTranslations, "topic_id", t.ID, t.Translations); err != nil {
-			return err
-		}
-		t.RowVersion = expectedRowVersion + 1
-		if v, ok := updates["updated_at"].(int64); ok {
-			t.UpdatedAt = v
-		}
-		return nil
+		model := &courseTopicRow{}
+		return gormx.RetryInSavepoint(tx, "course_topic_slug_retry", taxonomySlugRetryAttempts, isTaxonomySlugDuplicateKey, func() error {
+			finalSlug, err := resolveTaxonomyUpdateSlug(ctx, tx, model, t.Slug, t.ID)
+			if err != nil {
+				return err
+			}
+			updates := map[string]any{
+				"name": t.Name, "slug": finalSlug, "status": t.Status,
+				"image_file_id": t.ImageFileID, "child_topics": childVal,
+			}
+			if err := gormx.OptimisticUpdate(ctx, tx, model, t.ID, expectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
+				return err
+			}
+			if err := upsertNameTranslations(ctx, tx, constants.TableTaxonomyCourseTopicTranslations, "topic_id", t.ID, t.Translations); err != nil {
+				return err
+			}
+			t.Slug = finalSlug
+			t.RowVersion = expectedRowVersion + 1
+			if v, ok := updates["updated_at"].(int64); ok {
+				t.UpdatedAt = v
+			}
+			return nil
+		})
 	})
 }
 
@@ -326,6 +341,9 @@ func (r *GormCourseSkillRepository) Create(ctx context.Context, s *domain.Course
 		Entity: s, RowVersion: &s.RowVersion, ToRow: courseSkillToRow,
 		EntityID: &s.ID, CreatedAt: &s.CreatedAt, UpdatedAt: &s.UpdatedAt, Meta: metaCourseSkillRow,
 		Table: constants.TableTaxonomyCourseSkillTranslations, FKCol: "skill_id", Translations: s.Translations,
+		ManualSlug: s.Slug, Name: s.Name, SlugPrefix: sharedslug.KindCourseSkill,
+		SetSlug: func(e *domain.CourseSkill, sl string) { e.Slug = sl },
+		NewRow:  func() *courseSkillRow { return &courseSkillRow{} },
 	}
 	return createWithNameTranslations(ctx, r.db, args)
 }
@@ -340,21 +358,29 @@ func (r *GormCourseSkillRepository) Save(ctx context.Context, s *domain.CourseSk
 		if err != nil {
 			return err
 		}
-		updates := map[string]any{
-			"name": s.Name, "slug": s.Slug, "status": s.Status,
-			"children": childVal,
-		}
-		if err := gormx.OptimisticUpdate(ctx, tx, &courseSkillRow{}, s.ID, expectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
-			return err
-		}
-		if err := upsertNameTranslations(ctx, tx, constants.TableTaxonomyCourseSkillTranslations, "skill_id", s.ID, s.Translations); err != nil {
-			return err
-		}
-		s.RowVersion = expectedRowVersion + 1
-		if v, ok := updates["updated_at"].(int64); ok {
-			s.UpdatedAt = v
-		}
-		return nil
+		model := &courseSkillRow{}
+		return gormx.RetryInSavepoint(tx, "course_skill_slug_retry", taxonomySlugRetryAttempts, isTaxonomySlugDuplicateKey, func() error {
+			finalSlug, err := resolveTaxonomyUpdateSlug(ctx, tx, model, s.Slug, s.ID)
+			if err != nil {
+				return err
+			}
+			updates := map[string]any{
+				"name": s.Name, "slug": finalSlug, "status": s.Status,
+				"children": childVal,
+			}
+			if err := gormx.OptimisticUpdate(ctx, tx, model, s.ID, expectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
+				return err
+			}
+			if err := upsertNameTranslations(ctx, tx, constants.TableTaxonomyCourseSkillTranslations, "skill_id", s.ID, s.Translations); err != nil {
+				return err
+			}
+			s.Slug = finalSlug
+			s.RowVersion = expectedRowVersion + 1
+			if v, ok := updates["updated_at"].(int64); ok {
+				s.UpdatedAt = v
+			}
+			return nil
+		})
 	})
 }
 
@@ -394,6 +420,11 @@ func (r *GormTagRepository) Create(ctx context.Context, t *domain.Tag) error {
 	args.Table = constants.TableTaxonomyTagTranslations
 	args.FKCol = "tag_id"
 	args.Translations = t.Translations
+	args.ManualSlug = t.Slug
+	args.Name = t.Name
+	args.SlugPrefix = sharedslug.KindTag
+	args.SetSlug = func(e *domain.Tag, s string) { e.Slug = s }
+	args.NewRow = func() *tagRow { return &tagRow{} }
 	return createWithNameTranslations(ctx, r.db, args)
 }
 
@@ -439,6 +470,11 @@ func (r *GormCourseLevelRepository) Create(ctx context.Context, cl *domain.Cours
 	args.Meta = metaCourseLevelRow
 	args.Table, args.FKCol = constants.TableTaxonomyCourseLevelTranslations, "course_level_id"
 	args.Translations = cl.Translations
+	args.ManualSlug = cl.Slug
+	args.Name = cl.Name
+	args.SlugPrefix = sharedslug.KindCourseLevel
+	args.SetSlug = func(e *domain.CourseLevel, s string) { e.Slug = s }
+	args.NewRow = func() *courseLevelRow { return &courseLevelRow{} }
 	return createWithNameTranslations(ctx, r.db, args)
 }
 
@@ -475,17 +511,23 @@ type slugStatusSaveArgs[R any] struct {
 
 func saveSlugStatusEntity[R any](ctx context.Context, db *gorm.DB, args slugStatusSaveArgs[R]) error {
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updates := map[string]any{"name": args.Name, "slug": args.Slug, "status": args.Status}
-		if err := gormx.OptimisticUpdate(ctx, tx, args.Model, args.ID, args.ExpectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
-			return err
-		}
-		if err := upsertNameTranslations(ctx, tx, args.Table, args.FKCol, args.ID, args.Translations); err != nil {
-			return err
-		}
-		*args.RowVersion = args.ExpectedRowVersion + 1
-		if v, ok := updates["updated_at"].(int64); ok {
-			*args.UpdatedAt = v
-		}
-		return nil
+		return gormx.RetryInSavepoint(tx, "taxonomy_slug_status_retry", taxonomySlugRetryAttempts, isTaxonomySlugDuplicateKey, func() error {
+			finalSlug, err := resolveTaxonomyUpdateSlug(ctx, tx, args.Model, args.Slug, args.ID)
+			if err != nil {
+				return err
+			}
+			updates := map[string]any{"name": args.Name, "slug": finalSlug, "status": args.Status}
+			if err := gormx.OptimisticUpdate(ctx, tx, args.Model, args.ID, args.ExpectedRowVersion, updates, domain.ErrTaxonomyOptimisticLock); err != nil {
+				return err
+			}
+			if err := upsertNameTranslations(ctx, tx, args.Table, args.FKCol, args.ID, args.Translations); err != nil {
+				return err
+			}
+			*args.RowVersion = args.ExpectedRowVersion + 1
+			if v, ok := updates["updated_at"].(int64); ok {
+				*args.UpdatedAt = v
+			}
+			return nil
+		})
 	})
 }

@@ -16,6 +16,7 @@ import (
 	"mycourse-io-be/internal/shared/brevo"
 	sharedErrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/setting"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/uuidx"
 )
@@ -315,37 +316,81 @@ func (s *AuthService) GetMe(ctx context.Context, userID string) (*domain.MeProfi
 
 // --- UpdateMe ---
 
-// UpdateMe applies PATCH /me fields (avatar_file_id).
-func (s *AuthService) UpdateMe(ctx context.Context, userID string, avatarFileID *string) (*domain.MeProfile, error) {
-	if avatarFileID == nil {
+// UpdateMe applies PATCH /me fields: avatar_file_id and slug. A field that is
+// not set (nil) is left untouched; when neither is set the current profile is
+// returned. Everything that can be rejected without writing (reserved slug,
+// avatar media validation) is checked before the first write; the two writes
+// themselves are separate statements, so the cached /me is dropped as soon as
+// any write has happened, even when a later write fails.
+func (s *AuthService) UpdateMe(ctx context.Context, userID string, params domain.UpdateMeParams) (*domain.MeProfile, error) {
+	if params.AvatarFileID == nil && params.Slug == nil {
 		return s.GetMe(ctx, userID)
+	}
+	if params.Slug != nil && sharedslug.IsReserved(*params.Slug) {
+		return nil, domain.ErrUserSlugReserved
 	}
 	user, err := s.loadAccessibleUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	var prev string
-	if user.AvatarFileID != nil {
-		prev = strings.TrimSpace(*user.AvatarFileID)
+	var avatar *avatarChange
+	if params.AvatarFileID != nil {
+		if avatar, err = s.prepareAvatarChange(user, *params.AvatarFileID); err != nil {
+			return nil, err
+		}
 	}
-	next := strings.TrimSpace(*avatarFileID)
-	var nextPtr *string
-	if next != "" {
+	if params.Slug != nil && *params.Slug != user.Slug {
+		_, err := s.userRepo.ChangeSlug(ctx, userID, *params.Slug)
+		s.delCachedMe(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if avatar != nil {
+		err := s.commitAvatarChange(ctx, userID, avatar)
+		s.delCachedMe(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s.GetMe(ctx, userID)
+}
+
+// avatarChange is a validated avatar update ready to be written.
+type avatarChange struct {
+	prev string
+	next string
+	ptr  *string // nil removes the avatar
+}
+
+// prepareAvatarChange validates a new avatar file id ("" removes the avatar)
+// without writing anything.
+func (s *AuthService) prepareAvatarChange(user *domain.User, avatarFileID string) (*avatarChange, error) {
+	change := &avatarChange{next: strings.TrimSpace(avatarFileID)}
+	if user.AvatarFileID != nil {
+		change.prev = strings.TrimSpace(*user.AvatarFileID)
+	}
+	if change.next != "" {
 		if s.mediaValidator != nil {
-			if err := s.mediaValidator.ValidateProfileImageFile(next); err != nil {
+			if err := s.mediaValidator.ValidateProfileImageFile(change.next); err != nil {
 				return nil, err
 			}
 		}
-		nextPtr = &next
+		change.ptr = &change.next
 	}
-	if err := s.userRepo.UpdateAvatar(ctx, userID, nextPtr); err != nil {
-		return nil, err
+	return change, nil
+}
+
+// commitAvatarChange stores the validated avatar and schedules cleanup of the
+// previous file.
+func (s *AuthService) commitAvatarChange(ctx context.Context, userID string, change *avatarChange) error {
+	if err := s.userRepo.UpdateAvatar(ctx, userID, change.ptr); err != nil {
+		return err
 	}
-	if prev != "" && prev != next && s.orphanEnqueuer != nil {
-		s.orphanEnqueuer.EnqueueOrphanCleanup(prev)
+	if change.prev != "" && change.prev != change.next && s.orphanEnqueuer != nil {
+		s.orphanEnqueuer.EnqueueOrphanCleanup(change.prev)
 	}
-	s.delCachedMe(ctx, userID)
-	return s.GetMe(ctx, userID)
+	return nil
 }
 
 // --- SoftDeleteUser ---
@@ -492,6 +537,7 @@ func buildMeProfile(user *domain.User, perms, roles []string) *domain.MeProfile 
 		UserCode:       user.UserCode,
 		Email:          user.Email,
 		DisplayName:    user.DisplayName,
+		Slug:           user.Slug,
 		AvatarFileID:   user.AvatarFileID,
 		EmailConfirmed: user.EmailConfirmed,
 		IsDisabled:     user.IsDisable,

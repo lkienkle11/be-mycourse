@@ -23,6 +23,7 @@ type User struct {
 	HashPassword               string     // always stored; OAuth-only users hold bcrypt(random internal secret)
 	PasswordSetAt              *time.Time // set on email confirmation or explicit password set; nil = OAuth-only / pending
 	DisplayName                string
+	Slug                       string // "" until assigned (NULL in storage); never written as an empty string
 	AvatarFileID               *string
 	IsDisable                  bool
 	EmailConfirmed             bool
@@ -48,6 +49,7 @@ type MeProfile struct {
 	UserCode        string
 	Email           string
 	DisplayName     string
+	Slug            string
 	AvatarFileID    *string // raw file ID stored on user
 	AvatarURL       *string // resolved public URL; populated by GetMe when media service is available
 	AvatarObjectKey *string // cloud storage object key; populated by GetMe when available
@@ -57,6 +59,18 @@ type MeProfile struct {
 	Permissions     []string
 	// Roles contains display-only RBAC role names and must never drive authorization decisions.
 	Roles []string
+}
+
+// MaxUserSlugLen mirrors the users.slug VARCHAR(255) column limit; shared by the
+// delivery-layer format check and the repository resolver.
+const MaxUserSlugLen = 255
+
+// UpdateMeParams carries the PATCH /me fields. A nil field means "not provided,
+// leave unchanged". Slug, when set, has already been trimmed and
+// format-validated by the delivery layer.
+type UpdateMeParams struct {
+	AvatarFileID *string
+	Slug         *string
 }
 
 // TokenPairResult carries the issued access/refresh tokens after login, confirm, or refresh.

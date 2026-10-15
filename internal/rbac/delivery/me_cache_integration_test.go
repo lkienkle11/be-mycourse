@@ -53,6 +53,14 @@ func (*meCacheIntegrationUserRepo) UpdateAvatar(context.Context, string, *string
 	return nil
 }
 
+func (*meCacheIntegrationUserRepo) ChangeSlug(_ context.Context, _ string, newSlug string) (string, error) {
+	return newSlug, nil
+}
+
+func (*meCacheIntegrationUserRepo) BackfillMissingSlugs(context.Context, int) (int, error) {
+	return 0, nil
+}
+
 func (*meCacheIntegrationUserRepo) SoftDelete(context.Context, string) error { return nil }
 func (*meCacheIntegrationUserRepo) HardDelete(context.Context, string) error { return nil }
 

@@ -1,6 +1,8 @@
 // Package delivery contains the AUTH HTTP handlers, DTOs, and route registration.
 package delivery
 
+import "mycourse-io-be/internal/shared/validate"
+
 // RegisterRequest is the body for POST /api/v1/auth/register.
 type RegisterRequest struct {
 	Email       string `json:"email"        binding:"required,email"`
@@ -73,6 +75,9 @@ type DiscordLoginRequest struct {
 // UpdateMeRequest is the body for PATCH /api/v1/me.
 type UpdateMeRequest struct {
 	AvatarFileID *string `json:"avatar_file_id" validate:"omitempty,uuid"`
+	// Slug distinguishes an omitted key (leave unchanged) from an explicit null
+	// or empty value (rejected) via validate.Optional.
+	Slug validate.Optional[string] `json:"slug"`
 }
 
 // MeResponse is the response body for GET /api/v1/me.
@@ -81,6 +86,7 @@ type MeResponse struct {
 	UserCode        string   `json:"user_code"`
 	Email           string   `json:"email"`
 	DisplayName     string   `json:"display_name"`
+	Slug            string   `json:"slug"`
 	AvatarURL       *string  `json:"avatar_url,omitempty"`
 	AvatarObjectKey *string  `json:"avatar_object_key,omitempty"`
 	EmailConfirmed  bool     `json:"email_confirmed"`

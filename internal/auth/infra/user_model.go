@@ -15,6 +15,7 @@ type userRow struct {
 	HashPassword               string     `gorm:"size:255;not null"`
 	PasswordSetAt              *time.Time `gorm:"column:password_set_at"`
 	DisplayName                string     `gorm:"size:255;not null;default:''"`
+	Slug                       *string    `gorm:"column:slug;size:255"`
 	AvatarFileID               *string    `gorm:"column:avatar_file_id;type:uuid"`
 	IsDisable                  bool       `gorm:"not null;default:false"`
 	BannedUntil                *int64     `gorm:"column:banned_until"`
@@ -38,6 +39,7 @@ func toUserDomain(r *userRow) *domain.User {
 		HashPassword:               r.HashPassword,
 		PasswordSetAt:              r.PasswordSetAt,
 		DisplayName:                r.DisplayName,
+		Slug:                       slugFromRow(r.Slug),
 		AvatarFileID:               r.AvatarFileID,
 		IsDisable:                  r.IsDisable,
 		BannedUntil:                r.BannedUntil,
@@ -60,6 +62,7 @@ func toUserRow(u *domain.User) *userRow {
 		HashPassword:               u.HashPassword,
 		PasswordSetAt:              u.PasswordSetAt,
 		DisplayName:                u.DisplayName,
+		Slug:                       slugToRow(u.Slug),
 		AvatarFileID:               u.AvatarFileID,
 		IsDisable:                  u.IsDisable,
 		BannedUntil:                u.BannedUntil,
@@ -75,4 +78,22 @@ func toUserRow(u *domain.User) *userRow {
 		row.RefreshTokenSession = RefreshTokenSessionMap(u.RefreshTokenSession)
 	}
 	return row
+}
+
+// slugFromRow maps the nullable storage value to the domain string ("" = none).
+func slugFromRow(slug *string) string {
+	if slug == nil {
+		return ""
+	}
+	return *slug
+}
+
+// slugToRow maps the domain string to storage: "" becomes NULL, never an empty
+// string (the format CHECK rejects ”), so a domain user that has no slug yet
+// round-trips as NULL.
+func slugToRow(slug string) *string {
+	if slug == "" {
+		return nil
+	}
+	return &slug
 }

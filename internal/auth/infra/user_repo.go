@@ -11,6 +11,7 @@ import (
 	"mycourse-io-be/internal/auth/domain"
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/gormx"
+	"mycourse-io-be/internal/shared/slug/gormslug"
 	"mycourse-io-be/internal/shared/timex"
 )
 
@@ -66,11 +67,28 @@ func (r *GormUserRepository) Create(ctx context.Context, u *domain.User) error {
 	return r.CreateWithDB(ctx, r.db, u)
 }
 
-// CreateWithDB persists a new user using the given DB handle (supports transactions).
+// CreateWithDB persists a new user using the given DB handle (supports
+// transactions) and assigns its slug in the same statement scope. The insert
+// runs inside a transaction (a SAVEPOINT when db is already a transaction, as
+// on the OAuth sign-up path) and is retried with a freshly resolved slug when
+// it loses a unique-index race, so a slug collision never aborts the caller's
+// surrounding transaction nor surfaces as a raw database error.
 func (r *GormUserRepository) CreateWithDB(ctx context.Context, db *gorm.DB, u *domain.User) error {
 	row := toUserRow(u)
 	gormx.TouchCreatedUpdated(&row.CreatedAt, &row.UpdatedAt)
-	return gormx.CreateAndThen(ctx, db, row, func() { syncUserRowTimestamps(u, row) })
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return gormx.RetryInSavepoint(tx, "user_slug_create_retry", gormslug.RetryAttempts, isUserSlugDuplicateKey, func() error {
+			final, err := resolveUserCreateSlug(ctx, tx, u.DisplayName)
+			if err != nil {
+				return err
+			}
+			row.Slug = &final
+			return gormx.CreateAndThen(ctx, tx, row, func() {
+				u.Slug = final
+				syncUserRowTimestamps(u, row)
+			})
+		})
+	})
 }
 
 func (r *GormUserRepository) Save(ctx context.Context, u *domain.User) error {
@@ -82,7 +100,10 @@ func (r *GormUserRepository) SaveWithDB(ctx context.Context, db *gorm.DB, u *dom
 	row := toUserRow(u)
 	gormx.TouchUpdated(&row.UpdatedAt)
 	u.UpdatedAt = row.UpdatedAt
-	return db.WithContext(ctx).Save(row).Error
+	// slug is owned by CreateWithDB, ChangeSlug and BackfillMissingSlugs and
+	// is never written by a full-row save, so a stale in-memory user can not
+	// revert a slug changed meanwhile.
+	return db.WithContext(ctx).Omit("slug").Save(row).Error
 }
 
 func (r *GormUserRepository) UpdateDisplayName(ctx context.Context, userID string, displayName string) error {
@@ -102,7 +123,7 @@ func (r *GormUserRepository) SoftDelete(ctx context.Context, userID string) erro
 }
 
 func (r *GormUserRepository) HardDelete(ctx context.Context, userID string) error {
-	return r.db.WithContext(ctx).Delete(&userRow{}, userID).Error
+	return gormx.HardDeleteByID(ctx, r.db, &userRow{}, userID)
 }
 
 // GormRefreshSessionRepository implements domain.RefreshSessionRepository using GORM.

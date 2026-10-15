@@ -50,6 +50,9 @@ const (
 
 const TableAppUsers = "users"
 
+// TableUserSlugHistory holds former user slugs that stay permanently reserved.
+const TableUserSlugHistory = "user_slug_history"
+
 // --- OAuth / external identities ---
 
 const TableUserOAuthIdentities = "user_oauth_identities"

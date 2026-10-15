@@ -760,7 +760,7 @@ components:
             properties:
               name: { type: string, maxLength: 255 }
       description: >
-        Omitted/empty slug auto-generates from canonical name (utils.SlugifyName, ASCII-fallback to a random-suffixed prefix). A manually supplied slug already taken by another active level is rejected (409 / app code 3007) with a recommended_slug.
+        Omitted/empty slug auto-generates from canonical name. A manually supplied slug already taken by another active level is rejected (409 / app code 3007) with a recommended_slug.
         Canonical vs translations.en mismatch → 4xx.
     UpdateCourseLevelRequest:
       type: object

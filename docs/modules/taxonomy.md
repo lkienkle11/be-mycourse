@@ -48,8 +48,10 @@ internal/shared/taxonomy/
 internal/shared/i18n/        # Content locale helpers (NOT mailtmpl email locale)
 ├── locale.go                # CanonicalizeLocale (write), NegotiateReadLocale / ResolveText (read)
 
-internal/shared/utils/
-└── slug.go                  # SlugifyName — shared slug algorithm (matches FE slugifyName)
+internal/shared/slug/
+├── autobase.go              # GenerateAutoSlugBase(name, maxLen, Kind) — shared auto-generate base, course/level/topic/skill/tag/node
+├── format.go                # ValidateManualFormat
+└── suffix.go                # GenerateRandomSuffix, RetryWithSuffix, TruncateToLen, TruncateForSuffix
 ```
 
 List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (same pattern as media list).
@@ -58,7 +60,7 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 
 | Need | Reuse / extend | Do not create |
 |------|----------------|---------------|
-| Slug | `utils.SlugifyName` (auto-generate fallback) + `internal/shared/slug` (format/collision, shared with course) + `internal/taxonomy/infra/slug.go` (root orchestration) + `internal/shared/taxonomy/tree_write.go` (node orchestration) — manual input accepted on create/update as of `openspec/changes/unify-taxonomy-slug-management` | Second slug format/collision util (still one shared `internal/shared/slug` package) |
+| Slug | `internal/shared/slug.GenerateAutoSlugBase` (auto-generate base, same gosimple/slug mechanism as course, parameterized by `Kind`) + `internal/shared/slug` (format/collision, shared with course) + `internal/taxonomy/infra/slug.go` (root orchestration) + `internal/shared/taxonomy/tree_write.go` (node orchestration) — manual input accepted on create/update as of `openspec/changes/unify-taxonomy-slug-management` | Second slug format/collision/auto-generate util (one shared `internal/shared/slug` package for every slugged entity) |
 | Tree validate | `tree_validate.go` / `description_validate.go` | Parallel validators |
 | List/get infra | `taxonomyList` / `taxonomyGetByID` in `repos_crud_helper.go` | New get-by-id repo from scratch |
 | Optimistic lock | Course `optimisticUpdate` + `expected_row_version` → HTTP 409 + app code **3005** | `expected_updated_at` |
@@ -89,7 +91,7 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 
 After every successful write: `canonical text == en translation text` (assert in service/tests). Persist both in one transaction.
 
-**Slug:** independent of `name`/translations as of `openspec/changes/unify-taxonomy-slug-management` — an update that omits the `slug` field leaves the stored slug unchanged, **even when `name` (or `en` translation, which mirrors to canonical) changes**. A manual `slug` value is validated (`internal/shared/slug.ValidateManualFormat`) and used if free; a colliding value is silently auto-resolved with a random suffix (mirrors course's update behavior). Auto-generation from canonical `name` (`utils.SlugifyName`, with an ASCII-fallback to a random-suffixed literal prefix) only happens on **create** when no manual slug is supplied.
+**Slug:** independent of `name`/translations as of `openspec/changes/unify-taxonomy-slug-management` — an update that omits the `slug` field leaves the stored slug unchanged, **even when `name` (or `en` translation, which mirrors to canonical) changes**. A manual `slug` value is validated (`internal/shared/slug.ValidateManualFormat`) and used if free; a colliding value is silently auto-resolved with a random suffix (mirrors course's update behavior). Auto-generation from canonical `name` (`internal/shared/slug.GenerateAutoSlugBase`, the same gosimple/slug-backed mechanism course uses, with a random-suffixed literal prefix per `Kind` when the name has nothing transliterable to ASCII) only happens on **create** when no manual slug is supplied.
 
 ### Locale: write vs read (separate APIs)
 

@@ -3,11 +3,13 @@ package taxonomy
 import (
 	"strings"
 	"testing"
+
+	sharedslug "mycourse-io-be/internal/shared/slug"
 )
 
 func TestResolveTreeSlugsAutoGeneratesForNewNodeWithOmittedSlug(t *testing.T) {
 	nodes := []TreeNode{{ID: "n1", Name: "Golang Co Ban"}}
-	out, err := ResolveTreeSlugs(nodes, nil, "node")
+	out, err := ResolveTreeSlugs(nodes, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
@@ -18,7 +20,7 @@ func TestResolveTreeSlugsAutoGeneratesForNewNodeWithOmittedSlug(t *testing.T) {
 
 func TestResolveTreeSlugsFallsBackOnUntransliterableName(t *testing.T) {
 	nodes := []TreeNode{{ID: "n1", Name: "🔥🔥🔥"}}
-	out, err := ResolveTreeSlugs(nodes, nil, "node")
+	out, err := ResolveTreeSlugs(nodes, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
@@ -32,7 +34,7 @@ func TestResolveTreeSlugsPreservesExistingNodeSlugByIDWhenOmitted(t *testing.T) 
 	oldByID := BuildNodeIndexByID(old)
 	// Same node id, renamed, slug omitted — must preserve, not recompute from the new name.
 	nodes := []TreeNode{{ID: "n1", Name: "Renamed Node"}}
-	out, err := ResolveTreeSlugs(nodes, oldByID, "node")
+	out, err := ResolveTreeSlugs(nodes, oldByID, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
@@ -43,7 +45,7 @@ func TestResolveTreeSlugsPreservesExistingNodeSlugByIDWhenOmitted(t *testing.T) 
 
 func TestResolveTreeSlugsUsesManualValueAsIs(t *testing.T) {
 	nodes := []TreeNode{{ID: "n1", Name: "Anything", Slug: "explicit-slug"}}
-	out, err := ResolveTreeSlugs(nodes, nil, "node")
+	out, err := ResolveTreeSlugs(nodes, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
@@ -60,7 +62,7 @@ func TestResolveTreeSlugsAutoResolvesInTreeCollisionAcrossDepths(t *testing.T) {
 			{ID: "n3", Name: "Basics"},
 		}},
 	}
-	out, err := ResolveTreeSlugs(nodes, nil, "node")
+	out, err := ResolveTreeSlugs(nodes, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
@@ -82,7 +84,7 @@ func TestResolveTreeSlugsAutoResolvesManualCollisionToo(t *testing.T) {
 		{ID: "n1", Name: "A", Slug: "same-slug"},
 		{ID: "n2", Name: "B", Slug: "same-slug"},
 	}
-	out, err := ResolveTreeSlugs(nodes, nil, "node")
+	out, err := ResolveTreeSlugs(nodes, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
@@ -98,11 +100,11 @@ func TestResolveTreeSlugsScopedToOneCallOnly(t *testing.T) {
 	// Two independent trees (two separate ResolveTreeSlugs calls, mirroring
 	// two different topics/skills) may legitimately share a slug — node
 	// uniqueness never applies across trees.
-	treeA, err := ResolveTreeSlugs([]TreeNode{{ID: "a1", Name: "Basics", Slug: "basics"}}, nil, "node")
+	treeA, err := ResolveTreeSlugs([]TreeNode{{ID: "a1", Name: "Basics", Slug: "basics"}}, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
-	treeB, err := ResolveTreeSlugs([]TreeNode{{ID: "b1", Name: "Basics", Slug: "basics"}}, nil, "node")
+	treeB, err := ResolveTreeSlugs([]TreeNode{{ID: "b1", Name: "Basics", Slug: "basics"}}, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}
@@ -117,7 +119,7 @@ func TestResolveTreeSlugsSuffixTruncatesNearMaxLen(t *testing.T) {
 		{ID: "n1", Name: "x", Slug: longBase},
 		{ID: "n2", Name: "x", Slug: longBase},
 	}
-	out, err := ResolveTreeSlugs(nodes, nil, "node")
+	out, err := ResolveTreeSlugs(nodes, nil, sharedslug.KindTreeNode)
 	if err != nil {
 		t.Fatalf("ResolveTreeSlugs() error = %v", err)
 	}

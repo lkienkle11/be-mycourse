@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	gosimpleslug "github.com/gosimple/slug"
 	"gorm.io/gorm"
 
 	"mycourse-io-be/internal/course/domain"
@@ -26,23 +25,6 @@ func buildSuffixedCandidate(base, suffix string) (string, error) {
 		return "", fmt.Errorf("slug base %q leaves no room for a %d-character suffix within %d characters", base, len(suffix), domain.MaxSlugLen)
 	}
 	return truncatedBase + "-" + suffix, nil
-}
-
-// generateAutoSlugBase derives a base slug from title via gosimple/slug,
-// truncated to domain.MaxSlugLen BEFORE format validation (a long or
-// multi-byte title — e.g. Chinese/Japanese, where each character can
-// transliterate to several ASCII characters plus a separating hyphen — can
-// produce a transliteration far longer than the original title). An empty or
-// still-format-invalid result after truncation falls back to the literal
-// base "course" and signals the caller to skip trying it bare (see
-// resolveCreateSlug in repo_instructor.go).
-func generateAutoSlugBase(title string) (base string, mustSuffix bool) {
-	candidate := gosimpleslug.Make(title)
-	candidate = sharedslug.TruncateToLen(candidate, domain.MaxSlugLen)
-	if trimmed, ok := sharedslug.ValidateManualFormat(candidate, domain.MaxSlugLen); ok {
-		return trimmed, false
-	}
-	return "course", true
 }
 
 // courseSlugAvailable reports whether slug is free among active courses,

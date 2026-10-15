@@ -27,47 +27,12 @@ func TestIsTaxonomySlugDuplicateKey(t *testing.T) {
 	}
 }
 
-func TestGenerateAutoTaxonomySlugBaseFromNormalName(t *testing.T) {
-	base, mustSuffix := generateAutoTaxonomySlugBase("Beginner Level", "level")
-	if mustSuffix {
-		t.Fatalf("mustSuffix = true, want false for a normal English name")
-	}
-	if base == "" {
-		t.Fatal("expected a non-empty base slug")
-	}
-	if strings.ContainsAny(base, " _") {
-		t.Fatalf("base %q contains characters that should have been transliterated away", base)
-	}
-}
-
-func TestGenerateAutoTaxonomySlugBaseTransliteratesVietnameseName(t *testing.T) {
-	base, mustSuffix := generateAutoTaxonomySlugBase("Lập trình Golang", "topic")
-	if mustSuffix {
-		t.Fatalf("mustSuffix = true for a transliterable Vietnamese name, base=%q", base)
-	}
-	for _, r := range base {
-		if r > 127 {
-			t.Fatalf("base %q contains non-ASCII rune %q — transliteration should have produced pure ASCII", base, r)
-		}
-	}
-}
-
-func TestGenerateAutoTaxonomySlugBaseFallsBackOnEmojiOnlyName(t *testing.T) {
-	base, mustSuffix := generateAutoTaxonomySlugBase("🔥🔥🔥", "tag")
-	if !mustSuffix {
-		t.Fatalf("mustSuffix = false, want true for an emoji-only name with nothing to transliterate")
-	}
-	if base != "tag" {
-		t.Fatalf("base = %q, want %q fallback", base, "tag")
-	}
-}
-
-func TestGenerateAutoTaxonomySlugBaseTruncatesLongName(t *testing.T) {
-	base, _ := generateAutoTaxonomySlugBase(strings.Repeat("influencer marketing strategy ", 20), "skill")
-	if len(base) > maxTaxonomySlugLen {
-		t.Fatalf("base length %d exceeds maxTaxonomySlugLen %d", len(base), maxTaxonomySlugLen)
-	}
-}
+// generateAutoTaxonomySlugBase was unified into
+// internal/shared/slug.GenerateAutoSlugBase (see
+// internal/shared/slug/autobase_test.go for its "normal name" /
+// "non-Latin transliteration" / "emoji-only fallback per kind" /
+// "truncation" coverage, now shared across course, taxonomy root entities,
+// and tree nodes instead of duplicated per bounded context).
 
 func TestBuildTaxonomySuffixedCandidateNeverExceedsMaxLen(t *testing.T) {
 	base := strings.Repeat("a", maxTaxonomySlugLen)

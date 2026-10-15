@@ -9,7 +9,6 @@ import (
 
 	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
-	sharedutils "mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
 
@@ -74,23 +73,6 @@ func isTaxonomySlugDuplicateKey(err error) bool {
 	return false
 }
 
-// generateAutoTaxonomySlugBase derives a base slug from name via this
-// module's existing utils.SlugifyName (unchanged — course intentionally
-// uses a different library, github.com/gosimple/slug, for its own
-// auto-generation; that divergence is untouched by this change), truncated
-// to maxTaxonomySlugLen BEFORE format validation. An empty or still-invalid
-// result after truncation (e.g. a name using a script SlugifyName cannot
-// fully transliterate to ASCII) falls back to fallbackPrefix and signals the
-// caller to always suffix it — mirrors internal/course/infra/slug.go's
-// generateAutoSlugBase "course" fallback.
-func generateAutoTaxonomySlugBase(name, fallbackPrefix string) (base string, mustSuffix bool) {
-	candidate := sharedslug.TruncateToLen(sharedutils.SlugifyName(name), maxTaxonomySlugLen)
-	if trimmed, ok := sharedslug.ValidateManualFormat(candidate, maxTaxonomySlugLen); ok {
-		return trimmed, false
-	}
-	return fallbackPrefix, true
-}
-
 // buildTaxonomySuffixedCandidate truncates base to leave room for
 // "-"+suffix within maxTaxonomySlugLen, erroring if no room remains at all —
 // mirrors internal/course/infra/slug.go's buildSuffixedCandidate exactly
@@ -109,10 +91,11 @@ func buildTaxonomySuffixedCandidate(base, suffix string) (string, error) {
 // GORM row — same role as internal/course/infra/repo_instructor.go's
 // resolveCreateSlug, generalized since taxonomy's 4 tables share one shape.
 // manualSlug is "" for auto-generate; a non-empty value has already been
-// trimmed+format-validated by the application layer.
+// trimmed+format-validated by the application layer. kind selects the
+// auto-generation fallback prefix (see sharedslug.GenerateAutoSlugBase).
 func resolveTaxonomyCreateSlug[R any](
 	ctx context.Context, tx *gorm.DB, model *R,
-	manualSlug, name, fallbackPrefix string,
+	manualSlug, name string, kind sharedslug.Kind,
 ) (string, *domain.SlugConflictError, error) {
 	if manualSlug != "" {
 		available, err := taxonomySlugAvailable(ctx, tx, model, manualSlug, nil)
@@ -135,7 +118,7 @@ func resolveTaxonomyCreateSlug[R any](
 		}
 		return "", &domain.SlugConflictError{RecommendedSlug: recommended}, nil
 	}
-	base, mustSuffix := generateAutoTaxonomySlugBase(name, fallbackPrefix)
+	base, mustSuffix := sharedslug.GenerateAutoSlugBase(name, maxTaxonomySlugLen, kind)
 	if !mustSuffix {
 		available, err := taxonomySlugAvailable(ctx, tx, model, base, nil)
 		if err != nil {

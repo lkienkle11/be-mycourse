@@ -141,10 +141,11 @@ func (r *GormRepository) createCourseOnce(ctx context.Context, in domain.CreateC
 // resolves any collision with a random suffix via sharedslug.RetryWithSuffix.
 // Lives in repo_instructor.go (not slug.go) because it orchestrates courseRow
 // writes/reads directly; slug.go holds only the smaller, more reusable
-// primitives (generateAutoSlugBase, courseSlugAvailable). Every
-// RetryWithSuffix call builds its candidate via buildSuffixedCandidate
-// (slug.go), which truncates the base to leave room for the suffix within
-// domain.MaxSlugLen and errors out instead of producing an invalid
+// primitive courseSlugAvailable (auto-generation itself now lives in the
+// shared sharedslug.GenerateAutoSlugBase, used by every slugged entity in
+// this codebase). Every RetryWithSuffix call builds its candidate via
+// buildSuffixedCandidate (slug.go), which truncates the base to leave room
+// for the suffix within domain.MaxSlugLen and errors out instead of producing an invalid
 // leading-hyphen candidate if no room remains at all.
 func resolveCreateSlug(ctx context.Context, tx *gorm.DB, in domain.CreateCourseInput) (string, error) {
 	if in.Slug != "" {
@@ -175,7 +176,7 @@ func resolveCreateSlug(ctx context.Context, tx *gorm.DB, in domain.CreateCourseI
 		}
 		return "", &domain.SlugConflictError{RecommendedSlug: recommended}
 	}
-	base, mustSuffix := generateAutoSlugBase(in.Title) // already truncated to domain.MaxSlugLen internally
+	base, mustSuffix := sharedslug.GenerateAutoSlugBase(in.Title, domain.MaxSlugLen, sharedslug.KindCourse) // already truncated to domain.MaxSlugLen internally
 	if !mustSuffix {
 		available, err := courseSlugAvailable(ctx, tx, base, nil)
 		if err != nil {

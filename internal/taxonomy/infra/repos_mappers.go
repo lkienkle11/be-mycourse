@@ -8,6 +8,7 @@ import (
 
 	"mycourse-io-be/internal/shared/constants"
 	"mycourse-io-be/internal/shared/gormx"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
@@ -193,7 +194,7 @@ type createNameTranslationArgs[Row any, Domain any] struct {
 	Translations map[string]taxpkg.NodeTranslation
 	ManualSlug   string                // "" = auto-generate from Name
 	Name         string                // base for auto-generate
-	SlugPrefix   string                // fallback prefix ("topic"/"skill"/"tag"/"level")
+	SlugPrefix   sharedslug.Kind       // auto-generation fallback kind (topic/skill/tag/level)
 	SetSlug      func(*Domain, string) // writes the resolved slug onto Entity before ToRow runs
 	NewRow       func() *Row           // a fresh zero-value Row, used only as taxonomySlugAvailable's Model argument (GORM needs a typed pointer to infer the table)
 }

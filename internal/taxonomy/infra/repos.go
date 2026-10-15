@@ -11,6 +11,7 @@ import (
 	"mycourse-io-be/internal/shared/constants"
 	apperrors "mycourse-io-be/internal/shared/errors"
 	"mycourse-io-be/internal/shared/gormx"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	sharedutils "mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/taxonomy/domain"
@@ -190,7 +191,7 @@ func (r *GormCourseTopicRepository) Create(ctx context.Context, t *domain.Course
 	args.Meta = metaCourseTopicRow
 	args.Table, args.FKCol = constants.TableTaxonomyCourseTopicTranslations, "topic_id"
 	args.Translations = t.Translations
-	args.ManualSlug, args.Name, args.SlugPrefix = t.Slug, t.Name, "topic"
+	args.ManualSlug, args.Name, args.SlugPrefix = t.Slug, t.Name, sharedslug.KindCourseTopic
 	args.SetSlug = func(e *domain.CourseTopic, s string) { e.Slug = s }
 	args.NewRow = func() *courseTopicRow { return &courseTopicRow{} }
 	return createWithNameTranslations(ctx, r.db, args)
@@ -340,7 +341,7 @@ func (r *GormCourseSkillRepository) Create(ctx context.Context, s *domain.Course
 		Entity: s, RowVersion: &s.RowVersion, ToRow: courseSkillToRow,
 		EntityID: &s.ID, CreatedAt: &s.CreatedAt, UpdatedAt: &s.UpdatedAt, Meta: metaCourseSkillRow,
 		Table: constants.TableTaxonomyCourseSkillTranslations, FKCol: "skill_id", Translations: s.Translations,
-		ManualSlug: s.Slug, Name: s.Name, SlugPrefix: "skill",
+		ManualSlug: s.Slug, Name: s.Name, SlugPrefix: sharedslug.KindCourseSkill,
 		SetSlug: func(e *domain.CourseSkill, sl string) { e.Slug = sl },
 		NewRow:  func() *courseSkillRow { return &courseSkillRow{} },
 	}
@@ -421,7 +422,7 @@ func (r *GormTagRepository) Create(ctx context.Context, t *domain.Tag) error {
 	args.Translations = t.Translations
 	args.ManualSlug = t.Slug
 	args.Name = t.Name
-	args.SlugPrefix = "tag"
+	args.SlugPrefix = sharedslug.KindTag
 	args.SetSlug = func(e *domain.Tag, s string) { e.Slug = s }
 	args.NewRow = func() *tagRow { return &tagRow{} }
 	return createWithNameTranslations(ctx, r.db, args)
@@ -471,7 +472,7 @@ func (r *GormCourseLevelRepository) Create(ctx context.Context, cl *domain.Cours
 	args.Translations = cl.Translations
 	args.ManualSlug = cl.Slug
 	args.Name = cl.Name
-	args.SlugPrefix = "level"
+	args.SlugPrefix = sharedslug.KindCourseLevel
 	args.SetSlug = func(e *domain.CourseLevel, s string) { e.Slug = s }
 	args.NewRow = func() *courseLevelRow { return &courseLevelRow{} }
 	return createWithNameTranslations(ctx, r.db, args)

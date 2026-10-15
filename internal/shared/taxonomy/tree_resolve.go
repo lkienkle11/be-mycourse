@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"mycourse-io-be/internal/shared/i18n"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 )
 
 // ResolveNodeName applies locale fallback on a single tree node (exact → base → en → canonical name).
@@ -95,7 +96,7 @@ func SyncCanonicalAndEn(canonicalName string, translations map[string]NodeTransl
 // switched to this function — keeping dead code whose entire purpose was
 // the just-fixed "slug always recomputed from name" behavior would only
 // invite a future caller to resurrect that bug by mistake.
-func PrepareTreeForWriteWithSlugPolicy(nodes []TreeNode, oldByID map[string]TreeNode, fallbackPrefix string) (out []TreeNode, conflict bool, err error) {
+func PrepareTreeForWriteWithSlugPolicy(nodes []TreeNode, oldByID map[string]TreeNode, kind sharedslug.Kind) (out []TreeNode, conflict bool, err error) {
 	if nodes == nil {
 		return nil, false, nil
 	}
@@ -103,7 +104,7 @@ func PrepareTreeForWriteWithSlugPolicy(nodes []TreeNode, oldByID map[string]Tree
 	if conflict {
 		return nil, true, nil
 	}
-	resolved, err := ResolveTreeSlugs(EnsureEnTranslation(synced), oldByID, fallbackPrefix)
+	resolved, err := ResolveTreeSlugs(EnsureEnTranslation(synced), oldByID, kind)
 	if err != nil {
 		return nil, false, err
 	}

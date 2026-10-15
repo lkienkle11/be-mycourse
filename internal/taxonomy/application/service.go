@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	taxpkg "mycourse-io-be/internal/shared/taxonomy"
 	"mycourse-io-be/internal/taxonomy/domain"
 )
@@ -517,7 +518,7 @@ func resolveTreeForWrite(nodes []taxpkg.TreeNode, oldByID map[string]taxpkg.Tree
 	if err != nil {
 		return nil, err
 	}
-	resolved, conflict, err := taxpkg.PrepareTreeForWriteWithSlugPolicy(canonized, oldByID, "node")
+	resolved, conflict, err := taxpkg.PrepareTreeForWriteWithSlugPolicy(canonized, oldByID, sharedslug.KindTreeNode)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	sharedslug "mycourse-io-be/internal/shared/slug"
-	"mycourse-io-be/internal/shared/utils"
 )
 
 // BuildNodeIndexByID flattens a tree (recursively, all depths) into a map
@@ -36,16 +35,10 @@ func BuildNodeIndexByID(nodes []TreeNode) map[string]TreeNode {
 //   - Slug empty AND node.ID matches a node in oldByID with a non-empty
 //     slug → preserved unchanged (the existing node's slug, found by id).
 //   - Otherwise (empty, new/unrecognized node) → auto-generated from Name
-//     via utils.SlugifyName, with an ASCII-fallback to a random-suffixed
-//     literal prefix. This mirrors internal/taxonomy/infra/slug.go's
-//     generateAutoTaxonomySlugBase logic as a small, separate,
-//     dependency-free copy — internal/shared/taxonomy must not import
-//     internal/taxonomy/infra (would invert this repo's module dependency
-//     direction), so this one small piece of derivation logic exists in two
-//     places rather than being literally shared; both copies wrap the same
-//     two underlying primitives (utils.SlugifyName, internal/shared/slug),
-//     so there is no duplicated *algorithm*, only a duplicated 4-line call
-//     sequence.
+//     via sharedslug.GenerateAutoSlugBase (kind=sharedslug.KindTreeNode) —
+//     the same shared primitive course and taxonomy root entities use, kept
+//     here as a single call rather than wrapped in a local function, since
+//     there is no longer any kind-specific logic left to wrap.
 //
 // Collisions within the same tree (any two nodes at any depth sharing a
 // slug) are auto-resolved: whichever node is walked second gets a random
@@ -54,22 +47,22 @@ func BuildNodeIndexByID(nodes []TreeNode) map[string]TreeNode {
 // every other slug feature in this codebase. Walk order is depth-first,
 // matching tree_validate.go's walkTree, so behavior is deterministic for a
 // given input order.
-func ResolveTreeSlugs(nodes []TreeNode, oldByID map[string]TreeNode, fallbackPrefix string) ([]TreeNode, error) {
+func ResolveTreeSlugs(nodes []TreeNode, oldByID map[string]TreeNode, kind sharedslug.Kind) ([]TreeNode, error) {
 	seenSlug := map[string]struct{}{}
-	return resolveTreeSlugsWalk(nodes, oldByID, fallbackPrefix, seenSlug)
+	return resolveTreeSlugsWalk(nodes, oldByID, kind, seenSlug)
 }
 
-func resolveTreeSlugsWalk(nodes []TreeNode, oldByID map[string]TreeNode, fallbackPrefix string, seenSlug map[string]struct{}) ([]TreeNode, error) {
+func resolveTreeSlugsWalk(nodes []TreeNode, oldByID map[string]TreeNode, kind sharedslug.Kind, seenSlug map[string]struct{}) ([]TreeNode, error) {
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
 	out := make([]TreeNode, len(nodes))
 	for i, n := range nodes {
-		slug, err := resolveOneNodeSlug(n, oldByID, fallbackPrefix, seenSlug)
+		slug, err := resolveOneNodeSlug(n, oldByID, kind, seenSlug)
 		if err != nil {
 			return nil, err
 		}
-		children, err := resolveTreeSlugsWalk(n.Children, oldByID, fallbackPrefix, seenSlug)
+		children, err := resolveTreeSlugsWalk(n.Children, oldByID, kind, seenSlug)
 		if err != nil {
 			return nil, err
 		}
@@ -84,13 +77,13 @@ func resolveTreeSlugsWalk(nodes []TreeNode, oldByID map[string]TreeNode, fallbac
 	return out, nil
 }
 
-func resolveOneNodeSlug(n TreeNode, oldByID map[string]TreeNode, fallbackPrefix string, seenSlug map[string]struct{}) (string, error) {
+func resolveOneNodeSlug(n TreeNode, oldByID map[string]TreeNode, kind sharedslug.Kind, seenSlug map[string]struct{}) (string, error) {
 	candidate := strings.TrimSpace(n.Slug)
 	if candidate == "" {
 		if old, ok := oldByID[strings.TrimSpace(n.ID)]; ok && strings.TrimSpace(old.Slug) != "" {
 			candidate = strings.TrimSpace(old.Slug)
 		} else {
-			base, mustSuffix := generateAutoNodeSlugBase(n.Name, fallbackPrefix)
+			base, mustSuffix := sharedslug.GenerateAutoSlugBase(n.Name, DefaultMaxSlugLen, kind)
 			if mustSuffix {
 				return resolveNodeSlugSuffix(base, seenSlug)
 			}
@@ -119,12 +112,4 @@ func resolveNodeSlugSuffix(base string, seenSlug map[string]struct{}) (string, e
 	}
 	seenSlug[final] = struct{}{}
 	return final, nil
-}
-
-func generateAutoNodeSlugBase(name, fallbackPrefix string) (base string, mustSuffix bool) {
-	candidate := sharedslug.TruncateToLen(utils.SlugifyName(strings.TrimSpace(name)), DefaultMaxSlugLen)
-	if trimmed, ok := sharedslug.ValidateManualFormat(candidate, DefaultMaxSlugLen); ok {
-		return trimmed, false
-	}
-	return fallbackPrefix, true
 }

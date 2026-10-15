@@ -14,6 +14,7 @@ const (
 	KindCourseSkill Kind = "skill"
 	KindTag         Kind = "tag"
 	KindTreeNode    Kind = "node"
+	KindUser        Kind = "user"
 )
 
 // GenerateAutoSlugBase derives a base slug from name via gosimple/slug

@@ -2,6 +2,7 @@ package slug
 
 import (
 	"crypto/rand"
+	"fmt"
 	"io"
 	"strings"
 	"unicode/utf8"
@@ -91,4 +92,15 @@ func TruncateToLen(s string, maxLen int) string {
 // it, keeping it reusable for a future table with a different limit.
 func TruncateForSuffix(base string, maxTotalLen, suffixLen int) string {
 	return TruncateToLen(base, maxTotalLen-1-suffixLen) // -1 for the hyphen
+}
+
+// BuildSuffixedCandidate truncates base to leave room for "-"+suffix within
+// maxLen and returns an error when no room remains at all, so an escalating
+// suffix can never produce a leading-hyphen (format-invalid) candidate.
+func BuildSuffixedCandidate(base, suffix string, maxLen int) (string, error) {
+	truncatedBase := TruncateForSuffix(base, maxLen, len(suffix))
+	if truncatedBase == "" {
+		return "", fmt.Errorf("slug base %q leaves no room for a %d-character suffix within %d characters", base, len(suffix), maxLen)
+	}
+	return truncatedBase + "-" + suffix, nil
 }

@@ -42,11 +42,12 @@ func (r *GormRepository) ReopenDraft(ctx context.Context, courseID string, actor
 	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
 }
 
-func (r *GormRepository) ListPendingReviews(ctx context.Context) ([]domain.CourseListItem, error) {
-	q := `
+// pendingReviewsListQuery lists every in-review course draft for the admin
+// review queue, with the owner identity from the shared owner projection.
+const pendingReviewsListQuery = `
 SELECT
     ` + courseListBaseColumns + `,
-    ` + courseListOwnerDisplayNameColumn + `,
+    ` + courseListOwnerColumns + `,
     'OWNER' AS role,
     dv.title,
     dv.status AS review_status,
@@ -65,8 +66,10 @@ LEFT JOIN media_files dm
 WHERE c.deleted_at IS NULL
   AND c.trashed_at IS NULL
 ORDER BY dv.updated_at DESC`
+
+func (r *GormRepository) ListPendingReviews(ctx context.Context) ([]domain.CourseListItem, error) {
 	var rows []courseListScanRow
-	if err := r.db.WithContext(ctx).Raw(q, map[string]any{"status": domain.VersionStatusInReview}).Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(pendingReviewsListQuery, map[string]any{"status": domain.VersionStatusInReview}).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]domain.CourseListItem, len(rows))
@@ -108,7 +111,9 @@ func (r *GormRepository) ApproveDraft(ctx context.Context, courseID string, acto
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
+	// The reviewer is an admin, not necessarily a collaborator of this course, so
+	// the collaborator access check would fail AFTER the decision was committed.
+	return r.loadCourseDetailForReviewer(ctx, r.db, courseID, true, true)
 }
 
 func (r *GormRepository) RejectDraft(ctx context.Context, courseID string, actorUserID string, reason string) (*domain.CourseDetail, error) {
@@ -143,7 +148,9 @@ func (r *GormRepository) RejectDraft(ctx context.Context, courseID string, actor
 	if err != nil {
 		return nil, err
 	}
-	return r.loadCourseDetail(ctx, r.db, courseID, actorUserID, true, true)
+	// The reviewer is an admin, not necessarily a collaborator of this course, so
+	// the collaborator access check would fail AFTER the decision was committed.
+	return r.loadCourseDetailForReviewer(ctx, r.db, courseID, true, true)
 }
 
 type reviewHistoryScanRow struct {

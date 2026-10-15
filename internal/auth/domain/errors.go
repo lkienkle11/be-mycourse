@@ -15,6 +15,8 @@ var (
 	ErrUserBanned                  = stderrors.New("user account is temporarily banned")
 	ErrInvalidConfirmToken         = stderrors.New("invalid or expired confirmation token")
 	ErrUserNotFound                = stderrors.New("user not found")
+	ErrUserInvalidSlug             = stderrors.New("slug must be 1-255 characters of lowercase letters, digits and hyphens, and must not start or end with a hyphen")
+	ErrUserSlugReserved            = stderrors.New("slug is reserved")
 	ErrInvalidSession              = stderrors.New("invalid session")
 	ErrRefreshTokenExpired         = stderrors.New("refresh token expired")
 	ErrRegistrationAbandoned       = stderrors.New("registration was abandoned because confirmation email limits were exceeded")

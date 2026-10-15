@@ -98,6 +98,7 @@ type Application struct {
 	UserID           string
 	FullName         string
 	DisplayName      string
+	Slug             string
 	Email            string
 	Phone            string
 	AvatarURL        string
@@ -141,6 +142,7 @@ type Profile struct {
 	ID             string
 	UserID         string
 	FullName       string
+	Slug           string
 	Email          string
 	AvatarURL      string
 	AvatarFileID   string
@@ -157,6 +159,7 @@ type Profile struct {
 type RosterMember struct {
 	UserID       string
 	FullName     string
+	Slug         string
 	Email        string
 	Phone        string
 	AvatarURL    string
@@ -169,6 +172,7 @@ type RosterMember struct {
 type PopularInstructor struct {
 	UserID      string
 	DisplayName string
+	Slug        string
 	AvatarURL   string
 	Subtitle    string // instructor_profiles.current_job_title
 	CourseCount int64
@@ -243,6 +247,7 @@ type RosterFilter struct {
 type RosterCandidate struct {
 	UserID       string
 	DisplayName  string
+	Slug         string
 	Email        string
 	AvatarFileID string
 	AvatarURL    string

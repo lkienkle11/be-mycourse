@@ -40,6 +40,16 @@
 | `000032_taxonomy_translations_row_version` | Taxonomy `*_translations` + `row_version` + JSONB tree `translations.en` backfill. Tree helper is **`LANGUAGE sql`** (no `plpgsql`/`DO $$`) so golang-migrate `;` splitting works. See **`docs/database.md`** / **`docs/modules/taxonomy.md`**. |
 | `000033_teaching_content_ideas` | Adds `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on **`instructor_applications`** and **`instructor_profiles`**. Required 50–500 Unicode code points (not UTF-8 bytes) on submit/resubmit; approve copies via profile snapshot. See **`docs/modules/instructor.md`** / **`docs/database.md`**. |
 | `000034_authorization_base` | Adds the shared **`authorization_actions`** catalog, generic **`authorization_grants`** store (ALLOW/DENY, conditions, validity, revocation), **`authorization_role_actions`**, and **`authorization_role_bindings`**. DDL only: no provider actions, role definitions, bindings, grants, or Course collaborators are seeded/backfilled. See **`docs/modules/authorization.md`**. |
+| `000035_authorization_role_binding_wildcard` | Database-enforces the reserved wildcard `resource_id = '*'` convention on **`authorization_role_bindings`**. See **`docs/modules/authorization.md`**. |
+| `000036_backfill_course_collaborator_role_bindings` | One-time dev-data backfill: one role binding per active EDITOR course collaborator, so the role-gate cutover loses no access. |
+| `000037_drop_course_collaborators` | Drops **`course_collaborators`** (replaced by the resource-scoped role gate). |
+| `000038_home_catalog_indexes` | Index-only migration for trending courses, popular instructors and continue-learning queries. No column or table changes. |
+| `000039_backfill_course_slug_ascii` | Regenerates any non-conforming **`courses.slug`** (all rows, including soft-deleted) so `000040` can apply. |
+| `000040_course_slug_check_constraint` | Adds `chk_courses_slug_format` (non-empty, `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`). |
+| `000041_backfill_taxonomy_slug_ascii` | Regenerates any non-conforming slug on the 4 taxonomy root tables so `000042` can apply. |
+| `000042_taxonomy_slug_check_constraints` | Adds the slug format CHECK constraint on `course_levels`, `course_topics`, `course_skills`, `tags`. |
+| `000043_user_slug` | Adds nullable **`users.slug`**, `chk_users_slug_format` (NULL allowed), partial unique index `uix_users_slug_active`, and **`user_slug_history`** (permanent reservation of former slugs). Existing users are backfilled by the `CLI_BACKFILL_USER_SLUGS` command, not by SQL. See **`docs/database.md`**. |
+| `000044_user_slug_not_null` | Sets **`users.slug`** `NOT NULL`. Release 2: apply only after the backfill reports zero NULL slugs. `MIGRATE=1` applies every pending file, so while NULL slugs remain it fails and golang-migrate leaves `schema_migrations` **dirty** at version 44 (fix: `UPDATE schema_migrations SET version = 43, dirty = false`, then run the backfill and migrate again). Keep this file out of the build until the backfill is done. |
 
 **Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 

@@ -39,7 +39,7 @@ WHERE u.deleted_at IS NULL%s%s`, sqlUserWithoutRosterBlockingRoles("u.id"), user
 func (r *GormRepository) ListRoster(ctx context.Context, f domain.RosterFilter) ([]domain.RosterMember, int64, error) {
 	now := timex.NowUnix()
 	base := fmt.Sprintf(`
-SELECT u.id, u.display_name, u.email, COALESCE(u.phone, '') AS phone,
+SELECT u.id, u.display_name, COALESCE(u.slug, '') AS slug, u.email, COALESCE(u.phone, '') AS phone,
        COALESCE(u.avatar_file_id::text, '') AS avatar_file_id
 FROM %s u
 INNER JOIN %s ur ON ur.user_id = u.id
@@ -62,6 +62,7 @@ WHERE u.deleted_at IS NULL%s%s`, constants.TableAppUsers, constants.TableRBACUse
 	type scanRow struct {
 		ID           string
 		DisplayName  string
+		Slug         string
 		Email        string
 		Phone        string
 		AvatarFileID string
@@ -73,7 +74,7 @@ WHERE u.deleted_at IS NULL%s%s`, constants.TableAppUsers, constants.TableRBACUse
 	out := make([]domain.RosterMember, len(rows))
 	for i, row := range rows {
 		out[i] = domain.RosterMember{
-			UserID: row.ID, FullName: row.DisplayName, Email: row.Email,
+			UserID: row.ID, FullName: row.DisplayName, Slug: row.Slug, Email: row.Email,
 			Phone: row.Phone, AvatarFileID: row.AvatarFileID,
 		}
 	}
@@ -90,7 +91,7 @@ func (r *GormRepository) ListRosterCandidates(ctx context.Context, f domain.Rost
 	out := make([]domain.RosterCandidate, len(rows))
 	for i, row := range rows {
 		out[i] = domain.RosterCandidate{
-			UserID: row.UserID, DisplayName: row.DisplayName, Email: row.Email,
+			UserID: row.UserID, DisplayName: row.DisplayName, Slug: row.Slug, Email: row.Email,
 			AvatarFileID: row.AvatarFileID, AvatarURL: row.AvatarURL,
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"mycourse-io-be/internal/auth/domain"
+	"mycourse-io-be/internal/shared/gormx"
 	"mycourse-io-be/internal/shared/timex"
 	"mycourse-io-be/internal/shared/uuidx"
 )
@@ -123,7 +124,7 @@ func (s *AuthService) LoginOrCreateFromExternal(
 	for attempt := 0; attempt < oauthIdentityRetryMax; attempt++ {
 		user, identityID, err := s.resolveOAuthUser(ctx, input, policy)
 		if err != nil {
-			if isOAuthUniqueViolation(err) {
+			if gormx.IsUniqueViolation(err) {
 				lastConflict = domain.ErrOAuthIdentityConflict
 				continue
 			}
@@ -332,12 +333,4 @@ func randomInternalPasswordHash() (string, error) {
 	}
 	secret := base64.RawURLEncoding.EncodeToString(buf)
 	return hashPassword(secret)
-}
-
-func isOAuthUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "unique constraint")
 }

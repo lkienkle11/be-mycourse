@@ -15,7 +15,7 @@ import (
 // check. The courses aggregate is computed once in a subquery, then joined to
 // identity/profile data — not per-instructor N+1 (.ai/skills/logic-n-1-optimize).
 var popularInstructorsQuery = `
-SELECT u.id AS user_id, u.display_name,
+SELECT u.id AS user_id, u.display_name, COALESCE(u.slug, '') AS slug,
     COALESCE(m.url, '') AS avatar_url,
     COALESCE(ip.current_job_title, '') AS subtitle,
     agg.course_count
@@ -37,6 +37,7 @@ LIMIT @limit`
 type popularInstructorScanRow struct {
 	UserID      string `gorm:"column:user_id"`
 	DisplayName string `gorm:"column:display_name"`
+	Slug        string `gorm:"column:slug"`
 	AvatarURL   string `gorm:"column:avatar_url"`
 	Subtitle    string `gorm:"column:subtitle"`
 	CourseCount int64  `gorm:"column:course_count"`
@@ -46,6 +47,7 @@ func (row *popularInstructorScanRow) toDomain() domain.PopularInstructor {
 	return domain.PopularInstructor{
 		UserID:      row.UserID,
 		DisplayName: row.DisplayName,
+		Slug:        row.Slug,
 		AvatarURL:   row.AvatarURL,
 		Subtitle:    row.Subtitle,
 		CourseCount: row.CourseCount,

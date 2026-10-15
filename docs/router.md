@@ -76,7 +76,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(60 req / 1 min)
 | POST | `/api/v1/auth/x` | X OAuth2 PKCE sign-in (code + code_verifier); registered only when `OAuthXConfigured()` |
 | POST | `/api/v1/auth/discord` | Discord OAuth2 sign-in (authorization code); registered only when `OAuthDiscordConfigured()` |
 | GET | `/api/v1/catalog/courses/trending` | Public trending courses list (query `limit`, default 8, max 24) |
-| GET | `/api/v1/catalog/instructors/popular` | Public popular instructors list (query `limit`, default 4, max 12) |
+| GET | `/api/v1/catalog/instructors/popular` | Public popular instructors list (query `limit`, default 4, max 12; items include `slug`) |
 
 ---
 
@@ -91,7 +91,7 @@ Middleware: BeforeInterceptor, RateLimitLocal(120 req / 1 min), AuthJWT
 | Method | Path | Permission | Description |
 |--------|------|-----------|-------------|
 | GET | `/api/v1/me` | None (JWT only) | Get profile, effective permissions, and display-only ordered raw role names |
-| PATCH | `/api/v1/me` | None (JWT only) | Update current user profile |
+| PATCH | `/api/v1/me` | None (JWT only) | Update current user profile (`avatar_file_id`, `slug`; omitted `slug` unchanged, invalid/reserved/null 400, taken value auto-suffixed, never 409) |
 | DELETE | `/api/v1/me` | None (JWT only) | Soft-delete current user account |
 | DELETE | `/api/v1/me/hard` | None (JWT only) | Permanently delete current user account |
 | GET | `/api/v1/me/permissions` | `user:read` | Get current user permission list |

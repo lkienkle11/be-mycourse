@@ -137,3 +137,22 @@ func TestTruncateForSuffixNeverExceedsTotalLength(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildSuffixedCandidateNeverExceedsMaxLen(t *testing.T) {
+	base := strings.Repeat("a", 255)
+	for suffixLen := 7; suffixLen <= 10; suffixLen++ {
+		got, err := BuildSuffixedCandidate(base, strings.Repeat("x", suffixLen), 255)
+		if err != nil {
+			t.Fatalf("suffixLen=%d: %v", suffixLen, err)
+		}
+		if len(got) > 255 || strings.HasPrefix(got, "-") {
+			t.Fatalf("suffixLen=%d: invalid candidate %q (len %d)", suffixLen, got, len(got))
+		}
+	}
+}
+
+func TestBuildSuffixedCandidateErrorsWhenNoRoomForBase(t *testing.T) {
+	if _, err := BuildSuffixedCandidate("any-base", strings.Repeat("x", 255), 255); err == nil {
+		t.Fatal("expected an error when the suffix alone consumes the whole budget")
+	}
+}

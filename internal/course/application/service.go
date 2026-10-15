@@ -40,13 +40,9 @@ func (s *CourseService) CreateCourse(ctx context.Context, in domain.CreateCourse
 	if err != nil {
 		return nil, err
 	}
-	manualSlug := ""
-	if trimmed := strings.TrimSpace(in.Slug); trimmed != "" {
-		validated, ok := sharedslug.ValidateManualFormat(trimmed, domain.MaxSlugLen)
-		if !ok {
-			return nil, domain.ErrCourseInvalidSlug
-		}
-		manualSlug = validated
+	manualSlug, err := sharedslug.ParseManual(in.Slug, domain.MaxSlugLen)
+	if err != nil {
+		return nil, domain.ErrCourseInvalidSlug
 	}
 	return s.repo.CreateCourse(ctx, domain.CreateCourseInput{
 		ActorUserID: in.ActorUserID,

@@ -343,6 +343,10 @@ components:
         id: { type: string, format: uuid }
         user_id: { type: string, format: uuid }
         display_name: { type: string }
+        slug:
+          type: string
+          example: alice-nguyen
+          description: Public user slug (users.slug); empty string while a legacy user is not backfilled yet
         email: { type: string }
         avatar: { type: string }
         is_disabled: { type: boolean, description: Joined from users.is_disable for admin audit lists }
@@ -500,6 +504,12 @@ components:
         user_code: { type: string, format: uuid }
         email: { type: string, format: email }
         display_name: { type: string }
+        slug:
+          type: string
+          example: alice-nguyen
+          description: >
+            Public user slug (`users.slug`), auto-generated from `display_name` at sign-up.
+            Empty string while a legacy user has not been backfilled yet.
         email_confirmed: { type: boolean }
         is_disabled: { type: boolean }
         created_at: { $ref: "#/components/schemas/AuditTimestampUnix" }
@@ -806,6 +816,17 @@ components:
             format: uuid,
             description: "Set to empty string to clear",
           }
+        slug:
+          type: string
+          example: alice-nguyen
+          description: >
+            Optional. Omit to leave the slug unchanged; an explicit null, empty or whitespace
+            value is rejected with 400. Must match `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`
+            (max 255) and must not be a reserved word (400 ValidationFailed). A value equal to
+            the current slug is a no-op. A slug taken by another active user, or a former slug
+            of another user, is silently auto-suffixed (never 409); the response returns the
+            stored slug. The previous slug is kept forever in `user_slug_history`, and a user
+            may return to their own former slug.
     TreeNode:
       type: object
       required: [id, name]
@@ -1381,7 +1402,7 @@ paths:
                         $ref: "#/components/schemas/MeProfile"
     patch:
       tags: [Me]
-      summary: Partial profile update (avatar_file_id)
+      summary: Partial profile update (avatar_file_id, slug)
       security:
         - bearerJwt: []
       requestBody:
@@ -2223,7 +2244,8 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — `[]CourseListItem`. `owner_display_name` and `owner_slug` are not populated on this instructor list.
 
   /api/v1/courses:
     post:
@@ -2355,6 +2377,7 @@ paths:
         the canonical owner or active collaborator membership (backed by `internal/authorization`'s
         resource-scoped role gate, not a Course-owned table); items do not expose scoped actions.
         `loadCollaborators` on course detail is unchanged (full list embedded in `CourseDetail`).
+        Each item includes `slug` (the collaborator's user slug).
       security:
         - bearerJwt: []
       parameters:
@@ -2409,7 +2432,7 @@ paths:
       summary: List instructor candidates for collaborator picker (paginated)
       description: |
         Requires `course_collaborator_candidate:read` (P67). Owner-only in repository (`requireOwnerAccess`). Returns instructor-role users not already on the course.
-        Query `search` matches `display_name` or `email` (ILIKE). Avatar URL hydrated via media join.
+        Query `search` matches `display_name` or `email` (ILIKE). Avatar URL hydrated via media join. Each item includes `slug` (user slug).
       security:
         - bearerJwt: []
       parameters:
@@ -2424,7 +2447,7 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: Paginated list — `data.result[]` items are instructor candidate rows (`user_id`, `display_name`, `email`, optional avatar fields).
+          description: Paginated list — `data.result[]` items are instructor candidate rows (`user_id`, `display_name`, `slug`, `email`, optional avatar fields).
         "403":
           description: Non-owner access
 
@@ -2926,7 +2949,8 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — `[]CourseListItem`. Items may include `owner_slug` (the course owner's user slug, omitted when empty) next to `owner_display_name`.
 
   /api/v1/course-reviews/{courseId}/approve:
     post:
@@ -2975,7 +2999,8 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — `[]CourseListItem`. Items may include `owner_slug` (the course owner's user slug, omitted when empty) next to `owner_display_name`.
 
   /api/v1/course-admin/courses/trash:
     get:
@@ -2985,7 +3010,8 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — `[]CourseListItem`. Items may include `owner_slug` (the course owner's user slug, omitted when empty) next to `owner_display_name`.
 
   /api/v1/course-admin/courses/{courseId}/trash:
     post:
@@ -3044,7 +3070,8 @@ paths:
           schema: { type: integer, default: 8, maximum: 24 }
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — `[]TrendingCourseItem`; each item may include `owner_slug` (owner user slug, omitted when empty) next to `owner_display_name`.
 
   /api/v1/learner-courses:
     get:
@@ -3070,7 +3097,8 @@ paths:
           schema: { type: integer, default: 4, maximum: 10 }
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — `[]ContinueLearningItem`; each item may include `owner_slug` (owner user slug, omitted when empty) next to `owner_display_name`.
 
   /api/v1/learner-courses/{courseId}:
     get:
@@ -3151,7 +3179,8 @@ paths:
           schema: { type: integer, default: 4, maximum: 12 }
       responses:
         "200":
-          description: OK
+          description: >-
+            OK — items carry `user_id`, `display_name`, `slug` (user slug), `avatar`, `subtitle`, `course_count`.
 
   /api/v1/instructors:
     get:
@@ -3167,7 +3196,7 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: Paginated roster
+          description: Paginated roster — items carry `id`, `full_name`, `slug` (user slug), `email`, `phone`, `avatar`.
 
   /api/v1/instructors/roster-candidates:
     get:
@@ -3184,7 +3213,7 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: Paginated list — `data.result[]` items are user picker rows (`user_id`, `display_name`, `email`, optional avatar fields).
+          description: Paginated list — `data.result[]` items are user picker rows (`user_id`, `display_name`, `slug`, `email`, optional avatar fields).
 
   /api/v1/instructors/bulk:
     post:
@@ -3206,7 +3235,7 @@ paths:
                   items: { type: string, format: uuid }
       responses:
         "200":
-          description: Aggregated add result with `added[]` and `failed[]`
+          description: Aggregated add result with `added[]` (members carry `slug`, the user slug) and `failed[]`
 
   /api/v1/instructors/{id}:
     delete:
@@ -3356,7 +3385,7 @@ paths:
         - $ref: "#/components/parameters/TaxonomyLocale"
       responses:
         "200":
-          description: Application me response with latest_submission and rejection_history
+          description: Application me response (`InstructorApplicationMeResponse`, includes user `slug`) with latest_submission and rejection_history
           content:
             application/json:
               schema:
@@ -3406,6 +3435,7 @@ paths:
     get:
       tags: [Instructor]
       summary: List instructor applications
+      description: Items use the application me shape and include the applicant's user `slug`.
       security:
         - bearerJwt: []
       parameters:
@@ -3447,6 +3477,7 @@ paths:
     get:
       tags: [Instructor]
       summary: Get instructor application detail
+      description: Includes the applicant's user `slug`.
       security:
         - bearerJwt: []
       parameters:
@@ -3519,7 +3550,7 @@ paths:
         - $ref: "#/components/parameters/PerPage"
       responses:
         "200":
-          description: Paginated profiles
+          description: Paginated profiles — items use the application me shape and include user `slug`.
     post:
       tags: [Instructor]
       summary: Upsert own instructor profile
@@ -3576,7 +3607,7 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: OK — application me shape, includes user `slug`.
 
   /api/v1/instructor-profiles/{id}:
     parameters:
@@ -3591,7 +3622,7 @@ paths:
         - bearerJwt: []
       responses:
         "200":
-          description: OK
+          description: OK — application me shape, includes user `slug`.
     patch:
       tags: [Instructor]
       summary: Upsert instructor profile by user id

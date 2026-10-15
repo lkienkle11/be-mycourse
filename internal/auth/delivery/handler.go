@@ -16,6 +16,7 @@ import (
 	"mycourse-io-be/internal/shared/middleware"
 	"mycourse-io-be/internal/shared/response"
 	"mycourse-io-be/internal/shared/setting"
+	sharedslug "mycourse-io-be/internal/shared/slug"
 	"mycourse-io-be/internal/shared/utils"
 	"mycourse-io-be/internal/shared/validate"
 )
@@ -28,7 +29,7 @@ type AuthUseCase interface {
 	RefreshSession(ctx context.Context, sessionStr, refreshTokenStr string) (domain.TokenPairResult, error)
 	Logout(ctx context.Context, sessionStr, refreshTokenStr string) error
 	GetMe(ctx context.Context, userID string) (*domain.MeProfile, error)
-	UpdateMe(ctx context.Context, userID string, avatarFileID *string) (*domain.MeProfile, error)
+	UpdateMe(ctx context.Context, userID string, params domain.UpdateMeParams) (*domain.MeProfile, error)
 	SoftDeleteUser(ctx context.Context, userID string) error
 	HardDeleteUser(ctx context.Context, userID string) error
 	GoogleLoginFromCode(ctx context.Context, code string, rememberMe bool) (domain.TokenPairResult, error)
@@ -222,7 +223,12 @@ func (h *Handler) PatchMe(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 		return
 	}
-	me, err := h.auth.UpdateMe(c.Request.Context(), uid, req.AvatarFileID)
+	slugInput, slugErr := sharedslug.ParseUpdateInput(req.Slug.Set, req.Slug.Value, domain.MaxUserSlugLen)
+	if slugErr != nil {
+		writeMeAccessError(c, domain.ErrUserInvalidSlug, true)
+		return
+	}
+	me, err := h.auth.UpdateMe(c.Request.Context(), uid, domain.UpdateMeParams{AvatarFileID: req.AvatarFileID, Slug: slugInput})
 	if err != nil {
 		writeMeAccessError(c, err, true)
 		return
@@ -258,6 +264,8 @@ func writeMeAccessError(c *gin.Context, err error, validationFallback bool) {
 		response.Fail(c, http.StatusForbidden, apperrors.UserDisabled, apperrors.DefaultMessage(apperrors.UserDisabled), nil)
 	case errors.Is(err, domain.ErrUserBanned):
 		response.Fail(c, http.StatusForbidden, apperrors.UserBanned, apperrors.DefaultMessage(apperrors.UserBanned), nil)
+	case errors.Is(err, domain.ErrUserInvalidSlug), errors.Is(err, domain.ErrUserSlugReserved):
+		response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
 	default:
 		if validationFallback {
 			response.Fail(c, http.StatusBadRequest, apperrors.ValidationFailed, err.Error(), nil)
@@ -304,6 +312,7 @@ func toMeResponse(me *domain.MeProfile) *MeResponse {
 		UserCode:        me.UserCode,
 		Email:           me.Email,
 		DisplayName:     me.DisplayName,
+		Slug:            me.Slug,
 		AvatarURL:       me.AvatarURL,
 		AvatarObjectKey: me.AvatarObjectKey,
 		EmailConfirmed:  me.EmailConfirmed,

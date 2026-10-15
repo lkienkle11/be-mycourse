@@ -20,8 +20,8 @@ All three are issued as **HttpOnly** cookies (`SameSite=Lax`, `Secure` in produc
 internal/auth/
 ├── domain/
 │   ├── user.go                  # User (+ PasswordSetAt, HasLocalPassword) + RefreshTokenSessionMap (pure structs, no GORM/json tags)
-│   ├── repository.go            # UserRepository + RefreshSessionRepository interfaces
-│   ├── errors.go                # Domain errors (ErrEmailAlreadyExists, ErrInvalidGoogleCode, ErrInvalidXCode, ErrInvalidDiscordCode, ...)
+│   ├── repository.go            # UserRepository (+ ChangeSlug, BackfillMissingSlugs) + RefreshSessionRepository interfaces
+│   ├── errors.go                # Domain errors (ErrUserInvalidSlug, ErrUserSlugReserved, ErrEmailAlreadyExists, ErrInvalidGoogleCode, ErrInvalidXCode, ErrInvalidDiscordCode, ...)
 │   ├── oauth_identity.go        # OAuthProvider, OAuth login channels, UserOAuthIdentity, OAuthIdentityRepository
 │   └── token_ttl.go             # AccessTokenTTL, RefreshTokenTTL, RememberMeRefreshTTL
 ├── application/
@@ -43,6 +43,8 @@ internal/auth/
 │   ├── oauth_identity_repo.go   # GormOAuthIdentityRepository (FindByProviderSub, Create, UpdateLastLogin)
 │   ├── oauth_identity_model.go  # oauthIdentityRow (GORM model) → user_oauth_identities
 │   ├── user_query.go            # findActiveUserWhere (via shared/gormx)
+│   ├── user_slug.go             # User slug generation on create (shared slug.ResolveCreate), ChangeSlug, history rows
+│   ├── user_slug_backfill.go    # BackfillMissingSlugs (keyset batches, set-based UPDATE ... FROM VALUES)
 │   ├── crypto.go                # Password hashing (bcrypt)
 │   └── session_limits.go        # MaxActiveSessions constant
 └── delivery/
@@ -197,7 +199,7 @@ Cookie `Max-Age` on `refresh_token` / `session_id` is `259200` (3 days) when `re
 `FindByEmail` uses `findActiveUserWhere` (`deleted_at IS NULL`), so soft-deleted users surface as **not found** and populate the negative cache the same way as unknown emails. Wrong-password attempts never populate the negative cache. Bcrypt runs only when an active user row is loaded **and** `checkUserAccessible` passes **and** `email_confirmed` is true; disabled, banned, and unconfirmed users return early without password verification.
 
 **Redis keys used:**
-- `mycourse:user:me:{user_id}` — cached `MeResponse`, TTL 1 minute
+- `mycourse:user:me:{user_id}` — cached `MeResponse` (includes `slug`), TTL 1 minute; invalidated by `UpdateMe` and RBAC role/permission changes
 - `mycourse:auth:login:invalid:{normalized_email}` — negative cache when active-user lookup returns not found (unknown or soft-deleted email), TTL 1 minute
 - `mycourse:auth:login:user_by_email:{normalized_email}` — plain `user_id` string, TTL 30 seconds; skips the email unique lookup on repeat attempts (cache hit still loads user by ID from Postgres for access checks and bcrypt)
 
@@ -370,7 +372,7 @@ Soft-deleted accounts surface as email-not-found; the resulting UNIQUE-email pat
 
 ### `GET /api/v1/me` (JWT required)
 
-Returns the current user's profile, effective permission names (sorted `permission_name` strings from RBAC), and raw display-only role names. Roles are ordered `sysadmin`, `admin`, `instructor`, `learner`; unknown names follow in their original RBAC order. `permissions` remains the only authorization input—clients must not infer access from `roles`. Redis cache-first; DB fallback with up to **1 minute** staleness.
+Returns the current user's profile (including `slug`), effective permission names (sorted `permission_name` strings from RBAC), and raw display-only role names. Roles are ordered `sysadmin`, `admin`, `instructor`, `learner`; unknown names follow in their original RBAC order. `permissions` remains the only authorization input—clients must not infer access from `roles`. Redis cache-first; DB fallback with up to **1 minute** staleness.
 
 **Access check:** `loadAccessibleUser` → **`checkUserAccessible`** in `application/service_access.go`. Rejects soft-deleted users (**404**), permanently disabled users (**403**, `4005`), and actively banned users (**403**, `4012` — `banned_until > now()`).
 
@@ -382,7 +384,17 @@ Cached payloads created before the `roles` field existed are treated as cache mi
 
 ### `PATCH /api/v1/me` (JWT required)
 
-Updates profile fields (display name, avatar `image_file_id`). Same access guards as `GET /me`.
+Updates profile fields: avatar `image_file_id` and the user's `slug`. Same access guards as `GET /me`. `AuthService.UpdateMe(ctx, userID, domain.UpdateMeParams{AvatarFileID, Slug})` applies both and then invalidates the `mycourse:user:me:{user_id}` cache.
+
+`slug` is `validate.Optional[string]`: omitted leaves the slug unchanged; an explicit `null`, empty or malformed value is rejected with **400**; a reserved word (`internal/shared/slug.IsReserved`, e.g. `admin`, `me`, `api`) is rejected with **400** before any write. A valid value is applied by `GormUserRepository.ChangeSlug` in one transaction under a row lock: a slug that is taken, reserved or another user's former slug is auto-suffixed (never a 409); the slug being left is recorded in `user_slug_history`; returning to one of the user's own former slugs releases that history row; the update is a targeted `UPDATE` of the slug column only.
+
+### User slug
+
+- **Column:** `users.slug` (`VARCHAR(255)`, unique among active rows via `uix_users_slug_active`, format `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`). Former slugs live in `user_slug_history` (unique across all users), so a slug a user left cannot be claimed by someone else. Soft delete keeps history rows (slugs stay reserved); `DELETE /me/hard` cascades them away.
+- **Generation (create, `GormUserRepository.CreateWithDB` + `user_slug.go`):** derived from `display_name` through the shared `internal/shared/slug.ResolveCreate` (gosimple transliteration). An empty or untransliterable name yields `user-{7 chars}`; a base that is taken, reserved or a historical slug becomes `{base}-{suffix}` (7-char random suffix, 7 attempts, then 8, 9, ... chars). The insert runs in a transaction (a SAVEPOINT when already inside one, e.g. OAuth sign-up) and is retried through `gormx.RetryInSavepoint` when it loses a unique-index race (`uix_users_slug_active` / `uq_user_slug_history_slug`, detected with `gormx.IsUniqueViolation`).
+- **No automatic follow:** the slug does not change when `display_name` changes. `SaveWithDB` omits the slug column, so full-row saves never touch it; only create, `ChangeSlug` and the backfill write it.
+- **Backfill:** `CLI_BACKFILL_USER_SLUGS=1` runs `internal/appcli/backfill_user_slugs.go` (`guardCLIOperation`, `constants.CLIOpBackfillUserSlugs`) -> `GormUserRepository.BackfillMissingSlugs`: keyset batches of 500, one availability query per batch, one `UPDATE ... FROM (VALUES ...)` guarded by `slug IS NULL`, row-by-row fallback on a unique violation. It includes soft-deleted users and is idempotent. Migration `000044` (`SET NOT NULL`) must be applied only after it reports zero NULL slugs.
+- **Exposure:** `slug` is returned on `MeResponse` (`GET /me`, cached) and on the instructor, course-owner and collaborator payloads documented in the instructor and course module docs. `user_id` is still returned everywhere it was before. No new routes.
 
 ---
 

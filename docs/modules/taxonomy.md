@@ -1,6 +1,6 @@
 # Taxonomy Module
 
-_Last audited: 2026-07-12 (multilingual hybrid: translation tables + JSONB tree `translations` + optimistic `row_version`)._
+_Last audited: 2026-10-15 (slug logic now shared with course and user via `internal/shared/slug`, `gormslug`, `gormx.IsUniqueViolation` — `openspec/changes/add-user-slug-management`). Prior: 2026-07-12 (multilingual hybrid: translation tables + JSONB tree `translations` + optimistic `row_version`)._
 
 The taxonomy module (`internal/taxonomy/`) handles classification reference data for courses: **course topics**, **course outcomes**, **course skills**, **course levels**, and **tags**.
 
@@ -26,11 +26,11 @@ internal/taxonomy/
 ├── application/
 │   ├── service.go           # TaxonomyService use-cases
 │   ├── service_helpers.go   # Shared create/update/delete, slug+status entities, orphan image hook
-│   └── slug.go              # validateManualTaxonomySlug, resolveTaxonomySlugInput (Optional[string] interpretation)
+│   └── slug.go              # validateManualTaxonomySlug, resolveTaxonomySlugInput (thin wrappers over shared slug.ParseManual / ParseUpdateInput)
 ├── infra/
 │   ├── repos.go             # GORM repositories (topics, outcomes, skills, tags, levels)
 │   ├── repos_crud_helper.go # Shared list/create/get helpers; taxonomyListTotal skip-count
-│   ├── slug.go              # Slug orchestration (manual/auto, collision retry) — mirrors internal/course/infra/slug.go
+│   ├── slug.go              # Taxonomy slug index names + resolveTaxonomyUpdateSlug over shared slug.ResolveUpdate / gormslug.AvailableIn
 │   └── jsonb_types.go       # JSONB scanners for tree nodes and description arrays
 └── delivery/
     ├── handler.go           # Thin handlers per resource
@@ -49,9 +49,14 @@ internal/shared/i18n/        # Content locale helpers (NOT mailtmpl email locale
 ├── locale.go                # CanonicalizeLocale (write), NegotiateReadLocale / ResolveText (read)
 
 internal/shared/slug/
-├── autobase.go              # GenerateAutoSlugBase(name, maxLen, Kind) — shared auto-generate base, course/level/topic/skill/tag/node
+├── autobase.go              # GenerateAutoSlugBase(name, maxLen, Kind) — shared auto-generate base, course/level/topic/skill/tag/node/user (KindUser)
 ├── format.go                # ValidateManualFormat
-└── suffix.go                # GenerateRandomSuffix, RetryWithSuffix, TruncateToLen, TruncateForSuffix
+├── input.go                 # ParseManual, ParseUpdateInput(set, value, maxLen)
+├── resolve.go               # ResolveCreate, ResolveUpdate, AvailableFunc
+├── reserved.go              # IsReserved (user slugs only)
+├── errors.go                # ConflictError (course/taxonomy domain SlugConflictError are aliases)
+├── suffix.go                # GenerateRandomSuffix, RetryWithSuffix, TruncateToLen, TruncateForSuffix, BuildSuffixedCandidate
+└── gormslug/gormslug.go     # AvailableIn, RetryAttempts, IsDuplicate (GORM availability + duplicate-key helpers)
 ```
 
 List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (same pattern as media list).
@@ -60,7 +65,7 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 
 | Need | Reuse / extend | Do not create |
 |------|----------------|---------------|
-| Slug | `internal/shared/slug.GenerateAutoSlugBase` (auto-generate base, same gosimple/slug mechanism as course, parameterized by `Kind`) + `internal/shared/slug` (format/collision, shared with course) + `internal/taxonomy/infra/slug.go` (root orchestration) + `internal/shared/taxonomy/tree_write.go` (node orchestration) — manual input accepted on create/update as of `openspec/changes/unify-taxonomy-slug-management` | Second slug format/collision/auto-generate util (one shared `internal/shared/slug` package for every slugged entity) |
+| Slug | `internal/shared/slug.GenerateAutoSlugBase` (auto-generate base, same gosimple/slug mechanism as course, parameterized by `Kind`) + `internal/shared/slug` (format/collision, shared with course and user) + `internal/shared/slug.ResolveCreate`/`ResolveUpdate` + `internal/shared/slug/gormslug` + `internal/taxonomy/infra/slug.go` (index names, update wrapper) + `internal/shared/taxonomy/tree_write.go` (node orchestration) — manual input accepted on create/update as of `openspec/changes/unify-taxonomy-slug-management` | Second slug format/collision/auto-generate util (one shared `internal/shared/slug` package for every slugged entity) |
 | Tree validate | `tree_validate.go` / `description_validate.go` | Parallel validators |
 | List/get infra | `taxonomyList` / `taxonomyGetByID` in `repos_crud_helper.go` | New get-by-id repo from scratch |
 | Optimistic lock | Course `optimisticUpdate` + `expected_row_version` → HTTP 409 + app code **3005** | `expected_updated_at` |
@@ -91,7 +96,7 @@ List endpoints use **`internal/shared/httpx.ListPaginated`** where applicable (s
 
 After every successful write: `canonical text == en translation text` (assert in service/tests). Persist both in one transaction.
 
-**Slug:** independent of `name`/translations as of `openspec/changes/unify-taxonomy-slug-management` — an update that omits the `slug` field leaves the stored slug unchanged, **even when `name` (or `en` translation, which mirrors to canonical) changes**. A manual `slug` value is validated (`internal/shared/slug.ValidateManualFormat`) and used if free; a colliding value is silently auto-resolved with a random suffix (mirrors course's update behavior). Auto-generation from canonical `name` (`internal/shared/slug.GenerateAutoSlugBase`, the same gosimple/slug-backed mechanism course uses, with a random-suffixed literal prefix per `Kind` when the name has nothing transliterable to ASCII) only happens on **create** when no manual slug is supplied.
+**Slug:** independent of `name`/translations as of `openspec/changes/unify-taxonomy-slug-management` — an update that omits the `slug` field leaves the stored slug unchanged, **even when `name` (or `en` translation, which mirrors to canonical) changes**. A manual `slug` value is validated (`internal/shared/slug.ValidateManualFormat`) and used if free; a colliding value is silently auto-resolved with a random suffix (same shared `slug.ResolveUpdate` as course; users use the same resolver plus reserved-word rejection). Auto-generation from canonical `name` (`internal/shared/slug.GenerateAutoSlugBase`, the same gosimple/slug-backed mechanism course uses, with a random-suffixed literal prefix per `Kind` when the name has nothing transliterable to ASCII) only happens on **create** when no manual slug is supplied.
 
 ### Locale: write vs read (separate APIs)
 

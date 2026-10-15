@@ -91,6 +91,7 @@ GORM row models live under each bounded context’s `infra` package (for example
 - [Application users](#application-users)
   - [`users`](#users)
   - [`user_oauth_identities`](#user_oauth_identities)
+  - [`user_slug_history`](#user_slug_history)
 - [Taxonomy](#taxonomy)
   - [Locale rules (BCP47)](#locale-rules-bcp47)
   - [`course_levels`](#course_levels)
@@ -121,6 +122,7 @@ erDiagram
     users ||--o{ user_permissions : direct_grant
     permissions ||--o{ user_permissions : granted
     users ||--o{ user_oauth_identities : oauth_link
+    users ||--o{ user_slug_history : former_slugs
     users ||--o| media_files : avatar_file_id
     course_topics ||--o| media_files : image_file_id
     course_outcomes ||--o| media_files : image_file_id
@@ -359,6 +361,7 @@ Application accounts. Passwords are bcrypt-hashed.
 | `hash_password` | `VARCHAR(255)` | NOT NULL | bcrypt hash. **OAuth-only** users store a bcrypt hash of a random internal secret so the column stays `NOT NULL`; a hash never implies a usable local password |
 | `password_set_at` | `TIMESTAMPTZ` | nullable | When the user last set a local MyCourse password; `NULL` = OAuth-only or pending register. Source of truth for `HasLocalPassword()` / email-login gate (migration **`000031`**) |
 | `display_name` | `VARCHAR(255)` | NOT NULL DEFAULT `''` | |
+| `slug` | `VARCHAR(255)` | NULL until backfill, then NOT NULL; CHECK `chk_users_slug_format` (NULL allowed, otherwise `slug <> ''` and `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`) | Public profile identifier, unique among active rows (`uix_users_slug_active`). Generated from `display_name` on create and **not** updated when `display_name` changes; changed only by `PATCH /me`, which records the previous value in `user_slug_history`. Added nullable in migration **`000043`**; **`000044`** sets NOT NULL after `CLI_BACKFILL_USER_SLUGS=1` reports zero NULL slugs |
 | `avatar_file_id` | `UUID` | nullable, FK → `media_files(id)` ON DELETE SET NULL | Profile image; API exposes nested `avatar` object, not a raw URL column |
 | `is_disable` | `BOOLEAN` | NOT NULL DEFAULT `FALSE` | Permanent admin disable (separate from time-limited ban) |
 | `banned_until` | `BIGINT` | nullable | Unix seconds when a time-limited ban **lifts**; `NULL` = not banned (migration **`000012`**) |
@@ -372,11 +375,11 @@ Application accounts. Passwords are bcrypt-hashed.
 | `updated_at` | `BIGINT` | NOT NULL DEFAULT `EXTRACT(EPOCH FROM NOW())::BIGINT` | Unix epoch seconds |
 | `deleted_at` | `BIGINT` | nullable | Soft delete (manual UPDATE, Unix epoch seconds) |
 
-**Indexes:** `idx_users_email`, `idx_users_user_code`, `idx_users_deleted_at` (partial, `deleted_at IS NULL`), `idx_users_confirm_token` (partial, token not null), `idx_users_avatar_file_id` (migration `000006`).
+**Indexes:** `idx_users_email`, `idx_users_user_code`, `idx_users_deleted_at` (partial, `deleted_at IS NULL`), `idx_users_confirm_token` (partial, token not null), `idx_users_avatar_file_id` (migration `000006`), `uix_users_slug_active` (partial unique on `slug` where `deleted_at IS NULL`, migration `000043`).
 
 **Removed columns (do not document / expect in DB):** `avatar_url` (dropped in `000006`).
 
-**GORM model:** `internal/auth/infra/user_model.go` (`userRow`).
+**GORM model:** `internal/auth/infra/user_model.go` (`userRow`). Full-row saves omit the `slug` column; it is written only by user create, `ChangeSlug` and the backfill (`internal/auth/infra/user_slug.go`, `user_slug_backfill.go`).
 
 #### `refresh_token_session` JSONB shape
 
@@ -429,6 +432,23 @@ External OAuth/OIDC identities (Google, X, Discord) linked to app users. Created
 **Domain type:** `internal/auth/domain/oauth_identity.go` (`UserOAuthIdentity`, `OAuthProvider`, OAuth login channels).
 
 Merge/login semantics and `password_set_at` behavior: **`docs/modules/auth.md`** (Social sign-in).
+
+---
+
+### `user_slug_history`
+
+Former user slugs, kept so a slug a user left stays reserved and cannot be taken by another user. Created in migration **`000043`**.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `UUID` | PK | App-generated UUID |
+| `user_id` | `UUID` | NOT NULL, FK → `users(id)` ON DELETE CASCADE | Owning user |
+| `slug` | `VARCHAR(255)` | NOT NULL, UNIQUE (`uq_user_slug_history_slug`), same format CHECK as `users.slug` | A slug the user previously held |
+| `created_at` | `BIGINT` | NOT NULL | Unix epoch seconds when the slug was left |
+
+**Indexes:** `idx_user_slug_history_user_id`, `uq_user_slug_history_slug`.
+
+**Lifecycle:** `ChangeSlug` inserts the slug being left; when a user returns to one of their own former slugs, that history row is released. Soft delete keeps history (slugs stay reserved); hard delete (`DELETE /me/hard`) cascades and frees them.
 
 ---
 
@@ -840,6 +860,8 @@ Run both after changing `constants/permissions.go` or `roles_permission.go` on e
 | 000040 | `course_slug_check_constraint` | Adds `chk_courses_slug_format` CHECK constraint on `courses.slug` (`slug <> '' AND slug ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`); `uix_courses_slug_active`/`NOT NULL` unchanged, see `openspec/changes/rework-course-slug-management` |
 | 000041 | `backfill_taxonomy_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `course_levels.slug`/`course_topics.slug`/`course_skills.slug`/`tags.slug` value that would violate the new format check, scanning **all** rows including soft-deleted (idempotent; no-op `down.sql`), see `openspec/changes/unify-taxonomy-slug-management` |
 | 000042 | `taxonomy_slug_check_constraints` | Adds `chk_course_levels_slug_format`, `chk_course_topics_slug_format`, `chk_course_skills_slug_format`, `chk_tags_slug_format` CHECK constraints (same regex as `chk_courses_slug_format`); existing `uix_*_slug_active`/`NOT NULL` unchanged, see `openspec/changes/unify-taxonomy-slug-management` |
+| 000043 | `user_slug` | Adds nullable `users.slug`, `chk_users_slug_format` (NULL allowed), partial unique `uix_users_slug_active` (`WHERE deleted_at IS NULL`), and table `user_slug_history` (`uq_user_slug_history_slug`, `idx_user_slug_history_user_id`, FK ON DELETE CASCADE). Release 1: populate existing rows with `CLI_BACKFILL_USER_SLUGS=1` |
+| 000044 | `user_slug_not_null` | `users.slug SET NOT NULL`. Release 2: apply only after the backfill reports zero NULL slugs |
 
 `schema_migrations.version` (golang-migrate) stores the applied version integer.
 
@@ -1008,6 +1030,7 @@ DROP TABLE IF EXISTS public.authorization_grants;
 DROP TABLE IF EXISTS public.authorization_actions;
 DROP TABLE IF EXISTS public.media_pending_cloud_cleanup;
 DROP TABLE IF EXISTS public.user_oauth_identities;
+DROP TABLE IF EXISTS public.user_slug_history;
 DROP TABLE IF EXISTS public.user_permissions;
 DROP TABLE IF EXISTS public.user_roles;
 DROP TABLE IF EXISTS public.role_permissions;

@@ -47,6 +47,7 @@ type Course struct {
 type CourseListItem struct {
 	Course
 	OwnerDisplayName   string `json:"owner_display_name,omitempty"`
+	OwnerSlug          string `json:"owner_slug,omitempty"`
 	Title              string `json:"title"`
 	ReviewStatus       string `json:"review_status"`
 	VersionID          string `json:"version_id,omitempty"`
@@ -98,6 +99,7 @@ type Collaborator struct {
 	Email        string `json:"email"`
 	AvatarFileID string `json:"avatar_file_id,omitempty"`
 	AvatarURL    string `json:"avatar_url,omitempty"`
+	Slug         string `json:"slug"`
 }
 
 // CollaboratorBulkFailure is one failed bulk collaborator add attempt.
@@ -206,6 +208,7 @@ type InstructorCandidate struct {
 	Email        string `json:"email"`
 	AvatarFileID string `json:"avatar_file_id,omitempty"`
 	AvatarURL    string `json:"avatar_url,omitempty"`
+	Slug         string `json:"slug"`
 }
 
 type InstructorCandidateFilter struct {
@@ -264,6 +267,7 @@ type TrendingCourseItem struct {
 	ShortDescription string `json:"short_description"`
 	ThumbnailURL     string `json:"thumbnail_url,omitempty"`
 	OwnerDisplayName string `json:"owner_display_name,omitempty"`
+	OwnerSlug        string `json:"owner_slug,omitempty"`
 	CreatedAt        int64  `json:"created_at"`
 }
 
@@ -278,6 +282,7 @@ type ContinueLearningItem struct {
 	Title               string  `json:"title"`
 	ThumbnailURL        string  `json:"thumbnail_url,omitempty"`
 	OwnerDisplayName    string  `json:"owner_display_name,omitempty"`
+	OwnerSlug           string  `json:"owner_slug,omitempty"`
 	CompletedSubLessons int     `json:"completed_sub_lessons"`
 	TotalSubLessons     int     `json:"total_sub_lessons"`
 	ProgressPercent     float64 `json:"progress_percent"`

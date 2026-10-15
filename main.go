@@ -44,6 +44,9 @@ func mustCoreSettingsAndDB() {
 	if appcli.MaybeRunImportLegacyData(shareddb.Conn()) {
 		os.Exit(0)
 	}
+	if appcli.MaybeRunBackfillUserSlugs(shareddb.Conn()) {
+		os.Exit(0)
+	}
 }
 
 func mustSupabaseRedisAndMedia() {

@@ -1,6 +1,10 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+
+	"mycourse-io-be/internal/shared/slug"
+)
 
 var (
 	// ErrTaxonomyOptimisticLock is returned when expected_row_version does not match.
@@ -10,12 +14,8 @@ var (
 )
 
 // SlugConflictError is returned when a manually supplied slug on create
-// already belongs to another active row of the same taxonomy entity type.
-// Mirrors internal/course/domain.SlugConflictError: RecommendedSlug is
-// confirmed available at construction time, but every write path re-checks
-// at write time regardless (see internal/taxonomy/infra/slug.go).
-type SlugConflictError struct {
-	RecommendedSlug string
-}
-
-func (e *SlugConflictError) Error() string { return "taxonomy slug already exists" }
+// already belongs to another active row of the same taxonomy entity type. It is
+// the shared internal/shared/slug.ConflictError (one definition for course,
+// taxonomy and user) exposed under the taxonomy domain name so callers keep
+// using errors.As against domain.SlugConflictError.
+type SlugConflictError = slug.ConflictError

@@ -1,7 +1,6 @@
 package taxonomy
 
 import (
-	"fmt"
 	"strings"
 
 	sharedslug "mycourse-io-be/internal/shared/slug"
@@ -99,11 +98,10 @@ func resolveOneNodeSlug(n TreeNode, oldByID map[string]TreeNode, kind sharedslug
 
 func resolveNodeSlugSuffix(base string, seenSlug map[string]struct{}) (string, error) {
 	final, err := sharedslug.RetryWithSuffix(func(suffix string) (string, bool, error) {
-		truncatedBase := sharedslug.TruncateForSuffix(base, DefaultMaxSlugLen, len(suffix))
-		if truncatedBase == "" {
-			return "", false, fmt.Errorf("tree node slug base %q leaves no room for a %d-character suffix within %d characters", base, len(suffix), DefaultMaxSlugLen)
+		candidate, err := sharedslug.BuildSuffixedCandidate(base, suffix, DefaultMaxSlugLen)
+		if err != nil {
+			return "", false, err
 		}
-		candidate := truncatedBase + "-" + suffix
 		_, taken := seenSlug[candidate]
 		return candidate, !taken, nil
 	})

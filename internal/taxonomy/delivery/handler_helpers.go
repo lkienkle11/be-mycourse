@@ -32,19 +32,18 @@ import (
 func toDomainTreeNodes(in []TreeNodeInput) ([]taxpkg.TreeNode, error) {
 	out := make([]taxpkg.TreeNode, len(in))
 	for i, n := range in {
+		parsed, err := sharedslug.ParseUpdateInput(n.Slug.Set, n.Slug.Value, taxpkg.DefaultMaxSlugLen)
+		switch {
+		case stderrors.Is(err, sharedslug.ErrEmpty):
+			return nil, stderrors.Join(application.ErrTaxonomyValidation,
+				fmt.Errorf("tree node %q has an explicit empty slug", nodeLabel(n.ID)))
+		case err != nil:
+			return nil, stderrors.Join(application.ErrTaxonomyValidation,
+				fmt.Errorf("tree node %q has an invalid slug format", nodeLabel(n.ID)))
+		}
 		slug := ""
-		if n.Slug.Set {
-			trimmed := strings.TrimSpace(n.Slug.Value)
-			if trimmed == "" {
-				return nil, stderrors.Join(application.ErrTaxonomyValidation,
-					fmt.Errorf("tree node %q has an explicit empty slug", nodeLabel(n.ID)))
-			}
-			validated, ok := sharedslug.ValidateManualFormat(trimmed, taxpkg.DefaultMaxSlugLen)
-			if !ok {
-				return nil, stderrors.Join(application.ErrTaxonomyValidation,
-					fmt.Errorf("tree node %q has an invalid slug format", nodeLabel(n.ID)))
-			}
-			slug = validated
+		if parsed != nil {
+			slug = *parsed
 		}
 		children, err := toDomainTreeNodes(n.Children)
 		if err != nil {
@@ -131,11 +130,7 @@ func mapTaxonomyMutationError(c *gin.Context, err error, withProfileMedia bool) 
 	if err == nil {
 		return nil
 	}
-	var slugConflict *domain.SlugConflictError
-	if stderrors.As(err, &slugConflict) {
-		response.Fail(c, http.StatusConflict, apperrors.SlugConflict,
-			apperrors.DefaultMessage(apperrors.SlugConflict),
-			gin.H{"recommended_slug": slugConflict.RecommendedSlug})
+	if response.FailIfSlugConflict(c, err) {
 		return err
 	}
 	if stderrors.Is(err, apperrors.ErrNotFound) {

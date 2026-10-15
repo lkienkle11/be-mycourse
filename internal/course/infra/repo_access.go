@@ -19,6 +19,25 @@ func (r *GormRepository) loadCourseDetail(ctx context.Context, db *gorm.DB, cour
 	if err != nil {
 		return nil, err
 	}
+	return r.buildCourseDetail(ctx, db, courseID, access, includeDraft, includeOutline)
+}
+
+// loadCourseDetailForReviewer loads a course detail without the collaborator
+// access gate. Used only after an admin review decision has already been
+// committed (approve/reject): the reviewer is authorized by the review
+// permission on the route, is not a collaborator of the course, and the
+// collaborator check would otherwise turn a successful decision into a 403.
+// The returned CollaboratorRole is empty because the reviewer has no role on
+// the course.
+func (r *GormRepository) loadCourseDetailForReviewer(ctx context.Context, db *gorm.DB, courseID string, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
+	course, err := r.loadCourse(ctx, db, courseID)
+	if err != nil {
+		return nil, err
+	}
+	return r.buildCourseDetail(ctx, db, courseID, &courseAccess{courseRow: *course}, includeDraft, includeOutline)
+}
+
+func (r *GormRepository) buildCourseDetail(ctx context.Context, db *gorm.DB, courseID string, access *courseAccess, includeDraft bool, includeOutline bool) (*domain.CourseDetail, error) {
 	liveRow, draftRow, outlineVersionID, err := loadPublishedDraftVersionRows(ctx, r, db, access, includeDraft)
 	if err != nil {
 		return nil, err

@@ -12,6 +12,15 @@ type UserRepository interface {
 	Save(ctx context.Context, u *User) error
 	UpdateDisplayName(ctx context.Context, userID string, displayName string) error
 	UpdateAvatar(ctx context.Context, userID string, avatarFileID *string) error
+	// ChangeSlug replaces the user's slug with newSlug (already trimmed and
+	// format-validated) and returns the slug actually stored: a taken or
+	// reserved value is auto-suffixed, never an error. The previous slug is
+	// recorded in user_slug_history in the same transaction.
+	ChangeSlug(ctx context.Context, userID string, newSlug string) (string, error)
+	// BackfillMissingSlugs assigns a slug to every user whose slug is NULL
+	// (soft-deleted users included) in id-ordered batches and returns how many
+	// users were updated. Safe to run repeatedly.
+	BackfillMissingSlugs(ctx context.Context, batchSize int) (int, error)
 	SoftDelete(ctx context.Context, userID string) error
 	HardDelete(ctx context.Context, userID string) error
 }

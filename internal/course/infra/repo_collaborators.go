@@ -67,23 +67,10 @@ func sortCollaboratorSources(rows []collaboratorSourceRow) {
 	})
 }
 
-type collaboratorProfileScanRow struct {
-	UserID       string `gorm:"column:user_id"`
-	DisplayName  string `gorm:"column:display_name"`
-	Email        string `gorm:"column:email"`
-	AvatarFileID string `gorm:"column:avatar_file_id"`
-	AvatarURL    string `gorm:"column:avatar_url"`
-}
-
-const collaboratorProfileSelectSQL = `
-SELECT
-    u.id::text AS user_id,
-    COALESCE(u.display_name, '') AS display_name,
-    COALESCE(u.email, '') AS email,
-    COALESCE(u.avatar_file_id::text, '') AS avatar_file_id,
-    COALESCE(m.url, '') AS avatar_url
-FROM users u
-LEFT JOIN media_files m ON m.id = u.avatar_file_id AND m.deleted_at IS NULL
+// collaboratorProfileSelectSQL reuses the shared user + avatar picker projection
+// (userpicker.UserPickerSelectSQL) instead of re-typing the same columns and
+// media join, then scopes it to the requested active users.
+var collaboratorProfileSelectSQL = userpicker.UserPickerSelectSQL(constants.TableAppUsers) + `
 WHERE u.deleted_at IS NULL AND u.id IN @user_ids`
 
 // loadCollaboratorProfiles resolves display profiles for sources (already ordered
@@ -117,11 +104,11 @@ func (r *GormRepository) loadCollaboratorProfiles(
 	for k, v := range searchArgs {
 		args[k] = v
 	}
-	var rows []collaboratorProfileScanRow
+	var rows []userpicker.Row
 	if err := db.WithContext(ctx).Raw(q, args).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	byUserID := make(map[string]collaboratorProfileScanRow, len(rows))
+	byUserID := make(map[string]userpicker.Row, len(rows))
 	for _, row := range rows {
 		byUserID[row.UserID] = row
 	}
@@ -134,6 +121,7 @@ func (r *GormRepository) loadCollaboratorProfiles(
 		out = append(out, domain.Collaborator{
 			UserID: row.UserID, Role: roleByUserID[row.UserID], DisplayName: row.DisplayName,
 			Email: row.Email, AvatarFileID: row.AvatarFileID, AvatarURL: row.AvatarURL,
+			Slug: row.Slug,
 		})
 	}
 	return out, nil
@@ -240,7 +228,7 @@ func (r *GormRepository) ListInstructorCandidates(ctx context.Context, courseID 
 	for i, row := range rows {
 		out[i] = domain.InstructorCandidate{
 			UserID: row.UserID, DisplayName: row.DisplayName, Email: row.Email,
-			AvatarFileID: row.AvatarFileID, AvatarURL: row.AvatarURL,
+			AvatarFileID: row.AvatarFileID, AvatarURL: row.AvatarURL, Slug: row.Slug,
 		}
 	}
 	return out, total, nil

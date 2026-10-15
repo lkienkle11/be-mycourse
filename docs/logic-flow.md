@@ -21,7 +21,8 @@
 11. Build router and serve HTTP.
 
 ## Auth Flow Logic
-- Register: validate input -> check uniqueness -> create user -> send confirmation email.
+- Register: validate input -> check uniqueness -> create user (slug auto-generated from display name through `internal/shared/slug`) -> send confirmation email.
+- Profile slug: `PATCH /me` changes `users.slug` only on explicit request; taken values are auto-suffixed, former slugs stay reserved, `/me` cache is invalidated.
 - Login: validate credentials -> read/cache checks -> issue access/refresh tokens -> persist session map.
 - Confirm: verify token -> transactionally confirm email + ensure learner role -> issue token pair.
 - Refresh: validate refresh token + session ownership -> rotate token/session and permissions.

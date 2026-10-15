@@ -6,7 +6,7 @@ import (
 	"mycourse-io-be/internal/course/domain"
 )
 
-// trendingCoursesQuery reuses courseListOwnerDisplayNameColumn/courseListOwnerUserJoin
+// trendingCoursesQuery reuses courseListOwnerColumns/courseListOwnerUserJoin
 // (repos.go) rather than re-typing an equivalent join, matching ListPublishedCourses's
 // query shape (repo_learner.go) but ordering by created_at instead of id (id is a
 // random UUID, not actually recency order) and adding the owner-name join +
@@ -15,7 +15,7 @@ const trendingCoursesQuery = `
 SELECT c.id, c.slug, c.created_at,
     pv.title, pv.short_description,
     COALESCE(pm.url, '') AS thumbnail_url,
-    ` + courseListOwnerDisplayNameColumn + `
+    ` + courseListOwnerColumns + `
 FROM courses c
 INNER JOIN course_versions pv
     ON pv.id = c.current_published_version_id AND pv.deleted_at IS NULL
@@ -34,6 +34,7 @@ type trendingCourseScanRow struct {
 	ShortDescription string `gorm:"column:short_description"`
 	ThumbnailURL     string `gorm:"column:thumbnail_url"`
 	OwnerDisplayName string `gorm:"column:owner_display_name"`
+	OwnerSlug        string `gorm:"column:owner_slug"`
 }
 
 func (row *trendingCourseScanRow) toDomain() domain.TrendingCourseItem {
@@ -44,6 +45,7 @@ func (row *trendingCourseScanRow) toDomain() domain.TrendingCourseItem {
 		ShortDescription: row.ShortDescription,
 		ThumbnailURL:     row.ThumbnailURL,
 		OwnerDisplayName: row.OwnerDisplayName,
+		OwnerSlug:        row.OwnerSlug,
 		CreatedAt:        row.CreatedAt,
 	}
 }

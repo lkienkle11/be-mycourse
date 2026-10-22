@@ -1,6 +1,6 @@
-# Database Schema
+# Data Model
 
-PostgreSQL schema for **be-mycourse**, managed with **golang-migrate** (`migrations/*.sql`, embedded via `migrations/embed.go`).
+PostgreSQL schema for **be-mycourse**, managed with **golang-migrate** (`migrations/*.sql`, embedded via `migrations/embed.go`). See `migrations/README.md` for migration conventions (semicolon splitting, `COMMENT` rules, rollback).
 
 Run pending migrations:
 
@@ -14,7 +14,28 @@ Rollback by specific migration file (down):
 MIGRATE=2 MIGRATE_VERSION_FILE=000016_course_management.down.sql go run .
 ```
 
-See `migrations/README.md` for migration conventions (semicolon splitting, `COMMENT` rules, rollback).
+## Table of Contents
+
+- [PostgreSQL schema (`SCHEMA_NAME_APP`)](#postgresql-schema-schema_name_app)
+- [GORM SQL console logging](#gorm-sql-console-logging)
+- [Code ↔ table names](#code--table-names)
+- [Entity relationship overview](#entity-relationship-overview)
+- [PostgreSQL types](#postgresql-types)
+- [RBAC tables](#rbac-tables)
+- [Effective permissions](#effective-permissions)
+- [Application users](#application-users)
+- [Taxonomy](#taxonomy)
+- [Media](#media)
+- [System tables](#system-tables)
+- [Instructor management tables](#instructor-management-tables-000013--feature-000029--000033)
+- [Authorization tables](#authorization-tables-000034-000037)
+- [Course management tables](#course-management-tables-000016)
+- [RBAC sync commands](#rbac-sync-commands)
+- [Migration history](#migration-history)
+- [Drop all tables (manual reset)](#drop-all-tables-manual-reset)
+- [Appendix: Permission Catalog](#appendix-permission-catalog)
+
+---
 
 ## PostgreSQL schema (`SCHEMA_NAME_APP`)
 
@@ -74,40 +95,7 @@ All PostgreSQL relation names are defined once in **`internal/shared/constants/d
 | `TableSystemAppConfig` | `system_app_config` |
 | `TableSystemPrivilegedUsers` | `system_privileged_users` |
 
-GORM row models live under each bounded context’s `infra` package (for example `internal/auth/infra/user_model.go`, `internal/media/infra/repos.go`).
-
-## Table of Contents
-
-- [Entity relationship overview](#entity-relationship-overview)
-- [PostgreSQL types](#postgresql-types)
-- [RBAC tables](#rbac-tables)
-  - [`permissions`](#permissions)
-  - [`roles`](#roles)
-  - [`role_permissions`](#role_permissions)
-  - [`user_roles`](#user_roles)
-  - [`user_permissions`](#user_permissions)
-  - [Permission catalog (P1–P40)](#permission-catalog-p1p40)
-  - [Default role ↔ permission matrix](#default-role--permission-matrix)
-- [Application users](#application-users)
-  - [`users`](#users)
-  - [`user_oauth_identities`](#user_oauth_identities)
-  - [`user_slug_history`](#user_slug_history)
-- [Taxonomy](#taxonomy)
-  - [Locale rules (BCP47)](#locale-rules-bcp47)
-  - [`course_levels`](#course_levels)
-  - [`course_topics`](#course_topics)
-  - [`course_outcomes`](#course_outcomes)
-  - [`course_skills`](#course_skills)
-  - [`tags`](#tags)
-  - [Translation tables](#translation-tables)
-- [Media](#media)
-  - [`media_files`](#media_files)
-  - [`media_pending_cloud_cleanup`](#media_pending_cloud_cleanup)
-- [System tables](#system-tables)
-- [Effective permissions](#effective-permissions)
-- [RBAC sync commands](#rbac-sync-commands)
-- [Migration history](#migration-history)
-- [Drop all tables (manual reset)](#drop-all-tables-manual-reset)
+GORM row models live under each bounded context's `infra` package (for example `internal/auth/infra/user_model.go`, `internal/media/infra/repos.go`).
 
 ---
 
@@ -181,6 +169,8 @@ Flat permission catalog. Primary key is the stable catalog id (`permission_id`, 
 
 **GORM model:** `internal/rbac/infra/repos.go` (`permissionRow`), `internal/system/infra/repos.go` (`permissionSyncRow` for sync).
 
+> Full catalog (currently **P1–P68**) and the default role ↔ permission matrix are in the [Appendix: Permission Catalog](#appendix-permission-catalog), not interleaved here.
+
 ---
 
 ### `roles`
@@ -221,7 +211,7 @@ Many-to-many: users ↔ roles.
 | `user_id` | `UUID` | FK → `users(id)` ON DELETE CASCADE |
 | `role_id` | `BIGINT` | FK → `roles(id)` ON DELETE CASCADE |
 
-**Primary key:** `(user_id, role_id)`.  
+**Primary key:** `(user_id, role_id)`.
 **Index:** `idx_user_roles_user` on `user_id`.
 
 After email confirmation, the auth flow assigns the **`learner`** role (requires `000001` seed).
@@ -237,113 +227,21 @@ Direct permission grants (unioned with role permissions at login).
 | `user_id` | `UUID` | FK → `users(id)` ON DELETE CASCADE |
 | `permission_id` | `VARCHAR(10)` | FK → `permissions(permission_id)` ON DELETE CASCADE, ON UPDATE CASCADE |
 
-**Primary key:** `(user_id, permission_id)`.  
+**Primary key:** `(user_id, permission_id)`.
 **Index:** `idx_user_permissions_user` on `user_id`.
 
 ---
 
-### Permission catalog (P1–P40)
+## Effective permissions
 
-Canonical definitions: **`internal/shared/constants/permissions.go`** (`constants.AllPermissions`).  
-Reflection helper for sync: **`internal/system/application/catalog.go`** → `AllPermissionEntries()`.
+At login / token refresh, effective permissions = **union** of:
 
-| ID | `permission_name` | Domain |
-|----|-----------------|--------|
-| P1 | `profile:read` | Profile |
-| P2 | `profile:update` | Profile |
-| P3 | `profile:delete` | Profile |
-| P4 | `profile:create` | Profile |
-| P5 | `course:read` | Course |
-| P6 | `course:update` | Course |
-| P7 | `course:delete` | Course |
-| P8 | `course:create` | Course |
-| P9 | `course_instructor:read` | Course instructor |
-| P10 | `user:read` | User admin |
-| P11 | `user:update` | User admin |
-| P12 | `user:delete` | User admin |
-| P13 | `user:create` | User admin |
-| P14 | `course_level:read` | Taxonomy |
-| P15 | `course_level:create` | Taxonomy |
-| P16 | `course_level:update` | Taxonomy |
-| P17 | `course_level:delete` | Taxonomy |
-| P18 | `topic:read` | Taxonomy (course topics) |
-| P19 | `topic:create` | Taxonomy |
-| P20 | `topic:update` | Taxonomy |
-| P21 | `topic:delete` | Taxonomy |
-| P22 | `tag:read` | Taxonomy |
-| P23 | `tag:create` | Taxonomy |
-| P24 | `tag:update` | Taxonomy |
-| P25 | `tag:delete` | Taxonomy |
-| P26 | `media_file:read` | Media |
-| P27 | `media_file:create` | Media |
-| P28 | `media_file:update` | Media |
-| P29 | `media_file:delete` | Media |
-| P30 | `course_outcome:read` | Taxonomy |
-| P31 | `course_outcome:create` | Taxonomy |
-| P32 | `course_outcome:update` | Taxonomy |
-| P33 | `course_outcome:delete` | Taxonomy |
-| P34 | `course_skill:read` | Taxonomy |
-| P35 | `course_skill:create` | Taxonomy |
-| P36 | `course_skill:update` | Taxonomy |
-| P37 | `course_skill:delete` | Taxonomy |
-| P38 | `sysadmin:modify` | Role modify |
-| P39 | `admin:modify` | Role modify |
-| P40 | `instructor:modify` | Role modify |
-| P41 | `instructor_roster:read` | Instructor roster |
-| P42 | `instructor_roster:create` | Instructor roster |
-| P43 | `instructor_roster:delete` | Instructor roster |
-| P44 | `instructor_application:read` | Instructor application |
-| P45 | `instructor_application:create` | Instructor application |
-| P46 | `instructor_application:update` | Instructor application |
-| P47 | `instructor_application:delete` | Instructor application |
-| P48 | `instructor_application:approve` | Instructor application |
-| P49 | `instructor_application:reject` | Instructor application |
-| P50 | `instructor_profile:read` | Instructor profile |
-| P51 | `instructor_profile:create` | Instructor profile |
-| P52 | `instructor_profile:update` | Instructor profile |
-| P53 | `instructor_profile:delete` | Instructor profile |
-| P54 | `instructor_expertise:read` | Instructor expertise |
-| P55 | `instructor_expertise:create` | Instructor expertise |
-| P56 | `instructor_expertise:update` | Instructor expertise |
-| P57 | `instructor_expertise:delete` | Instructor expertise |
-| P58 | `instructor_ticket:close` | Instructor ticket |
-| P59 | `course_review:read` | Course review queue |
-| P60 | `course_review:approve` | Course review queue |
-| P61 | `course_review:reject` | Course review queue |
-| P62 | `course_catalog:read` | Sysadmin course catalog |
-| P63 | `course_catalog:trash` | Sysadmin course catalog |
-| P64 | `course_trash:read` | Course trash bin |
-| P65 | `course_trash:restore` | Course trash bin |
-| P66 | `course_trash:delete` | Course trash bin |
-| P67 | `course_collaborator_candidate:read` | Course collaborator picker |
-| P68 | `instructor_application:submit_blocked` | Blocks instructor application submit/resubmit |
+1. All `permission_name` values from permissions linked through the user's roles (`user_roles` → `role_permissions` → `permissions`), and
+2. Direct grants in `user_permissions`.
 
-- **P1–P13** are seeded in `000001_schema.up.sql`.
-- **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
-- **P26–P29** exist only in code until `go run ./cmd/syncpermissions` (or first deploy sync) inserts them.
-- **P18–P21** names are updated to `topic:*` in `000009_taxonomy_topics_outcomes_skills`.
-- **P30–P37** are inserted in `000009` and granted to sysadmin/admin (full CRUD) and instructor/learner (read only).
-- **P38–P40** are inserted in `000010_role_modify_permissions` and granted by role tier: sysadmin → P38–P40, admin → P39–P40, instructor → P40 only.
-- **P41–P58** are inserted in **`000013_instructor_management`** (instructor roster, applications, profiles, expertise, ticket close). Migration also seeds role grants; keep **`roles_permission.go`** in sync and run **`go run ./cmd/syncpermissions`** + **`go run ./cmd/syncrolepermissions`** after code changes.
-- **P59–P66** are inserted in **`000024_course_admin_permissions`** (course review queue, catalog, trash). Granted to **sysadmin** and **admin** only.
-- **P67** is inserted in **`000027_course_collaborator_candidate_permission`**. Granted to **sysadmin**, **admin**, and **instructor** (picker for course owners). Migration **`000028_admin_collaborator_candidate_permission`** backfills **admin** if `000027` ran before admin was included.
-- **P68** is inserted in **`000029_instructor_application_feature`**. Granted to **instructor** role by default. May also be assigned per-user via `user_permissions` when reject quota is reached (application layer, BE-04).
+The access token `permissions` claim contains **`permission_name`** strings (e.g. `course:read`). `middleware.RequirePermission` checks the same strings from `constants.AllPermissions`.
 
----
-
-### Default role ↔ permission matrix
-
-Source of truth for role grants: **`internal/system/application/roles_permission.go`** (`RolePermissions` struct tags).  
-Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
-
-| Role | Permission IDs (summary) |
-|------|--------------------------|
-| **sysadmin** | P1–P67 (full catalog except **P68** — submit block is instructor-only negative flag) |
-| **admin** | P1–P8, P10–P68 except **P9** `course_instructor:read`, **P38** `sysadmin:modify`, and **P68** `instructor_application:submit_blocked` |
-| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, **P26–P29** (full media CRUD), P30, P34, P40, **P45, P47, P49, P55–P58, P67, P68** |
-| **learner** | P1, P5, P10, P14, P18, P22, **P26–P29** (full media CRUD), P30, P34, **P45** (submit application / create ticket) |
-
-`000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.
+Disabled users (`is_disable = true`) and actively banned users (`banned_until > now()`) must not receive new tokens or `/me` responses (enforced in auth application via `checkUserAccessible`). Soft-deleted users (`deleted_at IS NOT NULL`) are excluded from active lookups.
 
 ---
 
@@ -428,10 +326,10 @@ External OAuth/OIDC identities (Google, X, Discord) linked to app users. Created
 - `idx_oauth_identities_user_id` on `user_id`.
 - `idx_oauth_identities_provider_email` — partial index on `(provider, lower(provider_email))` where `provider_email IS NOT NULL`.
 
-**GORM model:** `internal/auth/infra/oauth_identity_model.go` (`oauthIdentityRow`).  
+**GORM model:** `internal/auth/infra/oauth_identity_model.go` (`oauthIdentityRow`).
 **Domain type:** `internal/auth/domain/oauth_identity.go` (`UserOAuthIdentity`, `OAuthProvider`, OAuth login channels).
 
-Merge/login semantics and `password_set_at` behavior: **`docs/modules/auth.md`** (Social sign-in).
+Merge/login semantics and `password_set_at` behavior: see the `auth` entry in `docs/FEATURES.md` (Social sign-in).
 
 ---
 
@@ -468,7 +366,7 @@ Created in **`000002_taxonomy_domain`**. Media FKs added in **`000006_taxonomy_u
 - Default / backfill locale: **`en`**.
 - Course/instructor FK tables stay ID-only (no schema change).
 
-API contract: **`docs/modules/taxonomy.md`**.
+API contract: the `taxonomy` entry in `docs/FEATURES.md`.
 
 ### Locale rules (BCP47)
 
@@ -671,7 +569,7 @@ Created in **`000032`** (shipped in source; apply on deploy). Common rules: `id 
 
 ## Media
 
-API contract: **`docs/modules/media.md`**.
+API contract: the `media` entry in `docs/FEATURES.md`.
 
 ### `media_files`
 
@@ -711,7 +609,7 @@ Product media (R2 files, Bunny Stream videos, local signed URLs, etc.).
 
 **Indexes:** `idx_media_files_kind`, `idx_media_files_provider`, `idx_media_files_bunny_video_id`, `idx_media_files_created_at`, `idx_media_files_metadata_json_gin` (GIN on `metadata_json`, migration `000008`), `idx_media_files_user_id`, `idx_media_files_visibility` (migration `000030`).
 
-**GORM model:** `internal/media/infra/repos.go` (`mediaFileRow`).  
+**GORM model:** `internal/media/infra/repos.go` (`mediaFileRow`).
 **Domain entity:** `internal/media/domain/media.go` (`File`, `MediaFile`).
 
 #### `metadata_json` (server-side)
@@ -790,80 +688,6 @@ Privileged system operators. Username/password are stored as HMAC-hex derived wi
 **Index:** `uix_system_privileged_users_username_secret`.
 
 **GORM model:** `internal/system/infra/repos.go` (`privilegedUserRow`).
-
----
-
-## Effective permissions
-
-At login / token refresh, effective permissions = **union** of:
-
-1. All `permission_name` values from permissions linked through the user’s roles (`user_roles` → `role_permissions` → `permissions`), and  
-2. Direct grants in `user_permissions`.
-
-The access token `permissions` claim contains **`permission_name`** strings (e.g. `course:read`). `middleware.RequirePermission` checks the same strings from `constants.AllPermissions`.
-
-Disabled users (`is_disable = true`) and actively banned users (`banned_until > now()`) must not receive new tokens or `/me` responses (enforced in auth application via `checkUserAccessible`). Soft-deleted users (`deleted_at IS NOT NULL`) are excluded from active lookups.
-
----
-
-## RBAC sync commands
-
-| Command | Purpose |
-|---------|---------|
-| `go run ./cmd/syncpermissions` | Upsert `permissions` rows from `application.AllPermissionEntries()` by `permission_id`. Updates `permission_name` for known ids; inserts missing rows (**P26–P29**, future catalog entries). Rows only in DB are **left unchanged**. |
-| `go run ./cmd/syncrolepermissions` | Rebuild `role_permissions` from `application.AllRolePermissionPairs()` (reflects `RolePermissions` tags). |
-
-Run both after changing `constants/permissions.go` or `roles_permission.go` on environments that already have data.
-
----
-
-## Migration history
-
-| Version | File | Description |
-|---------|------|-------------|
-| 000001 | `schema` | `permissions`, `roles`, `role_permissions`, `users` (+ `refresh_token_session`, legacy `avatar_url`), `user_roles`, `user_permissions`; seed P1–P13, four roles, role matrix for P1–P13; `system_app_config`, `system_privileged_users` |
-| 000002 | `taxonomy_domain` | Enum `taxonomy_status`; tables `course_levels`, `categories`, `tags`; seed P14–P25 |
-| 000003 | `media_metadata` | Table `media_files` + indexes |
-| 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; table `media_pending_cloud_cleanup` |
-| 000005 | `media_bunny_response_fields` | `media_files.video_id`, `thumbnail_url`, `embeded_html` |
-| 000006 | `taxonomy_user_media_refs` | `categories.image_file_id`, `users.avatar_file_id` (FK → `media_files`); backfill from legacy URLs; drop `image_url`, `avatar_url` |
-| 000007 | `registration_email_limits` | `users.registration_email_send_total` + column `COMMENT` (no `;` inside comment text — migrate splits on `;`) |
-| 000008 | `media_metadata_json_storage` | Ensure `metadata_json` NOT NULL default `{}`, backfill typed metadata keys, GIN index `idx_media_files_metadata_json_gin` |
-| 000009 | `taxonomy_topics_outcomes_skills` | Rename `categories` → `course_topics` + `child_topics` JSONB, tables `course_outcomes` / `course_skills`, P18–P21 → `topic:*`, seed P30–P37 |
-| 000010 | `role_modify_permissions` | Seed P38–P40 role-modify permissions and role matrix |
-| 000011 | `audit_timestamps_bigint` | `DROP DEFAULT` → convert audit columns to `BIGINT` Unix seconds (`USING EXTRACT(EPOCH…)`) → `SET DEFAULT` bigint epoch on all affected tables |
-| 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
-| 000013 | `instructor_management` | `users.phone`; tables `instructor_applications`, `instructor_profiles`, `instructor_expertise_topics`, `instructor_expertise_skills`, `instructor_tickets`, `instructor_ticket_messages`; seed P41–P58 + role grants |
-| 000014 | `system_user_machine_binding` | `system_privileged_users.machine_secret` — CLI machine binding; existing rows default `''` (re-register after deploy) |
-| 000015 | `instructor_expertise_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on expertise junctions, ensure `topic_id` / `skill_id`, backfill from legacy `course_topic_id` / `course_skill_id` when present, then recreate active-only unique indexes (`WHERE deleted_at IS NULL`). Does **not** drop legacy columns — follow with `000017` on drifted DBs. Down path restores non-partial unique indexes and drops `deleted_at`. |
-| 000016 | `course_management` | Tables `courses`, `course_versions`, collaborator membership, version-scoped outline rows, sub-lesson payload tables, edit leases, learner enrollments, and stable-id progress records |
-| 000017 | `instructor_expertise_drop_legacy_fk_cols` | Finalizes expertise junction schema on drifted DBs: backfills `topic_id` / `skill_id`, drops legacy `course_topic_id` / `course_skill_id`, sets canonical columns NOT NULL, and adds FK constraints on `topic_id` / `skill_id`. Required after `000015` on environments that still enforce NOT NULL on legacy columns. |
-| 000018 | `instructor_tickets_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on `instructor_tickets` and `instructor_ticket_messages`, rebuild partial status index. Required when GET `/api/v1/instructor-tickets` fails with `column "deleted_at" does not exist`. |
-| 000019 | `instructor_profiles_apps_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on profiles/applications; add `id` PK column on `instructor_profiles` when drifted DB uses `user_id` PK only. Required when GET `/api/v1/instructor-profiles/:id` fails with `column ip.id does not exist`. |
-| 000020 | `course_version_row_version_backfill` | Backfill `course_versions.row_version` from `0` to `1` for legacy rows where GORM inserted the Go zero value instead of relying on the column `DEFAULT 1`. Required so `PATCH /api/v1/courses/:id/basic-info` accepts `expected_row_version >= 1`. |
-| 000021 | `media_bunny_delivery_urls` | `media_files.direct_play_url`, `hls_playlist_url`, `preview_animation_url` |
-| 000022 | `course_sub_lesson_estimated_duration` | `course_sub_lessons.estimated_duration_ms` |
-| 000023 | `course_trash` | `courses.trashed_at` — soft trash before permanent delete; trashed courses excluded from edit/learn/catalog |
-| 000024 | `course_admin_permissions` | Seed P59–P66 (course review, catalog, trash) + sysadmin/admin grants |
-| 000027 | `course_collaborator_candidate_permission` | Seed P67 `course_collaborator_candidate:read` + sysadmin/admin/instructor grants |
-| 000028 | `admin_collaborator_candidate_permission` | Backfill P67 grant for **admin** when `000027` ran without admin |
-| 000029 | `instructor_application_feature` | Application state machine columns, company snapshot columns, `years_of_experience` enum codes, application expertise junction tables, seed P68 + instructor grant |
-| 000031 | `user_oauth_identities` | `users.password_set_at` (`TIMESTAMPTZ NULL`) + backfill (`password_set_at = to_timestamp(created_at)` where `email_confirmed` and `hash_password IS NOT NULL`); table `user_oauth_identities` (BIGINT-epoch time columns) with `uix_oauth_provider_sub`, `idx_oauth_identities_user_id`, partial `idx_oauth_identities_provider_email` |
-| 000032 | `taxonomy_translations_row_version` | Five `*_translations` tables + `locale='en'` backfill from canonical columns; JSONB tree patch ensuring `translations.en.name` on `child_topics`/`children` (**fail-fast** on non-array / invalid nodes via `LANGUAGE sql` recursive helper — **no** `plpgsql`/`DO $$`, because golang-migrate splits on `;`); `row_version BIGINT NOT NULL DEFAULT 1` on five taxonomy roots (backfill existing = 1, mirror `000020`). Shipped in source — apply before localized taxonomy traffic. |
-| 000033 | `teaching_content_ideas` | `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on `instructor_applications` and `instructor_profiles` (required 50–500 Unicode code points on submit; approve copies with profile snapshot) |
-| 000034 | `authorization_base` | DDL-only shared authorization base: `authorization_actions`, `authorization_grants`, `authorization_role_actions`, and `authorization_role_bindings`; no provider actions, roles, bindings, grants, or Course collaborators are seeded/backfilled |
-| 000035 | `authorization_role_binding_wildcard` | `CHECK` constraint on `authorization_role_bindings.resource_id` enforcing the reserved wildcard sentinel `'*'` (meaning "every resource of this binding's `resource_type`") or a UUID-shaped string — no schema change beyond the constraint |
-| 000036 | `backfill_course_collaborator_role_bindings` | One-time, dev-only backfill: one `authorization_role_bindings` row per active EDITOR `course_collaborators` row (OWNER-role rows excluded — owner access is synthesized from `courses.owner_user_id`, never a stored binding) |
-| 000037 | `drop_course_collaborators` | Drops `course_collaborators` once Course fully moved onto the role gate (reads, writes, and the legacy data importer) — see `openspec/changes/replace-course-collaborator-with-role-gate` |
-| 000038 | `home_catalog_indexes` | Index-only, no schema change: `idx_courses_published_created_at`, `idx_courses_owner_published_created_at`, `idx_course_enrollments_user_active` — for the public trending-courses/popular-instructors catalog and continue-learning endpoints, see `openspec/changes/add-home-catalog-apis` |
-| 000039 | `backfill_course_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `courses.slug` value that would violate the new format check (idempotent; no-op `down.sql` — original non-conforming values are not recoverable), see `openspec/changes/rework-course-slug-management` |
-| 000040 | `course_slug_check_constraint` | Adds `chk_courses_slug_format` CHECK constraint on `courses.slug` (`slug <> '' AND slug ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`); `uix_courses_slug_active`/`NOT NULL` unchanged, see `openspec/changes/rework-course-slug-management` |
-| 000041 | `backfill_taxonomy_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `course_levels.slug`/`course_topics.slug`/`course_skills.slug`/`tags.slug` value that would violate the new format check, scanning **all** rows including soft-deleted (idempotent; no-op `down.sql`), see `openspec/changes/unify-taxonomy-slug-management` |
-| 000042 | `taxonomy_slug_check_constraints` | Adds `chk_course_levels_slug_format`, `chk_course_topics_slug_format`, `chk_course_skills_slug_format`, `chk_tags_slug_format` CHECK constraints (same regex as `chk_courses_slug_format`); existing `uix_*_slug_active`/`NOT NULL` unchanged, see `openspec/changes/unify-taxonomy-slug-management` |
-| 000043 | `user_slug` | Adds nullable `users.slug`, `chk_users_slug_format` (NULL allowed), partial unique `uix_users_slug_active` (`WHERE deleted_at IS NULL`), and table `user_slug_history` (`uq_user_slug_history_slug`, `idx_user_slug_history_user_id`, FK ON DELETE CASCADE). Release 1: populate existing rows with `CLI_BACKFILL_USER_SLUGS=1` |
-| 000044 | `user_slug_not_null` | `users.slug SET NOT NULL`. Release 2: apply only after the backfill reports zero NULL slugs |
-
-`schema_migrations.version` (golang-migrate) stores the applied version integer.
 
 ---
 
@@ -956,7 +780,7 @@ Same inline profile shape as applications (including company snapshot columns fr
 | `instructor_tickets` | `subject`, `status` (`open` / `closed`) |
 | `instructor_ticket_messages` | `author_user_id`, `body` |
 
-API and RBAC: **`docs/modules/instructor.md`**.
+API and RBAC: the `instructor` entry in `docs/FEATURES.md`.
 
 ---
 
@@ -967,22 +791,22 @@ API and RBAC: **`docs/modules/instructor.md`**.
 | `authorization_actions` | Startup-synchronized scoped-action catalog. Composite identity `(action_name, resource_type)` maps each action to an existing global RBAC `boundary_permission`. Currently holds Course's 9 `resource_type = "course"` actions, synced at startup by `GrantService.SyncActions`. |
 | `authorization_grants` | Generic resource-scoped ALLOW/DENY policy statements for users. `resource_id` is a string; domain providers validate resource existence and lifecycle cleanup. `Grant()` is append-only, so multiple statements may share the same principal/action/resource/effect tuple and differ by conditions or validity windows. Expired statements remain unrevoked history; `revoked_at` records explicit revocation. Non-unique decision/resource indexes support evaluation and cleanup. Currently empty (no direct per-action grants written yet; Course uses role bindings, not this table). |
 | `authorization_role_actions` | Resource-type role definitions: each `(role_name, resource_type)` maps to registered action names. Seeded at startup from each `PolicyProvider`'s declared mapping (`GrantRepository.SyncRoleActions`) — Course seeds OWNER (all 9 actions) and EDITOR (5 "any active collaborator" actions) for `resource_type = "course"`. |
-| `authorization_role_bindings` | Revocable user/role/resource-instance bindings. `resource_id` may be a concrete resource id or the wildcard sentinel `'*'` (migration `000035`, meaning every resource of that `resource_type`). Holds Course's active EDITOR collaborator bindings, written by `RoleBindingService.Assign`/`Revoke` (`internal/course/infra`'s bulk-add/remove flows) — see `docs/modules/course.md`. |
+| `authorization_role_bindings` | Revocable user/role/resource-instance bindings. `resource_id` may be a concrete resource id or the wildcard sentinel `'*'` (migration `000035`, meaning every resource of that `resource_type`). Holds Course's active EDITOR collaborator bindings, written by `RoleBindingService.Assign`/`Revoke` (`internal/course/infra`'s bulk-add/remove flows) — see the `course` entry in `docs/FEATURES.md`. |
 
-The grant and role-binding tables have no polymorphic FK to domain resources; each domain provider validates resource existence and defines resource-lifecycle cleanup (`GrantService.RevokeResource`/`RoleBindingService.RevokeResource`) itself. Course is the first registered `PolicyProvider` and the first writer of `authorization_role_bindings`/`authorization_role_actions`; `authorization_grants` remains unused so far. See [`docs/modules/authorization.md`](modules/authorization.md).
+The grant and role-binding tables have no polymorphic FK to domain resources; each domain provider validates resource existence and defines resource-lifecycle cleanup (`GrantService.RevokeResource`/`RoleBindingService.RevokeResource`) itself. Course is the first registered `PolicyProvider` and the first writer of `authorization_role_bindings`/`authorization_role_actions`; `authorization_grants` remains unused so far. See the `authorization` entry in `docs/FEATURES.md`.
 
 ---
 
 ## Course management tables (`000016`)
 
 | Table | Notes |
-|-------|--------|
+|-------|-------|
 | `courses` | Stable course root; owner, slug, current published version, current draft version, `trashed_at` (nullable — in trash when set) |
 | `course_versions` | Versioned course snapshots with status `DRAFT`, `IN_REVIEW`, `APPROVED`, `REJECTED` and `row_version` for optimistic locking |
 | `course_version_tags` | Active tag links for one version |
 | `course_version_skills` | Active course-skill links for one version |
 | `course_version_outcomes` | Active course-outcome links for one version |
-| ~~`course_collaborators`~~ | **Dropped by migration `000037`.** Course membership for business roles `OWNER`/`EDITOR` now lives in `authorization_role_bindings` (see "Authorization tables" above and `docs/modules/authorization.md`); the owner is synthesized from `courses.owner_user_id`, never a stored row. |
+| ~~`course_collaborators`~~ | **Dropped by migration `000037`.** Course membership for business roles `OWNER`/`EDITOR` now lives in `authorization_role_bindings` (see "Authorization tables" above and the `authorization` entry in `docs/FEATURES.md`); the owner is synthesized from `courses.owner_user_id`, never a stored row. |
 | `course_sections` | Version-scoped sections; stable business id + sortable `order_index` + `row_version` |
 | `course_lessons` | Version-scoped lessons under a section; stable business id + sortable `order_index` + `row_version` |
 | `course_sub_lessons` | Version-scoped lesson items under a lesson; stable business id, kind, preview flag, `estimated_duration_ms` (TEXT/QUIZ user estimate in ms; VIDEO stores 0 and resolves from `media_files.duration` on read), sortable `order_index`, `row_version` |
@@ -1014,7 +838,68 @@ The grant and role-binding tables have no polymorphic FK to domain resources; ea
 
 **Migration `000038` (index-only, no schema change):** adds `idx_courses_published_created_at` (`courses.created_at DESC`, partial: published/non-trashed), `idx_courses_owner_published_created_at` (`courses.owner_user_id, created_at DESC`, same partial filter), and `idx_course_enrollments_user_active` (`course_enrollments.user_id`, partial: `deleted_at IS NULL`) — for the public trending-courses/popular-instructors catalog and the continue-learning endpoint (`openspec/changes/add-home-catalog-apis`).
 
-API and module behavior: **`docs/modules/course.md`**.
+API and module behavior: the `course` entry in `docs/FEATURES.md`.
+
+---
+
+## RBAC sync commands
+
+| Command | Purpose |
+|---------|---------|
+| `go run ./cmd/syncpermissions` | Upsert `permissions` rows from `application.AllPermissionEntries()` by `permission_id`. Updates `permission_name` for known ids; inserts missing rows (**P26–P29**, future catalog entries). Rows only in DB are **left unchanged**. |
+| `go run ./cmd/syncrolepermissions` | Rebuild `role_permissions` from `application.AllRolePermissionPairs()` (reflects `RolePermissions` tags). |
+
+Run both after changing `constants/permissions.go` or `roles_permission.go` on environments that already have data.
+
+---
+
+## Migration history
+
+| Version | File | Description |
+|---------|------|--------------|
+| 000001 | `schema` | `permissions`, `roles`, `role_permissions`, `users` (+ `refresh_token_session`, legacy `avatar_url`), `user_roles`, `user_permissions`; seed P1–P13, four roles, role matrix for P1–P13; `system_app_config`, `system_privileged_users` |
+| 000002 | `taxonomy_domain` | Enum `taxonomy_status`; tables `course_levels`, `categories`, `tags`; seed P14–P25 |
+| 000003 | `media_metadata` | Table `media_files` + indexes |
+| 000004 | `media_orphan_safety` | `media_files.row_version`, `content_fingerprint`; table `media_pending_cloud_cleanup` |
+| 000005 | `media_bunny_response_fields` | `media_files.video_id`, `thumbnail_url`, `embeded_html` |
+| 000006 | `taxonomy_user_media_refs` | `categories.image_file_id`, `users.avatar_file_id` (FK → `media_files`); backfill from legacy URLs; drop `image_url`, `avatar_url` |
+| 000007 | `registration_email_limits` | `users.registration_email_send_total` + column `COMMENT` (no `;` inside comment text — migrate splits on `;`) |
+| 000008 | `media_metadata_json_storage` | Ensure `metadata_json` NOT NULL default `{}`, backfill typed metadata keys, GIN index `idx_media_files_metadata_json_gin` |
+| 000009 | `taxonomy_topics_outcomes_skills` | Rename `categories` → `course_topics` + `child_topics` JSONB, tables `course_outcomes` / `course_skills`, P18–P21 → `topic:*`, seed P30–P37 |
+| 000010 | `role_modify_permissions` | Seed P38–P40 role-modify permissions and role matrix |
+| 000011 | `audit_timestamps_bigint` | `DROP DEFAULT` → convert audit columns to `BIGINT` Unix seconds (`USING EXTRACT(EPOCH…)`) → `SET DEFAULT` bigint epoch on all affected tables |
+| 000012 | `soft_delete_taxonomy_users_ban` | `deleted_at` on taxonomy tables + partial unique slug indexes; `users.banned_until` |
+| 000013 | `instructor_management` | `users.phone`; tables `instructor_applications`, `instructor_profiles`, `instructor_expertise_topics`, `instructor_expertise_skills`, `instructor_tickets`, `instructor_ticket_messages`; seed P41–P58 + role grants |
+| 000014 | `system_user_machine_binding` | `system_privileged_users.machine_secret` — CLI machine binding; existing rows default `''` (re-register after deploy) |
+| 000015 | `instructor_expertise_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on expertise junctions, ensure `topic_id` / `skill_id`, backfill from legacy `course_topic_id` / `course_skill_id` when present, then recreate active-only unique indexes (`WHERE deleted_at IS NULL`). Does **not** drop legacy columns — follow with `000017` on drifted DBs. Down path restores non-partial unique indexes and drops `deleted_at`. |
+| 000016 | `course_management` | Tables `courses`, `course_versions`, collaborator membership, version-scoped outline rows, sub-lesson payload tables, edit leases, learner enrollments, and stable-id progress records |
+| 000017 | `instructor_expertise_drop_legacy_fk_cols` | Finalizes expertise junction schema on drifted DBs: backfills `topic_id` / `skill_id`, drops legacy `course_topic_id` / `course_skill_id`, sets canonical columns NOT NULL, and adds FK constraints on `topic_id` / `skill_id`. Required after `000015` on environments that still enforce NOT NULL on legacy columns. |
+| 000018 | `instructor_tickets_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on `instructor_tickets` and `instructor_ticket_messages`, rebuild partial status index. Required when GET `/api/v1/instructor-tickets` fails with `column "deleted_at" does not exist`. |
+| 000019 | `instructor_profiles_apps_soft_delete_compat` | Drift-safe compatibility migration: ensure `deleted_at` on profiles/applications; add `id` PK column on `instructor_profiles` when drifted DB uses `user_id` PK only. Required when GET `/api/v1/instructor-profiles/:id` fails with `column ip.id does not exist`. |
+| 000020 | `course_version_row_version_backfill` | Backfill `course_versions.row_version` from `0` to `1` for legacy rows where GORM inserted the Go zero value instead of relying on the column `DEFAULT 1`. Required so `PATCH /api/v1/courses/:id/basic-info` accepts `expected_row_version >= 1`. |
+| 000021 | `media_bunny_delivery_urls` | `media_files.direct_play_url`, `hls_playlist_url`, `preview_animation_url` |
+| 000022 | `course_sub_lesson_estimated_duration` | `course_sub_lessons.estimated_duration_ms` |
+| 000023 | `course_trash` | `courses.trashed_at` — soft trash before permanent delete; trashed courses excluded from edit/learn/catalog |
+| 000024 | `course_admin_permissions` | Seed P59–P66 (course review, catalog, trash) + sysadmin/admin grants |
+| 000027 | `course_collaborator_candidate_permission` | Seed P67 `course_collaborator_candidate:read` + sysadmin/admin/instructor grants |
+| 000028 | `admin_collaborator_candidate_permission` | Backfill P67 grant for **admin** when `000027` ran without admin |
+| 000029 | `instructor_application_feature` | Application state machine columns, company snapshot columns, `years_of_experience` enum codes, application expertise junction tables, seed P68 + instructor grant |
+| 000031 | `user_oauth_identities` | `users.password_set_at` (`TIMESTAMPTZ NULL`) + backfill (`password_set_at = to_timestamp(created_at)` where `email_confirmed` and `hash_password IS NOT NULL`); table `user_oauth_identities` (BIGINT-epoch time columns) with `uix_oauth_provider_sub`, `idx_oauth_identities_user_id`, partial `idx_oauth_identities_provider_email` |
+| 000032 | `taxonomy_translations_row_version` | Five `*_translations` tables + `locale='en'` backfill from canonical columns; JSONB tree patch ensuring `translations.en.name` on `child_topics`/`children` (**fail-fast** on non-array / invalid nodes via `LANGUAGE sql` recursive helper — **no** `plpgsql`/`DO $$`, because golang-migrate splits on `;`); `row_version BIGINT NOT NULL DEFAULT 1` on five taxonomy roots (backfill existing = 1, mirror `000020`). Shipped in source — apply before localized taxonomy traffic. |
+| 000033 | `teaching_content_ideas` | `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on `instructor_applications` and `instructor_profiles` (required 50–500 Unicode code points on submit; approve copies with profile snapshot) |
+| 000034 | `authorization_base` | DDL-only shared authorization base: `authorization_actions`, `authorization_grants`, `authorization_role_actions`, and `authorization_role_bindings`; no provider actions, roles, bindings, grants, or Course collaborators are seeded/backfilled |
+| 000035 | `authorization_role_binding_wildcard` | `CHECK` constraint on `authorization_role_bindings.resource_id` enforcing the reserved wildcard sentinel `'*'` (meaning "every resource of this binding's `resource_type`") or a UUID-shaped string — no schema change beyond the constraint |
+| 000036 | `backfill_course_collaborator_role_bindings` | One-time, dev-only backfill: one `authorization_role_bindings` row per active EDITOR `course_collaborators` row (OWNER-role rows excluded — owner access is synthesized from `courses.owner_user_id`, never a stored binding) |
+| 000037 | `drop_course_collaborators` | Drops `course_collaborators` once Course fully moved onto the role gate (reads, writes, and the legacy data importer) — see `openspec/changes/replace-course-collaborator-with-role-gate` |
+| 000038 | `home_catalog_indexes` | Index-only, no schema change: `idx_courses_published_created_at`, `idx_courses_owner_published_created_at`, `idx_course_enrollments_user_active` — for the public trending-courses/popular-instructors catalog and continue-learning endpoints, see `openspec/changes/add-home-catalog-apis` |
+| 000039 | `backfill_course_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `courses.slug` value that would violate the new format check (idempotent; no-op `down.sql` — original non-conforming values are not recoverable), see `openspec/changes/rework-course-slug-management` |
+| 000040 | `course_slug_check_constraint` | Adds `chk_courses_slug_format` CHECK constraint on `courses.slug` (`slug <> '' AND slug ~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'`); `uix_courses_slug_active`/`NOT NULL` unchanged, see `openspec/changes/rework-course-slug-management` |
+| 000041 | `backfill_taxonomy_slug_ascii` | Data-only, no schema change: regenerates any pre-existing `course_levels.slug`/`course_topics.slug`/`course_skills.slug`/`tags.slug` value that would violate the new format check, scanning **all** rows including soft-deleted (idempotent; no-op `down.sql`), see `openspec/changes/unify-taxonomy-slug-management` |
+| 000042 | `taxonomy_slug_check_constraints` | Adds `chk_course_levels_slug_format`, `chk_course_topics_slug_format`, `chk_course_skills_slug_format`, `chk_tags_slug_format` CHECK constraints (same regex as `chk_courses_slug_format`); existing `uix_*_slug_active`/`NOT NULL` unchanged, see `openspec/changes/unify-taxonomy-slug-management` |
+| 000043 | `user_slug` | Adds nullable `users.slug`, `chk_users_slug_format` (NULL allowed), partial unique `uix_users_slug_active` (`WHERE deleted_at IS NULL`), and table `user_slug_history` (`uq_user_slug_history_slug`, `idx_user_slug_history_user_id`, FK ON DELETE CASCADE). Release 1: populate existing rows with `CLI_BACKFILL_USER_SLUGS=1` |
+| 000044 | `user_slug_not_null` | `users.slug SET NOT NULL`. Release 2: apply only after the backfill reports zero NULL slugs |
+
+`schema_migrations.version` (golang-migrate) stores the applied version integer.
 
 ---
 
@@ -1059,3 +944,112 @@ DROP TYPE IF EXISTS public.taxonomy_status;
 When adding a **new table** in a migration, insert `DROP TABLE IF EXISTS public.<name>;` in this list before any table it references.
 
 **Automated tests:** DB integration tests live under repository root **`tests/`** (see `tests/README.md`).
+
+---
+
+## Appendix: Permission Catalog
+
+> **Correction applied during the `restructure-docs-and-agents` change:** the old `docs/database.md` heading said "Permission catalog (P1–P40)" but the table itself already listed through **P68**, and `AGENTS.md`/`CLAUDE.md`'s dev test account note separately said "P1–P58". Both were stale. The actual current maximum, confirmed directly against `internal/shared/constants/permissions.go`, is **P68** (68 permission constants defined in code). This appendix and the dev-account note in `AGENTS.md`/`CLAUDE.md` now both say P1–P68.
+
+Canonical definitions: **`internal/shared/constants/permissions.go`** (`constants.AllPermissions`).
+Reflection helper for sync: **`internal/system/application/catalog.go`** → `AllPermissionEntries()`.
+
+### Full catalog (P1–P68)
+
+| ID | `permission_name` | Domain |
+|----|-----------------|--------|
+| P1 | `profile:read` | Profile |
+| P2 | `profile:update` | Profile |
+| P3 | `profile:delete` | Profile |
+| P4 | `profile:create` | Profile |
+| P5 | `course:read` | Course |
+| P6 | `course:update` | Course |
+| P7 | `course:delete` | Course |
+| P8 | `course:create` | Course |
+| P9 | `course_instructor:read` | Course instructor |
+| P10 | `user:read` | User admin |
+| P11 | `user:update` | User admin |
+| P12 | `user:delete` | User admin |
+| P13 | `user:create` | User admin |
+| P14 | `course_level:read` | Taxonomy |
+| P15 | `course_level:create` | Taxonomy |
+| P16 | `course_level:update` | Taxonomy |
+| P17 | `course_level:delete` | Taxonomy |
+| P18 | `topic:read` | Taxonomy (course topics) |
+| P19 | `topic:create` | Taxonomy |
+| P20 | `topic:update` | Taxonomy |
+| P21 | `topic:delete` | Taxonomy |
+| P22 | `tag:read` | Taxonomy |
+| P23 | `tag:create` | Taxonomy |
+| P24 | `tag:update` | Taxonomy |
+| P25 | `tag:delete` | Taxonomy |
+| P26 | `media_file:read` | Media |
+| P27 | `media_file:create` | Media |
+| P28 | `media_file:update` | Media |
+| P29 | `media_file:delete` | Media |
+| P30 | `course_outcome:read` | Taxonomy |
+| P31 | `course_outcome:create` | Taxonomy |
+| P32 | `course_outcome:update` | Taxonomy |
+| P33 | `course_outcome:delete` | Taxonomy |
+| P34 | `course_skill:read` | Taxonomy |
+| P35 | `course_skill:create` | Taxonomy |
+| P36 | `course_skill:update` | Taxonomy |
+| P37 | `course_skill:delete` | Taxonomy |
+| P38 | `sysadmin:modify` | Role modify |
+| P39 | `admin:modify` | Role modify |
+| P40 | `instructor:modify` | Role modify |
+| P41 | `instructor_roster:read` | Instructor roster |
+| P42 | `instructor_roster:create` | Instructor roster |
+| P43 | `instructor_roster:delete` | Instructor roster |
+| P44 | `instructor_application:read` | Instructor application |
+| P45 | `instructor_application:create` | Instructor application |
+| P46 | `instructor_application:update` | Instructor application |
+| P47 | `instructor_application:delete` | Instructor application |
+| P48 | `instructor_application:approve` | Instructor application |
+| P49 | `instructor_application:reject` | Instructor application |
+| P50 | `instructor_profile:read` | Instructor profile |
+| P51 | `instructor_profile:create` | Instructor profile |
+| P52 | `instructor_profile:update` | Instructor profile |
+| P53 | `instructor_profile:delete` | Instructor profile |
+| P54 | `instructor_expertise:read` | Instructor expertise |
+| P55 | `instructor_expertise:create` | Instructor expertise |
+| P56 | `instructor_expertise:update` | Instructor expertise |
+| P57 | `instructor_expertise:delete` | Instructor expertise |
+| P58 | `instructor_ticket:close` | Instructor ticket |
+| P59 | `course_review:read` | Course review queue |
+| P60 | `course_review:approve` | Course review queue |
+| P61 | `course_review:reject` | Course review queue |
+| P62 | `course_catalog:read` | Sysadmin course catalog |
+| P63 | `course_catalog:trash` | Sysadmin course catalog |
+| P64 | `course_trash:read` | Course trash bin |
+| P65 | `course_trash:restore` | Course trash bin |
+| P66 | `course_trash:delete` | Course trash bin |
+| P67 | `course_collaborator_candidate:read` | Course collaborator picker |
+| P68 | `instructor_application:submit_blocked` | Blocks instructor application submit/resubmit |
+
+**Seeding history:**
+
+- **P1–P13** are seeded in `000001_schema.up.sql`.
+- **P14–P25** are inserted in `000002_taxonomy_domain.up.sql` (`ON CONFLICT DO UPDATE` on `permission_name`).
+- **P26–P29** exist only in code until `go run ./cmd/syncpermissions` (or first deploy sync) inserts them.
+- **P18–P21** names are updated to `topic:*` in `000009_taxonomy_topics_outcomes_skills`.
+- **P30–P37** are inserted in `000009` and granted to sysadmin/admin (full CRUD) and instructor/learner (read only).
+- **P38–P40** are inserted in `000010_role_modify_permissions` and granted by role tier: sysadmin → P38–P40, admin → P39–P40, instructor → P40 only.
+- **P41–P58** are inserted in **`000013_instructor_management`** (instructor roster, applications, profiles, expertise, ticket close). Migration also seeds role grants; keep **`roles_permission.go`** in sync and run **`go run ./cmd/syncpermissions`** + **`go run ./cmd/syncrolepermissions`** after code changes.
+- **P59–P66** are inserted in **`000024_course_admin_permissions`** (course review queue, catalog, trash). Granted to **sysadmin** and **admin** only.
+- **P67** is inserted in **`000027_course_collaborator_candidate_permission`**. Granted to **sysadmin**, **admin**, and **instructor** (picker for course owners). Migration **`000028_admin_collaborator_candidate_permission`** backfills **admin** if `000027` ran before admin was included.
+- **P68** is inserted in **`000029_instructor_application_feature`**. Granted to **instructor** role by default. May also be assigned per-user via `user_permissions` when reject quota is reached (application layer, BE-04).
+
+### Default role ↔ permission matrix
+
+Source of truth for role grants: **`internal/system/application/roles_permission.go`** (`RolePermissions` struct tags).
+Rebuild DB matrix: `go run ./cmd/syncrolepermissions`.
+
+| Role | Permission IDs (summary) |
+|------|---------------------------|
+| **sysadmin** | P1–P67 (full catalog except **P68** — submit block is instructor-only negative flag) |
+| **admin** | P1–P8, P10–P68 except **P9** `course_instructor:read`, **P38** `sysadmin:modify`, and **P68** `instructor_application:submit_blocked` |
+| **instructor** | P1, P5–P7, P9–P10, P14, P18, P22, **P26–P29** (full media CRUD), P30, P34, P40, **P45, P47, P49, P55–P58, P67, P68** |
+| **learner** | P1, P5, P10, P14, P18, P22, **P26–P29** (full media CRUD), P30, P34, **P45** (submit application / create ticket) |
+
+`000001_schema` seeds only P1–P13 for the four roles. After adding taxonomy/media permissions, run **`syncrolepermissions`** so `role_permissions` matches `roles_permission.go`.

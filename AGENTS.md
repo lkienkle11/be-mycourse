@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **be-mycourse** (8662 symbols, 25097 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **be-mycourse** (7791 symbols, 24197 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -231,7 +231,7 @@ Use this shared admin account for local API smoke tests (`http://localhost:8080`
 |-------|--------|
 | Email | `DEV_TEST_ACCOUNT_EMAIL` |
 | Password | `DEV_TEST_ACCOUNT_PASSWORD` |
-| Role | sysadmin/admin (full P1–P58 on dev DB) |
+| Role | sysadmin/admin (full P1–P68 on dev DB) |
 
 ```bash
 # Login → capture access_token
@@ -288,6 +288,8 @@ For every request, the agent must first classify the task before invoking the Se
 
 For an in-scope implementation task, before the agent reads or changes project files for the purpose of implementing, debugging, refactoring, testing, or validating the requested project change, invokes a project subagent, or runs a project command for that implementation work, the conversation host or bootstrap process must establish one stable Session ID for the entire conversation.
 
+**Prefer the native runtime session ID as the seed value.** When the agent's own runtime already exposes a stable per-conversation session identifier (for example, Claude Code's `CLAUDE_CODE_SESSION_ID` environment variable), use that value as the Session ID written into `AI_SESSION_ID_FILE` at bootstrap step 4 below, instead of generating a random UUID — it is already stable for the conversation, so there is nothing left to generate. Everything else in this section (the file as the authoritative identity source, the validation checklist, subagent propagation, the stop condition) still applies unchanged; only the source of the *value* changes. Only generate a random UUID when no such native runtime session ID is available.
+
 This Session ID must be created outside every project, repository, workspace, Desktop project folder, and working tree. It must never be written into a project-level temporary file, source file, configuration file, `.context` file, `.env` file, documentation file, Git metadata file, or any other file located inside a project.
 
 The canonical external temporary location must be resolved using the current operating system's temporary directory:
@@ -315,7 +317,7 @@ The bootstrap process must follow this exact lifecycle:
 1. Before the first task action of a new conversation, create one unpredictable conversation bootstrap key outside all projects.
 2. Resolve `AI_SESSION_ID_FILE` to `<OS_TEMP_DIR>/ai-agent-sessions/<conversation-bootstrap-key>/session-id` using the operating-system-specific temporary directory rules above.
 3. Create the parent directory outside all projects with permissions restricted to the current user.
-4. If the file does not exist, generate exactly one stable Session ID and write it to that file atomically.
+4. If the file does not exist, use the native runtime session ID as the value when available (see above); otherwise generate exactly one stable Session ID. Write it to the file atomically.
 5. If the file already exists, read and reuse the existing Session ID. Never overwrite it with a different value during the same conversation.
 6. Keep `AI_SESSION_ID_FILE` unchanged and reuse the Session ID from that exact file for every later message, task, subtask, tool call, and subagent in the same conversation.
 7. A topic change, repository change, branch change, task change, date change, tool restart, retry, compaction, or new user message does not create a new Session ID.
@@ -387,9 +389,7 @@ If `AI_SESSION_ID_FILE` is missing, empty, inaccessible, located inside a projec
 
 The external temporary Session ID file is the authoritative identity source for the conversation.
 
-For in-scope implementation tasks, the writable session context must be the current project's `.context/session-<SESSION_ID>.md`.
-
-For any out-of-scope repository-related task that requires writable session state, the writable session context must remain outside every project in the external context location defined below. This includes, but is not limited to, review, audit, analysis, explanation, planning, advisory, inspection, research, investigation, comparison, documentation review, architecture review, security review, performance review, accessibility review, maintainability review, pull-request review, diff review, commit review, dependency review, configuration review, and repository-status inspection.
+Where the writable session context itself lives (in-project `.context/session-<SESSION_ID>.md` for in-scope tasks, an external file for out-of-scope tasks) is defined in full by `Critical Dual Session Context Lifecycle Rule` below; this section only establishes the Session ID value.
 
 ## Critical Agent and Subagent Session Propagation Rule
 
@@ -416,25 +416,9 @@ For any task involving an existing repository, including implementation, review-
 
 The purpose of this read is to understand prior decisions, conventions, failures, constraints, unresolved issues, and reusable project knowledge.
 
-For an in-scope implementation task:
+For an in-scope implementation task, the agent must read the complete existing project `.context` folder before repository-based planning, modification, testing, or implementation. Which writable session context file to resolve afterward, and how, is defined in full by `Critical Dual Session Context Lifecycle Rule` below — not restated here.
 
-* The agent must read the complete existing project `.context` folder before repository-based planning, modification, testing, or implementation.
-* After the full read, the agent must resolve exactly one writable project session context file for the current Session ID:
-
-```text
-<project>/.context/session-<SESSION_ID>.md
-```
-
-* If that exact file already exists, reuse and update it.
-* If it does not exist, create it exactly once after confirming that no matching file exists.
-* Do not create a second project session context file for the same Session ID.
-
-For review-only, explanation-only, analysis-only, planning-only, audit-only, or other out-of-scope repository tasks:
-
-* Existing project `.context` files may be read as references.
-* Project `.context` files must remain read-only.
-* Do not create or update `<project>/.context/session-<SESSION_ID>.md` for the out-of-scope task.
-* If any writable session state is required for the task, use the external session context lifecycle below, regardless of what kind of repository-related work is being performed or what information must be persisted.
+For review-only, explanation-only, analysis-only, planning-only, audit-only, or other out-of-scope repository tasks, existing project `.context` files may be read as references but remain read-only; any writable session state the task requires follows the external session context lifecycle in `Critical Dual Session Context Lifecycle Rule` below instead.
 
 ## Critical Dual Session Context Lifecycle Rule
 
@@ -508,13 +492,7 @@ Before the final response of an in-scope implementation task, verify:
 
 Before the final response of any out-of-scope repository-related task:
 
-* If no writable external session state was required and `AI_SESSION_CONTEXT_FILE` was not created, do not create it merely for finalization.
-* If `AI_SESSION_CONTEXT_FILE` already exists or was required during the task, update that exact external file with the final consolidated state before responding.
-* Record the task purpose, repository or project examined, files or areas reviewed, relevant findings, decisions, unresolved questions, risks, limitations, and recommended follow-up actions.
-* Include only facts established during the task. Do not invent files read, checks run, findings, conclusions, or completed work.
-* Replace outdated or contradictory content in the external context instead of appending an unstructured transcript.
-* Reuse the exact same external context file for later out-of-scope repository tasks in the same chat.
-* Do not write this information into any project `.context` file.
+* Update `AI_SESSION_CONTEXT_FILE` with the final consolidated state, following `Mandatory External Context Update for Read-Only Repository Tasks` below for what to create/skip and what content to record — not restated here.
 * Verify that `AI_SESSION_CONTEXT_FILE` remains outside every project, repository, workspace, and working tree.
 * Verify that the Session ID still matches `AI_SESSION_ID_FILE`.
 * Verify that no second external context file or Session ID was created by the main agent or a subagent.
@@ -523,7 +501,14 @@ Before the final response of any out-of-scope repository-related task:
 
 This phase runs only after the task has already been classified as an in-scope implementation task. Its repository-reading requirements must never be used to pull a review-only, explanation-only, planning-only, or advisory request into scope.
 
-After reading the complete existing project `.context` folder and resolving the current project session context file, the agent must thoroughly read all project documentation and all project skills inside `.ai/skills` to understand the full project scope, conventions, reusable workflows, and task-specific instructions.
+After reading the complete existing project `.context` folder and resolving the current project session context file, the agent must read project documentation proportionate to the task, plus all project skills inside `.ai/skills`, to understand the full project scope, conventions, reusable workflows, and task-specific instructions.
+
+For `be-mycourse`: read `docs/ARCHITECTURE.md` in full, grep `docs/FEATURES.md` (`grep -n '^## ' docs/FEATURES.md`) for the module entry or entries the task touches and read only those in full, and check `docs/SHARED.md` before writing any new utility, type, or helper. Read `docs/DATA-MODEL.md` in full only when the task touches schema or the permission catalog directly.
+For `fe-mycourse`: read its `docs/` folder as currently structured.
+
+Beyond docs, the agent must also understand the actual repository structure for the side being changed: read it carefully, identify where each module is located, and identify where relevant code, folders, utilities, types, and services (plus components and hooks for `fe-mycourse`) are placed, so new work follows the existing structure rather than inventing a parallel one.
+
+**Note on "as currently structured" (fe-mycourse):** several references to `fe-mycourse`'s `docs/` folder in this file use this generic phrasing — not specific file names — because `fe-mycourse/docs/` has not undergone the same fixed-file restructure as `be-mycourse/docs/` (which now has exactly `ARCHITECTURE.md`, `FEATURES.md`, `DATA-MODEL.md`, `SHARED.md`). This is a deliberate placeholder, not an oversight: do not invent specific `fe-mycourse` file names at these spots. If `fe-mycourse` is later restructured into an equivalent fixed set of docs files, every "as currently structured" reference to `fe-mycourse` in this file (Initial Phase above, Documentation and Context Sync, Swagger and API Documentation Rule, Full Documentation Replacement Rule) must be updated at that time to name those files explicitly, mirroring the `be-mycourse` branches next to each one. This does NOT include the Reuse and Deduplication Rule below, which already names a concrete, current file — `docs/reusable-assets.md` — not a placeholder; update that one reference directly if and when `fe-mycourse` ever renames or replaces that specific file.
 
 If `.ai/skills` exists, the agent must inspect every relevant skill before planning or implementing any change.
 
@@ -564,22 +549,6 @@ If model identity, capability tier, or pricing cannot be verified, the agent mus
 
 The main agent remains responsible for coordinating all subagent findings, avoiding duplicated effort, deciding the final implementation approach, and ensuring the final solution is correct.
 
-For `be-mycourse` tasks:
-
-* Read the `be-mycourse` repository carefully.
-* Understand the project structure.
-* Identify where each module is located.
-* Identify where relevant code, folders, utilities, types, and services are placed.
-* Make sure any new work follows the existing structure.
-
-For `fe-mycourse` tasks:
-
-* Read the `fe-mycourse` repository carefully.
-* Understand the project structure.
-* Identify where each module is located.
-* Identify where relevant code, folders, components, hooks, utilities, types, and services are placed.
-* Make sure any new work follows the existing structure.
-
 ## Middle Phase: Implementation
 
 Implement the requested feature completely.
@@ -590,83 +559,50 @@ If a required utility does not exist, create a new reusable utility and place it
 
 All work must be written in English.
 
-## Critical Reuse Rule
+<!-- begin:reuse-and-deduplication-rule:start -->
+## Reuse and Deduplication Rule
 
-When implementing a solution, the agent must use existing resources, code, components, functions, methods, utilities, services, hooks, and types whenever they already exist in the codebase.
+When implementing a solution, the agent must use existing resources, code, components, functions, methods, utilities, services, hooks, and types whenever an equivalent one already exists in the codebase. Check the reuse catalogue first — `docs/SHARED.md` for `be-mycourse`, `docs/reusable-assets.md` for `fe-mycourse` — so this check doesn't require re-deriving reuse candidates from scratch.
 
-The agent is not allowed to create a new resource, code block, component, function, method, utility, service, hook, or type if an equivalent one already exists.
+Judge "already exists" by semantic ownership, not structural similarity: two pieces of code that happen to look alike but serve genuinely different concerns (different bounded contexts, different invariants, callers that must be free to evolve independently) are not a duplicate, and merging them would create an artificial coupling. Two pieces of code that do the same thing for the same reason, even if their current text differs, are a duplicate and must be merged.
 
-If duplicate implementation is found, the entire solution must be rejected, and the agent must read the project again and redo the work from the beginning.
+If a genuine duplicate is found:
 
-## Critical Deduplication Rule
+* Before writing new code: use the existing implementation instead of creating a new one.
+* After writing new code (caught in self-review or a later task): merge the duplicated piece into a shared implementation — reuse, extend, compose, or inherit from the existing one — rather than rejecting and redoing the entire solution. Only redo work beyond the duplicated piece itself if the duplication reveals the surrounding approach was also wrong.
 
-If a type, function, method, component, utility, service, hook, or code block from feature A already exists, and feature B duplicates the same logic or structure, the agent must merge the duplicated logic into a shared implementation.
+Do not leave duplicated types, functions, methods, components, utilities, services, hooks, or business logic in the codebase once a merge is possible.
+<!-- end:reuse-and-deduplication-rule:end -->
 
-If multiple types or functions share common fields or behavior, the agent must reuse, extend, compose, or inherit from the existing implementation instead of duplicating it.
+<!-- begin:final-phase-rule:start -->
+## Final Phase: Sync, Quality Gates, and Review
 
-Do not leave duplicated types, duplicated functions, duplicated methods, duplicated components, duplicated utilities, or duplicated business logic in the codebase.
+This section applies only after an in-scope implementation task and must not be used to classify a standalone review-only request as in scope. At the end of an in-scope code task, the agent must, in order:
 
-If duplication is found during review, the solution must be rejected and redone from the beginning.
+1. **Sync.** Force-sync GitNexus when GitNexus exists or is required by the project.
+2. **Quality gates.** Run the gates for the side of the project being changed:
+   - Backend: formatting, linting, `make test-all`, `make check-all`, tests, build checks.
+   - Frontend: `npm run check-all`, fix any errors.
 
-## Final Phase: Sync, Quality Gates, Review, and Documentation
+   If the task is Backend-related, fix Backend issues only. If the task is Frontend-related, fix Frontend issues only. Do not fix the opposite side unless the task explicitly requires cross-repository changes.
+3. **Exit codes.** When a gate command exits non-zero, classify the failure before deciding what to do:
+   - **Task-caused** (the change introduced or exposed it): fix it before completing the task, then rerun all required quality gates until everything passes.
+   - **Pre-existing** (confirmed present before this task's changes, e.g. by checking the same command against the pre-change commit or a clean stash): do not silently ignore it — report it to the user as a pre-existing failure, and fix it only if it blocks verifying the current task's changes or the user asks.
+   - **Environment** (missing tool, unavailable network/service, local-only config issue): report it as an environment blocker rather than attempting a code fix.
 
-At the end of an in-scope code task, the agent must force-sync GitNexus when GitNexus exists or is required by the project.
-
-Then run the required quality gates based on the side of the project being changed.
-
-For Backend tasks:
-
-* Run formatting.
-* Run linting.
-* Run `make test-all`.
-* Run `make check-all`.
-* Run tests.
-* Run build checks.
-* Make sure the backend CI/CD pipeline will not break.
-
-For Frontend tasks:
-
-* Run `npm run check-all`.
-* Fix any errors.
-* Make sure the frontend CI/CD pipeline will not break.
-
-If the task is Backend-related, fix Backend issues only.
-
-If the task is Frontend-related, fix Frontend issues only.
-
-Do not randomly fix the opposite side unless the task explicitly requires cross-repository changes.
-
-## Exit Code Rule
-
-If any command exits with a non-zero status code, the agent must fix the errors gradually until all issues are resolved.
-
-This includes errors that are not directly related to the current task if they can break CI/CD.
-
-After fixing the errors, the agent must rerun all required quality gates until everything passes.
-
-The agent must not claim that a command passed unless it was actually run and completed successfully.
-
-## Post-Implementation Code Review Requirement
-
-After implementation, the agent must inspect and review all code written or modified during the current task. This section applies only after an in-scope implementation task and must not be used to classify a standalone review-only request as in scope.
-
-The review must verify:
-
-* The implementation follows the existing architecture.
-* The implementation follows the existing folder structure.
-* Existing utilities, components, functions, services, hooks, and types were reused where possible.
-* No duplicate logic was introduced.
-* No unrelated files were modified.
-* No secrets or credentials were hardcoded.
-* The code is ready for CI/CD.
+   Never claim a command passed unless it was actually run and completed successfully.
+4. **Review.** Inspect all code written or modified during the task. Verify: it follows the existing architecture and folder structure; existing utilities, components, functions, services, hooks, and types were reused where possible (see the Reuse and Deduplication Rule); no duplicate logic was introduced; no unrelated files were modified; no secrets or credentials were hardcoded; the code is ready for CI/CD.
+<!-- end:final-phase-rule:end -->
 
 ## Documentation and Context Sync
 
-After completing an in-scope implementation, the agent must fully sync, update, or delete project documentation and GitNexus files so that they match the latest source code exactly. Session-specific state and learning for the coding task must be written only to the current project's `.context/session-<SESSION_ID>.md`. External `AI_SESSION_CONTEXT_FILE` is reserved for review-only or other out-of-scope repository tasks that require writable state.
+After completing an in-scope implementation, the agent must sync, update, or delete project documentation and GitNexus files so that they match the latest source code exactly. Session-specific state and learning for the coding task must be written only to the current project's `.context/session-<SESSION_ID>.md`. External `AI_SESSION_CONTEXT_FILE` is reserved for review-only or other out-of-scope repository tasks that require writable state.
+
+For `be-mycourse`: update the `docs/FEATURES.md` entry (or entries) for the module(s) the task touched — a single-module change should not require reading or editing `docs/ARCHITECTURE.md` or `docs/DATA-MODEL.md`. Touch those two only when the change is genuinely cross-cutting (composition root wiring, shared infra, or the schema/permission catalog). Touch `docs/SHARED.md` only when the task adds or changes a genuinely reusable asset.
+For `fe-mycourse`: scan the relevant source and sync its `docs/` folder as currently structured.
 
 Updating documentation means:
 
-* Scan the entire source code.
 * If something exists in code or features but is missing from documentation, add it to the relevant documentation.
 * If code and features are implemented one way but the documentation describes a different approach, update the documentation to match the code.
 * If something is documented but does not exist in the code or implemented features, remove it from the documentation.
@@ -685,7 +621,12 @@ If any Swagger YAML file is modified, the agent must also run:
 ruby generate-apidog-postman.rb
 ```
 
-After running the generator, the agent must update all related API documentation and GitNexus files to match the generated output and the latest source code. Update only the current project's `.context/session-<SESSION_ID>.md` for coding-task session state.
+After running the generator, the agent must update related API documentation and any related GitNexus files to match the generated output and the latest source code.
+
+For `be-mycourse`: update the `API:` line in the relevant `docs/FEATURES.md` module entry so it still cites real, current endpoint paths. There is no separate hand-written curl-examples file to update — `docs/api_swagger.yaml` / `docs/api-dog-import.json` are the generated source of truth for request/response examples.
+For `fe-mycourse`: update all related API documentation as currently structured.
+
+Update only the current project's `.context/session-<SESSION_ID>.md` for coding-task session state.
 
 ## Mandatory External Context Update for Read-Only Repository Tasks
 
@@ -726,6 +667,8 @@ The update must consolidate the complete current state and include, when applica
 The external context update must be based only on what actually happened during the task.
 
 The agent must not claim that it reviewed files, ran commands, verified behavior, found vulnerabilities, or completed checks that it did not actually perform.
+
+Replace outdated or contradictory content in the external context instead of appending an unstructured transcript.
 
 Only the exact external file referenced by `AI_SESSION_CONTEXT_FILE` may receive this out-of-scope repository-task summary.
 
@@ -808,6 +751,9 @@ This means:
 * If the current project's `.context/session-<SESSION_ID>.md` or a GitNexus file describes a previous implementation, replace the outdated description with the new implementation summary. Do not modify context files owned by other Session IDs.
 * If multiple files describe the same feature, update all of them consistently.
 * The final documentation must match the source code exactly after the task is complete.
+
+Within `be-mycourse`, this replacement principle applies to `docs/ARCHITECTURE.md`, `docs/FEATURES.md`, `docs/DATA-MODEL.md`, and `docs/SHARED.md` — these four always describe only the current state, never historical updates. `migrations/README.md` and any dated handoff or changelog note under `docs/` are the changelog/migration-history exception above and keep their historical entries.
+Within `fe-mycourse`, this replacement principle applies to its `docs/` folder as currently structured, with the same changelog/migration-history exception for dated handoff or changelog notes.
 
 ## Documentation Language Consistency Rule
 

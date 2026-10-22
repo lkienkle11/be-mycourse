@@ -3,7 +3,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **be-mycourse** (8662 symbols, 25097 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **be-mycourse** (7791 symbols, 24197 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -101,19 +101,3 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
-
-## AI Agent — dev test account
-
-Use this shared admin account for local API smoke tests (`http://localhost:8080` after `go run .`):
-
-| Field | Value |
-|-------|--------|
-| Email | `DEV_TEST_ACCOUNT_EMAIL` |
-| Password | `DEV_TEST_ACCOUNT_PASSWORD` |
-| Role | sysadmin/admin (full P1–P58 on dev DB) |
-
-```bash
-curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"DEV_TEST_ACCOUNT_EMAIL","password":"DEV_TEST_ACCOUNT_PASSWORD","remember_me":false}'
-```

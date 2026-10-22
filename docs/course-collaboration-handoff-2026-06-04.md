@@ -14,7 +14,7 @@ _Last updated: 2026-09-13_
 - `course_collaborators` (added by migration `000016`, see the table list below) has been dropped by migration `000037`. Collaborator membership is now stored as `authorization_role_bindings` rows (`resource_type = "course"`), backfilled by migration `000036` and gated via the generic role gate in `internal/authorization`.
 - Every table row and API surface described below is otherwise unchanged except the bulk-add `role` field narrowing noted above: `GET /api/v1/courses/:courseId/collaborators`, the bulk add endpoint's shape, and `OWNER`/`EDITOR` display semantics are all the same at the HTTP contract level.
 - Access checks now go through one seam, `requireCourseAction` (`internal/course/infra/repo_access.go`), which calls `Authorizer.Authorize` instead of comparing a stored role string.
-- See `docs/modules/authorization.md` and `docs/modules/course.md` for the full design (wildcard role bindings, `RoleBindingService`, owner synthesis).
+- See `docs/FEATURES.md` (authorization and course sections) for the full design (wildcard role bindings, `RoleBindingService`, owner synthesis).
 
 ## 2026-06-25 addendum (collaborators)
 
@@ -200,10 +200,7 @@ This refactor removed the main duplication hotspots by:
 
 Updated earlier during this work:
 
-- `docs/modules/course.md`
-- `docs/modules/lesson.md`
-- `docs/modules/enrollment.md`
-- `docs/modules.md`
+- `docs/FEATURES.md` (course section — now absorbs the former lesson/enrollment content as well)
 
 ## Tasks not completed yet
 

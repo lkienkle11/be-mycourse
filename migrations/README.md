@@ -10,7 +10,7 @@
 | `000002_taxonomy_domain` | Taxonomy: `course_levels`, `categories`, `tags`, etc. |
 | `000003_media_metadata` | Creates **`media_files`** (upload gateway) + indexes. |
 | `000004_media_orphan_safety` | Adds `media_files.row_version`, `content_fingerprint`; creates **`media_pending_cloud_cleanup`**. |
-| `000005_media_bunny_response_fields` | Adds **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** (Bunny parity / API `UploadFileResponse`, see `docs/modules/media.md`). |
+| `000005_media_bunny_response_fields` | Adds **`media_files.video_id`**, **`thumbnail_url`**, **`embeded_html`** (Bunny parity / API `UploadFileResponse`, see `docs/FEATURES.md` (media)). |
 | `000006_taxonomy_user_media_refs` | Adds `categories.image_file_id` + `users.avatar_file_id` (FK → `media_files.id`); drops plain URL columns `image_url` / `avatar_url`; backfills FKs from matching URLs (`media_files.url` / `origin_url`). |
 | `000007_registration_email_limits` | Adds **`users.registration_email_send_total`** (successful confirmation-email count while pending; reset on confirm). |
 | `000008_media_metadata_json_storage` | Ensures **`media_files.metadata_json`** is JSONB server-side metadata storage; backfills typed keys such as **`duration_seconds`**, **`width_bytes`**, **`height_bytes`**, **`fps`**; adds GIN index **`idx_media_files_metadata_json_gin`**. |
@@ -18,29 +18,29 @@
 | `000010_role_modify_permissions` | Seeds P38–P40 **`sysadmin:modify`** / **`admin:modify`** / **`instructor:modify`** and grants by role tier (sysadmin -> all three, admin -> P39–P40, instructor -> P40). |
 | `000011_audit_timestamps_bigint` | Converts audit columns **`created_at`**, **`updated_at`**, **`deleted_at`** (where present) from `TIMESTAMPTZ` to **`BIGINT`** Unix epoch seconds. **Must `DROP DEFAULT` before `ALTER TYPE`**, then `SET DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)`. |
 | `000012_soft_delete_taxonomy_users_ban` | Adds **`deleted_at`** to 5 taxonomy tables + partial unique slug indexes; adds **`users.banned_until`** (Unix seconds ban-lift timestamp). |
-| `000013_instructor_management` | Adds **`users.phone`**; creates instructor tables (applications, profiles, expertise, tickets, messages); seeds **P41–P58** + role grants. See **`docs/modules/instructor.md`**. |
+| `000013_instructor_management` | Adds **`users.phone`**; creates instructor tables (applications, profiles, expertise, tickets, messages); seeds **P41–P58** + role grants. See **`docs/FEATURES.md` (instructor)**. |
 | `000014_system_user_machine_binding` | Adds **`system_privileged_users.machine_secret`** for privileged CLI machine binding (existing rows default empty value). |
 | `000015_instructor_expertise_soft_delete_compat` | Drift-safe compatibility patch for `instructor_expertise_topics` / `instructor_expertise_skills`: ensures `deleted_at`, normalizes `topic_id` / `skill_id` from legacy `course_topic_id` / `course_skill_id` when present, then rebuilds active-only unique indexes. Does **not** drop legacy columns — apply `000017` next on drifted DBs. |
-| `000016_course_management` | Tables `courses`, `course_versions`, collaborator membership, version-scoped outline rows, sub-lesson payload tables, edit leases, learner enrollments, and stable-id progress records. See **`docs/modules/course.md`**. |
+| `000016_course_management` | Tables `courses`, `course_versions`, collaborator membership, version-scoped outline rows, sub-lesson payload tables, edit leases, learner enrollments, and stable-id progress records. See **`docs/FEATURES.md` (course)**. |
 | `000017_instructor_expertise_drop_legacy_fk_cols` | Finalizes expertise junction schema on drifted DBs: backfills `topic_id` / `skill_id`, drops legacy `course_topic_id` / `course_skill_id`, sets canonical columns NOT NULL, and adds FK constraints on `topic_id` / `skill_id`. |
 | `000018_instructor_tickets_soft_delete_compat` | Drift-safe compatibility patch for `instructor_tickets` / `instructor_ticket_messages`: ensures `deleted_at` and rebuilds partial status index (`WHERE deleted_at IS NULL`). |
 | `000019_instructor_profiles_apps_soft_delete_compat` | Drift-safe patch for `instructor_profiles` / `instructor_applications`: ensures `deleted_at`, adds `id` PK on profiles when DB only has `user_id` PK, rebuilds partial unique indexes. |
 | `000020_course_version_row_version_backfill` | Backfills `course_versions.row_version` from `0` to `1` for rows created before GORM explicitly set `RowVersion: 1` on insert (column default alone is overridden by zero-value inserts). |
-| `000021_media_bunny_delivery_urls` | Adds Bunny Stream delivery URL columns on `media_files` (see `docs/modules/media.md`). |
+| `000021_media_bunny_delivery_urls` | Adds Bunny Stream delivery URL columns on `media_files` (see `docs/FEATURES.md` (media)). |
 | `000022_course_sub_lesson_estimated_duration` | Adds `course_sub_lessons.estimated_duration_ms` (`BIGINT NOT NULL DEFAULT 0`) for TEXT/QUIZ user estimates; VIDEO resolves from `media_files.duration` at read time. |
-| `000023_course_trash` | Adds `courses.trashed_at` — soft trash before permanent delete. See **`docs/database.md`**. |
+| `000023_course_trash` | Adds `courses.trashed_at` — soft trash before permanent delete. See **`docs/DATA-MODEL.md`**. |
 | `000024_course_admin_permissions` | Seeds **P59–P66** (course review queue, catalog, trash) + sysadmin/admin grants. |
 | `000025_media_r2_bucket_name` | Adds `media_files.r2_bucket_name` for R2 storage routing. |
 | `000026_course_approval_note` | Adds `course_versions.approval_note` for admin review feedback. |
 | `000027_course_collaborator_candidate_permission` | Seeds **P67** `course_collaborator_candidate:read` + sysadmin/admin/instructor grants (picker `GET …/instructor-candidates`). |
 | `000028_admin_collaborator_candidate_permission` | Backfills P67 grant for **admin** when `000027` ran without admin. |
-| `000029_instructor_application_feature` | Application state machine, company snapshot, application expertise junctions, P68, `years_of_experience` enum codes, **backfill `submitted_at`/`review_due_at` for legacy pending rows**. See **`docs/modules/instructor.md`**. |
-| `000030_media_owner_visibility` | Adds **`media_files.user_id`** (FK → `users.id`, nullable for legacy rows) and **`media_files.visibility`** (`private` default, `public` optional). Indexes on `(user_id)` and `(visibility)` for list filtering. See **`docs/modules/media.md`**. |
-| `000031_user_oauth_identities` | Adds **`users.password_set_at`** and table **`user_oauth_identities`** for Google/X external identities. See **`docs/database.md`**. |
-| `000032_taxonomy_translations_row_version` | Taxonomy `*_translations` + `row_version` + JSONB tree `translations.en` backfill. Tree helper is **`LANGUAGE sql`** (no `plpgsql`/`DO $$`) so golang-migrate `;` splitting works. See **`docs/database.md`** / **`docs/modules/taxonomy.md`**. |
-| `000033_teaching_content_ideas` | Adds `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on **`instructor_applications`** and **`instructor_profiles`**. Required 50–500 Unicode code points (not UTF-8 bytes) on submit/resubmit; approve copies via profile snapshot. See **`docs/modules/instructor.md`** / **`docs/database.md`**. |
-| `000034_authorization_base` | Adds the shared **`authorization_actions`** catalog, generic **`authorization_grants`** store (ALLOW/DENY, conditions, validity, revocation), **`authorization_role_actions`**, and **`authorization_role_bindings`**. DDL only: no provider actions, role definitions, bindings, grants, or Course collaborators are seeded/backfilled. See **`docs/modules/authorization.md`**. |
-| `000035_authorization_role_binding_wildcard` | Database-enforces the reserved wildcard `resource_id = '*'` convention on **`authorization_role_bindings`**. See **`docs/modules/authorization.md`**. |
+| `000029_instructor_application_feature` | Application state machine, company snapshot, application expertise junctions, P68, `years_of_experience` enum codes, **backfill `submitted_at`/`review_due_at` for legacy pending rows**. See **`docs/FEATURES.md` (instructor)**. |
+| `000030_media_owner_visibility` | Adds **`media_files.user_id`** (FK → `users.id`, nullable for legacy rows) and **`media_files.visibility`** (`private` default, `public` optional). Indexes on `(user_id)` and `(visibility)` for list filtering. See **`docs/FEATURES.md` (media)**. |
+| `000031_user_oauth_identities` | Adds **`users.password_set_at`** and table **`user_oauth_identities`** for Google/X external identities. See **`docs/DATA-MODEL.md`**. |
+| `000032_taxonomy_translations_row_version` | Taxonomy `*_translations` + `row_version` + JSONB tree `translations.en` backfill. Tree helper is **`LANGUAGE sql`** (no `plpgsql`/`DO $$`) so golang-migrate `;` splitting works. See **`docs/DATA-MODEL.md`** / **`docs/FEATURES.md` (taxonomy)**. |
+| `000033_teaching_content_ideas` | Adds `teaching_content_ideas TEXT NOT NULL DEFAULT ''` on **`instructor_applications`** and **`instructor_profiles`**. Required 50–500 Unicode code points (not UTF-8 bytes) on submit/resubmit; approve copies via profile snapshot. See **`docs/FEATURES.md` (instructor)** / **`docs/DATA-MODEL.md`**. |
+| `000034_authorization_base` | Adds the shared **`authorization_actions`** catalog, generic **`authorization_grants`** store (ALLOW/DENY, conditions, validity, revocation), **`authorization_role_actions`**, and **`authorization_role_bindings`**. DDL only: no provider actions, role definitions, bindings, grants, or Course collaborators are seeded/backfilled. See **`docs/FEATURES.md` (authorization)**. |
+| `000035_authorization_role_binding_wildcard` | Database-enforces the reserved wildcard `resource_id = '*'` convention on **`authorization_role_bindings`**. See **`docs/FEATURES.md` (authorization)**. |
 | `000036_backfill_course_collaborator_role_bindings` | One-time dev-data backfill: one role binding per active EDITOR course collaborator, so the role-gate cutover loses no access. |
 | `000037_drop_course_collaborators` | Drops **`course_collaborators`** (replaced by the resource-scoped role gate). |
 | `000038_home_catalog_indexes` | Index-only migration for trending courses, popular instructors and continue-learning queries. No column or table changes. |
@@ -48,12 +48,12 @@
 | `000040_course_slug_check_constraint` | Adds `chk_courses_slug_format` (non-empty, `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`). |
 | `000041_backfill_taxonomy_slug_ascii` | Regenerates any non-conforming slug on the 4 taxonomy root tables so `000042` can apply. |
 | `000042_taxonomy_slug_check_constraints` | Adds the slug format CHECK constraint on `course_levels`, `course_topics`, `course_skills`, `tags`. |
-| `000043_user_slug` | Adds nullable **`users.slug`**, `chk_users_slug_format` (NULL allowed), partial unique index `uix_users_slug_active`, and **`user_slug_history`** (permanent reservation of former slugs). Existing users are backfilled by the `CLI_BACKFILL_USER_SLUGS` command, not by SQL. See **`docs/database.md`**. |
+| `000043_user_slug` | Adds nullable **`users.slug`**, `chk_users_slug_format` (NULL allowed), partial unique index `uix_users_slug_active`, and **`user_slug_history`** (permanent reservation of former slugs). Existing users are backfilled by the `CLI_BACKFILL_USER_SLUGS` command, not by SQL. See **`docs/DATA-MODEL.md`**. |
 | `000044_user_slug_not_null` | Sets **`users.slug`** `NOT NULL`. Release 2: apply only after the backfill reports zero NULL slugs. `MIGRATE=1` applies every pending file, so while NULL slugs remain it fails and golang-migrate leaves `schema_migrations` **dirty** at version 44 (fix: `UPDATE schema_migrations SET version = 43, dirty = false`, then run the backfill and migrate again). Keep this file out of the build until the backfill is done. |
 
-**Drop all tables in SQL (correct FK order):** see `docs/database.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
+**Drop all tables in SQL (correct FK order):** see `docs/DATA-MODEL.md` -> **Drop All Tables**. When adding a new table, update that `DROP TABLE` list accordingly.
 
-**Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P68** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/database.md`**.
+**Conventions:** `permission_id` uses `P{number}`; `permission_name` uses `resource:action` (JWT / `RequirePermission`). Full catalog **P1–P68** is in `internal/shared/constants/permissions.go`. When adding new permissions: update that file, optionally add migration seed, then run `go run ./cmd/syncpermissions` in existing environments. Role matrix lives in `internal/system/application/roles_permission.go` + `go run ./cmd/syncrolepermissions`. Full table/column details: **`docs/DATA-MODEL.md`**.
 
 **COMMENT / SQL strings with `golang-migrate`:** the runner splits files by **every** `;` (no SQL parser). Therefore, do **not** place `;` inside strings (`'...'`), inside **`$$...$$` / `$tag$...$tag$`**, etc. Use `;` only to terminate statements. In this repo, avoid `DO $$ ... $$` and `LANGUAGE plpgsql` function bodies that need `;` (see `000015` rewrite, `000032` tree patch uses `LANGUAGE sql` with **zero** `;` inside `$fn$...$fn$`). Prefer plain DDL/DML. In `COMMENT ON ... IS '...'`, avoid `;` in comment text (use punctuation like commas or periods), e.g. `000007_registration_email_limits.up.sql`.
 
@@ -95,7 +95,7 @@ go run .
 1. Create a pair: `00000N_description.up.sql` and `00000N_description.down.sql` (increment from latest version).
 2. **golang-migrate** splits on `;` and does **not** safely ignore inline comment content — do **not** put `;` in `-- ...` comment lines. Avoid extra `;` anywhere (including strings / dollar-quoted blocks); see **COMMENT** note above.
 3. Run `go build` to embed the new SQL files.
-4. Update this table in **`migrations/README.md`** and **`docs/database.md`** (migration history + detailed table notes when needed).
+4. Update this table in **`migrations/README.md`** and **`docs/DATA-MODEL.md`** (migration history + detailed table notes when needed).
 
 ## Rollback (down)
 

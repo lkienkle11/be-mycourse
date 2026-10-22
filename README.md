@@ -12,17 +12,10 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 
 | Doc | Contents |
 |-----|----------|
-| [`docs/architecture.md`](docs/architecture.md) | DDD layering, bounded contexts, dependency direction, HTTP request path |
-| [`docs/folder-structure.md`](docs/folder-structure.md) | Full directory tree with purpose of every folder and subfolder |
-| [`docs/data-flow.md`](docs/data-flow.md) | How data moves through the system end-to-end |
-| [`docs/router.md`](docs/router.md) | Route groups, all API routes, middleware chains |
-| [`docs/patterns.md`](docs/patterns.md) | Coding patterns, conventions, error handling, constants, testing layout |
-| [`docs/dependencies.md`](docs/dependencies.md) | Key libraries, frameworks, and their relationships |
-| [`docs/modules.md`](docs/modules.md) | Module responsibilities, ownership boundaries, testing layout |
-| [`docs/modules/auth.md`](docs/modules/auth.md) | Auth module deep-dive (JWT sessions, Redis cache, endpoints) |
-| [`docs/modules/media.md`](docs/modules/media.md) | Media module deep-dive (R2/Bunny, upload pipeline, webhooks) |
-| [`docs/modules/rbac.md`](docs/modules/rbac.md) | RBAC module deep-dive (roles, permissions, sync) |
-| [`docs/modules/taxonomy.md`](docs/modules/taxonomy.md) | Taxonomy module (topics, outcomes, skills, tags, levels) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | DDD layering, bounded contexts, dependency direction, composition root, HTTP request path, security, dependencies, directory tree |
+| [`docs/FEATURES.md`](docs/FEATURES.md) | Per-module business rules (auth, course, taxonomy, instructor, media, rbac, authorization) — grep `^## ` for the module you need |
+| [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) | Schema, entity relationships, migration history, and the full permission catalog (appendix) |
+| [`docs/SHARED.md`](docs/SHARED.md) | Reusable BE assets (packages, functions, types, utilities) — check here before adding anything new |
 | [`docs/docker.md`](docs/docker.md) | Docker Compose alternative (local/VPS manual; PM2/CI unchanged) |
 | [`docs/deploy.md`](docs/deploy.md) | VPS runbook (PM2 + CI) |
 | [`docs/security-public-seo-notes.md`](docs/security-public-seo-notes.md) | **Take-note:** future public SEO/storefront intent; reuse B1–B10 assets; no BE code yet; links FE SEO docs |
@@ -139,7 +132,7 @@ See [`docs/docker.md`](docs/docker.md). CI/CD still uses PM2 + binary rsync.
 
 ### Database migrations
 
-After pulling commits that add files under `migrations/`, apply them on **every** environment that runs the new binary (local `.env`, dev/staging/prod PM2). Use the **same** Postgres DSN as the running app (`DATABASE_URL` or `[database]` in config). Optional `SCHEMA_NAME_APP` (default `public`) — see **`docs/database.md`**.
+After pulling commits that add files under `migrations/`, apply them on **every** environment that runs the new binary (local `.env`, dev/staging/prod PM2). Use the **same** Postgres DSN as the running app (`DATABASE_URL` or `[database]` in config). Optional `SCHEMA_NAME_APP` (default `public`) — see **`docs/DATA-MODEL.md`**.
 
 ```bash
 MIGRATE=1 go run .
@@ -164,7 +157,7 @@ psql "$DATABASE_URL" -c "SELECT column_name, data_type FROM information_schema.c
 
 Expect `version >= 12` and `bigint` for audit columns. If version is ≥ 11 but columns are still `timestamptz`, re-run `migrations/000011_audit_timestamps_bigint.up.sql` — see **`docs/deploy.md`** (audit timestamp mismatch).
 
-**Local smoke test** after migrate: `POST /api/v1/auth/login` and `GET /api/v1/taxonomy/outcomes` on `http://localhost:8080` (examples in **`docs/curl_api.md`**).
+**Local smoke test** after migrate: `POST /api/v1/auth/login` and `GET /api/v1/taxonomy/outcomes` on `http://localhost:8080` (examples in **`docs/api_swagger.yaml`** / **`docs/api-dog-import.json`**).
 
 ### RBAC sync
 
@@ -222,7 +215,7 @@ make test-all
 make check-all
 ```
 
-Individual targets (`make check-layout`, `make check-architecture`, `make check-dupl`, `make build`, `make build-nocgo`) remain available — see **`docs/patterns.md`**.
+Individual targets (`make check-layout`, `make check-architecture`, `make check-dupl`, `make build`, `make build-nocgo`) remain available — see **`docs/ARCHITECTURE.md`** ("Linting and Quality Gate").
 
 ---
 

@@ -3,7 +3,7 @@
 
 ## DDD layout (code)
 
-Bounded contexts live under `internal/<domain>/{domain,application,infra,delivery}`. Shared helpers: `internal/shared/{db,gormx,timex,response,middleware,constants}`. See **`docs/architecture.md`**.
+Bounded contexts live under `internal/<domain>/{domain,application,infra,delivery}`. Shared helpers: `internal/shared/{db,gormx,timex,response,middleware,constants}`. See **`docs/ARCHITECTURE.md`**.
 
 This guide walks through **server setup**, **HTTPS for two hostnames on one machine**—the **apex / `www` domain for the Next.js frontend** (e.g. `yourdomain.net`) and **`api.` for the Go API** (e.g. `api.yourdomain.net`)—plus **CI/CD** (`.github/workflows/deploy-dev.yml` for the backend on **`master`**, and the frontend workflow in the **Next.js repo** on **`dev`** — checkout path on the server is often `/opt/mycourse/fe` or `fe-mycourse`). Replace **`yourdomain.net`** everywhere with your real **`.net`** domain.
 
@@ -23,7 +23,7 @@ make check-all
 make test-all
 ```
 
-See **`docs/patterns.md`** (Linting and quality gate) for what each target enforces. DDD rules: **no `internal/*/entity` package**; auth JSONB and GORM rows stay in **`infra`**; media/system use **`domain` ports** wired in **`internal/server/wire.go`**.
+See **`docs/ARCHITECTURE.md`** (Linting and Quality Gate) for what each target enforces. DDD rules: **no `internal/*/entity` package**; auth JSONB and GORM rows stay in **`infra`**; media/system use **`domain` ports** wired in **`internal/server/wire.go`**.
 
 ### Restore legacy SQL backup (UUID v7)
 
@@ -258,15 +258,15 @@ Set at least:
 - `STAGE=prod` (must match `config/app-prod.yaml` if you use it).
 - `SERVER_PORT=8080`, `SERVER_RUN_MODE=release`.
 - `DATABASE_URL` or full `DB_*` set—aligned with **cloud** or **local** Postgres (see Step 8).
-- `SCHEMA_NAME_APP` — optional PostgreSQL schema for app tables (`search_path` + golang-migrate). Omit or leave empty → **`public`** (PostgreSQL default). Required only when tables are not in `public` or when the DB role has an empty `search_path` (see **`docs/database.md`**).
+- `SCHEMA_NAME_APP` — optional PostgreSQL schema for app tables (`search_path` + golang-migrate). Omit or leave empty → **`public`** (PostgreSQL default). Required only when tables are not in `public` or when the DB role has an empty `search_path` (see **`docs/DATA-MODEL.md`**).
 - `SUPABASE_*`, `JWT_SECRET`, `APP_BASE_URL=https://api.yourdomain.net` (must match the public API URL), `APP_CLIENT_BASE_URL=https://yourdomain.net` (used in registration email confirmation URL for FE).
 - `CORS_ALLOWED_ORIGINS` — comma-separated **browser origins** for the frontend, e.g. `https://yourdomain.net,https://www.yourdomain.net` (no trailing slashes).
 - `AUTH_COOKIE_DOMAIN` — parent domain for auth cookies when FE and API are on separate subdomains (e.g. `yourdomain.net`). **Must match** the same value on the frontend. Leave unset on localhost.
 - `REDIS_ADDR` — **managed Redis** URL/host:port from your cloud provider, or `127.0.0.1:6379` only if you installed Redis on this host (Step 8.3). Omit or leave empty only if you accept cache falling back to DB-only behaviour.
-- RBAC sync from constants is driven by **`/api/system`** (authenticated system JWT), not startup env flags. Populate **`system_app_config`** and **`system_privileged_users`** in Postgres as documented in `docs/architecture.md`.
+- RBAC sync from constants is driven by **`/api/system`** (authenticated system JWT), not startup env flags. Populate **`system_app_config`** and **`system_privileged_users`** in Postgres as documented in `docs/ARCHITECTURE.md` (Security).
 - **`system_app_config` secrets:** store `app_cli_system_password`, `app_system_env`, and `app_token_env` as **bcrypt hashes (cost 14)**, not plaintext. Generate out-of-band, e.g. `python3 -c "import bcrypt; print(bcrypt.hashpw(b'your-secret', bcrypt.gensalt(rounds=14)).decode())"`, then `UPDATE system_app_config SET ... WHERE id=1`.
 - **After rotating `app_system_env`:** existing `system_privileged_users` rows become invalid — re-run CLI registration (`CLI_REGISTER_NEW_SYSTEM_USER=true`) on each host.
-- **Hybrid machine binding:** enrollment file + OS fingerprint (machine-id, hardware UUID, hostname, platform). Implementation: `internal/shared/machineidentity/`. See FR-4.4 in `docs/requirements.md`.
+- **Hybrid machine binding:** enrollment file + OS fingerprint (machine-id, hardware UUID, hostname, platform). Implementation: `internal/shared/machineidentity/`. See `docs/ARCHITECTURE.md` (Security — Machine identity hybrid binding).
 - **Machine identity file:** `$XDG_CONFIG_HOME/mycourse/machine_identity` (or `~/.config/mycourse/machine_identity`) — stores enrollment secret only; backup with host. Losing the file requires re-register.
 - **After migration `000014` or hybrid binding change:** re-register privileged users on each host (`CLI_REGISTER_NEW_SYSTEM_USER=1`).
 - `CLI_REGISTER_NEW_SYSTEM_USER` — optional one-shot CLI to register a privileged system user (process exits afterward). Creates machine identity if missing. Requires bcrypt-hashed `app_cli_system_password` in DB.
@@ -331,7 +331,7 @@ curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
 # Then GET /api/v1/taxonomy/outcomes with Bearer access_token from login
 ```
 
-See also **`migrations/README.md`** (`000011`, `000012`) and **`docs/database.md`** (BIGINT audit convention).
+See also **`migrations/README.md`** (`000011`, `000012`) and **`docs/DATA-MODEL.md`** (BIGINT audit convention).
 
 **Expertise POST returns 500 (`course_topic_id` NOT NULL):** drifted databases may still have legacy `course_topic_id` / `course_skill_id` as NOT NULL while the app inserts into `topic_id` / `skill_id`. Apply migration **`000017_instructor_expertise_drop_legacy_fk_cols`** (`MIGRATE=1` or `psql ... -f migrations/000017_instructor_expertise_drop_legacy_fk_cols.up.sql`). Verify with:
 
@@ -516,7 +516,7 @@ Both `server { ... 443 ... }` blocks should reference the **same** `ssl_certific
 
 **If you only use `www` for the site (no apex):** Omit `yourdomain.net` from `server_name` and from the `certbot` `-d` list; keep `api.yourdomain.net` as its own name on the cert.
 
-**Large uploads (media API):** After Certbot edits the vhosts, ensure the **HTTPS** `server { ... }` block for `api.yourdomain.net` still includes `client_max_body_size 2G;` (or higher) at `server` or `location /` level. The Go API enforces a **2 GiB per file** cap on `/api/v1/media/files`; if nginx (or another edge) uses the default **1m**, uploads fail at the edge with **413** before the application runs. Match any other reverse proxy / LB (AWS ALB, Cloudflare, etc.) body limits to the same minimum if you rely on multi-gigabyte uploads. Public media JSON exposes FE-facing fields (`user_id`, `video_id`, `row_version`, `created_at`, `updated_at`, plus basic media fields + typed metadata), while provider-internal delivery fields (`bunny_video_id`, `direct_play_url`, `hls_playlist_url`, `preview_animation_url`, ...) stay backend-only — see **`docs/modules/media.md`** and **`docs/return_types.md`**. Set **`MEDIA_BUNNY_STREAM_CDN_HOSTNAME`** to your Stream pull-zone hostname (e.g. `vz-XXXXXXXX-XXXX.b-cdn.net`) so thumbnail URLs resolve after upload or webhook.
+**Large uploads (media API):** After Certbot edits the vhosts, ensure the **HTTPS** `server { ... }` block for `api.yourdomain.net` still includes `client_max_body_size 2G;` (or higher) at `server` or `location /` level. The Go API enforces a **2 GiB per file** cap on `/api/v1/media/files`; if nginx (or another edge) uses the default **1m**, uploads fail at the edge with **413** before the application runs. Match any other reverse proxy / LB (AWS ALB, Cloudflare, etc.) body limits to the same minimum if you rely on multi-gigabyte uploads. Public media JSON exposes FE-facing fields (`user_id`, `video_id`, `row_version`, `created_at`, `updated_at`, plus basic media fields + typed metadata), while provider-internal delivery fields (`bunny_video_id`, `direct_play_url`, `hls_playlist_url`, `preview_animation_url`, ...) stay backend-only — see **`docs/FEATURES.md`** (media) and **`docs/ARCHITECTURE.md`** (Error Handling — error code reference). Set **`MEDIA_BUNNY_STREAM_CDN_HOSTNAME`** to your Stream pull-zone hostname (e.g. `vz-XXXXXXXX-XXXX.b-cdn.net`) so thumbnail URLs resolve after upload or webhook.
 
 ---
 
@@ -662,25 +662,15 @@ Internet → DNS → Nginx (TLS, two server names) → {
 
 ---
 
-## Appendix B — Backend startup and routing (codebase / GitNexus)
+## Appendix B — Backend startup and routing
 
-From the README and execution graph (GitNexus, repo **`be`**, query e.g. *HTTP router / startup*):
+See **`docs/ARCHITECTURE.md`** ("Composition Root" and "HTTP Request Path" sections) for the current, authoritative startup sequence and request path. This appendix previously duplicated that content with outdated package names; it now just points there to avoid the two copies drifting apart again.
 
-| Order | Component | Role |
-|-------|-----------|------|
-| 1 | `main.go` | `setting.Setup()` loads YAML + `.env` (with `STAGE`). |
-| 2 | `models.Setup()` | PostgreSQL via `[database]` DSN. |
-| 3 | Supabase packages | Separate Supabase DB URL + HTTP client when configured. |
-| 4 | `pkg/cache_clients.SetupRedis()` | Redis (auth/`/me` cache—see `docs/modules/auth.md`; **optional** if using hosted Redis or accepting DB-only fallback). |
-| 5 | `MIGRATE=1` / `MIGRATE=2` | `shareddb.MigrateDatabase()` (up, then continue startup) or `shareddb.MigrateDatabaseDownByFile()` (down by `MIGRATE_VERSION_FILE`, then exit). |
-| 6 | `config.InitSystem()`, `queues.Consume()` | Bootstrap and queue placeholder. |
-| 7 | `api.InitRouter()` | Gin: CORS, gzip, `/api/v1` (JWT and public routes), `/api/internal-v1` (API key). |
-
-**Smoke-test path:** `GET /api/v1/health` (no JWT). Auth routes live under `/api/v1/auth/...`; authenticated routes include `/api/v1/me` (see `api/v1/routes.go`).
+**Smoke-test path:** `GET /api/v1/health` (no JWT). Auth routes live under `/api/v1/auth/...`; authenticated routes include `/api/v1/me`.
 
 **Automated tests:** add module-level / integration Go suites under **`tests/`** at the repo root (`tests/README.md`, root `README.md` **Testing**).
 
-**Config:** `config/app.yaml` + `config/app-<STAGE>.yaml`; `${VAR}` placeholders resolve from `.env` / environment in `pkg/setting`.
+**Config:** `config/app.yaml` + `config/app-<STAGE>.yaml`; `${VAR}` placeholders resolve from `.env` / environment — see **`docs/ARCHITECTURE.md`** ("Configuration").
 
 ---
 
@@ -791,7 +781,7 @@ so `config/`, `migrations/`, and the rest of the tree catch up with **`master`**
 | Deploy rollback | `scripts/pm2-reload-with-binary-rollback.sh` | Ecosystem-only git checkout, health + PM2 exhaustion polling, full `git pull` on success; restores **binary + ecosystem** `.prev` on failure |
 | PM2 config | `ecosystem.config.cjs` | 3-environment PM2 config (`dev`, `staging`, `prod`) with **`min_uptime` + `max_restarts: 3`** on each app |
 | Docker (optional) | `Dockerfile`, `docker/compose.*.yml`, `scripts/docker/*` | Manual container deploy — see **[Appendix E](#appendix-e--docker-alternative-optional)** and [`docs/docker.md`](docker.md) |
-| Docs | `docs/modules/auth.md`, `docs/architecture.md` | Module-level docs |
+| Docs | `docs/FEATURES.md` (auth), `docs/ARCHITECTURE.md` | Module-level docs |
 
 **Server paths (matching `ecosystem.config.cjs`):**
 

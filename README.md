@@ -8,7 +8,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 - If `docs/` already contains sufficient and up-to-date information → **reuse it directly** without re-running full discovery.
 - If `docs/` is missing information or outdated → re-run discovery and **update `docs/` before proceeding**.
 - Always sync `docs/` after completing any task that changes architecture, APIs, data flow, patterns, or reusable assets.
-- `AGENTS.md`, `CLAUDE.md`, and `.claude/` are version-controlled agent guidance. `CLAUDE.md` imports the complete canonical rules from `AGENTS.md` through `@AGENTS.md`; `.claude/` contains the shared commands and skills used by Claude-compatible agents.
+- `AGENTS.md`, `CLAUDE.md`, `.ai/skills/`, and `.claude/` are version-controlled agent guidance (`AGENTS.md` stays under 32 KiB because Codex loads only that much; long procedures live in `.ai/skills/`). `CLAUDE.md` imports the complete canonical rules from `AGENTS.md` through `@AGENTS.md`; `.claude/` contains the shared commands and skills used by Claude-compatible agents.
 
 | Doc | Contents |
 |-----|----------|
@@ -16,6 +16,7 @@ The `docs/` folder is the **primary and authoritative documentation source** for
 | [`docs/FEATURES.md`](docs/FEATURES.md) | Per-module business rules (auth, course, taxonomy, instructor, media, rbac, authorization) — grep `^## ` for the module you need |
 | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) | Schema, entity relationships, migration history, and the full permission catalog (appendix) |
 | [`docs/SHARED.md`](docs/SHARED.md) | Reusable BE assets (packages, functions, types, utilities) — check here before adding anything new |
+| [`docs/ALL-SPRINTS.md`](docs/ALL-SPRINTS.md) | To do / in progress / done log (history and roadmap; not read by default) |
 | [`docs/docker.md`](docs/docker.md) | Docker Compose alternative (local/VPS manual; PM2/CI unchanged) |
 | [`docs/deploy.md`](docs/deploy.md) | VPS runbook (PM2 + CI) |
 | [`docs/security-public-seo-notes.md`](docs/security-public-seo-notes.md) | **Take-note:** future public SEO/storefront intent; reuse B1–B10 assets; no BE code yet; links FE SEO docs |

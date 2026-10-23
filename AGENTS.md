@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **be-mycourse** (7805 symbols, 24211 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **be-mycourse** (7807 symbols, 24228 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -101,730 +101,228 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 <!-- gitnexus:end -->
 
 ## SKILLS
-Before making any code or documentation changes, read and follow:
-1. All relevant skill files under `.ai/skills/`
 
-<!-- begin:repository-memory-bank-rule:start -->
+<!-- begin:skill-selection-rule:start -->
+Skills are instructions packaged for a kind of work. Use them as follows; user instructions and `AGENTS.md` / `CLAUDE.md` always override a skill, a skill never overrides Tooling rule protection, and when two skills conflict the workflow in this file wins.
+
+1. **When:** before any action of an in-scope task (after the session-context trigger below, because the session identity comes first) and, for an out-of-scope task, whenever a skill clearly fits (for example code review). Subagents do not re-pick: the main agent passes them the paths of the skills it picked.
+2. **Discover by index only.** List the frontmatter (`name` and `description`) of every `SKILL.md` in the project skill folders (`.ai/skills`, `.agents/skills`, `.agent/skills`, `.claude/skills`, `.codex/skills`, `.cursor/skills`, `.gemini/skills`, `.antigravity/skills`) and in the skill folders of the agent tooling itself (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.cursor/skills`, `~/.gemini/skills`, and the skills of installed plugins). De-duplicate by name (project over user level; ignore plugin cache copies and older versions). Do not read a skill body that was not picked.
+3. **Pick the relevant skills in three categories** and say "none" for a category with no fit: functional (what the task builds, e.g. UI, layout, responsive design for frontend; folder structure, transactions for backend), non-functional (performance, security, avoiding re-renders, N+1 queries, sound structure), and workflow (skills for the rules in this file that the task will trigger, e.g. documentation update, commit, branch rename, session context, OpenSpec).
+4. **Read each picked `SKILL.md` in full**, announce `Using <skill> (<category>) to <purpose>`, and follow it. Skills of another agent are read as plain instructions; use tool-specific ones only when the tool exists.
+5. **Evidence:** record the picked skills (name, category, path) in the session context file and list them in the final response.
+
+**Mandatory triggers (hard rules):**
+
+- Before reading or changing any project file for an implementation task, and before writing any session state for any repository task: read `.ai/skills/session-context/SKILL.md` and follow it. Never create a Session ID, a `.context` file, or an external context file from memory of this summary.
+- When the user asks to rename the current Git branch: read `.ai/skills/branch-rename/SKILL.md` and follow it.
+- After the plan is approved and before the first source edit of an in-scope task that is not a few-line, no-behavior change: read `.ai/skills/pre-implementation-checkpoint/SKILL.md` and follow it.
+- During any in-scope task and before reporting it done: follow `.ai/skills/progress-tracking/SKILL.md`.
+- After an in-scope task that changes behavior, routes, shared code, or architecture: follow `.ai/skills/docs-sync/SKILL.md`.
+<!-- end:skill-selection-rule:end -->
+
 # Global Memory Bank Rules
 
-These rules are mandatory for every task and every response in every repository.
+Mandatory for every task and every response. Shared memory root: `/private/tmp/ai-agent/memory`. `projectName` is the Git repository root directory name (or the working directory name when there is no Git root). Never store secrets, credentials, tokens, private keys, or raw sensitive values in memory.
 
-## Memory location and project identity
+<!-- begin:memory-bank-load-rule:start -->
+## Pre-response load
 
-- The shared memory root is `/private/tmp/ai-agent/memory`.
-- Use the current Git repository root directory name as `projectName`. If there is no Git root, use the current working directory name.
-- Never store secrets, credentials, tokens, private keys, or raw sensitive values in memory.
+Before task work or composing any answer, and again immediately after every successful context compaction, load all memory files for the project:
 
-## Required pre-response load
+1. Run `memory-bank-cli memory_bank_read_all --project <projectName>`. Run no preliminary `list_projects` or `list_project_files` command.
+2. On CLI failure, use the `memory-bank` MCP server: `list_project_files`, then concurrent `memory_bank_read` calls.
+3. If both fail, read the files directly from `/private/tmp/ai-agent/memory/<projectName>/`.
+4. If the project has no memory yet, continue and initialize it during persistence.
 
-Before doing task work or composing any user-facing answer, load all memory files for the current project.
+Every CLI or MCP operation has a hard 30-second limit. Never retry a failed or timed-out operation in the same turn.
+<!-- end:memory-bank-load-rule:end -->
 
-1. Use the installed Memory Bank CLI first and load the project in one command: `memory-bank-cli memory_bank_read_all --project <projectName>`. Do not run preliminary `list_projects` or `list_project_files` commands during the normal path.
-2. After agent context compaction completes successfully, immediately reload every Memory Bank file for the current project before continuing task work or composing a response. Use the same CLI-first fallback sequence defined in this section.
-3. Every Memory Bank CLI or MCP operation has a hard 30-second limit. Do not retry a failed or timed-out operation in the same turn.
-4. If the CLI is unavailable, times out, or fails, fall back to the `memory-bank` MCP server. Call `list_project_files`, then issue the required `memory_bank_read` calls concurrently rather than serially.
-5. If both CLI and MCP fail, read every file directly from `/private/tmp/ai-agent/memory/<projectName>/`.
-6. If the project has no memory yet, continue the task and initialize it during the required persistence step.
+<!-- begin:memory-bank-persistence-rule:start -->
+## End-of-turn persistence
 
-## Required end-of-turn persistence
+The last operation before every final answer persists the durable context: the user's goal and constraints, decisions and rationale, changes made, commands/tests and outcomes, current state, blockers, and next steps.
 
-The final operation before sending each final answer must persist all durable context needed to continue later: the user's goal and constraints, decisions and rationale, changes made, commands/tests and outcomes, current state, blockers, and next steps.
+1. Use `memory-bank-cli memory_bank_update` (existing files) or `memory_bank_write` (new files). Run no preliminary list command.
+2. On CLI failure, use the MCP `memory_bank_update` / `memory_bank_write`; only if both fail, write directly under `/private/tmp/ai-agent/memory/<projectName>/`.
+3. Keep `activeContext.md` current, append or update `progress.md`, and update other files when their durable facts change.
+4. Persist the complete final answer verbatim in `lastResponse.md` (first to last character, all Markdown, code blocks, links, and whitespace preserved; overwrite on every response). Finish drafting the answer first, persist that exact payload, then emit it without further edits. Never replace it with a summary. Before persisting, replace any value covered by the Sensitive Test Accounts and Environment Secrets Policy (credentials, tokens, keys, private endpoints, database URLs, cookies, certificates) with `[redacted]` in the persisted copy only; the answer shown to the user is unchanged.
+5. Never claim persistence unless the write succeeded. The same 30-second limit and no-retry rule apply.
+<!-- end:memory-bank-persistence-rule:end -->
 
-1. Prefer the CLI: use `memory-bank-cli memory_bank_update` for existing files and `memory-bank-cli memory_bank_write` for new files. Do not run preliminary list commands.
-2. Every Memory Bank CLI or MCP operation has a hard 30-second limit. Do not retry a failed or timed-out operation in the same turn.
-3. If a CLI write fails, fall back to `memory_bank_update` or `memory_bank_write` through MCP.
-4. Only if both CLI and MCP fail may you write directly under `/private/tmp/ai-agent/memory/<projectName>/`.
-5. Keep `activeContext.md` current and append or update `progress.md`; update other memory files when their durable facts change.
-6. Because no tools can run after a final response is emitted, perform this persistence immediately before the final response. Do not claim persistence unless the write succeeded.
-
-## Verbatim final-response persistence
-
-- For every response, persist the complete final answer verbatim in `/private/tmp/ai-agent/memory/<projectName>/lastResponse.md`.
-- `lastResponse.md` must contain exactly the final answer shown to the user, from its first character through its last character, preserving all Markdown, code blocks, links, punctuation, whitespace, and line breaks.
-- Never replace the verbatim response with a summary, paraphrase, context note, progress report, or selected highlights. Updates to `activeContext.md` and `progress.md` are supplementary and do not satisfy this requirement.
-- Before emitting the final answer, first finish drafting it as an immutable payload. Persist that exact payload using the CLI-first fallback chain, then emit the same payload without any further edits. This ordering is required because tools cannot run after the final answer has been emitted.
-- Overwrite `lastResponse.md` on every response so it always contains the most recent complete assistant final answer.
-- A response is not ready to send until its exact payload has been persisted successfully. Do not claim that the verbatim response was saved unless the write succeeded.
-
-## MCP tool contract
-
-- `memory_bank_read`: read a memory bank file.
-- `memory_bank_write`: create a memory bank file.
-- `memory_bank_update`: update an existing memory bank file.
-- `list_projects`: list available projects.
-- `list_project_files`: list files within a project.
-<!-- end:repository-memory-bank-rule:end -->
+MCP tools of the `memory-bank` server: `memory_bank_read`, `memory_bank_write`, `memory_bank_update`, `list_projects`, `list_project_files`.
 
 <!-- begin:agent-rule-boundary-rule:start -->
-### Agent rule boundaries
+## Agent rule boundaries
 
-- Every new rule added to `AGENTS.md` must be enclosed in a uniquely named boundary using exactly this structure:
-
-  `<!-- begin:<rule-name>:start -->`
-  `<!-- end:<rule-name>:end -->`
-
-- The opening marker must appear immediately before the rule section, and the matching closing marker must appear immediately after it.
+Every new rule added to `AGENTS.md` must be wrapped in a uniquely named boundary: `<!-- begin:<rule-name>:start -->` immediately before the rule section and `<!-- end:<rule-name>:end -->` immediately after it.
 <!-- end:agent-rule-boundary-rule:end -->
 
 <!-- begin:tooling-rule-protection:start -->
-### Tooling rule protection
+## Tooling rule protection
 
-- Never modify, disable, weaken, remove, or replace tools or configuration used to check, lint, test, validate, analyze, format, build, or otherwise enforce code quality.
-- Never bypass these tools or their rules in code, configuration, scripts, commands, Git hooks, or implementation structure. Suppressions, exclusions, ignored paths, wrapper commands, conditional skips, and equivalent workarounds are prohibited.
-- Code must closely follow the intended architecture and flow enforced by the existing rules. Do not create arbitrary paths, modules, packages, dependencies, or imports merely to make an implementation pass.
-- In most cases, enforcement rules and their tooling must not be changed. Refactor or correct the implementation instead.
-- If compliance is genuinely impossible after the implementation has been completed:
-  1. Explain clearly to the user which rule would need to change, why the implementation cannot comply, and the consequences of changing it.
-  2. Stash the entire implementation with a specific, descriptive stash message.
-  3. Stop and wait for the user to decide whether the rule may be changed.
-  4. If the user rejects the rule change, reapply the stash and refactor or correct the implementation until it complies. Do not bypass the rule.
-  5. If the user explicitly approves the rule change, reapply the stash and implement the approved rule change together with the original code.
+- Never modify, disable, weaken, remove, or replace tools or configuration that check, lint, test, validate, analyze, format, build, or otherwise enforce code quality.
+- Never bypass them in code, configuration, scripts, commands, Git hooks, or implementation structure (suppressions, exclusions, ignored paths, wrapper commands, conditional skips, and equivalents are prohibited).
+- Follow the architecture and flow the existing rules enforce. Do not create arbitrary paths, modules, packages, dependencies, or imports only to make an implementation pass. Refactor or correct the implementation instead.
+- If compliance is genuinely impossible after the implementation is complete: (1) explain which rule would need to change, why, and the consequences; (2) stash the entire implementation with a descriptive message; (3) stop and wait for the user. If the user rejects the change, reapply the stash and fix the implementation until it complies. If the user approves, reapply the stash and implement the approved rule change together with the original code.
 - Never change a protected rule or its tooling without the user's explicit approval through this process.
 <!-- end:tooling-rule-protection:end -->
 
 <!-- begin:commit-rule:start -->
-### Commit rules
+## Commit rules
 
-- Write every commit title entirely in English.
-- Use the one-line Conventional Commit format `<type>: <title>`.
-- Do not include a scope or any parentheses between the type and the colon.
-- The commit must contain only the title line. Do not add a body, extended description, bullet list, or footer.
-- Make the title meaningful and specific enough to explain the change without additional description.
-- Keep the complete commit title between 15 and 72 characters inclusive.
-- Before every commit, allow the Husky `pre-commit` hook to run `make check-all`; do not bypass the hook with `--no-verify`.
-- Allow the Husky `commit-msg` hook to validate the message with commitlint.
+- Write every commit title entirely in English, as one line: `<type>: <title>` (Conventional Commits). No scope, no parentheses, no body, no bullet list, no footer.
+- The title must be meaningful and specific enough to explain the change without a description, and be between 15 and 72 characters inclusive.
+- This repository has no installed Git hook: nothing runs automatically on commit. Run the quality gate named in "Repository specifics" after the task and again immediately before every commit on the exact tree being committed, then validate the message as described there. Never bypass a hook or gate (no `--no-verify`).
 <!-- end:commit-rule:end -->
 
-<!-- begin:branch-rename-rule:start -->
-### Branch rename rules
+<!-- begin:degraded-environment-rule:start -->
+## Degraded Environment Rule
 
-Apply this rule only when the user asks to rename the current local Git branch.
+When a required component is missing or unusable (a skill file, GitNexus, the question tool, subagents, documentation, a test setup, a quality gate): do not skip it silently. (1) Say what is missing. (2) Use the fallback below. (3) If there is no fallback, stop and ask the user. (4) Never claim anything ran or was verified that did not.
 
-- Inspect every local commit that is reachable from `HEAD` but not present on the relevant `origin` baseline. Derive the branch name from the combined intent of all those commits, not only the latest commit.
-- Refresh remote-tracking information with `git fetch origin` before comparing when possible. If the fetch fails, use the existing local `origin/*` refs and clearly state that the remote baseline may be stale.
-- Resolve the comparison baseline in this order:
-  1. The current branch's configured upstream when it belongs to `origin`.
-  2. `origin/<current-branch>` when that ref exists.
-  3. The default branch referenced by `refs/remotes/origin/HEAD`.
-- Record the resolved origin ref and its full commit SHA, then inspect the complete local-only range with `git log --reverse --format='%H%x09%s' <origin-ref>..HEAD`.
-- Before proposing or performing a rename, show the current branch, the resolved origin ref and full SHA, and the number and subjects of the local-only commits used to derive the name.
-- Generate exactly one branch name for each repository being evaluated. Never provide multiple candidates or alternatives for the same repository.
-- When a rename request covers multiple repositories, analyze each repository independently from its own origin baseline and local-only commits. The generated branch names may differ; never force repositories to share a name merely for consistency.
-- Use a Commitlint/Conventional Commits action type such as `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, or `revert`.
-- Without a ticket, use `<type>/<english-kebab-case-summary>`.
-- When the user's request contains `ticket <number>`, use `<type>/#<number>-<english-kebab-case-summary>`.
-- Keep the name in English and lowercase. Use hyphens between summary words; do not use spaces or underscores.
-- Keep the summary concise, specific, and understandable. Prefer three to seven summary words and keep the complete branch name at no more than 72 characters.
-- If there are no local-only commits, derive the name from the user's explicit task description. If neither the commits nor the request provide enough intent for one meaningful name, ask for the missing intent instead of guessing.
-- Without `--force`, do not rename the branch immediately. Show the single proposed name and wait for the user's explicit approval.
-- When the rename request includes `--force`, treat it as approval to rename the current local branch immediately without a confirmation round.
-- Use `git branch -m -- '<new-name>'` for the rename, then verify the result with `git branch --show-current`.
-- The user's `--force` flag bypasses confirmation only. It does not authorize overwriting an existing local branch, pushing the renamed branch, deleting a remote branch, or changing upstream configuration.
-- Never push, delete or rename a remote branch, or modify upstream tracking unless the user explicitly requests that separate action.
-<!-- end:branch-rename-rule:end -->
-
-## AI Agent — dev test account
-
-Use this shared admin account for local API smoke tests (`http://localhost:8080` after `go run .`):
-
-| Field | Value |
-|-------|--------|
-| Email | `DEV_TEST_ACCOUNT_EMAIL` |
-| Password | `DEV_TEST_ACCOUNT_PASSWORD` |
-| Role | sysadmin/admin (full P1–P68 on dev DB) |
-
-```bash
-# Login → capture access_token
-curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"DEV_TEST_ACCOUNT_EMAIL","password":"DEV_TEST_ACCOUNT_PASSWORD","remember_me":false}'
-
-# Example: instructor expertise (user id 14)
-curl -sS 'http://localhost:8080/api/v1/instructors/14/expertise/topics' \
-  -H "Authorization: Bearer $ACCESS_TOKEN"
-```
-
+- **Skill file missing:** apply the minimum here and offer to copy the skill. `session-context`: stop before modifying project files. `pre-implementation-checkpoint`: ask once (AskUserQuestion) about a new branch name (on a protected branch use `git switch -c`, never rename it), about tests only when there is no test setup (skip is Recommended), and about extra subagents only when the task is heavy. `progress-tracking`: tick the OpenSpec `tasks.md` or plan checkbox right after its verification, otherwise keep a todo list in the session file. `docs-sync`: edit only the touched documentation entries and replace outdated text. `branch-rename`: propose one `<type>/<english-kebab-summary>` name and wait for approval; never push.
+- **GitNexus unavailable, stale, or UNKNOWN / 0 callers:** use `grep` for callers and blast radius, and state that GitNexus did not answer.
+- **Question tool absent:** ask the same question directly, with the Recommended option named.
+- **No subagents available:** do the research yourself.
+- **Documentation missing, or an entry not found:** read the code directly, say there is no documentation, and propose the entry in the final response.
+- **No test setup or gate cannot run:** follow the checkpoint for tests, and report the gate as not run with the reason.
+<!-- end:degraded-environment-rule:end -->
 
 # Implementation Workflow Rules
 
 ## Scope and Applicability Rule
 
-These rules apply only to **implementation tasks that require creating, modifying, deleting, debugging, refactoring, testing, formatting, linting, building, migrating, generating, or otherwise changing code or project-owned technical files inside a software project, repository, workspace, or working tree**.
+Classify every request first, before the Session ID, `.context`, or any other lifecycle step.
 
-An in-scope code task includes, but is not limited to:
+**In scope** (implementation): creating, modifying, deleting, debugging, refactoring, testing, formatting, linting, building, migrating, or generating code or project-owned technical files; running checks as part of validating such a change; updating project documentation only to match such a change.
 
-* Writing, implementing, changing, fixing, deleting, or refactoring source code.
-* Debugging project code, configuration, builds, tests, runtime behavior, integrations, or CI/CD failures when the task requires changing project files.
-* Creating, updating, or deleting tests, fixtures, mocks, schemas, migrations, generators, scripts, or project configuration.
-* Running formatters, linters, tests, builds, migrations, generators, or CI/CD checks as part of implementing, validating, or fixing an actual project change.
-* Creating or modifying project-owned documentation only when it is required to describe, support, or synchronize with code or technical project files changed by the current implementation task.
-* Producing an implementation plan only when the user asks the agent to proceed with an actual code or project-file change in the same task.
+**Out of scope** (read-only or advisory): review, audit, analysis, explanation, inspection, planning, brainstorming, estimation, general questions, standalone writing, and running diagnostics only to answer a question.
 
-These rules do **not** apply to read-only, advisory, explanatory, review-only, or non-implementation tasks. Out-of-scope tasks include, but are not limited to:
+- Review, inspection, planning, documentation, and test runs become in scope only when the same request also asks for a project change. In a mixed request, apply these rules to the implementation part only.
+- When uncertain, treat the task as out of scope. Reading files or `.context` does not make a task in scope.
+- Out-of-scope tasks never write to any project `.context` file. Quality gates are not run for them.
 
-* Reviewing code without being asked to modify, fix, refactor, test, or otherwise change project files.
-* Reading or inspecting a repository only to explain its implementation, architecture, dependencies, Git state, runtime behavior, code quality, or possible improvements.
-* Auditing, analyzing, or commenting on code, pull requests, diffs, commits, designs, architecture, security, performance, accessibility, or maintainability when no project change is requested.
-* Answering general programming, product, infrastructure, architecture, or technology questions, including questions that use code snippets supplied in the conversation.
-* Creating examples, pseudocode, isolated snippets, interview answers, tutorials, explanations, or demonstrations that are not being applied to an existing project.
-* General planning, brainstorming, estimation, roadmaps, task breakdowns, or architecture discussions, even when they concern a software project, unless the same task explicitly requires implementing a project change.
-* Writing standalone documents outside the project, such as external proposals, reports, essays, emails, presentations, policies, product descriptions, meeting notes, or generic technical documentation.
-* Rewriting, translating, summarizing, proofreading, or formatting user-provided text when the task does not modify code or project-owned technical files.
-* Running commands only to inspect information, collect diagnostics, review status, or answer a question when no implementation, fix, refactor, or test change is requested.
+## Session and Context Rule
 
-For every request, the agent must first classify the task before invoking the Session ID or `.context` lifecycle:
+Details live in `.ai/skills/session-context/SKILL.md`. Invariants that always hold:
 
-1. If the task is out of scope, the agent may read existing project `.context` files when they are useful for review, explanation, analysis, or project understanding. It must not create, modify, rename, delete, or append to any `.context` file inside the project for that out-of-scope task. If any writable session state is required for the out-of-scope repository-related task, regardless of the task type or the kind of information being persisted, the agent must establish or reuse the conversation Session ID and write only to an external machine-local or temporary context directory outside every project. Do not run implementation quality gates merely because this rule file has `alwaysApply: true`. Complete the task normally.
-2. If the task explicitly requires creating, modifying, deleting, debugging, refactoring, or testing code or project-owned technical files, apply every relevant rule in this file before interacting with project content.
-3. If one request contains both in-scope implementation work and out-of-scope review, explanation, planning, or standalone writing, apply these rules only to the implementation portion.
-4. Code review is not automatically an in-scope task. It becomes in scope only when the user also asks the agent to implement fixes, modify files, refactor code, add or update tests, or perform another project change based on the review.
-5. Repository inspection is not automatically an in-scope task. It becomes in scope only when inspection is necessary to carry out an explicitly requested project change.
-6. A plan is not automatically an in-scope task. It becomes in scope only when the same request includes or directly authorizes implementation of code or project-file changes.
-7. Documentation is not automatically an in-scope task. It becomes in scope only when the document is a project-owned technical file that must be created or changed as part of the current implementation task.
-8. Running tests, linters, formatters, builds, or diagnostics is not automatically in scope. It becomes in scope only when performed as part of implementing, validating, debugging, refactoring, or fixing an actual project change.
-9. When classification is uncertain, default to out of scope unless the user clearly requests a change to code or project-owned technical files. Reading repository files or project `.context` files does not by itself make the task in scope. If any session state must be written for such a task, use only the external context lifecycle defined below.
-
-## Critical Pre-Conversation Session Bootstrap Rule
-
-For an in-scope implementation task, before the agent reads or changes project files for the purpose of implementing, debugging, refactoring, testing, or validating the requested project change, invokes a project subagent, or runs a project command for that implementation work, the conversation host or bootstrap process must establish one stable Session ID for the entire conversation.
-
-**Prefer the native runtime session ID as the seed value.** When the agent's own runtime already exposes a stable per-conversation session identifier (for example, Claude Code's `CLAUDE_CODE_SESSION_ID` environment variable), use that value as the Session ID written into `AI_SESSION_ID_FILE` at bootstrap step 4 below, instead of generating a random UUID — it is already stable for the conversation, so there is nothing left to generate. Everything else in this section (the file as the authoritative identity source, the validation checklist, subagent propagation, the stop condition) still applies unchanged; only the source of the *value* changes. Only generate a random UUID when no such native runtime session ID is available.
-
-This Session ID must be created outside every project, repository, workspace, Desktop project folder, and working tree. It must never be written into a project-level temporary file, source file, configuration file, `.context` file, `.env` file, documentation file, Git metadata file, or any other file located inside a project.
-
-The canonical external temporary location must be resolved using the current operating system's temporary directory:
-
-```text
-<OS_TEMP_DIR>/ai-agent-sessions/<conversation-bootstrap-key>/session-id
-```
-
-Resolve `<OS_TEMP_DIR>` as follows:
-
-* Windows: use `%TEMP%`, then `%TMP%`, then the platform API for the current user's temporary directory.
-* macOS and Linux: use `$TMPDIR`, then `/tmp`.
-* Other operating systems: use the runtime or platform API that returns the current user's temporary directory.
-
-The resolved directory must be user-writable and outside every project, repository, workspace, and working tree.
-
-The exact resolved path must be stored in the process-level environment variable:
-
-```text
-AI_SESSION_ID_FILE
-```
-
-The bootstrap process must follow this exact lifecycle:
-
-1. Before the first task action of a new conversation, create one unpredictable conversation bootstrap key outside all projects.
-2. Resolve `AI_SESSION_ID_FILE` to `<OS_TEMP_DIR>/ai-agent-sessions/<conversation-bootstrap-key>/session-id` using the operating-system-specific temporary directory rules above.
-3. Create the parent directory outside all projects with permissions restricted to the current user.
-4. If the file does not exist, use the native runtime session ID as the value when available (see above); otherwise generate exactly one stable Session ID. Write it to the file atomically.
-5. If the file already exists, read and reuse the existing Session ID. Never overwrite it with a different value during the same conversation.
-6. Keep `AI_SESSION_ID_FILE` unchanged and reuse the Session ID from that exact file for every later message, task, subtask, tool call, and subagent in the same conversation.
-7. A topic change, repository change, branch change, task change, date change, tool restart, retry, compaction, or new user message does not create a new Session ID.
-8. A new Session ID may be created only for a genuinely new conversation or when the user explicitly orders a Session ID reset.
-
-A recommended POSIX shell bootstrap for macOS and Linux is:
-
-```bash
-set -eu
-
-: "${TMPDIR:=/tmp}"
-: "${AI_CONVERSATION_BOOTSTRAP_KEY:?AI_CONVERSATION_BOOTSTRAP_KEY must be created by the conversation host}"
-
-export AI_SESSION_ID_FILE="${TMPDIR%/}/ai-agent-sessions/${AI_CONVERSATION_BOOTSTRAP_KEY}/session-id"
-mkdir -p "$(dirname "$AI_SESSION_ID_FILE")"
-chmod 700 "$(dirname "$AI_SESSION_ID_FILE")"
-
-if [ ! -s "$AI_SESSION_ID_FILE" ]; then
-  umask 077
-  temporary_file="${AI_SESSION_ID_FILE}.tmp.$$"
-  uuidgen | tr '[:upper:]' '[:lower:]' > "$temporary_file"
-  mv "$temporary_file" "$AI_SESSION_ID_FILE"
-fi
-
-export AI_SESSION_ID="$(tr -d '\r\n' < "$AI_SESSION_ID_FILE")"
-```
-
-A recommended PowerShell bootstrap for Windows is:
-
-```powershell
-$ErrorActionPreference = "Stop"
-
-if (-not $env:AI_CONVERSATION_BOOTSTRAP_KEY) {
-    throw "AI_CONVERSATION_BOOTSTRAP_KEY must be created by the conversation host"
-}
-
-$tempRoot = [System.IO.Path]::GetTempPath()
-$sessionDirectory = Join-Path $tempRoot "ai-agent-sessions\$($env:AI_CONVERSATION_BOOTSTRAP_KEY)"
-$env:AI_SESSION_ID_FILE = Join-Path $sessionDirectory "session-id"
-
-[System.IO.Directory]::CreateDirectory($sessionDirectory) | Out-Null
-
-if (-not (Test-Path -LiteralPath $env:AI_SESSION_ID_FILE) -or
-    (Get-Item -LiteralPath $env:AI_SESSION_ID_FILE).Length -eq 0) {
-    $temporaryFile = "$($env:AI_SESSION_ID_FILE).tmp.$PID"
-    ([guid]::NewGuid().ToString().ToLowerInvariant()) |
-        Set-Content -LiteralPath $temporaryFile -NoNewline -Encoding utf8
-    Move-Item -LiteralPath $temporaryFile -Destination $env:AI_SESSION_ID_FILE -Force
-}
-
-$env:AI_SESSION_ID = (Get-Content -LiteralPath $env:AI_SESSION_ID_FILE -Raw).Trim()
-```
-
-On Windows, the bootstrap must use Windows path APIs such as `Join-Path` or `System.IO.Path`. It must not construct Windows paths by assuming POSIX separators.
-
-The agent must validate all of the following before continuing:
-
-* `AI_SESSION_ID_FILE` is defined.
-* The resolved path is outside every project, repository, workspace, and working tree involved in the task.
-* The file exists and contains exactly one non-empty stable Session ID.
-* `AI_SESSION_ID`, when provided, matches the value stored in `AI_SESSION_ID_FILE`.
-* The same resolved path and Session ID are supplied to every subagent.
-
-The agent must never generate a replacement Session ID merely because `AI_SESSION_ID` is missing from the current shell. It must first read the value from `AI_SESSION_ID_FILE`.
-
-The agent must never search project directories for the external Session ID file. It must read only the exact path stored in `AI_SESSION_ID_FILE`.
-
-If `AI_SESSION_ID_FILE` is missing, empty, inaccessible, located inside a project, points to a different Session ID than the one already established for the conversation, or cannot be passed consistently to subagents, the agent must stop before modifying project files. It must repair the external bootstrap state when possible. It must not guess, silently create a project-local fallback, reuse an unrelated `.context` file, or create multiple session context files.
-
-The external temporary Session ID file is the authoritative identity source for the conversation.
-
-Where the writable session context itself lives (in-project `.context/session-<SESSION_ID>.md` for in-scope tasks, an external file for out-of-scope tasks) is defined in full by `Critical Dual Session Context Lifecycle Rule` below; this section only establishes the Session ID value.
-
-## Critical Agent and Subagent Session Propagation Rule
-
-The main agent owns the conversation Session ID and must propagate the same identity to every subagent.
-
-Before a subagent reads or changes any project content, the main agent must provide it with:
-
-* The exact `AI_SESSION_ID_FILE` path.
-* The exact `AI_SESSION_ID` value read from that file.
-* The exact current session context file path, whether it is the in-project coding context file or the external read-only-task context file.
-* An explicit prohibition against generating a new Session ID, creating another session context file, or writing to any session context file other than the exact path supplied by the main agent.
-
-Every subagent must verify that its Session ID matches the value in `AI_SESSION_ID_FILE`. A subagent must never derive a Session ID from timestamps, task names, repository names, branch names, process IDs, message text, random values, or existing `.context` filenames.
-
-Subagents may read project `.context` files as references and may read the current session context file when needed. They must not independently create, rename, replace, or select a session context file. Unless the main agent explicitly delegates a specific context edit, only the main agent may write the current session context file.
-
-When a delegated context edit is allowed, the subagent may edit only the exact current session context file supplied by the main agent. Concurrent writes are forbidden. The main agent must serialize context updates and remain responsible for the final consolidated content.
-
-Any result returned by a subagent that used a different Session ID, created a second session context file, selected a context file by guessing, or wrote to another session's context file must be rejected and redone using the correct Session ID and exact context path.
-
-## Critical First Action: Read Existing Project Context
-
-For any task involving an existing repository, including implementation, review-only, explanation, analysis, debugging, refactoring, or testing, the agent may read the complete existing project `.context` folder when it is available and relevant.
-
-The purpose of this read is to understand prior decisions, conventions, failures, constraints, unresolved issues, and reusable project knowledge.
-
-For an in-scope implementation task, the agent must read the complete existing project `.context` folder before repository-based planning, modification, testing, or implementation. Which writable session context file to resolve afterward, and how, is defined in full by `Critical Dual Session Context Lifecycle Rule` below — not restated here.
-
-For review-only, explanation-only, analysis-only, planning-only, audit-only, or other out-of-scope repository tasks, existing project `.context` files may be read as references but remain read-only; any writable session state the task requires follows the external session context lifecycle in `Critical Dual Session Context Lifecycle Rule` below instead.
-
-## Critical Dual Session Context Lifecycle Rule
-
-The writable session context location depends on the classified task.
-
-### In-Scope Coding and Implementation Tasks
-
-For each affected project, use exactly one project session context file for the current Session ID:
-
-```text
-<project>/.context/session-<SESSION_ID>.md
-```
-
-Lifecycle:
-
-1. Read the Session ID from `AI_SESSION_ID_FILE`.
-2. Read the complete existing project `.context` folder.
-3. Search for files associated with the exact complete Session ID.
-4. If exactly one matching file exists, reuse it.
-5. If no matching file exists, create exactly one file named `session-<SESSION_ID>.md`.
-6. If multiple matching files exist, do not create another file; resolve the duplication before continuing.
-7. Reuse the exact resolved path for all later coding messages, implementation subtasks, quality gates, documentation updates, learning summaries, agents, and subagents for that project in the same chat.
-8. Pass the exact project session context path to every participating subagent.
-
-Forbidden for in-scope coding tasks:
-
-* Creating a new context file for each message, task, branch, feature, date, or retry.
-* Using a context file owned by another Session ID.
-* Selecting a context file by filename similarity, date, size, or semantic guess.
-* Writing coding-task session history to an external context file instead of the required project session context file.
-* Allowing a subagent to create or select another context file.
-
-### All Out-of-Scope Repository-Related Tasks
-
-If any writable session state is required for any out-of-scope repository-related task, use exactly one external context file outside every project:
-
-```text
-<OS_TEMP_DIR>/ai-agent-sessions/<conversation-bootstrap-key>/context/session-<SESSION_ID>.md
-```
-
-A persistent machine-local directory may be used instead:
-
-```text
-Windows: %LOCALAPPDATA%\ai-agent-sessions\<conversation-bootstrap-key>\context\session-<SESSION_ID>.md
-macOS:   $HOME/Library/Application Support/ai-agent-sessions/<conversation-bootstrap-key>/context/session-<SESSION_ID>.md
-Linux:   ${XDG_STATE_HOME:-$HOME/.local/state}/ai-agent-sessions/<conversation-bootstrap-key>/context/session-<SESSION_ID>.md
-```
-
-Store the resolved external paths in:
-
-```text
-AI_SESSION_CONTEXT_DIR
-AI_SESSION_CONTEXT_FILE
-```
-
-Lifecycle:
-
-1. Create or reuse the conversation Session ID whenever any writable external session state is required for the out-of-scope repository-related task.
-2. Resolve an external directory outside every project and working tree.
-3. Create exactly one external file named `session-<SESSION_ID>.md`.
-4. Reuse that exact file for later out-of-scope repository tasks in the same chat.
-5. Do not write state from any out-of-scope repository-related task into any project `.context` file.
-
-Before the final response of an in-scope implementation task, verify:
-
-* The Session ID still matches `AI_SESSION_ID_FILE`.
-* Exactly one `<project>/.context/session-<SESSION_ID>.md` exists for each affected project.
-* No external context file was used as the coding-task session record.
-* No context file was created for a different or guessed Session ID.
-* No subagent created or modified an unauthorized context file.
-
-Before the final response of any out-of-scope repository-related task:
-
-* Update `AI_SESSION_CONTEXT_FILE` with the final consolidated state, following `Mandatory External Context Update for Read-Only Repository Tasks` below for what to create/skip and what content to record — not restated here.
-* Verify that `AI_SESSION_CONTEXT_FILE` remains outside every project, repository, workspace, and working tree.
-* Verify that the Session ID still matches `AI_SESSION_ID_FILE`.
-* Verify that no second external context file or Session ID was created by the main agent or a subagent.
+- One stable Session ID per conversation, read from `AI_SESSION_ID_FILE` (outside every project); never regenerated by a topic, task, branch, retry, compaction, or new message.
+- In-scope tasks write session state only to `<project>/.context/session-<SESSION_ID>.md` (one file per Session ID, reused).
+- Out-of-scope tasks that need writable state write only to the external `AI_SESSION_CONTEXT_FILE`, never into a project.
+- The main agent passes the same Session ID file and context path to every subagent; subagents never create or select another file.
+- If the Session ID or context path cannot be established consistently, stop before modifying project files.
 
 ## Initial Phase: Project Understanding
 
-This phase runs only after the task has already been classified as an in-scope implementation task. Its repository-reading requirements must never be used to pull a review-only, explanation-only, planning-only, or advisory request into scope.
+Runs only after the task is classified as in scope.
 
-After reading the complete existing project `.context` folder and resolving the current project session context file, the agent must read project documentation proportionate to the task, plus all project skills inside `.ai/skills`, to understand the full project scope, conventions, reusable workflows, and task-specific instructions.
-
-For `be-mycourse`: read `docs/ARCHITECTURE.md` in full, grep `docs/FEATURES.md` (`grep -n '^## ' docs/FEATURES.md`) for the module entry or entries the task touches and read only those in full, and check `docs/SHARED.md` before writing any new utility, type, or helper. Read `docs/DATA-MODEL.md` in full only when the task touches schema or the permission catalog directly.
-For `fe-mycourse`: read its `docs/` folder as currently structured.
-
-Beyond docs, the agent must also understand the actual repository structure for the side being changed: read it carefully, identify where each module is located, and identify where relevant code, folders, utilities, types, and services (plus components and hooks for `fe-mycourse`) are placed, so new work follows the existing structure rather than inventing a parallel one.
-
-**Note on "as currently structured" (fe-mycourse):** several references to `fe-mycourse`'s `docs/` folder in this file use this generic phrasing — not specific file names — because `fe-mycourse/docs/` has not undergone the same fixed-file restructure as `be-mycourse/docs/` (which now has exactly `ARCHITECTURE.md`, `FEATURES.md`, `DATA-MODEL.md`, `SHARED.md`). This is a deliberate placeholder, not an oversight: do not invent specific `fe-mycourse` file names at these spots. If `fe-mycourse` is later restructured into an equivalent fixed set of docs files, every "as currently structured" reference to `fe-mycourse` in this file (Initial Phase above, Documentation and Context Sync, Swagger and API Documentation Rule, Full Documentation Replacement Rule) must be updated at that time to name those files explicitly, mirroring the `be-mycourse` branches next to each one. This does NOT include the Reuse and Deduplication Rule below, which already names a concrete, current file — `docs/reusable-assets.md` — not a placeholder; update that one reference directly if and when `fe-mycourse` ever renames or replaces that specific file.
-
-If `.ai/skills` exists, the agent must inspect every relevant skill before planning or implementing any change.
-
-Use GitNexus to work faster and to inspect the project context.
-
-The agent must also review all changed code in Git to understand exactly what has been modified, then update the documentation accordingly.
-
-Use subagents when they help speed up research, codebase exploration, documentation review, or Git change inspection.
-
-The agent may spawn up to 4 subagents during the research and understanding phase, but must not spawn the maximum number by default. Spawn only the number of subagents that are actually needed for the task.
-
-Subagents must be used purposefully. For example:
-
-* One subagent may inspect the backend codebase structure.
-* One subagent may inspect the frontend codebase structure.
-* One subagent may review `.context`, documentation, and GitNexus files.
-* One subagent may inspect Git changes, modified files, quality-gate failures, or CI/CD-related issues.
+1. Read the complete project `.context` folder, then resolve the session file as described in the session skill.
+2. Apply the SKILLS rule above: discover by index, pick the functional, non-functional, and workflow skills, and read the picked ones.
+3. Read documentation by routing, not in bulk: follow "Repository specifics" below. Never read the whole `docs/` folder.
+4. Use GitNexus to inspect the project, and review all changed code in Git.
+5. Understand the repository structure (modules, folders, components, hooks, utilities, types, services) so new work follows it.
+6. Use subagents only when they speed up research (codebase structure, docs and GitNexus review, Git changes, quality-gate failures). The default cap is 4 subagents (`N` = 4), and do not spawn the maximum by default. If the task is heavy enough that more research subagents would help, do not exceed `N` on your own: first tell the user the task is heavy and that more subagents cost more tokens, then ask (AskUserQuestion, or a direct question when that tool is absent) with options such as keep 4 (Recommended), raise to a larger number you name, or no subagents. A number the user states in the request replaces the default `N`.
 
 ## Subagent Model and Cost Restriction Rule
 
-Subagents may use only:
+Subagents may use only Auto mode, a model of the same family at the same or lower tier than the main agent, or another low-cost model. Never spawn a model whose listed input price is greater than USD 3 or whose listed output price is greater than USD 15. If the model identity, tier, or price cannot be verified, use Auto or the lowest-cost model. The main agent coordinates findings, avoids duplicated effort, and owns the final solution.
 
-* Auto mode;
-* A model in the same model family and at the same or lower capability tier than the main agent;
-* Or another low-cost model.
+## Implementation Rule
 
-For example:
+Implement the requested feature completely, following the existing folder structure. All work is written in English.
 
-* If the main agent is running in Cursor Auto mode, subagents must use Auto mode or a lower-cost option.
-* If the main agent is GPT-5.6, subagents may use GPT-5.6, GPT-5.5, GPT-5.4, or a lower-tier model.
-
-The agent must not spawn any model whose listed price exceeds either of these limits:
-
-* Input price greater than USD 3.
-* Output price greater than USD 15.
-
-If model identity, capability tier, or pricing cannot be verified, the agent must use Auto mode or the lowest-cost available model instead.
-
-The main agent remains responsible for coordinating all subagent findings, avoiding duplicated effort, deciding the final implementation approach, and ensuring the final solution is correct.
-
-## Middle Phase: Implementation
-
-Implement the requested feature completely.
-
-The implementation must follow the existing folder structure and reuse existing utility functions, components, types, services, hooks, helpers, and shared logic whenever possible.
-
-If a required utility does not exist, create a new reusable utility and place it in the correct folder so that future phases can reuse it.
-
-All work must be written in English.
+- **Scope:** change only what the task needs. Required companions (tests, documentation, callers broken by the change, shared-assets entries) are in scope. Unrelated refactors, renames, cleanups, extra files, and commands with side effects nobody asked for are not: list them under follow-ups, and ask before an out-of-scope edit the task cannot work without.
+- **Match the surrounding code:** same naming, comment density, and idiom as the file you edit; read its neighbours first.
+- **Ask when it is the user's call:** if a requirement is unclear, or two designs exist and the user should choose, stop and ask with options and a Recommended one (AskUserQuestion, or a direct question when absent). Do not ask what the code or documentation can answer; state the assumption instead.
+- **Tests** (when the repository has a test setup and the user did not skip them): add or update tests when behavior changes; for a bug, write a failing test first; run the narrowest relevant test after each unit of work and the full gate at the end. Never edit, delete, or skip an existing test to make it pass. Name untested paths in the final response.
+- **Safe by default:** validate input at system boundaries, never log or hardcode secrets, and handle errors with the pattern the repository already uses (see Repository specifics).
+- **Completion:** never report a step or the task as done before running its verification; say what ran and what did not.
 
 <!-- begin:reuse-and-deduplication-rule:start -->
 ## Reuse and Deduplication Rule
 
-When implementing a solution, the agent must use existing resources, code, components, functions, methods, utilities, services, hooks, and types whenever an equivalent one already exists in the codebase. Check the reuse catalogue first — `docs/SHARED.md` for `be-mycourse`, `docs/reusable-assets.md` for `fe-mycourse` — so this check doesn't require re-deriving reuse candidates from scratch.
-
-Judge "already exists" by semantic ownership, not structural similarity: two pieces of code that happen to look alike but serve genuinely different concerns (different bounded contexts, different invariants, callers that must be free to evolve independently) are not a duplicate, and merging them would create an artificial coupling. Two pieces of code that do the same thing for the same reason, even if their current text differs, are a duplicate and must be merged.
-
-If a genuine duplicate is found:
-
-* Before writing new code: use the existing implementation instead of creating a new one.
-* After writing new code (caught in self-review or a later task): merge the duplicated piece into a shared implementation — reuse, extend, compose, or inherit from the existing one — rather than rejecting and redoing the entire solution. Only redo work beyond the duplicated piece itself if the duplication reveals the surrounding approach was also wrong.
-
-Do not leave duplicated types, functions, methods, components, utilities, services, hooks, or business logic in the codebase once a merge is possible.
+- Before adding any component, function, hook, utility, service, or type, check the shared-assets file named in "Repository specifics" and the surrounding code. Use an existing resource whenever one fits.
+- Do not create an equivalent of an existing resource. If duplication is found, merge the duplicated piece into one shared implementation by reusing, extending, or composing the existing one; do not redo the whole solution.
+- Judge duplication by semantic ownership, not structural similarity: code that looks alike but represents different concepts or owners stays separate; shared fields or behavior of the same concept are merged.
 <!-- end:reuse-and-deduplication-rule:end -->
 
 <!-- begin:final-phase-rule:start -->
 ## Final Phase: Sync, Quality Gates, and Review
 
-This section applies only after an in-scope implementation task and must not be used to classify a standalone review-only request as in scope. At the end of an in-scope code task, the agent must, in order:
-
-1. **Sync.** Force-sync GitNexus when GitNexus exists or is required by the project.
-2. **Quality gates.** Run the gates for the side of the project being changed:
-   - Backend: formatting, linting, `make test-all`, `make check-all`, tests, build checks.
-   - Frontend: `npm run check-all`, fix any errors.
-
-   If the task is Backend-related, fix Backend issues only. If the task is Frontend-related, fix Frontend issues only. Do not fix the opposite side unless the task explicitly requires cross-repository changes.
-3. **Exit codes.** When a gate command exits non-zero, classify the failure before deciding what to do:
-   - **Task-caused** (the change introduced or exposed it): fix it before completing the task, then rerun all required quality gates until everything passes.
-   - **Pre-existing** (confirmed present before this task's changes, e.g. by checking the same command against the pre-change commit or a clean stash): do not silently ignore it — report it to the user as a pre-existing failure, and fix it only if it blocks verifying the current task's changes or the user asks.
-   - **Environment** (missing tool, unavailable network/service, local-only config issue): report it as an environment blocker rather than attempting a code fix.
-
-   Never claim a command passed unless it was actually run and completed successfully.
-4. **Review.** Inspect all code written or modified during the task. Verify: it follows the existing architecture and folder structure; existing utilities, components, functions, services, hooks, and types were reused where possible (see the Reuse and Deduplication Rule); no duplicate logic was introduced; no unrelated files were modified; no secrets or credentials were hardcoded; the code is ready for CI/CD.
+1. Force-sync GitNexus (`npx gitnexus analyze`, preserving embeddings as described in the GitNexus section).
+2. Run the quality gates named in "Repository specifics". Fix only the side of the project the task belongs to, unless the task requires cross-repository changes.
+3. Handle every non-zero exit code by cause:
+   - Caused by this task: fix it and rerun all gates until they pass.
+   - Pre-existing or unrelated: report it with the evidence and fix it only when it would break CI/CD for this change.
+   - Environment or tooling failure: report it; do not change tooling or rules to hide it.
+4. Never claim a command passed unless it was run and completed successfully.
+5. Review all code written or modified: it follows the existing architecture and folder structure, reuses existing resources, adds no duplicate logic, touches no unrelated files, hardcodes no secrets, and is ready for CI/CD.
 <!-- end:final-phase-rule:end -->
 
 ## Documentation and Context Sync
 
-After completing an in-scope implementation, the agent must sync, update, or delete project documentation and GitNexus files so that they match the latest source code exactly. Session-specific state and learning for the coding task must be written only to the current project's `.context/session-<SESSION_ID>.md`. External `AI_SESSION_CONTEXT_FILE` is reserved for review-only or other out-of-scope repository tasks that require writable state.
+After an in-scope task, re-read the documentation entries you changed and the current session context file, then make documentation and session state match the final code (follow the `docs-sync` skill):
 
-For `be-mycourse`: update the `docs/FEATURES.md` entry (or entries) for the module(s) the task touched — a single-module change should not require reading or editing `docs/ARCHITECTURE.md` or `docs/DATA-MODEL.md`. Touch those two only when the change is genuinely cross-cutting (composition root wiring, shared infra, or the schema/permission catalog). Touch `docs/SHARED.md` only when the task adds or changes a genuinely reusable asset.
-For `fe-mycourse`: scan the relevant source and sync its `docs/` folder as currently structured.
-
-Updating documentation means:
-
-* If something exists in code or features but is missing from documentation, add it to the relevant documentation.
-* If code and features are implemented one way but the documentation describes a different approach, update the documentation to match the code.
-* If something is documented but does not exist in the code or implemented features, remove it from the documentation.
-* Update only the current project's `.context/session-<SESSION_ID>.md` for coding-task session state and learning.
-* Update all relevant GitNexus files.
-
-For `be-mycourse` tasks, update GitNexus files inside the `be-mycourse` project.
-
-For `fe-mycourse` tasks, update GitNexus files inside the `fe-mycourse` project.
-
-## Swagger and API Documentation Rule
-
-If any Swagger YAML file is modified, the agent must also run:
-
-```bash
-ruby generate-apidog-postman.rb
-```
-
-After running the generator, the agent must update related API documentation and any related GitNexus files to match the generated output and the latest source code.
-
-For `be-mycourse`: update the `API:` line in the relevant `docs/FEATURES.md` module entry so it still cites real, current endpoint paths. There is no separate hand-written curl-examples file to update — `docs/api_swagger.yaml` / `docs/api-dog-import.json` are the generated source of truth for request/response examples.
-For `fe-mycourse`: update all related API documentation as currently structured.
-
-Update only the current project's `.context/session-<SESSION_ID>.md` for coding-task session state.
-
-## Mandatory External Context Update for Read-Only Repository Tasks
-
-This section applies to every repository-related task that does not modify project-owned files. This includes, but is not limited to, review, audit, analysis, explanation, planning, advisory work, inspection, research, investigation, comparison, documentation review, architecture review, security review, performance review, accessibility review, maintainability review, pull-request review, diff review, commit review, dependency review, configuration review, Git-state inspection, test-result inspection, build-result inspection, CI/CD inspection, and other read-only or non-implementation repository work.
-
-If the task did not require writable state and no external context file was created, do not create one only to satisfy this section.
-
-If `AI_SESSION_CONTEXT_FILE` exists or writable external state was required, the main agent must update that exact file before the final response.
-
-The update must consolidate the complete current state and include, when applicable:
-
-### Task Scope
-
-* What the user asked the agent to inspect, review, audit, explain, plan, or analyze.
-* Which repository, project, branch, diff, commit, pull request, modules, files, or subsystems were actually examined.
-* Which areas were intentionally excluded or could not be inspected.
-
-### Findings and Evidence
-
-* Confirmed findings and the evidence supporting them.
-* Code-quality, architecture, security, performance, accessibility, maintainability, testing, documentation, integration, or operational observations relevant to the task.
-* Findings that were dismissed after investigation and why.
-* Uncertain findings that still require verification.
-
-### Decisions and Recommendations
-
-* Conclusions reached during the task.
-* Recommendations provided to the user.
-* Trade-offs, assumptions, constraints, and reasons behind those recommendations.
-* Priority and expected impact when the task involves multiple findings.
-
-### Unresolved Items and Next Steps
-
-* Remaining risks, unknowns, missing evidence, incomplete coverage, or blocked checks.
-* Files, commands, environments, people, systems, or information required for further verification.
-* Specific follow-up actions that should be performed next.
-
-The external context update must be based only on what actually happened during the task.
-
-The agent must not claim that it reviewed files, ran commands, verified behavior, found vulnerabilities, or completed checks that it did not actually perform.
-
-Replace outdated or contradictory content in the external context instead of appending an unstructured transcript.
-
-Only the exact external file referenced by `AI_SESSION_CONTEXT_FILE` may receive this out-of-scope repository-task summary.
-
-Do not create or update `<project>/.context/session-<SESSION_ID>.md` for any out-of-scope repository-related task.
-
-Subagents may contribute findings, but only the main agent may perform the final consolidated external context update unless a serialized edit to the exact `AI_SESSION_CONTEXT_FILE` was explicitly delegated.
-
-
-## Mandatory End-of-Task Learning Summary
-
-After an in-scope code task reaches implementation, review, quality-gate, GitNexus, and project-documentation completion, the agent must update the current project's `.context/session-<SESSION_ID>.md`.
-
-The update must summarize the complete final state of the session and must include at least these sections:
-
-### What I Learned Today
-
-Record concise, concrete, reusable lessons learned during the current task, including:
-
-* Newly discovered project architecture, conventions, dependencies, or workflows.
-* Important implementation decisions and the reasons behind them.
-* Existing resources that were successfully reused.
-* Mistakes, failed approaches, command failures, incorrect assumptions, or duplicated work that should not be repeated.
-* Quality-gate, CI/CD, documentation, GitNexus, security, or integration lessons.
-* Any user corrections or preferences that materially affect future work in this project.
-
-### What I Should Learn or Do Next Time
-
-Record specific improvements and follow-up guidance for the next task, including:
-
-* Unresolved risks, technical debt, missing coverage, or follow-up actions.
-* Files, modules, documentation, skills, or commands that should be inspected earlier next time.
-* Better investigation, reuse, implementation, testing, or review strategies.
-* Project-specific traps and assumptions that must be verified instead of guessed.
-
-The learning summary must be based on what actually happened during the task. Do not invent completed work, successful commands, failures, decisions, or lessons.
-
-Only the current project's `.context/session-<SESSION_ID>.md` may receive the coding-task learning summary. If it does not yet exist, create it exactly once according to the in-scope coding context lifecycle. Reuse the same file for later coding messages in the same chat. Creating another coding-task context file for the same Session ID is forbidden without explicit user permission.
+- Update only the entries of the docs files named in "Repository specifics" that describe what the task changed. Replace outdated content instead of appending; leave no conflicting old and new descriptions. Add what is missing, correct what differs from the code, delete what no longer exists.
+- Keep each documentation file in its existing language and style; do not translate it or mix languages.
+- Dated handoff notes and the sprints log are history and are exempt from replacement.
+- Write session state and the end-of-task learning summary ("What I Learned Today" and "What I Should Learn or Do Next Time", based only on what actually happened; structure in the session-context skill) to the current `.context/session-<SESSION_ID>.md`, replacing outdated content.
 
 ## Final Response Requirement
 
-At the end of an in-scope code task, the agent must report:
+For an in-scope task report: what was implemented; files changed; skills picked with their category (functional, non-functional, workflow); existing resources reused; duplicate logic merged or avoided; documentation, GitNexus, and session-context files updated; quality gates run, which passed, which failed and how they were fixed; remaining risks and follow-ups.
 
-* What was implemented.
-* Which files were changed.
-* Which existing resources were reused.
-* Which duplicate logic was merged or avoided.
-* Which documentation and GitNexus files were updated, and which `<project>/.context/session-<SESSION_ID>.md` file was used for the coding task.
-* Which quality gates were run.
-* Which commands passed.
-* Which commands failed and how they were fixed.
-* Any remaining risks or follow-up actions.
-
-At the end of any out-of-scope repository-related task, the agent must report only what is relevant to the user's request, including when applicable:
-
-* What was reviewed, inspected, audited, explained, planned, or analyzed.
-* The main confirmed findings.
-* Important limitations, unverified assumptions, or areas not inspected.
-* Recommended actions or next steps.
-* Whether an external `AI_SESSION_CONTEXT_FILE` was updated.
-
-Do not report implementation, changed files, quality-gate success, or project `.context` updates for an out-of-scope task unless those actions actually occurred.
-
-
-## Full Documentation Replacement Rule
-
-After completing any in-scope code task, the agent must re-read all relevant project documentation, the complete project `.context` folder, the current project's `.context/session-<SESSION_ID>.md`, GitNexus files, and project documents before updating documentation and coding-task session state.
-
-The agent must not simply append new notes on top of old documentation.
-
-Instead, the agent must replace all outdated update content with new, accurate content that reflects the entire final state of the codebase after all changes have been made.
-
-This means:
-
-* Remove old update notes that no longer match the current code.
-* Replace outdated implementation descriptions with the latest implementation details.
-* Rewrite affected documentation sections so they describe the full current behavior, not only the latest diff.
-* Make sure the documentation reflects all changed code together as one consistent final state.
-* Do not leave conflicting old and new documentation in the same file.
-* Do not preserve historical update content unless the document is explicitly meant to be a changelog or migration history.
-* If the current project's `.context/session-<SESSION_ID>.md` or a GitNexus file describes a previous implementation, replace the outdated description with the new implementation summary. Do not modify context files owned by other Session IDs.
-* If multiple files describe the same feature, update all of them consistently.
-* The final documentation must match the source code exactly after the task is complete.
-
-Within `be-mycourse`, this replacement principle applies to `docs/ARCHITECTURE.md`, `docs/FEATURES.md`, `docs/DATA-MODEL.md`, and `docs/SHARED.md` — these four always describe only the current state, never historical updates. `migrations/README.md` and any dated handoff or changelog note under `docs/` are the changelog/migration-history exception above and keep their historical entries.
-Within `fe-mycourse`, this replacement principle applies to its `docs/` folder as currently structured, with the same changelog/migration-history exception for dated handoff or changelog notes.
-
-## Documentation Language Consistency Rule
-
-When updating documentation, the agent must preserve and follow the existing language of each documentation file.
-
-For every file inside `docs` and every `README.md` file:
-
-* If the existing document is written in English, update it in English.
-* If the existing document is written in Japanese, update it in Japanese.
-* If the existing document is written in Vietnamese, update it in Vietnamese.
-* If the existing document is written in Chinese, update it in Chinese.
-* If the document uses another language, continue using that same language.
-* Do not mix languages inside the same document unless the document already intentionally uses multiple languages.
-* If a document is multilingual by design, update each section using the language already used by that section.
-* Do not translate the entire document unless the task explicitly asks for translation.
-* New documentation content must match the existing tone, terminology, formatting style, and language of the target file.
+For an out-of-scope task report only what applies: what was examined, confirmed findings, limitations and unverified assumptions, recommended next steps, and whether `AI_SESSION_CONTEXT_FILE` was updated. Do not report implementation or gate results that did not happen.
 
 ## Sensitive Test Accounts and Environment Secrets Policy
 
-Security and secret-exposure checks apply only to files that belong to the repository's committable Git surface.
+- Inspect for secrets only the committable Git surface: tracked files, files in the current change set, and untracked files not excluded by `.gitignore`, `.git/info/exclude`, global ignore, or sparse-checkout. Check with `git ls-files`, `git status --short`, and `git check-ignore -v -- <path>`. If inclusion cannot be verified, do not read the file for scanning and report that.
+- Do not read ignored, excluded, external, or machine-local files (including the external session files) merely to search for secrets, and do not claim a broader check than was done. Reading skill folders outside the repository is skill discovery, not a secrets scan, and is allowed.
+- When reviewing a diff, inspect staged and unstaged tracked changes together with non-ignored untracked files that may be committed.
+- Never write credentials, tokens, API keys, passwords, private endpoints, database URLs, cookies, certificates, or values derived from `.env` into tracked or committable files. Mention environment variables by name only.
+- Use clearly fake placeholders in examples (`example@example.com`, `YOUR_API_KEY_HERE`, `DATABASE_URL_PLACEHOLDER`).
 
-Before scanning a file for credentials, secrets, sensitive values, or environment-derived information, the agent must determine whether that file is tracked by Git or can be included in a commit.
+# Repository specifics (be-mycourse)
 
-A file is in scope for security inspection only when at least one of the following is true:
+<!-- begin:repository-specifics-rule:start -->
+**Documentation map** (fixed set; add entries, never new files):
 
-* The file is already tracked by Git.
-* The file is staged, modified, renamed, copied, deleted, or otherwise included in the current Git change set.
-* The file is untracked but is not excluded by `.gitignore`, `.git/info/exclude`, global Git ignore rules, sparse-checkout rules, or another active Git exclusion mechanism.
-* The file would be included by a normal `git add` operation from the relevant repository scope.
+| Need | File |
+|---|---|
+| Layering, bounded contexts, composition root, HTTP request path, security, error codes, quality gate targets | `docs/ARCHITECTURE.md` |
+| One entry per module (auth, course, taxonomy, instructor, media, rbac, authorization): rules, flows, `API:` line | `docs/FEATURES.md` |
+| Schema, relationships, migration history, permission catalog (appendix) | `docs/DATA-MODEL.md` |
+| Reusable packages, functions, types, utilities | `docs/SHARED.md` |
+| Features to do, in progress, done (history, not read by default) | `docs/ALL-SPRINTS.md` |
 
-The agent should use Git-aware commands when available, including:
+Satellites: `docs/deploy.md`, `docs/docker.md`, `docs/security-public-seo-notes.md`, `docs/observability/`, dated handoff notes. API contract: `docs/api_swagger.yaml` is the hand-edited source; `docs/api-dog-import.json` is generated from it, never edit it by hand.
+
+**Routing:** run `grep -n "^## " docs/FEATURES.md`, read only the entries for the touched modules; read `DATA-MODEL.md` for tables, columns, migrations, or permissions and `ARCHITECTURE.md` only when the task crosses modules. Check `docs/SHARED.md` before adding any package, function, type, or utility.
+
+**Quality gate and commits:** `make check-all` (= `go fmt`, `test-all`, `build-nocgo`, `build`; `test-all` is allowed alone for intermediate runs). Run it after the task and again immediately before every commit on the exact tree being committed. There is no Git hook and no commitlint in this repository, so the title rules in Commit rules are a convention to follow by hand. In a restricted sandbox `make test-all` / `check-all` (golangci-lint cache clean, Go build cache) and `npx gitnexus analyze` can fail with permission errors: run them outside it.
+
+**Implementation notes:** keep the layering (`make check-layout` and `make check-architecture` enforce it); every migration has both up and down; use a transaction for multi-table writes; return errors through the existing error envelope and error codes; authorize through the existing RBAC middleware; follow the Swagger rule below after API changes.
+
+**Size limit:** keep this file under 32,768 bytes (Codex loads only 32 KiB of project instructions). Put long procedures in a skill under `.ai/skills/` and keep only a trigger here.
+
+**Sync targets:** a module change updates its `FEATURES.md` entry; tables, columns, migrations, and permissions update `DATA-MODEL.md`; shared code updates `SHARED.md`; cross-cutting changes update `ARCHITECTURE.md`. On archiving an OpenSpec change, move its line in `ALL-SPRINTS.md` to Done. The four fixed docs files describe only the current state; `migrations/README.md` and dated handoff notes keep their history.
+<!-- end:repository-specifics-rule:end -->
+
+<!-- begin:swagger-api-docs-rule:start -->
+## Swagger and API Documentation Rule
+
+After modifying any Swagger YAML file run `ruby generate-apidog-postman.rb` (the script lives at `scripts/generate-apidog-postman.rb`), then update the `API:` line of the matching `docs/FEATURES.md` entry so it cites real, current endpoint paths. `docs/api_swagger.yaml` and the generated `docs/api-dog-import.json` are the source of truth for request and response examples; there is no hand-written curl file.
+<!-- end:swagger-api-docs-rule:end -->
+
+<!-- begin:dev-test-account-rule:start -->
+## AI Agent - dev test account
+
+For local API smoke tests (`http://localhost:8080` after `go run .`) use the shared admin account of the dev database (sysadmin, permissions P1-P68). Read the credentials from your local environment or ask the user; they are never written to a tracked file. Placeholders only:
 
 ```bash
-git ls-files
-git status --short
-git check-ignore -q -- <path>
-git check-ignore -v -- <path>
+curl -sS -X POST 'http://localhost:8080/api/v1/auth/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"DEV_TEST_ACCOUNT_EMAIL","password":"DEV_TEST_ACCOUNT_PASSWORD","remember_me":false}'
+# then: -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
-
-Equivalent platform-specific commands or Git APIs may be used when they provide the same determination.
-
-The following files are out of scope for security inspection unless the user explicitly asks for them to be checked:
-
-* Files ignored by `.gitignore`.
-* Files ignored through `.git/info/exclude`.
-* Files ignored through global Git ignore configuration.
-* Files excluded by sparse-checkout or an equivalent Git mechanism.
-* Files outside the current repository or working tree.
-* Machine-local files that cannot be committed to the current repository.
-* External session files stored under `AI_SESSION_ID_FILE`, `AI_SESSION_CONTEXT_DIR`, or `AI_SESSION_CONTEXT_FILE`.
-* Temporary files, caches, generated local artifacts, dependency directories, editor state, and local environment files when Git excludes them.
-
-The agent must not recursively inspect ignored, excluded, external, or machine-local files merely to search for secrets. The existence of those files does not authorize reading their contents.
-
-If Git tracking or ignore status cannot be determined reliably, the agent must not read that file for security scanning. It must report that the file's Git inclusion status could not be verified.
-
-For files inside the committable Git surface:
-
-* Do not write, generate, commit, or document any test account credentials in tracked or committable documentation files, test files, source files, configuration files, examples, fixtures, `README.md`, or other project-owned files.
-* Do not write, generate, commit, or document values derived from `.env` keys or environment secrets in tracked or committable project files.
-* Never expose real credentials, access tokens, API keys, secret keys, passwords, private endpoints, database URLs, authentication cookies, private certificates, or other sensitive values in tracked or committable docs, tests, examples, comments, fixtures, configuration, source code, or project documentation.
-* Inspect only the relevant tracked or committable files changed by the task, unless the user explicitly requests a broader repository security audit.
-* When reviewing a diff, inspect staged and unstaged tracked changes together with non-ignored untracked files that may be committed.
-* Do not claim that the entire machine, workspace, ignored file set, or excluded file set was checked when only the committable Git surface was inspected.
-
-When examples are required, use clearly fake placeholders only, such as:
-
-* `example@example.com`
-* `test-user-placeholder`
-* `YOUR_API_KEY_HERE`
-* `YOUR_SECRET_HERE`
-* `DATABASE_URL_PLACEHOLDER`
-
-If a task requires referencing environment variables, mention only the variable names, not their actual values.
+<!-- end:dev-test-account-rule:end -->

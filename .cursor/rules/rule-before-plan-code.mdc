@@ -1,10 +1,16 @@
 ---
-alwaysApply: false
+description: Plan-and-approve gate before any source edit; points to the AGENTS.md lifecycle
+alwaysApply: true
 ---
 
 # RULE BEFORE PLAN AND CODE
 
 Cursor-only rule. It adds one thing `AGENTS.md` does not: a plan-and-approve gate before any source code is written. Everything else (session, `.context`, GitNexus, docs routing, reuse, quality gates, subagent limits, documentation sync) is defined in `AGENTS.md` and its skills, which always win over this file.
+
+## 0. Before anything
+
+* Read `AGENTS.md` completely before the first tool call and follow its "Lifecycle" section.
+* Right before the first create, edit, or delete of a source file, read `.ai/skills/pre-implementation-checkpoint/SKILL.md` (Lifecycle step 5), even when no plan was requested; if that path is missing, use the same-named skill from another skill folder, else follow the Degraded Environment Rule in `AGENTS.md`.
 
 ## 1. Gate: plan first, code after approval
 

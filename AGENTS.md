@@ -1,7 +1,21 @@
+<!-- begin:lifecycle-rule:start -->
+# Lifecycle (read first)
+
+Read this whole file before the first tool call, then follow this order for every request. The sections and skills named here hold the details; do not skip a step because an earlier one looks small.
+
+1. **Classify** the request as in scope (changes the project) or out of scope (read-only): "Scope and Applicability Rule".
+2. **Session** (in scope): read `.ai/skills/session-context/SKILL.md` before reading or changing any project file.
+3. **Understand:** pick skills ("SKILLS") and read documentation by routing ("Initial Phase").
+4. **Plan**, when one is required (the user asked for it, an OpenSpec change exists, or the agent tooling has its own plan gate): record it and wait for explicit approval.
+5. **Pre-implementation checkpoint:** the moment right before the first create, edit, or delete of any file outside `.context/`, `docs/`, and `openspec/`. It applies whether or not step 4 happened. Read `.ai/skills/pre-implementation-checkpoint/SKILL.md` and follow it; only a few-line change with no behavior change, or a task that touches only those three folders, skips it.
+6. **Implement** ("Implementation Rule"), tracking progress with `.ai/skills/progress-tracking/SKILL.md`.
+7. **Finish:** "Final Phase", then "Documentation and Context Sync", then the "Final Response Requirement".
+<!-- end:lifecycle-rule:end -->
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **be-mycourse** (7816 symbols, 24230 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **be-mycourse** (7821 symbols, 24272 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -113,9 +127,11 @@ Skills are instructions packaged for a kind of work. Use them as follows; user i
 
 **Mandatory triggers (hard rules):**
 
+If a skill path named anywhere in this file does not exist or cannot be read, look for a skill with the same `name` in the other skill folders listed in item 2 and use it; only when none exists apply the Degraded Environment Rule.
+
 - Before reading or changing any project file for an implementation task, and before writing any session state for any repository task: read `.ai/skills/session-context/SKILL.md` and follow it. Never create a Session ID, a `.context` file, or an external context file from memory of this summary.
 - When the user asks to rename the current Git branch: read `.ai/skills/branch-rename/SKILL.md` and follow it.
-- After the plan is approved and before the first source edit of an in-scope task that is not a few-line, no-behavior change: read `.ai/skills/pre-implementation-checkpoint/SKILL.md` and follow it.
+- Right before the first source edit (Lifecycle step 5) of an in-scope task that is not a few-line, no-behavior change, whether or not a plan was approved: read `.ai/skills/pre-implementation-checkpoint/SKILL.md` and follow it.
 - During any in-scope task and before reporting it done: follow `.ai/skills/progress-tracking/SKILL.md`.
 - After an in-scope task that changes behavior, routes, shared code, or architecture: follow `.ai/skills/docs-sync/SKILL.md`.
 <!-- end:skill-selection-rule:end -->
@@ -172,6 +188,7 @@ Every new rule added to `AGENTS.md` must be wrapped in a uniquely named boundary
 
 - Write every commit title entirely in English, as one line: `<type>: <title>` (Conventional Commits). No scope, no parentheses, no body, no bullet list, no footer.
 - The title must be meaningful and specific enough to explain the change without a description, and be between 15 and 72 characters inclusive.
+- Before a commit, run `git branch --show-current`. If the branch is protected (`main`, `master`, `dev`, `release*`) or not named `<type>/<english-kebab-summary>`, propose one valid name (AskUserQuestion; on a protected branch use `git switch -c`, never rename it) and commit only after the user approves.
 - This repository has no installed Git hook: nothing runs automatically on commit. Run the quality gate named in "Repository specifics" after the task and again immediately before every commit on the exact tree being committed, then validate the message as described there. Never bypass a hook or gate (no `--no-verify`).
 <!-- end:commit-rule:end -->
 
@@ -180,12 +197,15 @@ Every new rule added to `AGENTS.md` must be wrapped in a uniquely named boundary
 
 When a required component is missing or unusable (a skill file, GitNexus, the question tool, subagents, documentation, a test setup, a quality gate): do not skip it silently. (1) Say what is missing. (2) Use the fallback below. (3) If there is no fallback, stop and ask the user. (4) Never claim anything ran or was verified that did not.
 
-- **Skill file missing:** apply the minimum here and offer to copy the skill. `session-context`: stop before modifying project files. `pre-implementation-checkpoint`: ask once (AskUserQuestion) about a new branch name (on a protected branch use `git switch -c`, never rename it), about tests only when there is no test setup (skip is Recommended), and about extra subagents only when the task is heavy. `progress-tracking`: tick the OpenSpec `tasks.md` or plan checkbox right after its verification, otherwise keep a todo list in the session file. `docs-sync`: edit only the touched documentation entries and replace outdated text. `branch-rename`: propose one `<type>/<english-kebab-summary>` name and wait for approval; never push.
+- **Skill file missing, unreadable, or at another path:** first look for the same `name` in the skill folders listed in SKILLS item 2; only if none exists apply the minimum here and offer to copy the skill. `session-context`: stop before modifying project files. `pre-implementation-checkpoint`: ask once (AskUserQuestion) about a new branch name (on a protected branch use `git switch -c`, never rename it), about tests only when there is no test setup (skip is Recommended), and about extra subagents only when the task is heavy. `progress-tracking`: tick the OpenSpec `tasks.md` or plan checkbox right after its verification, otherwise keep a todo list in the session file. `docs-sync`: edit only the touched documentation entries and replace outdated text. `branch-rename`: propose one `<type>/<english-kebab-summary>` name and wait for approval; never push.
 - **GitNexus unavailable, stale, or UNKNOWN / 0 callers:** use `grep` for callers and blast radius, and state that GitNexus did not answer.
 - **Question tool absent:** ask the same question directly, with the Recommended option named.
 - **No subagents available:** do the research yourself.
 - **Documentation missing, or an entry not found:** read the code directly, say there is no documentation, and propose the entry in the final response.
 - **No test setup or gate cannot run:** follow the checkpoint for tests, and report the gate as not run with the reason.
+- **Quality gate, documentation map, or Repository specifics absent or incomplete (for example this file was copied into another repository):** infer the gate from `package.json`, `Makefile`, or CI configuration, state the assumption, and ask when two commands are plausible; read the code when there is no documentation map.
+- **Not a Git repository, no `origin`, or no Git access:** skip the branch, commit, and `branch-rename` steps, say so, and never invent a baseline.
+- **OpenSpec CLI or `openspec/` absent:** use the plan or session-file branch of `progress-tracking`; do not create `openspec/`.
 <!-- end:degraded-environment-rule:end -->
 
 # Implementation Workflow Rules
@@ -270,7 +290,7 @@ After an in-scope task, re-read the documentation entries you changed and the cu
 
 ## Final Response Requirement
 
-For an in-scope task report: what was implemented; files changed; skills picked with their category (functional, non-functional, workflow); existing resources reused; duplicate logic merged or avoided; documentation, GitNexus, and session-context files updated; quality gates run, which passed, which failed and how they were fixed; remaining risks and follow-ups.
+For an in-scope task report: what was implemented; files changed; skills picked with their category (functional, non-functional, workflow); existing resources reused; duplicate logic merged or avoided; documentation, GitNexus, and session-context files updated; quality gates run, which passed, which failed and how they were fixed; the pre-implementation checkpoint outcome (branch asked or renamed, test decision, subagent decision) or why it was skipped; remaining risks and follow-ups.
 
 For an out-of-scope task report only what applies: what was examined, confirmed findings, limitations and unverified assumptions, recommended next steps, and whether `AI_SESSION_CONTEXT_FILE` was updated. Do not report implementation or gate results that did not happen.
 

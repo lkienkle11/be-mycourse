@@ -39,3 +39,4 @@
 ## Extension (done)
 
 - [x] Extension (2026-10-23, user-approved): the same Degraded Environment Rule, Implementation Rule, two skills (`pre-implementation-checkpoint`, `progress-tracking`, identical to FE), triggers, and BE implementation notes were added. Shared text stays identical to `fe-mycourse/AGENTS.md`. Not added by decision: a "never commit or push unless asked" rule (user still deciding).
+- [x] Extension (2026-10-23, user-approved): `AGENTS.md` gained a `lifecycle-rule` section before the GitNexus block (ordered steps; defines the pre-implementation moment as right before the first edit outside `.context/`, `docs/`, `openspec/`), the checkpoint trigger no longer depends on an approved plan, the Commit rules check the branch name before a commit, the Final Response Requirement reports the checkpoint outcome, and `.cursor/rules/rule-before-plan-code.mdc` is now `alwaysApply: true` with a description and a "Before anything" pointer.

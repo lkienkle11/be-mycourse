@@ -82,7 +82,7 @@ func populateContext(c *gin.Context, claims *token.Claims) {
 	// permSet is baked into the access token at issuance. Revoking a role or
 	// permission in the database takes effect for this principal only once the
 	// current access token expires or a new one is issued; it is not live per
-	// request the way resource scoped grant revocation is (see docs/modules/authorization.md).
+	// request the way resource scoped grant revocation is (see docs/FEATURES.md, authorization section).
 	permSet := make(map[string]struct{}, len(claims.Permissions))
 	for _, p := range claims.Permissions {
 		permSet[p] = struct{}{}

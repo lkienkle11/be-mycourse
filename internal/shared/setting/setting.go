@@ -75,7 +75,7 @@ type Supabase struct {
 }
 
 // Logging holds Uber Zap / structured logging options (YAML + env expansion).
-// See docs/patterns.md (logging) and pkg/logger.
+// See docs/ARCHITECTURE.md (Structured Logging) and pkg/logger.
 type Logging struct {
 	Level          string
 	Format         string // "json" | "console"

@@ -1,3 +1,8 @@
+---
+name: logic-n-1-optimize
+description: Design backend APIs and services for multi-item operations (add, update, delete, assign, unassign) as batch-capable endpoints that process many items in one request, instead of making the caller loop over a single-item API. Use when implementing or reviewing backend code that modifies multiple resources.
+---
+
 # Backend Skill: Batch API Design for Multi-Item Operations
 
 ## Purpose

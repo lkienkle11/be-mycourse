@@ -97,7 +97,7 @@ func (s *AuthService) rotateSession(ctx context.Context, user *domain.User, sess
 		RememberMe:          entry.RememberMe,
 		RefreshTokenExpired: time.Now().Add(newTTL),
 	}
-	if err := s.sessionRepo.SaveSession(ctx, user.ID, sessionStr, updatedEntry); err != nil {
+	if err := s.sessionRepo.RotateSession(ctx, user.ID, sessionStr, entry.RefreshTokenUUID, updatedEntry); err != nil {
 		return domain.TokenPairResult{}, err
 	}
 	return domain.TokenPairResult{

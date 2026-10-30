@@ -277,7 +277,7 @@ Application accounts. Passwords are bcrypt-hashed.
 
 **Removed columns (do not document / expect in DB):** `avatar_url` (dropped in `000006`).
 
-**GORM model:** `internal/auth/infra/user_model.go` (`userRow`). Full-row saves omit the `slug` column; it is written only by user create, `ChangeSlug` and the backfill (`internal/auth/infra/user_slug.go`, `user_slug_backfill.go`).
+**GORM model:** `internal/auth/infra/user_model.go` (`userRow`). Full-row saves (`GormUserRepository.SaveWithDB`) omit the `slug` and `refresh_token_session` columns: `slug` is written only by user create, `ChangeSlug` and the backfill (`internal/auth/infra/user_slug.go`, `user_slug_backfill.go`); `refresh_token_session` only by user create (default `'{}'`) and by `GormRefreshSessionRepository`.
 
 #### `refresh_token_session` JSONB shape
 
@@ -296,9 +296,11 @@ Each key is a **128-character hex session string**; each value:
 | Rule | Implementation |
 |------|----------------|
 | Max **5** concurrent sessions per user | `internal/auth/infra/session_limits.go` → `MaxActiveSessions` |
-| Overflow eviction | Delete entry with earliest `refresh_token_expired` inside a transaction |
-| Add session (may increase count) | `GormRefreshSessionRepository.AddSession` — transactional read/modify/write |
-| Rotate same session in place | `GormRefreshSessionRepository.SaveSession` — `jsonb_set` update |
+| Overflow eviction | Delete the entry with the earliest `refresh_token_expired`, in the same transaction as the add, while the user row is locked |
+| Add session (may increase count) | `GormRefreshSessionRepository.AddSession` — one transaction: `SELECT ... FOR UPDATE` on the user row, in-memory eviction, whole-map `UPDATE` filtered by `deleted_at IS NULL` |
+| Rotate same session in place | `GormRefreshSessionRepository.RotateSession` — one conditional `UPDATE`: `jsonb_set(..., false)` only when the stored `refresh_token_uuid` equals the verified UUID; 0 rows returns `ErrInvalidSession` (rotated, revoked or user gone) |
+| Remove session | `GormRefreshSessionRepository.RemoveSession` — one `UPDATE` that deletes the key (`refresh_token_session - key`); a missing key is a no-op |
+| Concurrency rule | No writer rewrites the map from an unlocked read, and full-row user saves never write this column |
 
 Domain types: `internal/auth/domain/user.go` (`RefreshSessionEntry`, `RefreshTokenSessionMap`).
 

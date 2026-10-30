@@ -129,10 +129,10 @@ All reusable utilities, functions, types, constants, middleware, and shared logi
 ### Asset: issueTokenPair / RefreshSession
 - **Name:** `issueTokenPair`, `RefreshSession`
 - **Type:** Function (auth service)
-- **Path:** `internal/auth/application/auth_session_tokens.go` (`issueTokenPair`); `internal/auth/application/auth_refresh_rotation.go` (`RefreshSession` + rotation helpers); JSONB writes in `internal/*/infra/user_refresh_session.go`; session entry shape in `internal/<domain>/domain/refresh_session.go`.
-- **Purpose:** Token issue/rotation and session persistence management.
+- **Path:** `internal/auth/application/service_session.go` (`RefreshSession`, `rotateSession`, `issueTokenPair`); session persistence in `internal/auth/infra/user_repo.go` (`GormRefreshSessionRepository`: `LoadSessions`, `AddSession`, `RotateSession`, `RemoveSession`); session entry shape in `internal/auth/domain/user.go` (`RefreshSessionEntry`, `RefreshTokenSessionMap`).
+- **Purpose:** Token issue and rotation, and session persistence. `RotateSession` is the only writer that changes an existing session entry (compare-and-swap on the refresh UUID).
 - **Scope:** Any auth/session extension features.
-- **Dependencies:** `pkg/token`, `constants` (TTLs), `internal/*/infra` GORM rows, `internal/shared/cache`, RBAC permission resolver.
+- **Dependencies:** `internal/shared/token`, `constants` (TTLs), `internal/*/infra` GORM rows, `internal/shared/cache`, RBAC permission resolver.
 - **Current usage:** auth register/login/confirm/refresh flows.
 - **Reuse:** Reuse unchanged for newly protected domain APIs.
 

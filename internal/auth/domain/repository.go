@@ -29,9 +29,8 @@ type UserRepository interface {
 type RefreshSessionRepository interface {
 	// LoadSessions returns the session map for a user.
 	LoadSessions(ctx context.Context, userID string) (RefreshTokenSessionMap, error)
-	// SaveSessions overwrites the session map atomically.
-	SaveSessions(ctx context.Context, userID string, sessions RefreshTokenSessionMap) error
-	// RemoveSession deletes one session key from the user's refresh_token_session JSONB.
+	// RemoveSession deletes one session key from the user's refresh_token_session JSONB in one
+	// atomic statement; a missing key or user is a no-op.
 	RemoveSession(ctx context.Context, userID string, sessionStr string) error
 	// IncrementEmailSendCount increments the registration_email_send_total counter and returns the new value.
 	IncrementEmailSendCount(ctx context.Context, userID string) (int, error)

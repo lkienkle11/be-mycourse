@@ -19,7 +19,7 @@ Schema detail (columns, FKs, indexes) lives in `docs/DATA-MODEL.md`, not here �
 - `RequireActiveUser` rejects soft-deleted (404), disabled (403/`4005`), and banned (403/`4012`) accounts on every authenticated request — a still-valid JWT cannot bypass a ban or disable.
 - `password_set_at` (not `hash_password`'s presence) is the single source of truth for "has a usable local password" — OAuth-only users get a bcrypt hash of a random secret, so a non-null hash never implies a real password. `Login` rejects OAuth-only users with `4002` until a password is set.
 - Login negative-caching is asymmetric: unknown/soft-deleted email populates a 1-minute negative cache; wrong password never does; disabled/banned/unconfirmed return before bcrypt ever runs (bcrypt only runs when active + accessible + confirmed).
-- Max 5 concurrent sessions/user; 6th login evicts the session with the earliest expiry inside one DB transaction. Session rotation updates in place — does not grow the count.
+- Max 5 concurrent sessions/user; 6th login evicts the session with the earliest expiry inside one DB transaction that holds a row lock on the user. Session rotation updates in place — does not grow the count — and is a compare-and-swap on the stored refresh UUID: of several concurrent refreshes with the same refresh token exactly one succeeds, the others get 401 `InvalidSession` (`4007`). Logout removes only its own session key in one statement; full-row user saves (register resend, email confirmation, OAuth link) never rewrite sessions.
 - OAuth merge policy differs by provider (`ProviderPolicy`): Google/Discord require verified email and auto-confirm new users; X never auto-merges an existing email (`4019`, link required) and new X users stay unconfirmed. Identity resolution is `FindByProviderSub` first, then `FindByEmail` — `provider_sub` wins on conflict, with up to 3 retries on a unique-constraint race before `4015`. Missing-email/unverified-email failures are provider-specific codes, not shared: X with no email → `4017`; Discord with no email → `4025`; Discord with an unverified email → `4024`.
 - `/me` reads are Redis cache-first (≤1 min staleness) with a legacy self-heal: a confirmed user with zero effective permissions gets `EnsureLearnerRole` re-run and the stale cached `permissions: []` payload bypassed.
 - **User slug**: generated from `display_name` on create (gosimple transliteration; fallback `user-{7 chars}`), never auto-follows later `display_name` changes, changed only via `PATCH /me`. Collisions/reserved words/former-own-slugs auto-suffix (never a 409); a slug a user leaves is reserved in `user_slug_history` so another user can't claim it. Reserved words (`admin`, `me`, `api`, …) rejected with 400 before any write.
@@ -28,7 +28,7 @@ Schema detail (columns, FKs, indexes) lives in `docs/DATA-MODEL.md`, not here �
 
 **API:** `POST /api/v1/auth/{register,login,confirm,refresh,logout}`, `POST /api/v1/auth/{google,google/onetap,google/mobile,x,discord}`, `GET/PATCH/DELETE /api/v1/me`, `DELETE /api/v1/me/hard`, `GET /api/v1/me/permissions`.
 
-**Flow:** Register → Brevo confirmation email (rate-limited: 15 lifetime sends / 5 per 4h Redis window) → Confirm (sets `email_confirmed`, assigns `learner` role, issues tokens — all in one transaction) → Login (negative-cache + accessibility + bcrypt gates, in that order) → Refresh (rotates pair, `session_id` unchanged) → Logout (idempotent, revokes session server-side). Detailed step-by-step diagrams below (ported from the former `docs/sequence_diagrams.md`, the only place these exact error-code branches were previously drawn).
+**Flow:** Register → Brevo confirmation email (rate-limited: 15 lifetime sends / 5 per 4h Redis window) → Confirm (sets `email_confirmed`, assigns `learner` role, issues tokens — all in one transaction) → Login (negative-cache + accessibility + bcrypt gates, in that order) → Refresh (rotates pair with a compare-and-swap on the refresh UUID, `session_id` unchanged; the loser of a race gets 401 `4007`) → Logout (idempotent, revokes session server-side). Detailed step-by-step diagrams below (ported from the former `docs/sequence_diagrams.md`, the only place these exact error-code branches were previously drawn).
 
 <details>
 <summary>Detailed flow diagrams (register, confirm, login, refresh, logout)</summary>
@@ -111,7 +111,8 @@ sequenceDiagram
     SVC->>SVC: lookup session[sessionStr] -->|missing or uuid mismatch| 401 4007
     SVC->>SVC: now > entry.RefreshTokenExpired? -->|yes| 401 4008
     SVC->>SVC: new TTL (rememberMe -> 30d else remaining lifetime); rotate access+refresh (new UUID)
-    SVC->>DB: SaveRefreshSession (jsonb_set in-place, session_id unchanged)
+    SVC->>DB: RotateSession (UPDATE only if stored refresh_token_uuid = verified uuid; session_id unchanged)
+    SVC->>SVC: 0 rows (already rotated, revoked or user gone) -->|yes| 401 4007
     H-->>C: 200 {code:0, token_refreshed, access_token, refresh_token, session_id}
 ```
 
@@ -131,7 +132,7 @@ sequenceDiagram
     else uuid mismatch
         SVC-->>H: ErrInvalidSession
     else valid
-        SVC->>DB: RemoveSession; delCachedMe
+        SVC->>DB: RemoveSession (atomic jsonb key delete); delCachedMe
     end
     H->>H: clearAuthCookies (always)
     H-->>C: 401 4007 (invalid session) or 200 logout_success

@@ -77,11 +77,13 @@ type AuthService struct {
 }
 
 // sessionRepo embeds the extended repository methods needed by application layer
-// (AddSession, SaveSession beyond the domain interface).
+// (AddSession, RotateSession beyond the domain interface).
 type sessionRepo interface {
 	domain.RefreshSessionRepository
 	AddSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error
-	SaveSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error
+	// RotateSession replaces the entry only while its stored refresh UUID equals expectedUUID;
+	// it returns domain.ErrInvalidSession when the session was rotated or revoked meanwhile.
+	RotateSession(ctx context.Context, userID, sessionStr, expectedUUID string, entry domain.RefreshSessionEntry) error
 }
 
 // NewAuthService constructs the service.  redis may be nil (cache is skipped when nil).

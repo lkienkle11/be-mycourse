@@ -36,6 +36,7 @@ Old plan Phase 02-12 (each phase had `start` / `core` / `end` todos; difficulty 
 | Shrink `AGENTS.md` under 32 KiB, add `session-context` / `branch-rename` / `docs-sync` skills, fix Commit rule | agent | `shrink-agents-md-under-32kib` |
 | Unify taxonomy slug management (96 / 99 tasks) | unassigned | `unify-taxonomy-slug-management` |
 | `/me` roles field (40 / 41 tasks) | unassigned | `add-me-roles-field` |
+| Atomic refresh-token rotation (compare-and-swap) and no whole-map session overwrites | agent | `fix-refresh-session-rotation-race` |
 
 ## Done
 

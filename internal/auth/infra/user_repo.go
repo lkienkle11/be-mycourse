@@ -15,6 +15,21 @@ import (
 	"mycourse-io-be/internal/shared/timex"
 )
 
+// SQL of the session writers. The guarantees (conditional rotate, row lock, atomic key delete)
+// live in these statements, so they are named constants that tests can assert as text.
+const (
+	sqlRotateSession = "UPDATE " + constants.TableAppUsers +
+		" SET refresh_token_session = jsonb_set(refresh_token_session, ARRAY[?], ?::jsonb, false), updated_at = ?" +
+		" WHERE id = ? AND deleted_at IS NULL AND refresh_token_session -> ?::text ->> 'refresh_token_uuid' = ?"
+	sqlSelectSessionsForUpdate = "SELECT refresh_token_session FROM " + constants.TableAppUsers +
+		" WHERE id = ? AND deleted_at IS NULL FOR UPDATE"
+	sqlStoreSessions = "UPDATE " + constants.TableAppUsers +
+		" SET refresh_token_session = ?::jsonb, updated_at = ? WHERE id = ? AND deleted_at IS NULL"
+	sqlRemoveSession = "UPDATE " + constants.TableAppUsers +
+		" SET refresh_token_session = refresh_token_session - ?::text, updated_at = ?" +
+		" WHERE id = ? AND deleted_at IS NULL AND refresh_token_session -> ?::text IS NOT NULL"
+)
+
 // syncUserRowTimestamps copies persisted row keys onto the domain user after insert.
 func syncUserRowTimestamps(u *domain.User, row *userRow) {
 	u.ID = row.ID
@@ -100,10 +115,11 @@ func (r *GormUserRepository) SaveWithDB(ctx context.Context, db *gorm.DB, u *dom
 	row := toUserRow(u)
 	gormx.TouchUpdated(&row.UpdatedAt)
 	u.UpdatedAt = row.UpdatedAt
-	// slug is owned by CreateWithDB, ChangeSlug and BackfillMissingSlugs and
-	// is never written by a full-row save, so a stale in-memory user can not
-	// revert a slug changed meanwhile.
-	return db.WithContext(ctx).Omit("slug").Save(row).Error
+	// slug is owned by CreateWithDB, ChangeSlug and BackfillMissingSlugs, and
+	// refresh_token_session by GormRefreshSessionRepository. A full-row save
+	// writes neither, so a stale in-memory user can not revert a slug changed
+	// meanwhile or erase a session rotated meanwhile.
+	return db.WithContext(ctx).Omit("slug", "refresh_token_session").Save(row).Error
 }
 
 func (r *GormUserRepository) UpdateDisplayName(ctx context.Context, userID string, displayName string) error {
@@ -146,22 +162,12 @@ func (r *GormRefreshSessionRepository) LoadSessions(ctx context.Context, userID 
 	return toDomainSessionMap(row.RefreshTokenSession), nil
 }
 
-func (r *GormRefreshSessionRepository) SaveSessions(ctx context.Context, userID string, sessions domain.RefreshTokenSessionMap) error {
-	data, err := json.Marshal(sessions)
-	if err != nil {
-		return err
-	}
-	q := fmt.Sprintf(`UPDATE %s SET refresh_token_session = ?::jsonb, updated_at = ? WHERE id = ?`, constants.TableAppUsers)
-	return r.db.WithContext(ctx).Exec(q, string(data), timex.NowUnix(), userID).Error
-}
-
 func (r *GormRefreshSessionRepository) AddSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row struct {
 			RefreshTokenSession RefreshTokenSessionMap `gorm:"type:jsonb"`
 		}
-		q := fmt.Sprintf("SELECT refresh_token_session FROM %s WHERE id = ? AND deleted_at IS NULL", constants.TableAppUsers)
-		if err := tx.Raw(q, userID).Scan(&row).Error; err != nil {
+		if err := tx.Raw(sqlSelectSessionsForUpdate, userID).Scan(&row).Error; err != nil {
 			return err
 		}
 		sessions := toDomainSessionMap(row.RefreshTokenSession)
@@ -177,33 +183,32 @@ func (r *GormRefreshSessionRepository) AddSession(ctx context.Context, userID st
 		if err != nil {
 			return err
 		}
-		uq := fmt.Sprintf(`UPDATE %s SET refresh_token_session = ?::jsonb, updated_at = ? WHERE id = ?`, constants.TableAppUsers)
-		return tx.Exec(uq, string(data), timex.NowUnix(), userID).Error
+		return tx.Exec(sqlStoreSessions, string(data), timex.NowUnix(), userID).Error
 	})
 }
 
+// RemoveSession deletes one session key in a single statement, so it can not overwrite a
+// concurrent rotation or login. A missing key or user is a no-op (idempotent logout).
 func (r *GormRefreshSessionRepository) RemoveSession(ctx context.Context, userID string, sessionStr string) error {
-	sessions, err := r.LoadSessions(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if len(sessions) == 0 {
-		return nil
-	}
-	if _, ok := sessions[sessionStr]; !ok {
-		return nil
-	}
-	delete(sessions, sessionStr)
-	return r.SaveSessions(ctx, userID, sessions)
+	return r.db.WithContext(ctx).Exec(sqlRemoveSession, sessionStr, timex.NowUnix(), userID, sessionStr).Error
 }
 
-func (r *GormRefreshSessionRepository) SaveSession(ctx context.Context, userID string, sessionStr string, entry domain.RefreshSessionEntry) error {
+// RotateSession replaces the session entry only while its stored refresh_token_uuid equals
+// expectedUUID. It returns domain.ErrInvalidSession when no row matched (the session was
+// rotated, revoked or the user is gone), so exactly one of several concurrent refreshes wins.
+func (r *GormRefreshSessionRepository) RotateSession(ctx context.Context, userID, sessionStr, expectedUUID string, entry domain.RefreshSessionEntry) error {
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return err
 	}
-	q := fmt.Sprintf(`UPDATE %s SET refresh_token_session = jsonb_set(refresh_token_session, ARRAY[?], ?::jsonb, true), updated_at = ? WHERE id = ? AND deleted_at IS NULL`, constants.TableAppUsers)
-	return r.db.WithContext(ctx).Exec(q, sessionStr, string(data), timex.NowUnix(), userID).Error
+	res := r.db.WithContext(ctx).Exec(sqlRotateSession, sessionStr, string(data), timex.NowUnix(), userID, sessionStr, expectedUUID)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return domain.ErrInvalidSession
+	}
+	return nil
 }
 
 func (r *GormRefreshSessionRepository) IncrementEmailSendCount(ctx context.Context, userID string) (int, error) {

@@ -304,7 +304,7 @@ Note: `RequirePermission` only ever checks the JWT-embedded permission set in th
 | 401 | 4004 | `EmailNotConfirmed` | Login before email confirmation |
 | 403 | 4005 | `UserDisabled` | Account disabled |
 | 400 | 4006 | `InvalidConfirmToken` | Stale or unknown confirmation token |
-| 401 | 4007 | `InvalidSession` | Session ID unknown or UUID mismatch |
+| 401 | 4007 | `InvalidSession` | Session ID unknown, UUID mismatch, or refresh rotation lost to a concurrent refresh |
 | 401 | 4008 | `RefreshTokenExpired` | DB-stored refresh expiry has passed |
 | 410 | 4009 | — | Registration lifetime confirmation-email cap exceeded (pending row deleted) |
 | 429 | 4010 | — | Registration Redis rate-limit window exceeded |

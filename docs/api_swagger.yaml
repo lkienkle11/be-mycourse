@@ -1356,6 +1356,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginSessionTokensResponse"
+        "400":
+          description: Missing X-Refresh-Token or X-Session-Id
+        "401":
+          description: Invalid session (malformed token, unknown session, UUID already rotated or lost concurrent refresh; code InvalidSession) or refresh token expired (code RefreshTokenExpired); clients must clear their session cookies
+        "403":
+          description: Account disabled (UserDisabled) or banned (UserBanned)
 
   /api/v1/auth/logout:
     post:
